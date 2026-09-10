@@ -1,0 +1,556 @@
+# Traspaso: del RAG de FIREtech a Rosa, la IA del proyecto Alzheimer
+
+Este documento existe porque la memoria de Claude Code va atada a la carpeta
+del proyecto. Al cambiar de carpeta, la sesión nueva empieza sin ninguno de
+los archivos ni de las memorias de la anterior. Aquí está todo lo que hace
+falta para continuar. **Léelo entero antes de tocar nada en el proyecto
+nuevo.** La carpeta `memoria/` de al lado contiene las reglas de trabajo de
+Emir tal como se guardaron; hay que copiarlas al directorio de memoria del
+proyecto nuevo (`~/.claude/projects/<carpeta-con-guiones>/memory/`) para que
+se apliquen desde la primera sesión.
+
+Fecha del traspaso: 9 de septiembre de 2026. Junto a este documento está
+`GUIA-ROSA.md` (10 de septiembre): el conocimiento de fondo del proyecto, el
+Alzheimer a nivel de ingeniero, el investigador principal, las fuentes de
+datos con sus APIs y límites, la ingeniería del bucle con la API exacta de
+GEPA, la evaluación, y el marco legal y ético dominicano. Se lee después de
+este. Y `UI-ROSA.md` (10 de septiembre): la interfaz de Rosa tomando como
+referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
+
+## 1. Quién y para qué
+
+- **Emir Malek** (correo de empresa emir.malek@airobotix.net, solo para
+  identificarlo, nunca enviarlo a servicios externos). Ingeniero de IA en
+  **AI Robotix**, República Dominicana. Lleva una semana en la empresa.
+- **El proyecto**: investigación del Alzheimer, alianza entre el INTEC
+  (Instituto Tecnológico de Santo Domingo) y AI Robotix, anunciada en febrero
+  de 2026, con respaldo anunciado del Gobierno dominicano. Investigador
+  principal: el neurólogo argentino **Ricardo Allegri**. CEO de AI Robotix:
+  Juan Carlos Guilbe. La plataforma pública ya procesó más de 232.000
+  artículos y repositorios de RNA-Seq, aisló 3.223 conjuntos de datos
+  candidatos, y se conecta a NVIDIA BioNeMo, Amazon Bio Discovery y Cloud
+  Sciences. Fase siguiente anunciada: estudios en modelos preclínicos.
+- **El equipo del agente nuevo son dos personas**: Emir y un compañero que es
+  a la vez ingeniero de IA, médico e investigador (él propuso a Emir al jefe).
+  Los programadores de la empresa no participan.
+- **El sistema se llama Rosa.** Es la IA del proyecto Alzheimer, y lo que Emir
+  construye ya es Rosa, no un prototipo aparte: su compañero fue explícito en
+  que "es parte del sistema completo, no hay individualidad, todo va de la
+  mano". Cuando Emir dice "el modelo" suele referirse al sistema completo, no
+  a un modelo de lenguaje; los modelos del gateway son piezas intercambiables
+  dentro de Rosa, como el índice o el juez.
+- **Lo que van a construir**, según se lo explicó el compañero a Emir: un
+  bucle en el que Rosa investiga en internet literatura del Alzheimer sin
+  tiempo definido (días), acumula lo relevante y "se hace experta". Usarán
+  **DSPy** y su optimizador **GEPA**. Los detalles finos aún no se los han
+  dado; Emir irá contando lo que le expliquen.
+- **El RAG anterior** (`/Users/emirmalek/FIREtech-RAG`, repositorio PÚBLICO
+  `EmirMaleckFrias/FIREtech-RAG`) es un asistente para una médica que
+  responde solo con documentos indexados, con cita por afirmación y una
+  barrera de verificación antes de publicar. Sigue en producción (despliegue
+  de Convex `gregarious-pony-327`, sitio `https://rag-ai-robotix.vercel.app`)
+  y **no hay que tocarlo desde el proyecto nuevo**. Emir decidió que las
+  piezas útiles del RAG se **portan** al proyecto nuevo, no se llaman como
+  servicio.
+
+## 2. Reglas de trabajo de Emir (resumen; el detalle está en `memoria/`)
+
+1. **Proveedor de modelos: el AI Gateway de Vercel, nunca la API de OpenAI
+   directa.** La empresa cubre el gateway. Clave `vck_…` y
+   `OPENAI_BASE_URL=https://ai-gateway.vercel.sh/v1`; los modelos llevan
+   prefijo de proveedor (`openai/gpt-5.4`, `openai/gpt-5.4-mini`,
+   `openai/text-embedding-3-large`). El gateway es multiproveedor: los
+   modelos de Anthropic y otros se piden con su prefijo (`anthropic/…`) con
+   la misma clave; el catálogo exacto se consulta en `GET /v1/models`. **El
+   coste por token no es criterio de decisión**; se argumenta por calidad,
+   latencia y capacidad. La clave está en
+   `/Users/emirmalek/FIREtech-RAG/backend/.env` (variables `OPENAI_API_KEY` y
+   `OPENAI_BASE_URL`); se lee de ahí, nunca se copia a un chat ni a un repo.
+2. **La persona usuaria final es médica, no programadora.** Todo lo que deba
+   hacer ella va con botones y estado visible en la interfaz, en español,
+   nunca con variables de entorno, tokens ni terminal.
+3. **Intentar romper el propio cambio antes de cerrarlo**: escribir el test
+   adversarial, ejecutar el camino modificado de punta a punta, preguntarse
+   qué asume el cambio que antes no se asumía. No concluir con muestras de
+   cinco; medir con diez.
+4. **Aplicar los arreglos ya diagnosticados sin pedir permiso.** Y cuando
+   Emir dice "arréglalo" tras una lista de hallazgos, se refiere a la lista
+   entera: partirla en "estos los hago, estos los decides tú" y ejecutar solo
+   la primera parte lo lee como trabajo esquivado. Si algo de verdad necesita
+   su decisión, se le pregunta explícitamente y aparte, antes de empezar.
+5. **Probar con preguntas humanas y ambiguas**, como las escribiría una médica
+   con prisa, no con prompts perfectos. Los fallos que le importan son los
+   realistas, no los conseguidos con abusos de volumen.
+6. **Las referencias a documentos son genéricas** ("el PDF", "el documento de
+   sistemas eléctricos"): cualquier función que resuelva una referencia debe
+   contemplar el nombre, la pista genérica y la descripción por tema.
+7. **Las citas resuelven a la página exacta**: un desfase de una página es un
+   fallo grave, porque la usuaria lo comprueba contra el PDF.
+8. **Mejorar el agente significa hacerlo más inteligente** (razonar y
+   recuperar mejor), no trabajo periférico de robustez.
+9. **Verificar credenciales y configuraciones empíricamente** contra el
+   servicio real antes de descartarlas por su forma.
+10. Higiene del repositorio: escanear antes de cada commit los patrones
+    `sk-proj-`, `sb_secret_`, `vcp_`, `vck_`, `github_pat_`, `ghp_`,
+    `eyJhbGci`, `eyJ2MiI6`, `ntn_`, `secret_`, `GOCSPX-`. Cualquier clave que
+    aparezca en un chat se rota. Sin guiones largos (U+2014) en código,
+    comentarios ni interfaz. Sin límites artificiales que hagan fallar una
+    operación: si algo tarda, se enseña progreso.
+11. Emir habla en español coloquial dominicano ("bro", "klk", "dale"). Se le
+    responde en español, directo, con el resultado aplicado y verificado, y
+    diciendo con honestidad lo que no se pudo verificar.
+
+### 2.1 Catálogo del gateway, comprobado el 9 sep 2026
+
+Consultado `GET /v1/models` con la clave de Emir: 373 modelos de 36
+proveedores, entre ellos `anthropic`, `openai`, `google`, `meta`, `mistral`,
+`deepseek`, `nvidia`, `cohere`, `voyage` y `perplexity`. Modelos de Anthropic
+disponibles con esa misma clave: `anthropic/claude-fable-5.1`,
+`anthropic/claude-fable-5`, `anthropic/claude-opus-5`,
+`anthropic/claude-opus-5-fast`, `anthropic/claude-sonnet-5`,
+`anthropic/claude-haiku-4.5`, y las series 4.x (opus 4 a 4.8, sonnet 4 a 4.6,
+3-haiku). Es decir: **no hay que seguir con GPT por obligación**; se elige el
+modelo por calidad y latencia para cada componente, y se cambia con el nombre.
+
+### 2.2 Modelos elegidos para el agente nuevo (decisión de Emir, 9 sep 2026)
+
+**Por ahora: `openai/gpt-6-astra`, `anthropic/claude-opus-5` y
+`anthropic/claude-sonnet-5`. Claude Fable 5.1 queda fuera de Rosa (ver 2.3).**
+El RAG anterior sigue con sus modelos
+(`openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/text-embedding-3-large`);
+la decisión es para el proyecto nuevo.
+
+Reparto decidido por Emir el 9 sep 2026, a confirmar midiendo:
+
+| Pieza | Modelo | Por qué |
+|---|---|---|
+| Cerebro del bucle: planificar, generar hipótesis, meta-revisión, coherencia en contexto largo | **GPT-6 Astra** | Primero en los rankings agregados de razonamiento; GPQA Diamond 96,0; Frontier Math nivel 4 97,6; ARC-AGI-2 95; y en contexto largo MRCR v2 con ocho agujas acierta el 100 % entre 256K y 512K y el 96,3 % entre 512K y 1M (Fable no publica esa cifra). Robustez documentada a inyección de instrucciones del 99,79 % y a la jerarquía de instrucciones del 99,99 %. Retención de datos "parcial" según el gateway: revisar la política antes de material sensible |
+| Juez del verificador: la métrica de GEPA y el veto final, de otra familia que el cerebro | **Claude Opus 5** | Primera fila (HLE con herramientas 63,6), retención cero de datos y sin entrenamiento, y respondió las tres preguntas de biología molecular que a Fable le bloqueó el filtro de doble uso. Emir había elegido a Fable 5.1 por intuición de que "acierta más que GPT", y los datos lo sostenían en conocimiento (AA-Omniscience 85 % de precisión frente a 81 % de Astra, HLE 65,0 frente a 57,2), pero Fable no puede ser juez de Rosa: ver 2.3. Sigue vigente la prueba comparada como jueces (Opus 5 frente a Astra) sobre casos aprobados por humanos |
+| Alto volumen sin poder de veto: extractor de afirmaciones, calificador, triaje previo del juez | Claude Sonnet 5 | Nivel alto a velocidad de Sonnet, retención cero. El triaje deja pasar solo lo claramente sostenido y manda al juez lo dudoso más una muestra aleatoria de lo aprobado |
+| Reserva | Claude Fable 5.1, solo si la empresa obtiene acceso verificado para ciencias de la vida | Ver 2.3 |
+
+**Condición sobre el juez, antes de fijarlo**: prueba comparada de Opus 5 y
+GPT-6 Astra como jueces sobre los casos aprobados por humanos, midiendo
+acuerdo con la etiqueta humana y, por separado, cuántas veces cada uno dice
+"sin verificar" cuando no sabe. No hay benchmark público de jueces con estos
+modelos; los estudios de acuerdo con humanos que existen son de generaciones
+anteriores y sitúan a todos los de frontera por encima del 90 %, así que la
+calibración con casos humanos pesa más que la elección. La pareja Astra de
+cerebro y Opus 5 de juez cumple lo que el diseño exige: familias distintas
+(no comparten puntos ciegos) y un juez de primera fila.
+
+### 2.3 Por qué Claude Fable 5.1 queda fuera de Rosa (comprobado el 10 sep 2026)
+
+Emir preguntó si era cierto que "Fable 5.1 no responde nada científico". Lo
+es en parte, y la parte que falla es la que Rosa necesita:
+
+- **Política de Anthropic.** Fable 5 y 5.1 llevan clasificadores de seguridad
+  para capacidades de doble uso. En biología bloquean **virología,
+  toxicología, diseño de fármacos y diseño molecular**, y Anthropic lo dice
+  literalmente: Fable "isn't yet usable for professional biology research and
+  drug development". En claude.ai una consulta bloqueada se desvía a Opus 5 y
+  el usuario ve un aviso. **En la API el desvío automático no está activo por
+  defecto**: la respuesta llega con un motivo de parada especial. La vía para
+  investigación legítima es el programa de acceso verificado para ciencias de
+  la vida (por invitación) y los programas de acceso de confianza de Mythos.
+- **Medido por el gateway con la clave de Emir.** De diez preguntas del
+  dominio del Alzheimer, Fable respondió las de biomarcadores, mecanismo
+  APOE4/TREM2, mecanismo del lecanemab, diseño de análisis de RNA-seq y una
+  tarea de juez; y devolvió **vacío con `finish_reason: content-filter`** en
+  cinéticas de agregación del beta amiloide, en generación de hipótesis
+  mecanísticas sobre el inflamasoma NLRP3 y la propagación de tau, y en
+  evidencia genética y agonistas en ensayo de TREM2 como diana (en esta
+  última generó 357 tokens y los filtró). Opus 5, GPT-6 Astra y Sonnet 5
+  respondieron las tres.
+- **Consecuencia.** Un juez o un cerebro que devuelve vacío justo en las
+  hipótesis mecanísticas y en las dianas terapéuticas rompe Rosa donde más
+  importa. Fable no entra en ninguna pieza de Rosa mientras la empresa no
+  tenga acceso verificado; si lo consigue, se reevalúa con la misma prueba.
+  Y ojo con la generación de hipótesis en general: los filtros distinguen mal
+  entre "diseño molecular" y "mecanismo de enfermedad", así que cualquier
+  modelo con salvaguardas parecidas hay que probarlo con las preguntas reales
+  antes de fijarlo, mirando `finish_reason` y el campo `model` de cada
+  respuesta.
+
+Descartados por ahora y por qué: **DeepSeek V4 Pro** (entrena con datos según
+el gateway), **Gemini 3.8 Flash** (buen candidato para triaje por fidelidad y
+velocidad, no elegido de momento).
+Embeddings: se mantiene `openai/text-embedding-3-large` hasta medir
+`voyage/voyage-4-large` con las métricas de recuperación del RAG. Rerankers
+(`voyage/rerank-2.5`, `cohere/rerank-v4-pro`) como experimento para
+sustituir la primera pasada del calificador, medido contra los casos.
+
+Configuración en DSPy (endpoint compatible con OpenAI del gateway):
+
+```python
+import dspy
+lm = dspy.LM("openai/anthropic/claude-opus-5",
+             api_base="https://ai-gateway.vercel.sh/v1",
+             api_key=CLAVE_VCK)   # la clave sale del entorno, nunca del código
+dspy.configure(lm=lm)
+```
+
+El prefijo `openai/` es el de LiteLLM para "endpoint compatible con OpenAI"; el
+resto es el id del modelo en el gateway. **Comprobado el 9 sep 2026**: los tres
+ids responden por `POST /v1/chat/completions` del gateway con la clave de Emir
+(una llamada mínima a cada uno devolvió la palabra pedida y su `usage`), así
+que la configuración de arriba funciona sin ningún adaptador. Los optimizadores de DSPy producen
+prompts específicos de cada modelo: al cambiar de modelo se reoptimiza, así que
+el arnés de comparación queda montado desde el principio.
+
+## 3. Estado del entorno de Emir
+
+- Mac con Apple Silicon. `uv` instalado en `~/.local/bin/uv`. Python 3.12.14
+  instalado por uv (`~/.local/bin/python3.12`); el Python del sistema es
+  3.9.6 y **no sirve** (DSPy exige 3.10 o superior).
+- Versiones en PyPI a la fecha: `dspy` 3.3.1 (requiere Python de 3.10 a
+  3.14), `mlflow` 3.16.0.
+- Node y `npx convex` funcionan desde `/Users/emirmalek/FIREtech-RAG/frontend`
+  (la clave de despliegue de producción está en su `.env.local`).
+- Conectores de claude.ai disponibles pero **sin autorizar** en la cuenta de
+  Emir: PubMed, ChEMBL, Clinical Trials, bioRxiv. Serían útiles para el
+  proyecto nuevo; se autorizan desde los ajustes de conectores de claude.ai.
+
+## 4. Lo que el RAG tiene y conviene portar
+
+Rutas absolutas en `/Users/emirmalek/FIREtech-RAG/frontend/convex/`. Están en
+TypeScript (Convex). El proyecto nuevo será Python (DSPy), así que "portar" es
+reescribir con los mismos contratos y traer los tests adversariales.
+
+| Orden | Pieza | Fichero | Líneas | Por qué |
+|---|---|---|---|---|
+| 1 | Citas y localizadores | `lib/citas.ts` | 178 | Formato de cita, patrón, clave de comparación, fórmulas de abstención |
+| 1 | Núcleo determinista del verificador | `agente/verificador.ts` | 1.407 (la mitad es determinista) | Troceo en afirmaciones, resolución de citas, identificadores, cifras, ausencias puras |
+| 2 | El juez del verificador | `agente/verificador.ts` (`SISTEMA`, `dictaminar`, `dictaminarEnLotes`) | | Como módulo de DSPy, optimizable contra casos aprobados por humanos |
+| 3 | La crítica por afirmación | `agente/revisor.ts` (`_critica`) | 948 en total | Es el feedback textual que GEPA aprovecha |
+| 4 | Comprobación de ausencias contra el índice | `agente/ausencias.ts` | 247 | Cuando exista corpus indexado en el proyecto nuevo |
+| 5 | Búsqueda híbrida, términos, calificador | `search/hybrid.ts`, `search/terminos.ts`, `agente/calificador.ts` | 583 + 165 + 271 | Capa de lectura del corpus |
+| 5 | Ingesta de PDF por página, contexto por fragmento | `ingesta/pdf.ts`, `ingesta/chunking.ts`, `ingesta/contexto.ts` | 1.145 + 261 + 305 | Fragmentos que no cruzan de página; contexto de recuperación |
+| 5 | Retractaciones (Crossref) | `retracciones.ts` | 203 | Filtro de entrada: no construir sobre artículos retractados |
+| 6 | Telemetría y gateway | `lib/telemetry.ts`, `lib/gateway.ts` | 194 + 424 | Coste y tiempo por componente; política de reintentos y de razonamiento |
+| 6 | Puntuación de la evaluación | `evaluacion/puntuar.ts` | 941 | Métricas de recuperación: MRR, hit@k, precisión de contexto, atribuciones de entidad, etapa de fallo |
+
+Documentación de referencia del RAG: `/Users/emirmalek/FIREtech-RAG/SPEC.md`
+(la especificación completa, secciones 7 a 11 para clasificación, evidencia,
+citas, verificador y barrera), `/Users/emirmalek/FIREtech-RAG/frontend/convex/CONTRATO.md`
+(interfaces), `/Users/emirmalek/FIREtech-RAG/docs/OPERACION.md`.
+
+### 4.1 Contratos del verificador que hay que conservar
+
+- **Veredictos**: `sostenida`, `parcial`, `no_sostenida` (los tres los da el
+  juez), y los deterministas `cita_no_resuelve`, `sin_cita`,
+  `ausencia_refutada`, más `sin_verificar` por defecto (nunca se aprueba por
+  omisión). `entidad_distinta` es una marca sobre `no_sostenida`: el dato es
+  real pero de otra entidad (otro fármaco, cohorte, población, estudio).
+- **Bloquean la publicación**: `no_sostenida`, `cita_no_resuelve`,
+  `sin_cita`, `ausencia_refutada`. `parcial` y `sin_verificar` no bloquean
+  (medido: exigir todo sostenido tumbaba 7 de cada 10 respuestas reales).
+  Nunca se aprueba un informe sin ninguna señal.
+- **Fidelidad** = sostenidas / juzgadas por el juez. `null` si no se juzgó nada.
+- **Troceo**: la cita `[fuente, localizador]` respalda todo el tramo desde la
+  cita anterior; la última frase del tramo es la dueña y se audita siempre;
+  las demás se auditan contra la misma cita, salvo las declaraciones puras de
+  ausencia. Varias citas seguidas son de la misma frase. Lo que queda tras la
+  última cita sin cita propia es `sin_cita`. Encabezados de lista, restos sin
+  letras y frases con `[inventario del índice]` no se juzgan.
+- **Fórmulas de abstención** (patrones, sin distinguir mayúsculas):
+  `no (?:lo |la )?encuentro`, `no (?:aparece|figura|consta)`,
+  `no hay (?:evidencia|informaci[oó]n|datos)`,
+  `los documentos no (?:indican|mencionan|contienen|permiten)`,
+  `no (?:pude|se pudo|fue posible) comprobar`. Distinguir siempre "no está en
+  los documentos" (ausencia) de "no pude comprobar" (la búsqueda o la
+  comprobación no llegó): confundirlas es el error que más daño hace a quien
+  investiga.
+- **Ausencia pura**: casa con las fórmulas y no afirma nada de su cosecha. Lo
+  que la descalifica es una cifra con forma de medida (decimal, porcentaje, o
+  número tras un verbo de afirmación como fue, hubo, alcanzó) o una segunda
+  cláusula (pero, aunque, sin embargo, no obstante, en cambio, mientras que,
+  punto y coma). Un entero pegado a un nombre ("GEN 1", "28 Vcc", "2023") NO
+  la descalifica. Antes era "no contiene dígitos" y borraba declaraciones
+  honestas: nunca volver a eso.
+- **Ausencia refutada**: la frase declara ausente una expresión identificadora
+  (sigla en mayúsculas, nombre propio, o token con dígitos que no sea número
+  pequeño suelto ni año), esa expresión no está en ningún fragmento
+  recuperado, y sí aparece como palabra entera y frase contigua en un
+  fragmento del alcance. Entonces la ausencia es una búsqueda que no llegó.
+  Condiciones mínimas: identificadores, no palabras corrientes ("cuatro" no
+  cuenta); frase contigua ("90 KVA", no "90" y "KVA" sueltos); palabra entera
+  ("737" no casa en "1737"). La fórmula "no pude comprobar" no se refuta.
+- **Identificadores** (NCT, DOI, rs, PMID): si no aparecen en el fragmento
+  citado, `no_sostenida` determinista, sin juez. Las cifras se normalizan
+  (coma o punto decimal, separadores de miles) y van al juez como pista, no
+  como veredicto.
+- **Entidad**: el juez recibe la pregunta y el apartado (encabezado) de cada
+  frase; `entidad_distinta` solo si la otra entidad aparece en el texto o en
+  el encabezado del fragmento, no solo en su contexto; las comparaciones
+  explícitas están exentas.
+- **Cita de PDF**: `[fuente, pág. N]`, y `pág. N-M` si el fragmento cruza de
+  página (solo pasa cuando el propio párrafo lo hace). La fuente es la
+  referencia corta ("Allegri et al., 2023") si la autoría está corroborada, si
+  no el nombre del fichero; nunca el título.
+- **Tres textos de abstención**: "no encuentro respaldo suficiente" solo cuando
+  el borrador se comprobó y no se sostuvo; "no pude comprobar la respuesta en
+  el tiempo disponible" cuando venció el reloj; "la comprobación no estuvo
+  disponible" cuando el juez no dictaminó. Antes había uno solo y mentía.
+- **Crítica al redactor** (`_critica`): una línea por afirmación no sostenida
+  con veredicto, texto, cita y motivo; instrucciones especiales para
+  `entidad_distinta` (atribuir a la otra entidad o quitar) y para
+  `ausencia_refutada` (cambiar "no encuentro X" por "no pude comprobar X" sin
+  contar lo que dice esa página); y por punto del plan, qué hacer con la
+  evidencia no usada.
+
+### 4.2 Otras decisiones medidas que valen para el agente nuevo
+
+- Los fragmentos de PDF **no cruzan de página** (empaquetado por sección y
+  página); el solape no arrastra la página anterior. Medido: citar la primera
+  página de un fragmento de tres páginas dejaba citas desfasadas.
+- **Recuperación contextual**: una o dos frases escritas por un modelo al
+  indexar que sitúan el fragmento (estudio, población, biomarcador, sección).
+  Entran en el embedding y en un índice léxico propio; **no son evidencia**:
+  el redactor y el juez solo leen el texto original.
+- **La evidencia la recupera código, no el modelo**: plan de puntos (o partes
+  de una pregunta compuesta), búsqueda paralela por punto, calificador que
+  lee cada candidato y da grado (directa, parcial, ninguno), fusión RRF de
+  denso y léxico. El modelo solo tiene búsquedas extra acotadas.
+- **Verificación anticipada**: juzgar el borrador por párrafos mientras se
+  redacta; la misma frase con la misma cita y apartado recibe el mismo
+  veredicto, así que se reutiliza (clave de afirmación = texto + cita +
+  encabezado).
+- **Presupuesto**: el turno del RAG tiene 540 s. Medido: una petición de 150
+  afirmaciones dejó al redactor 383 s y la auditoría no cupo. Para un bucle de
+  días, la lección es presupuesto por iteración con punto de guardado, no un
+  reloj total.
+- **Alcance a un documento**: la pista se resuelve por nombre y título, por
+  formato si es genérica ("el PDF" con un solo PDF), y por contenido (aciertos
+  léxicos con dominio: 60 % de la muestra y el doble que el siguiente) si no
+  encaja ningún nombre. Si no identifica uno, se busca en todos y la respuesta
+  dice de dónde sale cada dato.
+- **Preguntas compuestas**: el clasificador devuelve las partes (hasta cuatro,
+  con inglés) y en modo normal cada una tiene su búsqueda. Sin esto, una
+  pregunta con cuatro dudas repartía diez fragmentos y declaraba ausente lo
+  que el documento sí trataba.
+- **Ataques que el RAG resiste**, útiles como suite de regresión del agente
+  nuevo: premisas falsas con valores equivocados, cita a figura inexistente,
+  cálculo no documentado, documento inexistente, entidad fuera del corpus,
+  inyección de instrucciones contra las citas y contra las declaraciones de
+  ausencia, extracción del prompt, porcentaje de confianza inventado,
+  inundación del contexto con una falsedad repetida 120 veces con citas
+  falsas, y prohibición de citar con exigencia de respaldo. Falló solo en
+  volumen (150 afirmaciones) y en una ausencia falsa por ambigüedad, ya
+  arreglada.
+
+### 4.3 Casos de control
+
+`casos_evaluacion.jsonl` (al lado de este documento): los 17 casos de control
+que el RAG generó sobre el corpus de Emir. Campos: `clave`, `categoria`
+(single_hop, multi_hop, tabla, abstencion, entidad), `pregunta`,
+`respuestaEsperada`, `definicion` (con `answer_must_contain`,
+`answer_must_not_contain`, `evidence`, `critical`), `modo`, `estado`. **Los 17
+están en estado `propuesto`, sin aprobar por un humano**: sirven para probar el
+ciclo de optimización, no como verdad de referencia. Emir o su compañero deben
+revisarlos (en el RAG: Ajustes > Calidad) o escribir casos nuevos del dominio
+del Alzheimer.
+
+## 5. Lo investigado sobre el agente nuevo
+
+### 5.1 Referencias que ya hacen lo que el compañero describe
+
+- **Kosmos** (Edison Scientific, antes FutureHouse; artículo arXiv
+  2511.02824). Corridas largas sobre una pregunta: lee unos 1.500 artículos y
+  ejecuta unas 42.000 líneas de código de análisis por corrida, alternando
+  literatura, análisis de datos e hipótesis; devuelve un informe con cada
+  conclusión trazable al pasaje o a la línea de código. Precisión declarada
+  por ellos: 79,4 % de conclusiones correctas. Innovación central: un **modelo
+  de mundo estructurado** que acumula lo extraído de cientos de trayectorias
+  y mantiene la coherencia durante decenas de millones de tokens. Fallo que
+  reconocen: perseguir "agujeros de conejo" estadísticamente significativos
+  pero irrelevantes; lo mitigan con varias corridas por objetivo. Los
+  usuarios estiman una corrida en seis meses de trabajo. Avisa por Slack,
+  Teams y correo; tiene API (subir datos, definir tareas en Python). Producto
+  cerrado, on-prem, SOC2.
+- **Co-Scientist** (Google DeepMind, publicado en Nature en 2026). Sistema
+  multiagente asíncrono: generación (lee literatura y propone hipótesis),
+  reflexión (revisor por pares), proximidad (agrupa y quita duplicados),
+  ranking por **torneo Elo**, evolución (refina las mejores), meta-revisión
+  (hoja de ruta), supervisor. Objetivo en lenguaje natural; la científica
+  puede aportar ideas. Producto cerrado (Gemini Enterprise, por contacto
+  comercial).
+- **Ninguno hace que el modelo aprenda pesos durante el bucle.** Lo que
+  aprende es el sistema: memoria estructurada con procedencia, hipótesis
+  clasificadas, corpus curado. La literatura lo llama aprendizaje continuo en
+  tiempo de inferencia. El ajuste de pesos es un paso aparte, al final, con
+  datos curados (DSPy tiene `BootstrapFinetune` para destilar prompts en
+  pesos).
+
+### 5.2 DSPy y GEPA
+
+- DSPy: framework de Python del grupo de PLN de Stanford, licencia MIT.
+  Primitivas: **Signature** (entrada y salida), **Module** (estrategia:
+  `Predict`, `ChainOfThought`, `ReAct`), **Program** (módulos compuestos),
+  **Metric** (función que puntúa, mayor es mejor), **Optimizer** (compila el
+  programa contra la métrica). Tú escribes los módulos, el optimizador
+  escribe los prompts. Un optimizador necesita programa, métrica y datos
+  (bastan 5 a 10 ejemplos para empezar).
+- Optimizadores: `LabeledFewShot`, `BootstrapFewShot` (unos 10 ejemplos),
+  `BootstrapFewShotWithRandomSearch` (50 o más), `KNNFewShot`, `COPRO`,
+  `MIPROv2` (200 o más; bayesiano sobre instrucciones y ejemplos), `SIMBA`,
+  **`GEPA`** (reflexivo: lee las trayectorias, razona en texto sobre qué
+  falló, propone prompts; explota el feedback textual), `BootstrapFinetune`,
+  `Ensemble`, `BetterTogether`.
+- GEPA (arXiv 2507.19457): supera a MIPROv2 en más de un 10 % y al refuerzo
+  (GRPO) con hasta 35 veces menos intentos; la razón que dan es que el
+  lenguaje enseña más que una recompensa escalar. **Encaje con el RAG**: la
+  crítica por afirmación del verificador es exactamente ese feedback textual;
+  la tasa de sostenidas y la cobertura son la métrica; los casos de control
+  son el conjunto de desarrollo.
+- Observabilidad: MLflow con `mlflow.dspy.autolog()` registra cada
+  compilación como corrida con sus evaluaciones anidadas, parámetros del
+  optimizador y progresión de la métrica; la pestaña de trazas enseña paso a
+  paso cada módulo. No hay que construir esa interfaz.
+- DSPy usa LiteLLM por debajo; con un endpoint compatible con OpenAI se
+  configura `dspy.LM("openai/<id del modelo en el gateway>", api_base=<URL
+  del gateway>, api_key=<clave vck>)`. Con el gateway, el id lleva su prefijo
+  de proveedor dentro (por ejemplo `openai/openai/gpt-5.4` o
+  `openai/anthropic/<modelo>`); comprobarlo empíricamente con una llamada.
+- **Circularidad a evitar**: el juez no se optimiza contra la métrica que él
+  mismo define. El juez se optimiza contra etiquetas humanas (casos
+  aprobados); el extractor de afirmaciones y el generador de hipótesis se
+  optimizan contra el juez. Mantener las guardias deterministas y los casos
+  con verdad conocida dentro de la métrica, para que el programa no aprenda a
+  contentar al juez.
+
+### 5.3 Arquitectura propuesta del bucle
+
+Iteraciones cortas con presupuesto propio y punto de guardado, no una corrida
+de días: planificar, buscar (PubMed, bioRxiv, Open Targets: 7,8 millones de
+asociaciones diana-enfermedad con evidencia y API GraphQL gratuita), extraer
+afirmaciones con procedencia, verificar, actualizar el modelo de mundo,
+reordenar las preguntas abiertas, volver a empezar. Antes de la primera
+iteración: qué cuenta como relevante, quién revisa, cuándo se para. Filtro de
+retractaciones a la entrada. **La aprobación va antes del efecto**: una
+hipótesis no entra al modelo de mundo como aceptada ni se gasta un presupuesto
+grande en ella sin que alguien la haya visto (estado durable durante la
+espera, pantalla de revisión con contexto, rastro de auditoría).
+
+### 5.4 Interfaz
+
+Lo que corre sin pantalla: el bucle, los conectores, el verificador, el
+modelo de mundo, la optimización con DSPy (MLflow presta su interfaz). Lo que
+sí necesita pantalla: definir el objetivo con límites y condición de parada;
+ver el avance de una corrida larga y dirigirla o ramificarla; cola de
+revisión de hipótesis (aceptar, descartar, refinar) con la procedencia al
+lado; informe navegable con citas; explorador de la memoria (qué se sabe, qué
+está abierto, qué se descartó y por qué); calidad y operación. El frontend
+del RAG (React, suscripciones reactivas de Convex, pasos en vivo, panel de
+fuentes con página exacta, insignia de verificación por afirmación, pestaña de
+Calidad) cubre la mitad y sirve de modelo. Avisos por correo o Slack cuando
+haya hallazgos que revisar, porque el bucle trabaja cuando nadie mira.
+
+## 6. Plan acordado para el primer día
+
+1. Emir crea un repositorio y una carpeta nuevos (fuera del RAG). Pendiente:
+   la ruta.
+2. Entorno con `uv` y Python 3.12, `dspy` y `mlflow`; DSPy apuntando al AI
+   Gateway de Vercel con los tres modelos elegidos (ver 2.2); una llamada de
+   prueba con cada uno.
+3. Portar la pieza 1 (citas y núcleo determinista del verificador) con sus
+   tests adversariales traídos del RAG.
+4. Un primer programa DSPy: extraer afirmaciones con cita a partir de
+   fragmentos, con el verificador como métrica, sobre los 17 casos
+   (recordando que no están aprobados). Primero `BootstrapFewShot`, luego
+   `GEPA` con la crítica como feedback.
+5. Copiar la carpeta `memoria/` al directorio de memoria del proyecto nuevo, y
+   dejar este documento dentro del repo (por ejemplo `docs/TRASPASO.md`) con
+   un `CLAUDE.md` que lo señale.
+
+## 7. Los modelos dentro de Rosa, el ajuste posterior y las tres Mac
+
+Emir preguntó si importaba que los modelos del gateway no fueran "el modelo"
+final; aclaró después que con "modelo" se refería al sistema completo, que es
+Rosa, y que la empresa tiene **tres Mac de gama alta de Apple** para Rosa (falta confirmar chip y memoria unificada de cada
+una; la referencia de septiembre de 2026 es el Mac Studio con M5 Ultra, hasta
+512 GB de memoria unificada y 1,2 TB/s, disponible en octubre en la
+configuración de 512 GB). Lo acordado como flujo:
+
+1. **Hoy los modelos del gateway son los maestros, no el producto final.** El
+   diseño mantiene el modelo como pieza intercambiable (DSPy separa programa y
+   modelo). Lo que se acumula y vale es independiente del modelo: el corpus
+   curado, el modelo de mundo (hechos con procedencia), los casos etiquetados
+   por humanos, las trayectorias que pasaron al juez, y la métrica. Todo se
+   registra (MLflow) porque esas trazas son el conjunto de entrenamiento del
+   futuro.
+2. **Qué se entrena y qué no.** No se entrena un modelo para que "sepa
+   Alzheimer": el conocimiento vive en el corpus y en el modelo de mundo, que
+   se mantienen al día y se citan; meterlo en pesos lo congela y le quita la
+   procedencia. Sí se entrenan comportamientos: el extractor de afirmaciones
+   con cita, el juez (calibración y formato) a partir de veredictos humanos,
+   un modelo de embeddings del dominio (pares de la literatura del Alzheimer:
+   barato y muy efectivo), y un modelo de recompensa para clasificar hipótesis
+   a partir de las preferencias humanas y de los torneos.
+3. **Destilación en las Mac.** Con MLX (`mlx-lm`, `mlx-tune`) se ajustan
+   modelos abiertos con LoRA o QLoRA en una sola máquina de 512 GB: un modelo
+   de 70.000 millones de parámetros en 4 bits ocupa unos 40 GB, uno de
+   405.000 millones en 4 bits cabe entero, y `gpt-oss-120b` (pesos abiertos de
+   OpenAI, disponible también en el gateway) cabe con holgura. DSPy tiene
+   `BootstrapFinetune` para destilar un programa optimizado con el maestro en
+   los pesos de un alumno, y `BetterTogether` para alternar prompts y pesos.
+   Orden de sustitución: primero el extractor (alto volumen, tarea acotada),
+   luego el juez para material sensible (los datos no salen de la empresa),
+   y el cerebro solo si supera la misma evaluación que el modelo del gateway.
+4. **Lo que las Mac no hacen.** Preentrenar ni ajustar por completo un modelo
+   de frontera; la pila biológica de NVIDIA (BioNeMo, Parabricks) exige CUDA;
+   tres Mac no suman su memoria (no hay NVLink; el entrenamiento distribuido
+   entre Mac por Thunderbolt o red es posible con MLX pero lento), así que se
+   usan como tres máquinas independientes: una entrena, dos sirven (juez
+   local, embeddings, rerankers, extractor).
+5. **Ciclo continuo.** El bucle genera datos verificados; cada cierto tiempo
+   se reajusta el alumno y se compara contra el conjunto de evaluación y los
+   casos humanos, con la misma métrica que todo lo demás. Los modelos del
+   gateway siguen como maestros y jueces de última instancia.
+
+## 8. Skills instaladas para Rosa (9 sep 2026)
+
+Instaladas a nivel de usuario en `~/.claude/skills/` con el instalador
+`skills` de Vercel (`npx skills add <repo> -g -a claude-code -s <skill> -y`),
+así que están disponibles en cualquier carpeta, incluida la de Rosa cuando
+exista. Cada fuente se vetó antes: metadatos del repositorio (licencia,
+actividad, estrellas), lectura de al menos una `SKILL.md` buscando
+instrucciones sospechosas (descargar y ejecutar código externo, enviar datos a
+servicios no declarados, pedir credenciales, tocar ficheros fuera del
+proyecto). Ninguna las tenía. Regla que vale siempre: **una skill son
+instrucciones que el agente ejecuta con todos sus permisos; se revisa antes de
+usarla y no se instala de repositorios sin procedencia clara.**
+
+| Fuente | Skills instaladas | Notas |
+|---|---|---|
+| `intertwine/dspy-agent-skills` (MIT, 277 estrellas, activo) | `dspy-fundamentals`, `dspy-evaluation-harness`, `dspy-gepa-optimizer`, `dspy-advanced-workflow`, `dspy-rlm-module` | Validadas contra DSPy 3.2.x; la versión actual es 3.3.1, así que si algo no casa se mira el changelog antes de culpar al código. Exigen métrica con feedback textual y conjuntos de entrenamiento y validación separados, que es justo el diseño de Rosa |
+| `anthropics/skills` (oficial) | `pdf`, `docx`, `xlsx`, `skill-creator`, `mcp-builder`, `webapp-testing`, `frontend-design` | `skill-creator` es para escribir las skills propias de Rosa; `mcp-builder` para los conectores (PubMed, Open Targets); `pdf` para leer artículos |
+| `Aperivue/medsci-skills` (MIT, médico investigador, paquete npm verificado) | `search-lit`, `fulltext-retrieval`, `verify-refs`, `manage-refs`, `peer-review`, `review-paper`, `deidentify`, `analyze-stats`, `meta-analysis`, `design-study`, `check-reporting` | APIs públicas sin clave (PubMed, CrossRef, OpenAlex, Unpaywall). `search-lit` prohíbe generar una referencia de memoria: toda cita sale de una búsqueda verificada. `verify-refs` audita referencias contra PubMed y CrossRef y marca las fabricadas. `deidentify` es para datos de pacientes |
+| `K-Dense-AI/scientific-agent-skills` (MIT con licencia por skill, 44.000 estrellas, escáner de seguridad y tests) | `paper-lookup`, `literature-review`, `database-lookup`, `citation-management`, `hypothesis-generation`, `hypogenic`, `scientific-critical-thinking`, `primekg`, `ncats-arax`, `gget`, `pathway-enrichment`, `bulk-rnaseq`, `pydeseq2`, `scanpy`, `statistical-analysis`, `experimental-design`, `scholar-evaluation`, `markitdown`, `uncertainty-and-units`, `esm` | `paper-lookup` consulta once índices (PubMed, PMC, Europe PMC, bioRxiv, medRxiv, arXiv, OpenAlex, Crossref, Semantic Scholar, CORE, Unpaywall) con procedencia reproducible y solo biblioteca estándar. `primekg` es el grafo de conocimiento de medicina de precisión (129.000 nodos, 4 millones de aristas, se descarga de Harvard Dataverse). Se dejaron fuera a propósito las que dependen de servicios de pago o nube de terceros (`paperclip`, `exa-search`, `parallel-web`, `research-lookup`, que usa Parallel por defecto y se desinstaló tras verlo, `modal`, `tamarind`, integraciones de laboratorio) y las que chocan de nombre con las ya instaladas (`pdf`, `docx`, `xlsx`, `peer-review`) |
+
+Para llevarlas al repositorio de Rosa como skills de proyecto (versionadas
+con el código) se repite el mismo comando sin `-g` desde la carpeta del repo;
+`npx skills list` enseña lo instalado y `npx skills update` las actualiza.
+Descartadas: `OmidZamani/dspy-skills` (redundante con intertwine),
+`lingzhi227/agent-research-skills` y `luwill/research-skills` (sin licencia
+declarada). Los conectores de claude.ai para PubMed, ChEMBL, ensayos clínicos y
+bioRxiv siguen sin autorizar en la cuenta de Emir; `search-lit` los usa si
+están y si no cae a las E-utilities de NCBI.
+
+## 9. Fuentes de lo investigado
+
+- Mac Studio M5 Ultra: https://www.apple.com/newsroom/2026/08/apple-introduces-new-mac-studio-with-m5-max-and-m5-ultra/
+- Ajuste fino con MLX: https://github.com/ARahim3/mlx-tune y https://insiderllm.com/guides/fine-tuning-mac-lora-mlx/
+- Kosmos: https://advances.edisonscientific.com/research/announcing-kosmos/ y
+  https://arxiv.org/abs/2511.02824
+- Edison Scientific: https://edisonscientific.com/ y su API
+  https://edisonscientific.gitbook.io/edison-cookbook/edison-client/docs/edison_analysis_tutorial
+- Co-Scientist: https://deepmind.google/blog/co-scientist-a-multi-agent-ai-partner-to-accelerate-research/
+  y https://www.nature.com/articles/s41586-026-10644-y
+- DSPy optimizadores: https://github.com/stanfordnlp/dspy/blob/main/docs/docs/learn/optimization/optimizers.md
+- GEPA: https://arxiv.org/abs/2507.19457
+- DSPy con MLflow: https://dspy.ai/tutorials/optimizer_tracking/
+- Open Targets: https://platform-docs.opentargets.org/associations
+- Biomni (agente biomédico abierto de Stanford, 105 paquetes, 59 bases de
+  datos, 150 herramientas): https://www.epocrates.com/online/article/stanford-open-source-ai-agent-runs-biomedical-lab-research
+- Proyecto Alzheimer INTEC y AI Robotix: https://www.intec.edu.do/en/notas-de-prensa-investigacion/item/intec-y-empresa-ai-robotix-generan-modelo-de-ia-para-investigar-alzheimer
