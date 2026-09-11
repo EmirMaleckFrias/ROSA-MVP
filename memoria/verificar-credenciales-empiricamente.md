@@ -1,12 +1,12 @@
 ---
 name: verificar-credenciales-empiricamente
-description: Emir prefiere que se pruebe una credencial o configuración contra el servicio real antes de descartarla por su formato
+description: la persona responsable prefiere que se pruebe una credencial o configuración contra el servicio real antes de descartarla por su formato
 metadata:
     pinned: false
 ---
 
 Cuando una credencial, clave o configuración no coincide con el formato que yo
-espero, Emir prefiere que la pruebe contra el servicio real antes de declararla
+espero, la persona responsable prefiere que la pruebe contra el servicio real antes de declararla
 inválida. Su formulación fue directa: "no importa si es de OpenAI o no, lo
 importante es que funcione".
 

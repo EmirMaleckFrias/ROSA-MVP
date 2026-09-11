@@ -1,0 +1,186 @@
+// Definir una investigacion: objetivo, que cuenta como relevante, limites,
+// condicion de parada, quien revisa. Con avisos sobre como esta escrito el
+// objetivo (las reglas de Edison para Kosmos), la configuracion que Rosa
+// propone (preferencias, atributos, restricciones, como Co-Scientist),
+// tres parafrasis para ver la sensibilidad al fraseo antes de gastar, y la
+// opcion de heredar el modelo de mundo de otra investigacion.
+
+import { useMemo, useState } from 'react';
+import { acciones } from '../datos/almacen';
+import type { EstadoRosa } from '../datos/tipos';
+import { Chip, Seccion } from '../componentes/piezas';
+import { IconAlert } from '../componentes/icons';
+import { avisosDelObjetivo, parafrasis, proponerConfiguracion } from '../lib/objetivo';
+import { rutaDe } from '../lib/ruta';
+
+export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (hash: string) => void }) {
+  const [titulo, setTitulo] = useState('');
+  const [objetivo, setObjetivo] = useState('');
+  const [relevancia, setRelevancia] = useState('');
+  const [limites, setLimites] = useState('Solo literatura publicada y bases curadas: sin datos de pacientes.\nIgnorar articulos retractados o con expresion de preocupacion.');
+  const [parada, setParada] = useState('');
+  const [revisores, setRevisores] = useState('');
+  const [heredar, setHeredar] = useState<string>('');
+  const [verParafrasis, setVerParafrasis] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const avisos = useMemo(() => avisosDelObjetivo(objetivo, parada), [objetivo, parada]);
+  const propuesta = useMemo(() => proponerConfiguracion(objetivo, relevancia, limites.split('\n')), [objetivo, relevancia, limites]);
+  const [config, setConfig] = useState<{ preferencias: string; atributos: string; restricciones: string } | null>(null);
+  const configEfectiva = config ?? { preferencias: propuesta.preferencias, atributos: propuesta.atributos.join('\n'), restricciones: propuesta.restricciones.join('\n') };
+  const tres = useMemo(() => (verParafrasis ? parafrasis(objetivo) : []), [objetivo, verParafrasis]);
+
+  const crear = () => {
+    const id = acciones.crearInvestigacion({
+      titulo,
+      objetivo,
+      relevancia,
+      limites: limites.split('\n'),
+      condicionParada: parada,
+      revisores: revisores.split(/[\n,]/),
+      configuracion: { preferencias: configEfectiva.preferencias, atributos: configEfectiva.atributos.split('\n'), restricciones: configEfectiva.restricciones.split('\n') },
+      heredarModeloDe: heredar || null,
+    });
+    if (id === null) {
+      setError('Faltan el titulo, el objetivo o la condicion de parada. Sin condicion de parada la corrida no sabe cuando terminar.');
+      return;
+    }
+    irA(rutaDe(id, 'corrida'));
+  };
+
+  return (
+    <div className="contenido" style={{ maxWidth: 800 }}>
+      <div className="pantalla-cabecera">
+        <div>
+          <h2>Nueva investigacion</h2>
+          <p>Lo que Rosa lee antes de cada iteracion. Se puede cambiar despues, pero la primera corrida arranca con esto.</p>
+        </div>
+      </div>
+      <form
+        className="seccion"
+        onSubmit={(e) => {
+          e.preventDefault();
+          crear();
+        }}
+      >
+        <div className="campo">
+          <label htmlFor="n-titulo">Titulo</label>
+          <input id="n-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Biomarcadores plasmaticos y progresion en Alzheimer familiar" />
+        </div>
+        <div className="campo">
+          <label htmlFor="n-objetivo">Objetivo</label>
+          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Que quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigacion." />
+          {objetivo.trim() !== '' && avisos.length > 0 && (
+            <ul className="avisos-objetivo" aria-label="Avisos sobre el objetivo">
+              {avisos.map((a) => (
+                <li key={a.tipo}>
+                  <IconAlert size={13} /> {a.texto}
+                </li>
+              ))}
+            </ul>
+          )}
+          {objetivo.trim() !== '' && avisos.length === 0 && <small className="tono-ok">El objetivo tiene contexto, comprobacion y una sola direccion.</small>}
+        </div>
+        <div className="campo">
+          <label htmlFor="n-relevancia">Que cuenta como relevante</label>
+          <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipotesis mecanistica, una asociacion biomarcador-progresion, un candidato a reposicionamiento..." />
+          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si esta vacio, Rosa perseguira todo lo que parezca significativo.</small>
+        </div>
+        <div className="campo">
+          <label htmlFor="n-limites">Limites (uno por linea)</label>
+          <textarea id="n-limites" value={limites} onChange={(e) => setLimites(e.target.value)} rows={4} />
+        </div>
+        <div className="campo">
+          <label htmlFor="n-parada">Condicion de parada</label>
+          <input id="n-parada" value={parada} onChange={(e) => setParada(e.target.value)} placeholder="3 iteraciones, o 72 horas, lo que ocurra primero" />
+          <p className="meta">Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decision de parar por otro motivo es tuya.</p>
+        </div>
+        <div className="campo">
+          <label htmlFor="n-revisores">Quien revisa (separados por coma)</label>
+          <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Companero, el investigador clinico principal" />
+        </div>
+
+        <Seccion titulo="Configuracion que Rosa leera" nota="Propuesta a partir del objetivo. Es lo que alimenta la generacion, la revision y los debates del torneo. Editala si no encaja.">
+          <div className="campo">
+            <label htmlFor="n-pref">Preferencias</label>
+            <textarea id="n-pref" value={configEfectiva.preferencias} rows={2} onChange={(e) => setConfig({ ...configEfectiva, preferencias: e.target.value })} />
+          </div>
+          <div className="rejilla-2">
+            <div className="campo">
+              <label htmlFor="n-atr">Atributos deseables (uno por linea)</label>
+              <textarea id="n-atr" value={configEfectiva.atributos} rows={4} onChange={(e) => setConfig({ ...configEfectiva, atributos: e.target.value })} />
+            </div>
+            <div className="campo">
+              <label htmlFor="n-res">Restricciones (una por linea)</label>
+              <textarea id="n-res" value={configEfectiva.restricciones} rows={4} onChange={(e) => setConfig({ ...configEfectiva, restricciones: e.target.value })} />
+            </div>
+          </div>
+          {config !== null && (
+            <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setConfig(null)}>
+              Volver a la propuesta de Rosa
+            </button>
+          )}
+        </Seccion>
+
+        <Seccion
+          titulo="Sensibilidad al fraseo"
+          nota="Edison admite que las direcciones de Kosmos cambian con la redaccion del objetivo. Antes de gastar, mira que primeras tareas propondria Rosa con tres redacciones."
+          acciones={
+            <button type="button" className="btn btn-s" disabled={objetivo.trim() === ''} onClick={() => setVerParafrasis((v) => !v)}>
+              {verParafrasis ? 'Ocultar' : 'Probar tres parafrasis'}
+            </button>
+          }
+        >
+          {tres.length > 0 && (
+            <div className="rejilla-3">
+              {tres.map((p, i) => (
+                <div key={i} className="tarjeta" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 13 }}>{p.redaccion}</p>
+                  <p className="campo-etiqueta">Primeras tareas</p>
+                  <ol className="lista-limpia" style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                    {p.primerasTareas.map((t) => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ol>
+                  <button type="button" className="btn btn-s" onClick={() => setObjetivo(p.redaccion)}>
+                    Usar esta redaccion
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Seccion>
+
+        {estado.investigaciones.length > 0 && (
+          <div className="campo">
+            <label htmlFor="n-heredar">Partir del modelo de mundo de</label>
+            <select id="n-heredar" value={heredar} onChange={(e) => setHeredar(e.target.value)}>
+              <option value="">Empezar en blanco</option>
+              {estado.investigaciones.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.titulo} ({estado.hechos.filter((h) => h.investigacionId === i.id).length} nodos)
+                </option>
+              ))}
+            </select>
+            <small>Rosa arranca sabiendo lo que ya se supo, se abrio y se descarto en esa investigacion.</small>
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" style={{ color: 'var(--red)', fontSize: 13 }}>
+            {error}
+          </p>
+        )}
+        <div className="acciones">
+          <button type="submit" className="btn btn-primario">
+            Crear investigacion
+          </button>
+          <a className="btn btn-fantasma" href="#/">
+            Cancelar
+          </a>
+          {avisos.length > 0 && objetivo.trim() !== '' && <Chip tono="aviso">{avisos.length} {avisos.length === 1 ? 'aviso sobre el objetivo' : 'avisos sobre el objetivo'}</Chip>}
+        </div>
+      </form>
+    </div>
+  );
+}

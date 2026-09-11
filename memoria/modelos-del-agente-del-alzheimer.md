@@ -7,7 +7,7 @@ metadata:
 
 # Modelos de Rosa: Astra de cerebro, Opus 5 de juez, Sonnet 5 en volumen
 
-Entre el 9 y el 10 de septiembre de 2026 Emir decidió los modelos de Rosa,
+Entre el 9 y el 10 de septiembre de 2026 la persona responsable decidió los modelos de Rosa,
 todos por el endpoint compatible con OpenAI del AI Gateway de Vercel y nunca
 por las APIs directas: `openai/gpt-6-astra` como cerebro (planificar, generar
 hipótesis, meta-revisar, contexto largo), `anthropic/claude-opus-5` como juez

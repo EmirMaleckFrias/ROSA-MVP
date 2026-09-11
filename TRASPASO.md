@@ -5,7 +5,7 @@ del proyecto. Al cambiar de carpeta, la sesión nueva empieza sin ninguno de
 los archivos ni de las memorias de la anterior. Aquí está todo lo que hace
 falta para continuar. **Léelo entero antes de tocar nada en el proyecto
 nuevo.** La carpeta `memoria/` de al lado contiene las reglas de trabajo de
-Emir tal como se guardaron; hay que copiarlas al directorio de memoria del
+la persona responsable tal como se guardaron; hay que copiarlas al directorio de memoria del
 proyecto nuevo (`~/.claude/projects/<carpeta-con-guiones>/memory/`) para que
 se apliquen desde la primera sesión.
 
@@ -19,41 +19,41 @@ referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
 
 ## 1. Quién y para qué
 
-- **Emir Malek** (correo de empresa emir.malek@airobotix.net, solo para
+- **la persona responsable** (correo de empresa contacto-interno@example.invalid, solo para
   identificarlo, nunca enviarlo a servicios externos). Ingeniero de IA en
   **AI Robotix**, República Dominicana. Lleva una semana en la empresa.
 - **El proyecto**: investigación del Alzheimer, alianza entre el INTEC
   (Instituto Tecnológico de Santo Domingo) y AI Robotix, anunciada en febrero
   de 2026, con respaldo anunciado del Gobierno dominicano. Investigador
-  principal: el neurólogo argentino **Ricardo Allegri**. CEO de AI Robotix:
-  Juan Carlos Guilbe. La plataforma pública ya procesó más de 232.000
+  principal: el neurólogo argentino **el investigador clinico principal**. CEO de AI Robotix:
+  la direccion ejecutiva. La plataforma pública ya procesó más de 232.000
   artículos y repositorios de RNA-Seq, aisló 3.223 conjuntos de datos
   candidatos, y se conecta a NVIDIA BioNeMo, Amazon Bio Discovery y Cloud
   Sciences. Fase siguiente anunciada: estudios en modelos preclínicos.
-- **El equipo del agente nuevo son dos personas**: Emir y un compañero que es
-  a la vez ingeniero de IA, médico e investigador (él propuso a Emir al jefe).
+- **El equipo del agente nuevo son dos personas**: la persona responsable y un compañero que es
+  a la vez ingeniero de IA, médico e investigador (él propuso a la persona responsable al jefe).
   Los programadores de la empresa no participan.
-- **El sistema se llama Rosa.** Es la IA del proyecto Alzheimer, y lo que Emir
+- **El sistema se llama Rosa.** Es la IA del proyecto Alzheimer, y lo que la persona responsable
   construye ya es Rosa, no un prototipo aparte: su compañero fue explícito en
   que "es parte del sistema completo, no hay individualidad, todo va de la
-  mano". Cuando Emir dice "el modelo" suele referirse al sistema completo, no
+  mano". Cuando la persona responsable dice "el modelo" suele referirse al sistema completo, no
   a un modelo de lenguaje; los modelos del gateway son piezas intercambiables
   dentro de Rosa, como el índice o el juez.
-- **Lo que van a construir**, según se lo explicó el compañero a Emir: un
+- **Lo que van a construir**, según se lo explicó el compañero a la persona responsable: un
   bucle en el que Rosa investiga en internet literatura del Alzheimer sin
   tiempo definido (días), acumula lo relevante y "se hace experta". Usarán
   **DSPy** y su optimizador **GEPA**. Los detalles finos aún no se los han
-  dado; Emir irá contando lo que le expliquen.
-- **El RAG anterior** (`/Users/emirmalek/FIREtech-RAG`, repositorio PÚBLICO
-  `EmirMaleckFrias/FIREtech-RAG`) es un asistente para una médica que
+  dado; la persona responsable irá contando lo que le expliquen.
+- **El RAG anterior** (`/Users/usuario/FIREtech-RAG`, repositorio PÚBLICO
+  `organizacion-anonimizada/FIREtech-RAG`) es un asistente para una médica que
   responde solo con documentos indexados, con cita por afirmación y una
   barrera de verificación antes de publicar. Sigue en producción (despliegue
   de Convex `gregarious-pony-327`, sitio `https://rag-ai-robotix.vercel.app`)
-  y **no hay que tocarlo desde el proyecto nuevo**. Emir decidió que las
+  y **no hay que tocarlo desde el proyecto nuevo**. la persona responsable decidió que las
   piezas útiles del RAG se **portan** al proyecto nuevo, no se llaman como
   servicio.
 
-## 2. Reglas de trabajo de Emir (resumen; el detalle está en `memoria/`)
+## 2. Reglas de trabajo de la persona responsable (resumen; el detalle está en `memoria/`)
 
 1. **Proveedor de modelos: el AI Gateway de Vercel, nunca la API de OpenAI
    directa.** La empresa cubre el gateway. Clave `vck_…` y
@@ -64,7 +64,7 @@ referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
    la misma clave; el catálogo exacto se consulta en `GET /v1/models`. **El
    coste por token no es criterio de decisión**; se argumenta por calidad,
    latencia y capacidad. La clave está en
-   `/Users/emirmalek/FIREtech-RAG/backend/.env` (variables `OPENAI_API_KEY` y
+   `/Users/usuario/FIREtech-RAG/backend/.env` (variables `OPENAI_API_KEY` y
    `OPENAI_BASE_URL`); se lee de ahí, nunca se copia a un chat ni a un repo.
 2. **La persona usuaria final es médica, no programadora.** Todo lo que deba
    hacer ella va con botones y estado visible en la interfaz, en español,
@@ -74,7 +74,7 @@ referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
    qué asume el cambio que antes no se asumía. No concluir con muestras de
    cinco; medir con diez.
 4. **Aplicar los arreglos ya diagnosticados sin pedir permiso.** Y cuando
-   Emir dice "arréglalo" tras una lista de hallazgos, se refiere a la lista
+   la persona responsable dice "arréglalo" tras una lista de hallazgos, se refiere a la lista
    entera: partirla en "estos los hago, estos los decides tú" y ejecutar solo
    la primera parte lo lee como trabajo esquivado. Si algo de verdad necesita
    su decisión, se le pregunta explícitamente y aparte, antes de empezar.
@@ -96,13 +96,13 @@ referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
     aparezca en un chat se rota. Sin guiones largos (U+2014) en código,
     comentarios ni interfaz. Sin límites artificiales que hagan fallar una
     operación: si algo tarda, se enseña progreso.
-11. Emir habla en español coloquial dominicano ("bro", "klk", "dale"). Se le
+11. la persona responsable habla en español coloquial dominicano ("bro", "klk", "dale"). Se le
     responde en español, directo, con el resultado aplicado y verificado, y
     diciendo con honestidad lo que no se pudo verificar.
 
 ### 2.1 Catálogo del gateway, comprobado el 9 sep 2026
 
-Consultado `GET /v1/models` con la clave de Emir: 373 modelos de 36
+Consultado `GET /v1/models` con la clave de la persona responsable: 373 modelos de 36
 proveedores, entre ellos `anthropic`, `openai`, `google`, `meta`, `mistral`,
 `deepseek`, `nvidia`, `cohere`, `voyage` y `perplexity`. Modelos de Anthropic
 disponibles con esa misma clave: `anthropic/claude-fable-5.1`,
@@ -112,7 +112,7 @@ disponibles con esa misma clave: `anthropic/claude-fable-5.1`,
 3-haiku). Es decir: **no hay que seguir con GPT por obligación**; se elige el
 modelo por calidad y latencia para cada componente, y se cambia con el nombre.
 
-### 2.2 Modelos elegidos para el agente nuevo (decisión de Emir, 9 sep 2026)
+### 2.2 Modelos elegidos para el agente nuevo (decisión de la persona responsable, 9 sep 2026)
 
 **Por ahora: `openai/gpt-6-astra`, `anthropic/claude-opus-5` y
 `anthropic/claude-sonnet-5`. Claude Fable 5.1 queda fuera de Rosa (ver 2.3).**
@@ -120,12 +120,12 @@ El RAG anterior sigue con sus modelos
 (`openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/text-embedding-3-large`);
 la decisión es para el proyecto nuevo.
 
-Reparto decidido por Emir el 9 sep 2026, a confirmar midiendo:
+Reparto decidido por la persona responsable el 9 sep 2026, a confirmar midiendo:
 
 | Pieza | Modelo | Por qué |
 |---|---|---|
 | Cerebro del bucle: planificar, generar hipótesis, meta-revisión, coherencia en contexto largo | **GPT-6 Astra** | Primero en los rankings agregados de razonamiento; GPQA Diamond 96,0; Frontier Math nivel 4 97,6; ARC-AGI-2 95; y en contexto largo MRCR v2 con ocho agujas acierta el 100 % entre 256K y 512K y el 96,3 % entre 512K y 1M (Fable no publica esa cifra). Robustez documentada a inyección de instrucciones del 99,79 % y a la jerarquía de instrucciones del 99,99 %. Retención de datos "parcial" según el gateway: revisar la política antes de material sensible |
-| Juez del verificador: la métrica de GEPA y el veto final, de otra familia que el cerebro | **Claude Opus 5** | Primera fila (HLE con herramientas 63,6), retención cero de datos y sin entrenamiento, y respondió las tres preguntas de biología molecular que a Fable le bloqueó el filtro de doble uso. Emir había elegido a Fable 5.1 por intuición de que "acierta más que GPT", y los datos lo sostenían en conocimiento (AA-Omniscience 85 % de precisión frente a 81 % de Astra, HLE 65,0 frente a 57,2), pero Fable no puede ser juez de Rosa: ver 2.3. Sigue vigente la prueba comparada como jueces (Opus 5 frente a Astra) sobre casos aprobados por humanos |
+| Juez del verificador: la métrica de GEPA y el veto final, de otra familia que el cerebro | **Claude Opus 5** | Primera fila (HLE con herramientas 63,6), retención cero de datos y sin entrenamiento, y respondió las tres preguntas de biología molecular que a Fable le bloqueó el filtro de doble uso. la persona responsable había elegido a Fable 5.1 por intuición de que "acierta más que GPT", y los datos lo sostenían en conocimiento (AA-Omniscience 85 % de precisión frente a 81 % de Astra, HLE 65,0 frente a 57,2), pero Fable no puede ser juez de Rosa: ver 2.3. Sigue vigente la prueba comparada como jueces (Opus 5 frente a Astra) sobre casos aprobados por humanos |
 | Alto volumen sin poder de veto: extractor de afirmaciones, calificador, triaje previo del juez | Claude Sonnet 5 | Nivel alto a velocidad de Sonnet, retención cero. El triaje deja pasar solo lo claramente sostenido y manda al juez lo dudoso más una muestra aleatoria de lo aprobado |
 | Reserva | Claude Fable 5.1, solo si la empresa obtiene acceso verificado para ciencias de la vida | Ver 2.3 |
 
@@ -141,7 +141,7 @@ cerebro y Opus 5 de juez cumple lo que el diseño exige: familias distintas
 
 ### 2.3 Por qué Claude Fable 5.1 queda fuera de Rosa (comprobado el 10 sep 2026)
 
-Emir preguntó si era cierto que "Fable 5.1 no responde nada científico". Lo
+la persona responsable preguntó si era cierto que "Fable 5.1 no responde nada científico". Lo
 es en parte, y la parte que falla es la que Rosa necesita:
 
 - **Política de Anthropic.** Fable 5 y 5.1 llevan clasificadores de seguridad
@@ -153,7 +153,7 @@ es en parte, y la parte que falla es la que Rosa necesita:
   defecto**: la respuesta llega con un motivo de parada especial. La vía para
   investigación legítima es el programa de acceso verificado para ciencias de
   la vida (por invitación) y los programas de acceso de confianza de Mythos.
-- **Medido por el gateway con la clave de Emir.** De diez preguntas del
+- **Medido por el gateway con la clave de la persona responsable.** De diez preguntas del
   dominio del Alzheimer, Fable respondió las de biomarcadores, mecanismo
   APOE4/TREM2, mecanismo del lecanemab, diseño de análisis de RNA-seq y una
   tarea de juez; y devolvió **vacío con `finish_reason: content-filter`** en
@@ -192,28 +192,28 @@ dspy.configure(lm=lm)
 
 El prefijo `openai/` es el de LiteLLM para "endpoint compatible con OpenAI"; el
 resto es el id del modelo en el gateway. **Comprobado el 9 sep 2026**: los tres
-ids responden por `POST /v1/chat/completions` del gateway con la clave de Emir
+ids responden por `POST /v1/chat/completions` del gateway con la clave de la persona responsable
 (una llamada mínima a cada uno devolvió la palabra pedida y su `usage`), así
 que la configuración de arriba funciona sin ningún adaptador. Los optimizadores de DSPy producen
 prompts específicos de cada modelo: al cambiar de modelo se reoptimiza, así que
 el arnés de comparación queda montado desde el principio.
 
-## 3. Estado del entorno de Emir
+## 3. Estado del entorno de la persona responsable
 
 - Mac con Apple Silicon. `uv` instalado en `~/.local/bin/uv`. Python 3.12.14
   instalado por uv (`~/.local/bin/python3.12`); el Python del sistema es
   3.9.6 y **no sirve** (DSPy exige 3.10 o superior).
 - Versiones en PyPI a la fecha: `dspy` 3.3.1 (requiere Python de 3.10 a
   3.14), `mlflow` 3.16.0.
-- Node y `npx convex` funcionan desde `/Users/emirmalek/FIREtech-RAG/frontend`
+- Node y `npx convex` funcionan desde `/Users/usuario/FIREtech-RAG/frontend`
   (la clave de despliegue de producción está en su `.env.local`).
 - Conectores de claude.ai disponibles pero **sin autorizar** en la cuenta de
-  Emir: PubMed, ChEMBL, Clinical Trials, bioRxiv. Serían útiles para el
+  la persona responsable: PubMed, ChEMBL, Clinical Trials, bioRxiv. Serían útiles para el
   proyecto nuevo; se autorizan desde los ajustes de conectores de claude.ai.
 
 ## 4. Lo que el RAG tiene y conviene portar
 
-Rutas absolutas en `/Users/emirmalek/FIREtech-RAG/frontend/convex/`. Están en
+Rutas absolutas en `/Users/usuario/FIREtech-RAG/frontend/convex/`. Están en
 TypeScript (Convex). El proyecto nuevo será Python (DSPy), así que "portar" es
 reescribir con los mismos contratos y traer los tests adversariales.
 
@@ -230,10 +230,10 @@ reescribir con los mismos contratos y traer los tests adversariales.
 | 6 | Telemetría y gateway | `lib/telemetry.ts`, `lib/gateway.ts` | 194 + 424 | Coste y tiempo por componente; política de reintentos y de razonamiento |
 | 6 | Puntuación de la evaluación | `evaluacion/puntuar.ts` | 941 | Métricas de recuperación: MRR, hit@k, precisión de contexto, atribuciones de entidad, etapa de fallo |
 
-Documentación de referencia del RAG: `/Users/emirmalek/FIREtech-RAG/SPEC.md`
+Documentación de referencia del RAG: `/Users/usuario/FIREtech-RAG/SPEC.md`
 (la especificación completa, secciones 7 a 11 para clasificación, evidencia,
-citas, verificador y barrera), `/Users/emirmalek/FIREtech-RAG/frontend/convex/CONTRATO.md`
-(interfaces), `/Users/emirmalek/FIREtech-RAG/docs/OPERACION.md`.
+citas, verificador y barrera), `/Users/usuario/FIREtech-RAG/frontend/convex/CONTRATO.md`
+(interfaces), `/Users/usuario/FIREtech-RAG/docs/OPERACION.md`.
 
 ### 4.1 Contratos del verificador que hay que conservar
 
@@ -286,7 +286,7 @@ citas, verificador y barrera), `/Users/emirmalek/FIREtech-RAG/frontend/convex/CO
   explícitas están exentas.
 - **Cita de PDF**: `[fuente, pág. N]`, y `pág. N-M` si el fragmento cruza de
   página (solo pasa cuando el propio párrafo lo hace). La fuente es la
-  referencia corta ("Allegri et al., 2023") si la autoría está corroborada, si
+  referencia corta ("Cohorte clinica, 2023") si la autoría está corroborada, si
   no el nombre del fichero; nunca el título.
 - **Tres textos de abstención**: "no encuentro respaldo suficiente" solo cuando
   el borrador se comprobó y no se sostuvo; "no pude comprobar la respuesta en
@@ -342,12 +342,12 @@ citas, verificador y barrera), `/Users/emirmalek/FIREtech-RAG/frontend/convex/CO
 ### 4.3 Casos de control
 
 `casos_evaluacion.jsonl` (al lado de este documento): los 17 casos de control
-que el RAG generó sobre el corpus de Emir. Campos: `clave`, `categoria`
+que el RAG generó sobre el corpus de la persona responsable. Campos: `clave`, `categoria`
 (single_hop, multi_hop, tabla, abstencion, entidad), `pregunta`,
 `respuestaEsperada`, `definicion` (con `answer_must_contain`,
 `answer_must_not_contain`, `evidence`, `critical`), `modo`, `estado`. **Los 17
 están en estado `propuesto`, sin aprobar por un humano**: sirven para probar el
-ciclo de optimización, no como verdad de referencia. Emir o su compañero deben
+ciclo de optimización, no como verdad de referencia. la persona responsable o su compañero deben
 revisarlos (en el RAG: Ajustes > Calidad) o escribir casos nuevos del dominio
 del Alzheimer.
 
@@ -448,7 +448,7 @@ haya hallazgos que revisar, porque el bucle trabaja cuando nadie mira.
 
 ## 6. Plan acordado para el primer día
 
-1. Emir crea un repositorio y una carpeta nuevos (fuera del RAG). Pendiente:
+1. la persona responsable crea un repositorio y una carpeta nuevos (fuera del RAG). Pendiente:
    la ruta.
 2. Entorno con `uv` y Python 3.12, `dspy` y `mlflow`; DSPy apuntando al AI
    Gateway de Vercel con los tres modelos elegidos (ver 2.2); una llamada de
@@ -465,7 +465,7 @@ haya hallazgos que revisar, porque el bucle trabaja cuando nadie mira.
 
 ## 7. Los modelos dentro de Rosa, el ajuste posterior y las tres Mac
 
-Emir preguntó si importaba que los modelos del gateway no fueran "el modelo"
+la persona responsable preguntó si importaba que los modelos del gateway no fueran "el modelo"
 final; aclaró después que con "modelo" se refería al sistema completo, que es
 Rosa, y que la empresa tiene **tres Mac de gama alta de Apple** para Rosa (falta confirmar chip y memoria unificada de cada
 una; la referencia de septiembre de 2026 es el Mac Studio con M5 Ultra, hasta
@@ -534,7 +534,7 @@ con el código) se repite el mismo comando sin `-g` desde la carpeta del repo;
 Descartadas: `OmidZamani/dspy-skills` (redundante con intertwine),
 `lingzhi227/agent-research-skills` y `luwill/research-skills` (sin licencia
 declarada). Los conectores de claude.ai para PubMed, ChEMBL, ensayos clínicos y
-bioRxiv siguen sin autorizar en la cuenta de Emir; `search-lit` los usa si
+bioRxiv siguen sin autorizar en la cuenta de la persona responsable; `search-lit` los usa si
 están y si no cae a las E-utilities de NCBI.
 
 ## 9. Fuentes de lo investigado

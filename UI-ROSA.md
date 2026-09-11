@@ -149,7 +149,7 @@ así que es web. El frontend del RAG (React, Vite, suscripciones reactivas de
 Convex) ya trae los pasos en vivo, el panel de fuentes con página exacta, la
 insignia de verificación por afirmación y la pestaña de Calidad; con la
 reactividad de Convex, una fila que cambia refresca la pantalla sola, que es
-justo lo que pide mirar una corrida de días. Decisión pendiente (de Emir y su
+justo lo que pide mirar una corrida de días. Decisión pendiente (de la persona responsable y su
 compañero): si el frontend de Rosa nace del del RAG o de cero. Inferencia mía:
 nacer del del RAG ahorra semanas y ya encarna estas reglas.
 

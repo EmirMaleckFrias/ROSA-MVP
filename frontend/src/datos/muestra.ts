@@ -1,0 +1,1291 @@
+// Datos de muestra de Rosa. Sirven para construir y juzgar la interfaz antes
+// de que exista el bucle: una investigacion sobre biomarcadores plasmaticos y
+// progresion, una corrida en marcha, cinco hipotesis en la cola, un modelo
+// de mundo con hechos, preguntas abiertas y descartes, artefactos con
+// versiones, y los 17 casos de control del RAG (sin aprobar, como estan).
+//
+// Todo lo que hay aqui es ilustrativo: los fragmentos citados resumen lo que
+// dicen las fuentes de GUIA-ROSA.md, pero no son citas literales de las
+// paginas indicadas. La interfaz lo marca como "datos de muestra" mientras
+// el almacen no este conectado a Rosa de verdad.
+
+import type {
+  Artefacto,
+  CasoControl,
+  ClaseAccion,
+  Corrida,
+  CorridaGepa,
+  EstadoRosa,
+  Evento,
+  Fuente,
+  HechoMundo,
+  Hipotesis,
+  Incidencia,
+  Investigacion,
+  Iteracion,
+  MetricasJuez,
+  NivelAutonomia,
+  PermisoConcedido,
+  Procedencia,
+  Recuerdo,
+  SolicitudPermiso,
+} from './tipos';
+
+const MIN = 60_000;
+const HORA = 3_600_000;
+const DIA = 24 * HORA;
+/** Un "ahora" fijo para que la muestra sea determinista en los tests. */
+export const AHORA_MUESTRA = Date.UTC(2026, 8, 10, 14, 30, 0);
+const hace = (ms: number) => AHORA_MUESTRA - ms;
+
+/* ---------------------------------------------------------------------
+   Fuentes
+   --------------------------------------------------------------------- */
+
+type FuenteParcial = Omit<Fuente, 'retraccionComprobadaEn' | 'tipoEstudio' | 'nivelEvidencia' | 'textoCompleto' | 'citas'> &
+  Partial<Pick<Fuente, 'retraccionComprobadaEn' | 'tipoEstudio' | 'nivelEvidencia' | 'textoCompleto' | 'citas'>>;
+
+function fuente(f: FuenteParcial): Fuente {
+  return {
+    retraccionComprobadaEn: hace(3 * HORA),
+    tipoEstudio: 'otro',
+    nivelEvidencia: 2,
+    textoCompleto: true,
+    citas: null,
+    ...f,
+  };
+}
+
+export const FUENTES: Record<string, Fuente> = {
+  allegri2025: fuente({
+    id: 'f-cohorte-2025',
+    referencia: 'Cohorte clinica, 2025',
+    titulo: 'p-tau217 en plasma frente a PET de tau en deterioro cognitivo: cohorte de FLENI',
+    tipo: 'preprint',
+    doi: '10.1101/2025.05.14.25326954',
+    pmid: null,
+    nct: null,
+    pagina: 7,
+    fragmento:
+      'El cociente p-tau217/Abeta42 en plasma alcanzo una precision comparable a la PET de tau para distinguir a los participantes con biologia de Alzheimer, con una anticipacion de varios anos respecto al inicio de los sintomas en el subgrupo autosomico dominante.',
+    retraccion: null,
+    anio: 2025,
+    tipoEstudio: 'cohorte',
+    nivelEvidencia: 3,
+    citas: 14,
+  }),
+  cummings2026: fuente({
+    id: 'f-cummings-2026',
+    referencia: 'Cummings et al., 2026',
+    titulo: 'Alzheimer disease drug development pipeline: 2026',
+    tipo: 'articulo',
+    doi: '10.1002/trc2.70251',
+    pmid: null,
+    nct: null,
+    pagina: 4,
+    fragmento:
+      'Se identificaron 158 agentes en 192 ensayos activos: 36 farmacos en fase 3, 84 en fase 2 y 45 en fase 1. Las dianas de inflamacion e inmunidad pasaron del 6 % al 20 % del pipeline, y las de tau del 6 % al 20 %; el amiloide bajo del 33 % al 20 %.',
+    retraccion: null,
+    anio: 2026,
+    tipoEstudio: 'registro',
+    nivelEvidencia: 3,
+    citas: 88,
+  }),
+  trem2apoe: fuente({
+    id: 'f-trem2-apoe',
+    referencia: 'Revision TREM2 y APOE, 2025',
+    titulo: 'TREM2 R47H y APOE4 en la respuesta microglial: efectos por tipo celular',
+    tipo: 'articulo',
+    doi: null,
+    pmid: 'PMC12524931',
+    nct: null,
+    pagina: 12,
+    fragmento:
+      'La variante R47H de TREM2 reduce la union a ligandos lipidicos y atenua la respuesta microglial ante las placas; en portadores de APOE4 el efecto se acumula, lo que sugiere una accion sinergica sobre la microglia asociada a enfermedad.',
+    retraccion: null,
+    anio: 2025,
+    tipoEstudio: 'revision_narrativa',
+    nivelEvidencia: 2,
+    citas: 41,
+  }),
+  nlrp3: fuente({
+    id: 'f-nlrp3',
+    referencia: 'Revision neuroinflamacion, 2024',
+    titulo: 'El inflamasoma NLRP3 como amplificador de la cascada amiloide-tau',
+    tipo: 'articulo',
+    doi: null,
+    pmid: 'PMC11710122',
+    nct: null,
+    pagina: 5,
+    fragmento:
+      'La activacion de NLRP3 en microglia induce la liberacion de IL-1beta y la formacion de motas de ASC que, al ser captadas por neuronas vecinas, promueven la agregacion de tau hiperfosforilada. La inhibicion de NLRP3 en modelos murinos redujo la patologia de tau.',
+    retraccion: null,
+    anio: 2024,
+    tipoEstudio: 'preclinico',
+    nivelEvidencia: 1,
+    citas: 203,
+  }),
+  fdaTest: fuente({
+    id: 'f-fda-2025',
+    referencia: 'FDA, 2025',
+    titulo: 'Autorizacion del primer test en sangre para Alzheimer (p-tau217/Abeta42)',
+    tipo: 'base_curada',
+    doi: null,
+    pmid: null,
+    nct: null,
+    pagina: null,
+    fragmento:
+      'En mayo de 2025 la FDA autorizo el primer test de Alzheimer en sangre, basado en el cociente p-tau217/Abeta42 en plasma, para adultos de 55 anos o mas con deterioro cognitivo.',
+    retraccion: null,
+    anio: 2025,
+    tipoEstudio: 'registro',
+    nivelEvidencia: 4,
+  }),
+  glp1: fuente({
+    id: 'f-glp1-ensayo',
+    referencia: 'ClinicalTrials.gov, evoke',
+    titulo: 'Semaglutida oral en Alzheimer temprano (fase 3)',
+    tipo: 'ensayo',
+    doi: null,
+    pmid: null,
+    nct: 'NCT04777396',
+    pagina: null,
+    fragmento:
+      'Ensayo de fase 3, aleatorizado y controlado con placebo, de semaglutida oral en participantes con Alzheimer temprano; desenlace primario CDR-SB a las 104 semanas.',
+    retraccion: null,
+    anio: 2026,
+    tipoEstudio: 'ensayo_aleatorizado',
+    nivelEvidencia: 4,
+    textoCompleto: false,
+  }),
+  retractado: fuente({
+    id: 'f-retractado',
+    referencia: 'Articulo retractado, 2022',
+    titulo: 'Un oligomero de Abeta*56 como causa de la perdida de memoria',
+    tipo: 'articulo',
+    doi: '10.1038/nature04533',
+    pmid: null,
+    nct: null,
+    pagina: 3,
+    fragmento: 'Articulo retirado por su revista tras la investigacion sobre las imagenes de sus figuras.',
+    retraccion: 'retractado',
+    anio: 2022,
+    tipoEstudio: 'preclinico',
+    nivelEvidencia: 1,
+    citas: 2_300,
+  }),
+};
+
+/* ---------------------------------------------------------------------
+   Investigacion y corrida
+   --------------------------------------------------------------------- */
+
+export const INVESTIGACION: Investigacion = {
+  id: 'inv-1',
+  titulo: 'Biomarcadores plasmaticos y progresion en Alzheimer familiar y esporadico',
+  objetivo:
+    'Encontrar hipotesis comprobables sobre que combinaciones de biomarcadores en sangre (p-tau217, Abeta42/40, NfL, GFAP) anticipan la progresion clinica, y que mecanismos (microglia, TREM2, APOE4, NLRP3) las explican.',
+  relevancia:
+    'Una hipotesis es relevante si propone una asociacion biomarcador-progresion o un mecanismo con una diana, y dice con que biomarcador o que cohorte se comprobaria.',
+  limites: [
+    'Solo literatura publicada y bases curadas: sin datos de pacientes.',
+    'Ignorar articulos retractados o con expresion de preocupacion (Crossref).',
+    'No perseguir una hipotesis mas de 3 iteraciones sin revision humana.',
+  ],
+  condicionParada: 'Diez hipotesis en la cola sin revisar, o 72 horas de corrida, lo que ocurra primero.',
+  revisores: ['la persona responsable', 'Companero (medico e ingeniero)', 'el investigador clinico principal (validacion final)'],
+  estado: 'activa',
+  creadaEn: hace(3 * DIA),
+  ramaDe: null,
+  configuracion: {
+    preferencias: 'Hipotesis mecanisticas con un biomarcador sanguineo medible y una cohorte longitudinal donde comprobarlas; preferir Alzheimer familiar como modelo del esporadico.',
+    atributos: ['Novedad frente a Open Targets, ClinicalTrials.gov y Agora', 'Testabilidad en sangre', 'Relevancia para diagnostico temprano en Latinoamerica'],
+    restricciones: ['Solo dianas con evidencia genetica humana', 'Sin datos de pacientes', 'Sin articulos retractados'],
+  },
+  datasets: [
+    {
+      id: 'ds-1',
+      nombre: 'proteomica_neuronas_tau.h5ad',
+      descripcion: 'Proteomica de mini-pools de 10 neuronas por caso, con estado de tau (MC1) y pseudotiempo.',
+      tamanoMb: 412,
+      columnas: 38,
+      columnasSinDiccionario: 9,
+      valoresCentinela: 2,
+      nombresDuplicados: 1,
+      clasificacion: 'interno',
+      estado: 'pendiente',
+      origen: 'subida',
+    },
+  ],
+  vigilarLiteraturaHasta: null,
+};
+
+export const CORRIDA: Corrida = {
+  id: 'cor-3',
+  investigacionId: 'inv-1',
+  numero: 3,
+  estado: 'en_marcha',
+  empezadaEn: hace(31 * HORA),
+  terminadaEn: null,
+  iteracionActual: 14,
+  gasto: {
+    tokensEntrada: 48_200_000,
+    tokensSalida: 3_950_000,
+    llamadas: 2_318,
+    segundos: 31 * 3600,
+    articulosLeidos: 412,
+  },
+  motivoCierre: null,
+  presupuesto: { limiteLlamadas: 3_000, alertas: [0.5, 0.8], avisadas: [0.5] },
+  contexto: { tokensUsados: 612_000, tokensLimite: 1_000_000, compactaciones: 4, ultimaCompactacion: hace(2 * HORA) },
+  busqueda: {
+    identificados: 2_140,
+    cribados: 611,
+    textoCompleto: 412,
+    usados: 57,
+    consultas: [
+      { base: 'PubMed', consulta: '(p-tau217 OR "phosphorylated tau 217") AND plasma AND (progression OR conversion)', fecha: hace(30 * HORA), resultados: 412 },
+      { base: 'Europe PMC', consulta: 'TREM2 R47H APOE4 microglia', fecha: hace(28 * HORA), resultados: 188 },
+      { base: 'bioRxiv', consulta: 'NLRP3 tau propagation', fecha: hace(26 * HORA), resultados: 41 },
+      { base: 'ClinicalTrials.gov v2', consulta: 'cond=Alzheimer&intr=anti-amyloid&outcome=ARIA', fecha: hace(20 * HORA), resultados: 63 },
+      { base: 'Open Targets', consulta: 'TREM2, NLRP3, GLP1R x Alzheimer disease', fecha: hace(18 * HORA), resultados: 3 },
+    ],
+  },
+  coberturas: [
+    { tema: 'Biomarcadores', leidos: 144, fraccion: 0.93, tau: 55 },
+    { tema: 'Genetica', leidos: 61, fraccion: 0.78, tau: 40 },
+    { tema: 'Neuroinflamacion', leidos: 97, fraccion: 0.88, tau: 45 },
+    { tema: 'Farmacos', leidos: 82, fraccion: 0.61, tau: 90 },
+    { tema: 'Seguridad', leidos: 28, fraccion: 0.42, tau: 50 },
+  ],
+  metaRevisiones: [
+    {
+      iteracion: 13,
+      fecha: hace(50 * MIN),
+      debilidades: [
+        { id: 'deb-1', texto: 'Tres de cinco hipotesis asumen que la senal plasmatica refleja el cerebro sin discutir la barrera hematoencefalica ni la funcion renal.', hipotesisAfectadas: ['hip-1', 'hip-4'], inyectada: false },
+        { id: 'deb-2', texto: 'Las hipotesis mecanisticas citan modelos murinos y saltan a humanos sin decir que cohorte lo comprobaria en personas.', hipotesisAfectadas: ['hip-2'], inyectada: false },
+        { id: 'deb-3', texto: 'Ninguna hipotesis estratifica por numero de alelos APOE4 (0, 1, 2), que cambia el efecto.', hipotesisAfectadas: ['hip-1', 'hip-2', 'hip-4'], inyectada: true },
+      ],
+    },
+  ],
+  procesos: [
+    { id: 'proc-1', nombre: 'Kernel Python (extraccion, Docling)', host: 'mac-studio-2', cpu: 41, memoriaMb: 6_200, estado: 'en_marcha', empezadoEn: hace(2 * HORA) },
+    { id: 'proc-2', nombre: 'Embeddings (text-embedding-3-large)', host: 'gateway', cpu: 0, memoriaMb: 0, estado: 'en_marcha', empezadoEn: hace(31 * HORA) },
+  ],
+  panorama: [
+    {
+      titulo: 'Biomarcadores sanguineos que anticipan la progresion',
+      razon: 'El cociente p-tau217/Abeta42 ya iguala a la PET; lo abierto es que combinacion anticipa mas y en que subgrupo.',
+      hallazgosRecientes: ['Test en sangre autorizado por la FDA en mayo de 2025', 'Cohorte de FLENI con anticipacion de varios anos en autosomico dominante'],
+      queInvestigar: ['Cociente frente a p-tau217 solo en portadores de PSEN1', 'Orden de GFAP y NfL en preclinico segun APOE4'],
+      ideaEjemplo: 'Fijar umbrales en Alzheimer familiar y trasladarlos al esporadico.',
+      inesperada: false,
+      hipotesisIds: ['hip-1', 'hip-4'],
+    },
+    {
+      titulo: 'Neuroinflamacion como puente entre amiloide y tau',
+      razon: 'Explica por que los anti-amiloide solo ralentizan un 30 %: la cascada sigue aguas abajo.',
+      hallazgosRecientes: ['Inflamacion e inmunidad pasan del 6 % al 20 % del pipeline de 2026', 'Inhibidores de NLRP3 en fase 1 y 2'],
+      queInvestigar: ['IL-1beta y ASC en liquido cefalorraquideo como marcadores de la cascada', 'Combinacion de anti-amiloide con inhibidor de NLRP3'],
+      ideaEjemplo: 'Medir ASC en LCR en amiloide positivos con PET de tau negativa y seguir la conversion.',
+      inesperada: false,
+      hipotesisIds: ['hip-2'],
+    },
+    {
+      titulo: 'Reposicionamiento metabolico (GLP-1) con biomarcadores de respuesta',
+      razon: 'La semaglutida ya esta en fase 3; lo nuevo seria saber que biomarcador refleja la respuesta.',
+      hallazgosRecientes: ['Ensayos evoke y evoke+ con CDR-SB a 104 semanas'],
+      queInvestigar: ['Analisis secundario de GFAP y NfL en los ensayos'],
+      ideaEjemplo: 'Pedir a los ensayos el cambio de GFAP frente a CDR-SB estratificado por APOE4.',
+      inesperada: false,
+      hipotesisIds: ['hip-3'],
+    },
+    {
+      titulo: 'Area inesperada: funcion renal y biomarcadores plasmaticos',
+      razon: 'La funcion renal altera NfL y p-tau en plasma; en cohortes latinoamericanas con mas diabetes e hipertension puede sesgar los umbrales.',
+      hallazgosRecientes: ['Tres articulos de 2025 ajustan por filtrado glomerular y cambian los cortes'],
+      queInvestigar: ['Umbrales de p-tau217 ajustados por funcion renal en la cohorte de FLENI'],
+      ideaEjemplo: 'Reanalizar la cohorte con creatinina como covariable.',
+      inesperada: true,
+      hipotesisIds: [],
+    },
+  ],
+  autoAprobarPlanSegundos: null,
+};
+
+const CORRIDA_ANTERIOR: Corrida = {
+  ...CORRIDA,
+  id: 'cor-2',
+  numero: 2,
+  estado: 'terminada',
+  empezadaEn: hace(3 * DIA),
+  terminadaEn: hace(2 * DIA),
+  iteracionActual: 9,
+  gasto: { tokensEntrada: 21_000_000, tokensSalida: 1_600_000, llamadas: 1_040, segundos: 24 * 3600, articulosLeidos: 203 },
+  motivoCierre: 'Condicion de parada: diez hipotesis sin revisar.',
+  presupuesto: { limiteLlamadas: 1_200, alertas: [0.5, 0.8], avisadas: [0.5, 0.8] },
+  contexto: { tokensUsados: 0, tokensLimite: 1_000_000, compactaciones: 2, ultimaCompactacion: null },
+  coberturas: [],
+  metaRevisiones: [],
+  procesos: [],
+  panorama: [],
+};
+
+export const ITERACION_ACTUAL: Iteracion = {
+  id: 'it-14',
+  corridaId: 'cor-3',
+  numero: 14,
+  empezadaEn: hace(6 * MIN),
+  terminadaEn: null,
+  planAprobado: true,
+  planPropuestoEn: hace(7 * MIN),
+  presupuesto: { limite: 120, usado: 63 },
+  resumen: '',
+  plan: [
+    { id: 'p1', titulo: 'Reordenar preguntas abiertas', detalle: '3 preguntas priorizadas: NfL y GFAP en preclinico, TREM2 agonistas, ARIA y APOE4', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'p2', titulo: 'Buscar literatura', detalle: 'PubMed, Europe PMC y bioRxiv sobre las 3 preguntas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: 30 },
+    { id: 'p3', titulo: 'Extraer afirmaciones con procedencia', detalle: '18 articulos nuevos, fragmentos por pagina', estado: 'en_curso', indicacionHumana: false, motivoFallo: null, presupuesto: 40 },
+    { id: 'p4', titulo: 'Verificar cada afirmacion', detalle: 'Juez Opus 5 tras triaje de Sonnet 5', estado: 'pendiente', indicacionHumana: false, motivoFallo: null, presupuesto: 30 },
+    { id: 'p5', titulo: 'Comprobar novedad', detalle: 'Open Targets, ClinicalTrials.gov y Agora', estado: 'pendiente', indicacionHumana: false, motivoFallo: null, presupuesto: 10 },
+    { id: 'p6', titulo: 'Actualizar el modelo de mundo', detalle: '', estado: 'pendiente', indicacionHumana: false, motivoFallo: null, presupuesto: 10 },
+  ],
+  pistas: [
+    {
+      id: 'pi-1',
+      iteracionId: 'it-14',
+      pasoId: 'p2',
+      tipo: 'literatura',
+      titulo: 'NfL y GFAP en Alzheimer preclinico',
+      fuente: 'PubMed',
+      estado: 'hecha',
+      resumen: '26 resultados, 9 con texto completo en PMC',
+      ms: 41_000,
+      transcripcion: [
+        {
+          t: 0,
+          tipo: 'accion',
+          texto: 'esearch: (neurofilament light OR GFAP) AND preclinical Alzheimer AND plasma, 2023-2026',
+          consulta: { base: 'PubMed E-utilities', parametros: 'db=pubmed&term=(neurofilament light OR GFAP) AND preclinical Alzheimer AND plasma&mindate=2023&maxdate=2026&retmax=100', resultados: '26 PMID (9 con enlace a PMC)' },
+        },
+        { t: 1_800, tipo: 'resultado', texto: '26 PMID; 9 con enlace a PMC' },
+        {
+          t: 2_100,
+          tipo: 'accion',
+          texto: 'Comprobando retractaciones en Crossref para 9 DOI',
+          consulta: { base: 'Crossref', parametros: 'GET /works/{doi} (9 llamadas), campo updated-by', resultados: '0 retractados, 0 expresiones de preocupacion' },
+        },
+        { t: 9_400, tipo: 'resultado', texto: 'Ninguno retractado ni con expresion de preocupacion' },
+        { t: 41_000, tipo: 'nota', texto: 'Texto completo descargado por Unpaywall para 7 de 9; 2 sin acceso abierto quedan en resumen' },
+      ],
+    },
+    {
+      id: 'pi-2',
+      iteracionId: 'it-14',
+      pasoId: 'p2',
+      tipo: 'literatura',
+      titulo: 'Agonistas de TREM2 en ensayo',
+      fuente: 'Europe PMC',
+      estado: 'hecha',
+      resumen: '11 resultados, 3 preprints',
+      ms: 28_000,
+      transcripcion: [
+        {
+          t: 0,
+          tipo: 'accion',
+          texto: 'REST: TREM2 agonist antibody Alzheimer, incluidos preprints',
+          consulta: { base: 'Europe PMC REST', parametros: 'query=TREM2 agonist antibody Alzheimer&resultType=lite&pageSize=50&src=MED,PPR', resultados: '11 resultados, 3 de ellos preprints' },
+        },
+        { t: 2_400, tipo: 'resultado', texto: '11 resultados; 3 preprints de bioRxiv y medRxiv' },
+        { t: 28_000, tipo: 'nota', texto: 'Un preprint de 2024 tiene version publicada en 2025: se toma la publicada' },
+      ],
+    },
+    {
+      id: 'pi-3',
+      iteracionId: 'it-14',
+      pasoId: 'p2',
+      tipo: 'ensayos',
+      titulo: 'ARIA en portadores de APOE4',
+      fuente: 'ClinicalTrials.gov v2',
+      estado: 'fallida',
+      resumen: 'Sin respuesta en 30 s: se reintenta en la siguiente iteracion',
+      ms: 30_000,
+      transcripcion: [
+        {
+          t: 0,
+          tipo: 'accion',
+          texto: 'GET /api/v2/studies?query.cond=Alzheimer&query.term=ARIA APOE4',
+          consulta: { base: 'ClinicalTrials.gov v2', parametros: 'query.cond=Alzheimer&query.term=ARIA APOE4&pageSize=100', resultados: 'sin respuesta (tiempo limite 30 s)' },
+        },
+        { t: 30_000, tipo: 'error', texto: 'Tiempo limite agotado (30 s). No es "sin ensayos": la consulta no llego.' },
+      ],
+    },
+    {
+      id: 'pi-4',
+      iteracionId: 'it-14',
+      pasoId: 'p3',
+      tipo: 'extraccion',
+      titulo: 'Extraer afirmaciones de 18 articulos',
+      fuente: 'Sonnet 5',
+      estado: 'en_curso',
+      resumen: '11 de 18 articulos, 143 afirmaciones con cita',
+      ms: 0,
+      transcripcion: [
+        { t: 0, tipo: 'accion', texto: 'Fragmentos por pagina (GROBID + Docling), sin cruzar de pagina' },
+        { t: 12_000, tipo: 'resultado', texto: 'Articulo 1 de 18: 14 afirmaciones, 3 con cifras normalizadas' },
+        { t: 96_000, tipo: 'resultado', texto: 'Articulo 11 de 18: 143 afirmaciones acumuladas' },
+      ],
+    },
+  ],
+};
+
+const ITERACION_ANTERIOR: Iteracion = {
+  id: 'it-13',
+  corridaId: 'cor-3',
+  numero: 13,
+  empezadaEn: hace(52 * MIN),
+  terminadaEn: hace(7 * MIN),
+  planAprobado: true,
+  planPropuestoEn: hace(53 * MIN),
+  presupuesto: { limite: 120, usado: 118 },
+  resumen: '4 busquedas, 22 articulos, 201 afirmaciones (183 sostenidas), 1 hipotesis nueva, 2 hechos anadidos',
+  plan: [
+    { id: 'a1', titulo: 'Reordenar preguntas abiertas', detalle: '', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a2', titulo: 'Buscar literatura', detalle: '4 busquedas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a3', titulo: 'Extraer afirmaciones con procedencia', detalle: '22 articulos', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a4', titulo: 'Verificar cada afirmacion', detalle: '183 de 201 sostenidas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a5', titulo: 'Comprobar novedad', detalle: '1 hipotesis nueva, 1 ya en ensayo', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a6', titulo: 'Consultar NIAGADS para GWAS de TREM2', detalle: '', estado: 'fallido', indicacionHumana: false, motivoFallo: 'La API de NIAGADS no esta entre las fuentes concedidas; se pidio permiso y la iteracion siguio sin ella.', presupuesto: null },
+    { id: 'a7', titulo: 'Actualizar el modelo de mundo', detalle: '2 hechos, 1 pregunta cerrada', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+  ],
+  pistas: [],
+};
+
+/* ---------------------------------------------------------------------
+   Permisos e incidencias
+   --------------------------------------------------------------------- */
+
+export const SOLICITUDES: SolicitudPermiso[] = [
+  {
+    id: 'sol-1',
+    corridaId: 'cor-3',
+    tipo: 'presupuesto_grande',
+    titulo: 'Gastar un presupuesto grande en una hipotesis',
+    detalle:
+      'Rosa quiere dedicar 400 llamadas al modelo (unas 3 iteraciones) a perseguir la hipotesis "NLRP3 como puente entre amiloide y propagacion de tau". Supera el limite de 120 por iteracion.',
+    recurso: '400 llamadas al modelo para hip-2',
+    alcances: ['una_vez', 'esta_corrida'],
+    estado: 'pendiente',
+    alcanceConcedido: null,
+    creadaEn: hace(9 * HORA),
+    resueltaEn: null,
+    hipotesisId: 'hip-2',
+    argumentos: [
+      { nombre: 'Llamadas', valor: '400', editable: true },
+      { nombre: 'Hipotesis', valor: 'hip-2 (NLRP3)', editable: false },
+      { nombre: 'Iteraciones estimadas', valor: '3', editable: false },
+    ],
+  },
+  {
+    id: 'sol-2',
+    corridaId: 'cor-3',
+    tipo: 'fuente_externa',
+    titulo: 'Consultar una fuente externa nueva',
+    detalle: 'Rosa quiere consultar la API REST de NIAGADS GenomicsDB para estadisticas GWAS de TREM2 y APOE. No esta entre las fuentes concedidas.',
+    recurso: 'api.niagads.org',
+    alcances: ['una_vez', 'esta_corrida', 'esta_investigacion', 'siempre'],
+    estado: 'pendiente',
+    alcanceConcedido: null,
+    creadaEn: hace(90_000),
+    resueltaEn: null,
+    hipotesisId: null,
+    argumentos: [
+      { nombre: 'Host', valor: 'api.niagads.org', editable: false },
+      { nombre: 'Consulta', valor: 'GWAS summary statistics: TREM2, APOE', editable: true },
+      { nombre: 'Peticiones estimadas', valor: '12', editable: true },
+    ],
+  },
+  {
+    id: 'sol-3',
+    corridaId: 'cor-3',
+    tipo: 'fuente_externa',
+    titulo: 'Consultar una fuente externa nueva',
+    detalle: 'Rosa quiere descargar estadisticas GWAS del GWAS Catalog (NHGRI-EBI) para 15 publicaciones de Alzheimer.',
+    recurso: 'www.ebi.ac.uk/gwas',
+    alcances: ['una_vez', 'esta_corrida', 'esta_investigacion', 'siempre'],
+    estado: 'pendiente',
+    alcanceConcedido: null,
+    creadaEn: hace(40 * MIN),
+    resueltaEn: null,
+    hipotesisId: null,
+    argumentos: [
+      { nombre: 'Host', valor: 'www.ebi.ac.uk/gwas', editable: false },
+      { nombre: 'Publicaciones', valor: '15', editable: true },
+    ],
+  },
+];
+
+export const INCIDENCIAS: Incidencia[] = [
+  {
+    id: 'inc-1',
+    corridaId: 'cor-3',
+    tipo: 'modelo_bloqueado',
+    titulo: 'El extractor devolvio vacio por filtro de contenido',
+    detalle:
+      'En la pista "Extraer afirmaciones de 18 articulos", el articulo 7 (cineticas de agregacion del beta amiloide) devolvio una respuesta vacia con finish_reason content-filter. La pista sigue con los otros 17; ese articulo queda sin extraer hasta que se decida.',
+    recurso: 'anthropic/claude-sonnet-5 (extractor)',
+    alternativa: 'Reintentar ese articulo con openai/gpt-6-astra',
+    estado: 'pendiente',
+    creadaEn: hace(3 * MIN),
+    resueltaEn: null,
+    resolucion: null,
+  },
+  {
+    id: 'inc-2',
+    corridaId: 'cor-3',
+    tipo: 'conector_caducado',
+    titulo: 'La clave de Semantic Scholar caduco',
+    detalle: 'Las llamadas al grafo academico de Semantic Scholar devuelven 401 desde hace 2 horas. Rosa sigue con PubMed, Europe PMC y OpenAlex, pero sin el grafo de citas.',
+    recurso: 'api.semanticscholar.org',
+    alternativa: 'Reconectar con una clave nueva (gratuita, se pide en su web)',
+    estado: 'pendiente',
+    creadaEn: hace(2 * HORA),
+    resueltaEn: null,
+    resolucion: null,
+  },
+];
+
+export const PERMISOS: PermisoConcedido[] = [
+  { id: 'per-1', tipo: 'fuente_externa', recurso: 'eutils.ncbi.nlm.nih.gov (PubMed y PMC)', alcance: 'siempre', concedidoEn: hace(3 * DIA), investigacionId: null },
+  { id: 'per-2', tipo: 'fuente_externa', recurso: 'www.ebi.ac.uk/europepmc', alcance: 'siempre', concedidoEn: hace(3 * DIA), investigacionId: null },
+  { id: 'per-3', tipo: 'fuente_externa', recurso: 'api.biorxiv.org', alcance: 'esta_investigacion', concedidoEn: hace(3 * DIA), investigacionId: 'inv-1' },
+  { id: 'per-4', tipo: 'fuente_externa', recurso: 'api.clinicaltrials.gov (v2)', alcance: 'siempre', concedidoEn: hace(2 * DIA), investigacionId: null },
+  { id: 'per-5', tipo: 'fuente_externa', recurso: 'api.platform.opentargets.org (GraphQL)', alcance: 'esta_investigacion', concedidoEn: hace(2 * DIA), investigacionId: 'inv-1' },
+  { id: 'per-6', tipo: 'acceso_corpus', recurso: 'Corpus indexado de la investigacion (lectura)', alcance: 'esta_investigacion', concedidoEn: hace(3 * DIA), investigacionId: 'inv-1' },
+  { id: 'per-7', tipo: 'trabajo_largo', recurso: 'Corridas de hasta 72 horas', alcance: 'esta_investigacion', concedidoEn: hace(3 * DIA), investigacionId: 'inv-1' },
+];
+
+export const AUTONOMIA: Record<ClaseAccion, NivelAutonomia> = {
+  buscar_literatura: 'actuar',
+  correr_analisis: 'preguntar',
+  gastar_grande: 'preguntar',
+  escribir_modelo_mundo: 'preguntar',
+  descartar_hipotesis: 'sugerir',
+  contactar_laboratorio: 'sugerir',
+};
+
+/* ---------------------------------------------------------------------
+   Hipotesis
+   --------------------------------------------------------------------- */
+
+function procedencia(fuentes: Fuente[], codigo: string, registro: string[], mensajes: Procedencia['mensajes']): Procedencia {
+  return {
+    mensajes,
+    codigo,
+    registro,
+    entorno: {
+      lenguaje: 'Python',
+      version: '3.12.14',
+      paquetes: [
+        { nombre: 'dspy', version: '3.3.1' },
+        { nombre: 'mlflow', version: '3.16.0' },
+        { nombre: 'httpx', version: '0.28.1' },
+        { nombre: 'pydantic', version: '2.11.4' },
+      ],
+      modelos: [
+        { nombre: 'openai/gpt-6-astra (cerebro)', version: 'gateway' },
+        { nombre: 'anthropic/claude-opus-5 (juez)', version: 'gateway' },
+        { nombre: 'anthropic/claude-sonnet-5 (extractor)', version: 'gateway' },
+      ],
+    },
+    fuentes,
+  };
+}
+
+type CamposNuevos =
+  | 'origen'
+  | 'derivadaDe'
+  | 'cluster'
+  | 'evidenciaEstadistica'
+  | 'relevancia'
+  | 'partidos'
+  | 'revisionesAutomaticas'
+  | 'supuestos'
+  | 'revisionesHumanas'
+  | 'replicacion'
+  | 'ultimaRevisionAutomatica'
+  | 'coste'
+  | 'experimento'
+  | 'prerregistradaEn';
+
+export type HipotesisParcial = Omit<Hipotesis, CamposNuevos> & Partial<Pick<Hipotesis, CamposNuevos>>;
+
+/** Rellena con valores por defecto los campos que la primera version de la
+ *  muestra no tenia, para que cada hipotesis solo declare lo que la distingue. */
+export function completarHipotesis(h: HipotesisParcial): Hipotesis {
+  return {
+    origen: 'rosa',
+    derivadaDe: null,
+    cluster: 'Biomarcadores',
+    evidenciaEstadistica: 'no_aplica',
+    relevancia: { justificacion: 'Sin justificacion de relevancia todavia.', votoHumano: null },
+    partidos: [],
+    revisionesAutomaticas: [
+      { tipo: 'inicial', estado: 'hecha', resumen: 'Sin fallos evidentes; novedad plausible.', fecha: h.creadaEn },
+      { tipo: 'completa', estado: 'hecha', resumen: 'Revisada con literatura.', fecha: h.creadaEn + 5 * MIN },
+      { tipo: 'profunda', estado: 'pendiente', resumen: '', fecha: null },
+      { tipo: 'observacion', estado: 'pendiente', resumen: '', fecha: null },
+      { tipo: 'simulacion', estado: 'pendiente', resumen: '', fecha: null },
+      { tipo: 'torneo', estado: 'hecha', resumen: 'Participo en el torneo de la iteracion 13.', fecha: hace(50 * MIN) },
+    ],
+    supuestos: [],
+    revisionesHumanas: [],
+    replicacion: null,
+    ultimaRevisionAutomatica: hace(50 * MIN),
+    coste: { literatura: 2.4, analisis: 0 },
+    experimento: null,
+    prerregistradaEn: h.creadaEn,
+    ...h,
+  };
+}
+
+const HIPOTESIS_BASE: HipotesisParcial[] = [
+  {
+    id: 'hip-1',
+    investigacionId: 'inv-1',
+    titulo: 'El cociente p-tau217/Abeta42 anticipa la progresion en Alzheimer autosomico dominante mas que p-tau217 solo',
+    enunciado:
+      'En portadores de mutaciones en PSEN1, el cociente p-tau217/Abeta42 en plasma se altera antes que p-tau217 aislado y predice el paso a deterioro cognitivo leve con mayor anticipacion. Si es asi, las cohortes de Alzheimer familiar permitirian fijar umbrales que despues se trasladen al esporadico.',
+    mecanismo:
+      'La caida de Abeta42 en plasma refleja el deposito amiloide temprano, y p-tau217 sube en respuesta a ese deposito; el cociente combina las dos senales y corrige la variabilidad individual de la produccion de Abeta.',
+    comprobacion: {
+      biomarcador: 'p-tau217/Abeta42 en plasma, seriado, frente a p-tau217 solo',
+      cohorte: 'Portadores de PSEN1 E280A (Antioquia) y cohorte de Alzheimer familiar de FLENI',
+      diseno: 'Cohorte longitudinal con conversion a MCI como desenlace; comparar el area bajo la curva de ambos marcadores a 3 y 5 anos',
+    },
+    estado: 'propuesta',
+    elo: 1_642,
+    historialElo: [
+      { iteracion: 6, elo: 1_500 },
+      { iteracion: 8, elo: 1_548 },
+      { iteracion: 10, elo: 1_590 },
+      { iteracion: 12, elo: 1_625 },
+      { iteracion: 13, elo: 1_642 },
+    ],
+    rivales: ['hip-2', 'hip-4'],
+    novedad: {
+      openTargets: { estado: 'evidencia_previa', detalle: 'MAPT y APP con asociacion fuerte a Alzheimer; el cociente como predictor no es una asociacion gen-enfermedad, asi que no descarta la hipotesis' },
+      ensayos: { estado: 'sin_ensayo', detalle: 'Ningun ensayo registrado usa el cociente como criterio de progresion en familiar', nct: null },
+      agora: { estado: 'no_nominada', detalle: 'No aplica: no es una diana' },
+      precedente: { estado: 'parcial', detalle: 'Dos articulos de 2025 comparan el cociente con p-tau217 solo en esporadico; ninguno en autosomico dominante con conversion a MCI como desenlace.' },
+    },
+    afirmaciones: [
+      { texto: 'El cociente p-tau217/Abeta42 en plasma tiene precision comparable a la PET de tau.', cita: '[Cohorte clinica, 2025, pag. 7]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'El primer test de Alzheimer en sangre autorizado por la FDA se basa en ese cociente.', cita: '[FDA, 2025]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'En el subgrupo autosomico dominante la senal anticipa varios anos el inicio de los sintomas.', cita: '[Cohorte clinica, 2025, pag. 7]', veredicto: 'parcial', motivo: 'La fuente dice "varios anos" sin cifra; la hipotesis no debe fijar un numero.', entidadDistinta: false, tipo: 'interpretacion', trayectoria: null },
+    ],
+    procedencia: procedencia(
+      [FUENTES.allegri2025!, FUENTES.fdaTest!],
+      `import dspy\n\nclass GenerarHipotesis(dspy.Signature):\n    """Propone una hipotesis comprobable a partir de hechos con procedencia."""\n    hechos: list[str] = dspy.InputField()\n    pregunta_abierta: str = dspy.InputField()\n    hipotesis: str = dspy.OutputField()\n    comprobacion: str = dspy.OutputField(desc="biomarcador, cohorte y diseno")\n\ngenerar = dspy.ChainOfThought(GenerarHipotesis)\nsalida = generar(hechos=hechos_iteracion_13, pregunta_abierta=preguntas[0])`,
+      [
+        '13:02:11 generar(hechos=42, pregunta="p-tau217 en familiar") -> 1 hipotesis, 1.412 tokens',
+        '13:02:19 extraer_afirmaciones(hipotesis) -> 3 afirmaciones con cita',
+        '13:02:20 verificar deterministas: 3 citas resuelven, 0 identificadores ausentes',
+        '13:02:31 juez(opus-5) -> sostenida, sostenida, parcial',
+        '13:02:32 novedad: open_targets=evidencia_previa ensayos=sin_ensayo agora=no_aplica precedente=parcial',
+        '13:02:32 cola_revision.anadir(hip-1, estado=propuesta)',
+      ],
+      [
+        { id: 'm1', de: 'rosa', texto: 'Propongo esta hipotesis a partir de la pregunta abierta "p-tau217 en Alzheimer familiar". Dos afirmaciones sostenidas y una parcial: la anticipacion no tiene cifra en la fuente.', creadoEn: hace(58 * MIN) },
+        { id: 'm2', de: 'revisor', texto: 'Sin hallazgos que bloqueen. La afirmacion parcial esta marcada.', creadoEn: hace(57 * MIN) },
+      ],
+    ),
+    hallazgos: [],
+    revisiones: [{ fecha: hace(58 * MIN), quien: 'Rosa', accion: 'propuesta', nota: 'Iteracion 13', aCiegas: false }],
+    creadaEn: hace(58 * MIN),
+    iteracion: 13,
+    cluster: 'Biomarcadores sanguineos',
+    evidenciaEstadistica: 'moderada',
+    relevancia: { justificacion: 'Responde al objetivo directo: que combinacion anticipa mas. Comprobable en la cohorte de FLENI, que es la que valida el investigador clinico principal.', votoHumano: null },
+    partidos: [
+      { iteracion: 8, rivalId: 'hip-2', resultado: 'perdio', resumenDebate: 'NLRP3 explica un hecho abierto (por que los anti-amiloide solo ralentizan); el cociente es una mejora incremental de un test ya autorizado.', ejeDecisivo: 'novedad' },
+      { iteracion: 10, rivalId: 'hip-4', resultado: 'gano', resumenDebate: 'Ambas comprobables en FLENI; el cociente tiene mas evidencia previa y un desenlace clinico mas claro (conversion a MCI).', ejeDecisivo: 'correccion' },
+      { iteracion: 12, rivalId: 'hip-3', resultado: 'gano', resumenDebate: 'La hipotesis de GLP-1 ya esta en ensayo; el cociente en autosomico dominante no.', ejeDecisivo: 'novedad' },
+      { iteracion: 13, rivalId: 'hip-2', resultado: 'perdio', resumenDebate: 'Las dos afirmaciones no sostenidas de NLRP3 pesaron, pero su utilidad terapeutica supero a la utilidad diagnostica del cociente.', ejeDecisivo: 'utilidad' },
+    ],
+    supuestos: [
+      {
+        id: 's1',
+        texto: 'Abeta42 en plasma baja cuando empieza el deposito amiloide cerebral.',
+        estado: 'respaldado',
+        evidencia: 'Cociente Abeta42/40 en plasma correlaciona con PET de amiloide en varias cohortes.',
+        hijos: [{ id: 's1a', texto: 'La produccion periferica de Abeta no enmascara la senal cerebral.', estado: 'plausible', evidencia: 'Se corrige con el cociente, pero la funcion renal y hepatica lo alteran.', hijos: [] }],
+      },
+      { id: 's2', texto: 'p-tau217 sube en respuesta al deposito amiloide, antes de los sintomas.', estado: 'respaldado', evidencia: 'Anticipacion de anos en cohortes autosomicas dominantes.', hijos: [] },
+      { id: 's3', texto: 'Lo que vale en PSEN1 vale en el esporadico.', estado: 'sin_evidencia', evidencia: 'Es la premisa del Alzheimer familiar como modelo; la edad y las comorbilidades difieren.', hijos: [] },
+    ],
+    coste: { literatura: 3.1, analisis: 0 },
+  },
+  {
+    id: 'hip-2',
+    investigacionId: 'inv-1',
+    titulo: 'NLRP3 es el puente entre el deposito amiloide y la propagacion de tau, y su inhibicion frenaria la progresion aunque el amiloide siga',
+    enunciado:
+      'La activacion del inflamasoma NLRP3 en microglia, inducida por Abeta, libera motas de ASC que las neuronas captan y que siembran la agregacion de tau. Inhibir NLRP3 romperia la cascada aguas abajo del amiloide, lo que explicaria por que los anti-amiloide solo ralentizan un 30 %.',
+    mecanismo:
+      'Abeta activa NLRP3; NLRP3 produce IL-1beta y motas de ASC; las motas se unen a Abeta y a tau y actuan como semilla; la tau agregada activa mas NLRP3. Un circuito que se retroalimenta.',
+    comprobacion: {
+      biomarcador: 'IL-1beta y ASC en liquido cefalorraquideo junto a p-tau217 y NfL; GFAP como control de astroglia',
+      cohorte: 'Cohorte longitudinal con PET de amiloide positiva y PET de tau negativa al inicio (ADNI, A4)',
+      diseno: 'Asociar los niveles basales de IL-1beta y ASC con la conversion a PET de tau positiva a 2 anos; en preclinico, inhibidor de NLRP3 en modelo con placas y tau',
+    },
+    estado: 'en_revision',
+    elo: 1_701,
+    historialElo: [
+      { iteracion: 4, elo: 1_500 },
+      { iteracion: 7, elo: 1_580 },
+      { iteracion: 9, elo: 1_610 },
+      { iteracion: 11, elo: 1_690 },
+      { iteracion: 13, elo: 1_701 },
+    ],
+    rivales: ['hip-1', 'hip-3'],
+    novedad: {
+      openTargets: { estado: 'evidencia_previa', detalle: 'NLRP3 tiene asociacion con Alzheimer por literatura y modelos animales (puntuacion 0,41)' },
+      ensayos: { estado: 'ensayo_existente', detalle: 'Hay inhibidores de NLRP3 en fase 1 y 2 para Alzheimer y Parkinson', nct: 'NCT05658575' },
+      agora: { estado: 'nominada', detalle: 'NLRP3 nominada por dos equipos de AMP-AD como diana de neuroinflamacion' },
+      precedente: { estado: 'ya_publicado', detalle: 'La cascada Abeta, NLRP3, ASC, tau esta descrita desde 2019; lo que no consta es la prediccion de que la inhibicion frene la progresion clinica con amiloide persistente.' },
+    },
+    afirmaciones: [
+      { texto: 'La activacion de NLRP3 en microglia libera motas de ASC que promueven la agregacion de tau.', cita: '[Revision neuroinflamacion, 2024, pag. 5]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'La inhibicion de NLRP3 redujo la patologia de tau en modelos murinos.', cita: '[Revision neuroinflamacion, 2024, pag. 5]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'Los anti-amiloide ralentizan la progresion alrededor de un 30 %.', cita: '[Cummings et al., 2026, pag. 4]', veredicto: 'no_sostenida', motivo: 'La pagina 4 trae el reparto del pipeline; la cifra del 30 % esta en otra parte de la revision. La cita no resuelve al dato.', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'El lecanemab redujo el declive un 27 % en fase 3.', cita: '[Cummings et al., 2026, pag. 4]', veredicto: 'no_sostenida', motivo: 'La cifra del 27 % es del ensayo Clarity AD, no de la revision del pipeline; ademas la pagina citada no la contiene.', entidadDistinta: true, tipo: 'literatura', trayectoria: null },
+      { texto: 'La correlacion entre ASC en LCR y p-tau217 en la cohorte piloto fue de 0,62.', cita: '[Trayectoria r7, celda 14]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'dato', trayectoria: { id: 'r7', celda: 14 } },
+    ],
+    procedencia: procedencia(
+      [FUENTES.nlrp3!, FUENTES.cummings2026!],
+      `class VerificarAfirmacion(dspy.Signature):\n    afirmacion: str = dspy.InputField()\n    fragmento: str = dspy.InputField()\n    encabezado: str = dspy.InputField()\n    veredicto: Literal["sostenida", "parcial", "no_sostenida"] = dspy.OutputField()\n    motivo: str = dspy.OutputField()\n    entidad_distinta: bool = dspy.OutputField()\n\njuez = dspy.Predict(VerificarAfirmacion)\nwith dspy.context(lm=opus5):\n    dictamenes = [juez(**a) for a in afirmaciones_con_fragmento]\n\n# celda 14 (trayectoria r7): correlacion ASC vs p-tau217 en la cohorte piloto\nimport numpy as np\nr = np.corrcoef(piloto["asc_lcr"], piloto["ptau217"])[0, 1]  # 0.62`,
+      [
+        '11:48:02 generar(hechos=39, pregunta="por que los anti-amiloide solo ralentizan") -> 1 hipotesis',
+        '11:48:10 extraer_afirmaciones -> 5 afirmaciones con cita (1 dato de trayectoria r7)',
+        '11:48:11 verificar deterministas: 5 citas resuelven a fragmento o celda',
+        '11:48:24 juez(opus-5) -> sostenida, sostenida, no_sostenida, no_sostenida(entidad_distinta), sostenida',
+        '11:48:25 novedad: open_targets=evidencia_previa(0.41) ensayos=NCT05658575 agora=nominada precedente=ya_publicado',
+        '11:48:25 revisor: 2 hallazgos abiertos',
+        '11:48:26 cola_revision.anadir(hip-2, estado=en_revision)',
+      ],
+      [
+        { id: 'm3', de: 'rosa', texto: 'La hipotesis explica un hecho que el modelo de mundo tiene como abierto: por que los anti-amiloide no detienen la progresion. Dos afirmaciones no se sostienen y las voy a corregir.', creadoEn: hace(2 * HORA) },
+        { id: 'm4', de: 'revisor', texto: 'Dos hallazgos: una cita que no resuelve al dato del 30 %, y una cifra del lecanemab atribuida a la revision del pipeline cuando es de Clarity AD.', creadoEn: hace(2 * HORA) },
+        { id: 'm5', de: 'rosa', texto: 'Atendido el segundo: la afirmacion del 27 % se reatribuye al ensayo Clarity AD o se quita. El primero sigue abierto hasta localizar la pagina exacta del 30 %.', creadoEn: hace(1.5 * HORA) },
+      ],
+    ),
+    hallazgos: [
+      {
+        id: 'h-1',
+        tipo: 'cita_no_sostiene',
+        resumen: 'La cita del 30 % apunta a la pagina 4 y esa pagina trae el reparto del pipeline, no la cifra',
+        razonamiento:
+          'La afirmacion "los anti-amiloide ralentizan la progresion alrededor de un 30 %" lleva la cita [Cummings et al., 2026, pag. 4]. El fragmento recuperado de la pagina 4 habla de 158 agentes en 192 ensayos y del reparto por diana. No contiene "30 %" ni un equivalente. La cifra puede estar en la seccion de discusion de la misma revision, pero la cita tiene que resolver a la pagina exacta del dato.',
+        estado: 'abierto',
+        respuestaDeRosa: null,
+      },
+      {
+        id: 'h-2',
+        tipo: 'entidad_distinta',
+        resumen: 'El 27 % del lecanemab es de Clarity AD, no de la revision del pipeline',
+        razonamiento:
+          'La afirmacion atribuye la reduccion del 27 % del declive a Cummings et al., 2026. Ese numero es el resultado primario del ensayo de fase 3 Clarity AD (van Dyck et al., 2023). La revision del pipeline puede citarlo, pero la afirmacion presenta el dato como propio de la revision. Es un dato real de otra entidad.',
+        estado: 'atendido',
+        respuestaDeRosa: 'Corregido: la afirmacion se reatribuye a Clarity AD con su cita, o se elimina si no se recupera el fragmento del ensayo.',
+      },
+      {
+        id: 'h-3',
+        tipo: 'sobreafirmacion',
+        resumen: 'Que NLRP3 este aguas abajo del amiloide no implica que inhibirlo frene la progresion en humanos',
+        razonamiento:
+          'La evidencia citada es de modelos murinos. El salto de "reduce la patologia de tau en ratones" a "frenaria la progresion aunque el amiloide siga" en personas necesita la comprobacion propuesta; como hipotesis es legitima, pero el enunciado la afirma con mas seguridad de la que la evidencia da.',
+        estado: 'abierto',
+        respuestaDeRosa: null,
+      },
+      {
+        id: 'h-4',
+        tipo: 'paso_sin_completar',
+        resumen: 'El paso "comprobar novedad contra Agora" se dio por hecho antes de recibir la respuesta',
+        razonamiento:
+          'En el registro, la consulta a Agora se lanzo a las 11:48:25 y la marca de "novedad comprobada" se escribio en el mismo segundo. La respuesta de Agora llego despues. El resultado final coincide, pero el orden de las marcas no.',
+        estado: 'no_aplica',
+        respuestaDeRosa: 'La respuesta de Agora estaba en cache de la iteracion 9 (misma consulta); el registro lo indica en la linea siguiente. No hay paso sin completar.',
+      },
+    ],
+    revisiones: [
+      { fecha: hace(2 * HORA), quien: 'Rosa', accion: 'propuesta', nota: 'Iteracion 11', aCiegas: false },
+      { fecha: hace(1.5 * HORA), quien: 'Rosa', accion: 'comentada', nota: 'Atendido el hallazgo de entidad distinta', aCiegas: false },
+    ],
+    creadaEn: hace(2 * HORA),
+    iteracion: 11,
+    cluster: 'Neuroinflamacion',
+    evidenciaEstadistica: 'fuerte',
+    relevancia: { justificacion: 'Explica el hecho abierto mas importante del objetivo (por que los anti-amiloide no detienen la progresion) y propone una diana ya "drogable". El riesgo es que sea significativa pero no nueva.', votoHumano: null },
+    partidos: [
+      { iteracion: 8, rivalId: 'hip-1', resultado: 'gano', resumenDebate: 'NLRP3 explica un hecho abierto; el cociente es una mejora incremental.', ejeDecisivo: 'novedad' },
+      { iteracion: 11, rivalId: 'hip-3', resultado: 'gano', resumenDebate: 'GLP-1 ya esta en fase 3 y su mecanismo microglial no tiene cita; NLRP3 tiene mecanismo detallado.', ejeDecisivo: 'especificidad' },
+      { iteracion: 13, rivalId: 'hip-1', resultado: 'gano', resumenDebate: 'Pesaron las dos afirmaciones no sostenidas, pero la utilidad terapeutica supero a la diagnostica.', ejeDecisivo: 'utilidad' },
+    ],
+    revisionesAutomaticas: [
+      { tipo: 'inicial', estado: 'hecha', resumen: 'Plausible y testable; novedad dudosa (cascada ya descrita).', fecha: hace(2 * HORA) },
+      { tipo: 'completa', estado: 'hecha', resumen: 'Dos afirmaciones no sostenidas contra la literatura.', fecha: hace(2 * HORA) },
+      { tipo: 'profunda', estado: 'hecha', resumen: 'Cuatro supuestos: dos respaldados, uno plausible, uno sin evidencia en humanos.', fecha: hace(1.8 * HORA) },
+      { tipo: 'observacion', estado: 'hecha', resumen: 'Explica la observacion de que la tau sigue propagandose tras retirar amiloide (pieza que faltaba); no explica los casos de tau sin amiloide (neutral).', fecha: hace(1.7 * HORA) },
+      { tipo: 'simulacion', estado: 'pendiente', resumen: '', fecha: null },
+      { tipo: 'torneo', estado: 'rehecha', resumen: 'Tres partidos ganados; se le critico la sobreafirmacion en dos debates.', fecha: hace(50 * MIN) },
+    ],
+    supuestos: [
+      { id: 's4', texto: 'Abeta activa NLRP3 en microglia.', estado: 'respaldado', evidencia: 'Modelos murinos y microglia humana in vitro.', hijos: [] },
+      {
+        id: 's5',
+        texto: 'Las motas de ASC siembran la agregacion de tau en neuronas.',
+        estado: 'respaldado',
+        evidencia: 'Modelos murinos (2019, 2024).',
+        hijos: [{ id: 's5a', texto: 'Ocurre a las concentraciones de ASC del cerebro humano.', estado: 'plausible', evidencia: 'No medido en humanos.', hijos: [] }],
+      },
+      { id: 's6', texto: 'Inhibir NLRP3 en personas frena la progresion con amiloide persistente.', estado: 'sin_evidencia', evidencia: 'Es la prediccion de la hipotesis; los ensayos de fase 1 y 2 no miden progresion.', hijos: [] },
+      { id: 's7', texto: 'La tau puede propagarse sin amiloide.', estado: 'contradicho', evidencia: 'La hipotesis lo niega implicitamente, pero las tauopatias primarias muestran propagacion sin placas.', hijos: [] },
+    ],
+    coste: { literatura: 5.8, analisis: 8.4 },
+    ultimaRevisionAutomatica: hace(50 * MIN),
+  },
+  {
+    id: 'hip-3',
+    investigacionId: 'inv-1',
+    titulo: 'Los agonistas de GLP-1 reducen la progresion por una via microglial independiente del amiloide',
+    enunciado:
+      'La semaglutida y otros agonistas de GLP-1 reducirian la progresion clinica en Alzheimer temprano a traves de la modulacion de la microglia y de la insulina cerebral, sin cambiar la carga amiloide medible por PET.',
+    mecanismo: 'Receptores de GLP-1 en microglia; su activacion reduce la produccion de citocinas proinflamatorias y mejora la senalizacion de insulina en hipocampo.',
+    comprobacion: {
+      biomarcador: 'GFAP y NfL en plasma como marcadores de respuesta; PET de amiloide como control negativo',
+      cohorte: 'Participantes de los ensayos evoke y evoke+ (semaglutida oral, fase 3)',
+      diseno: 'Analisis secundario: cambio en GFAP y NfL frente a CDR-SB a 104 semanas, estratificado por APOE4',
+    },
+    estado: 'refinar',
+    elo: 1_488,
+    historialElo: [
+      { iteracion: 5, elo: 1_500 },
+      { iteracion: 8, elo: 1_530 },
+      { iteracion: 10, elo: 1_495 },
+      { iteracion: 13, elo: 1_488 },
+    ],
+    rivales: ['hip-2'],
+    novedad: {
+      openTargets: { estado: 'evidencia_previa', detalle: 'GLP1R con asociacion debil a Alzheimer por reposicionamiento' },
+      ensayos: { estado: 'ensayo_existente', detalle: 'Semaglutida oral en fase 3 (evoke, evoke+)', nct: 'NCT04777396' },
+      agora: { estado: 'no_nominada', detalle: 'GLP1R no aparece entre las dianas nominadas' },
+      precedente: { estado: 'ya_publicado', detalle: 'La via microglial de GLP-1 esta propuesta en revisiones de 2023 y 2024.' },
+    },
+    afirmaciones: [
+      { texto: 'Hay un ensayo de fase 3 de semaglutida oral en Alzheimer temprano con CDR-SB como desenlace primario.', cita: '[ClinicalTrials.gov, evoke]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'Los agonistas de GLP-1 modulan la microglia en modelos animales.', cita: '', veredicto: 'sin_cita', motivo: 'Afirmacion sin cita propia tras la ultima cita del tramo.', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+    ],
+    procedencia: procedencia(
+      [FUENTES.glp1!],
+      '# Comprobacion de novedad contra ClinicalTrials.gov v2\nr = httpx.get("https://clinicaltrials.gov/api/v2/studies", params={"query.cond": "Alzheimer", "query.intr": "semaglutide"})\nestudios = r.json()["studies"]',
+      [
+        '09:14:40 generar -> 1 hipotesis (reposicionamiento GLP-1)',
+        '09:14:47 extraer_afirmaciones -> 2 afirmaciones; 1 sin cita',
+        '09:14:47 verificar deterministas: sin_cita en afirmacion 2',
+        '09:14:55 juez(opus-5) -> sostenida (1 de 1 juzgada)',
+        '09:14:56 novedad: ensayos=NCT04777396 (fase 3 existente) precedente=ya_publicado',
+        '09:14:56 cola_revision.anadir(hip-3, estado=propuesta)',
+        '10:31:02 revision humana (Companero): refinar. "El ensayo ya existe; lo nuevo seria el analisis secundario con GFAP y NfL. Reformular como pregunta sobre biomarcadores de respuesta."',
+      ],
+      [
+        { id: 'm6', de: 'rosa', texto: 'Hipotesis de reposicionamiento. La novedad es dudosa: la semaglutida ya esta en fase 3.', creadoEn: hace(5 * HORA) },
+        { id: 'm7', de: 'investigadora', texto: 'El ensayo ya existe; lo nuevo seria el analisis secundario con GFAP y NfL. Reformular como pregunta sobre biomarcadores de respuesta.', creadoEn: hace(4 * HORA) },
+      ],
+    ),
+    hallazgos: [
+      {
+        id: 'h-5',
+        tipo: 'cita_no_sostiene',
+        resumen: 'La afirmacion sobre microglia no lleva cita',
+        razonamiento: 'La segunda afirmacion queda tras la ultima cita del tramo sin cita propia. El verificador la marca sin_cita y bloquea la publicacion hasta que se cite o se quite.',
+        estado: 'abierto',
+        respuestaDeRosa: null,
+      },
+    ],
+    revisiones: [
+      { fecha: hace(5 * HORA), quien: 'Rosa', accion: 'propuesta', nota: 'Iteracion 8', aCiegas: false },
+      { fecha: hace(4 * HORA), quien: 'Companero', accion: 'refinar', nota: 'Reformular como pregunta sobre biomarcadores de respuesta', aCiegas: false },
+    ],
+    creadaEn: hace(5 * HORA),
+    iteracion: 8,
+    cluster: 'Reposicionamiento metabolico',
+    evidenciaEstadistica: 'debil',
+    relevancia: { justificacion: 'Relevancia media: el farmaco ya se prueba; lo que aportaria al objetivo es el biomarcador de respuesta, no el mecanismo.', votoHumano: 'media' },
+    partidos: [
+      { iteracion: 11, rivalId: 'hip-2', resultado: 'perdio', resumenDebate: 'Su mecanismo microglial no tiene cita; NLRP3 tiene mecanismo detallado.', ejeDecisivo: 'especificidad' },
+      { iteracion: 12, rivalId: 'hip-1', resultado: 'perdio', resumenDebate: 'Ya esta en ensayo; el cociente en autosomico dominante no.', ejeDecisivo: 'novedad' },
+    ],
+    revisionesHumanas: [
+      { fecha: hace(4 * HORA), quien: 'Companero', supuestosCuestionados: 'Que el efecto sea independiente del amiloide: los ensayos no miden PET de amiloide como desenlace.', literaturaQueFalta: 'Los resultados de evoke y evoke+ cuando se publiquen; los analisis de GFAP en ensayos de GLP-1 en diabetes.', problemaExperimental: 'Un analisis secundario de un ensayo ajeno no es una comprobacion que Rosa pueda lanzar; hay que reformular como pregunta.' },
+    ],
+    coste: { literatura: 1.9, analisis: 0 },
+  },
+  {
+    id: 'hip-4',
+    investigacionId: 'inv-1',
+    titulo: 'TREM2 R47H y APOE4 actuan en sinergia sobre la microglia asociada a enfermedad, y GFAP en plasma lo refleja antes que NfL',
+    enunciado:
+      'En portadores de APOE4 con la variante R47H de TREM2, la respuesta microglial atenuada se traduce en una subida temprana de GFAP en plasma (reaccion astroglial compensatoria) antes de que NfL indique dano axonal. GFAP seria el primer biomarcador sanguineo alterado en este subgrupo.',
+    mecanismo: 'R47H reduce la union de TREM2 a lipidos; APOE4 es ligando de TREM2 y ademas altera el metabolismo lipidico microglial; la microglia responde menos a las placas y la astroglia compensa.',
+    comprobacion: {
+      biomarcador: 'GFAP y NfL en plasma, seriados, junto a p-tau217',
+      cohorte: 'Portadores de APOE4 genotipados para TREM2 R47H en ADNI y en la cohorte de FLENI',
+      diseno: 'Comparar el momento de la primera alteracion de GFAP y de NfL entre R47H y no portadores, ajustado por edad y amiloide',
+    },
+    estado: 'aceptada',
+    elo: 1_575,
+    historialElo: [
+      { iteracion: 3, elo: 1_500 },
+      { iteracion: 6, elo: 1_555 },
+      { iteracion: 9, elo: 1_575 },
+    ],
+    rivales: ['hip-1'],
+    novedad: {
+      openTargets: { estado: 'evidencia_previa', detalle: 'TREM2 y APOE con asociacion genetica fuerte; la sinergia y el orden GFAP antes que NfL no constan como asociacion' },
+      ensayos: { estado: 'sin_ensayo', detalle: 'Ningun ensayo estratifica por TREM2 R47H y APOE4 con GFAP como desenlace', nct: null },
+      agora: { estado: 'nominada', detalle: 'TREM2 nominada por tres equipos de AMP-AD' },
+      precedente: { estado: 'sin_precedente', detalle: 'Ningun articulo propone el orden GFAP antes que NfL en este subgrupo genetico.' },
+    },
+    afirmaciones: [
+      { texto: 'La variante R47H de TREM2 atenua la respuesta microglial ante las placas.', cita: '[Revision TREM2 y APOE, 2025, pag. 12]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'En portadores de APOE4 el efecto se acumula, lo que sugiere sinergia.', cita: '[Revision TREM2 y APOE, 2025, pag. 12]', veredicto: 'sostenida', motivo: '', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+      { texto: 'GFAP en plasma refleja la reaccion astroglial.', cita: '[Revision TREM2 y APOE, 2025, pag. 12]', veredicto: 'parcial', motivo: 'La fuente menciona GFAP como marcador astroglial en una frase; no lo estudia en este subgrupo.', entidadDistinta: false, tipo: 'interpretacion', trayectoria: null },
+    ],
+    procedencia: procedencia(
+      [FUENTES.trem2apoe!],
+      'salida = generar(hechos=hechos_iteracion_3, pregunta_abierta="orden de alteracion de GFAP y NfL en portadores de APOE4")',
+      [
+        'dia 1 16:20:05 generar -> 1 hipotesis',
+        'dia 1 16:20:14 extraer_afirmaciones -> 3 afirmaciones',
+        'dia 1 16:20:26 juez(opus-5) -> sostenida, sostenida, parcial',
+        'dia 1 16:20:27 novedad: sin_ensayo, agora=nominada(TREM2), precedente=sin_precedente',
+        'dia 2 09:05:41 revision humana (la persona responsable): aceptada. "Comprobable en FLENI. Pedir a el investigador clinico principal si la cohorte tiene genotipo de TREM2."',
+        'dia 2 09:05:41 modelo_mundo.anadir(hipotesis aceptada, estado=abierto)',
+      ],
+      [
+        { id: 'm8', de: 'rosa', texto: 'Hipotesis mecanistica con un orden temporal comprobable en sangre. Tres afirmaciones, una parcial.', creadoEn: hace(2 * DIA) },
+        { id: 'm9', de: 'investigadora', texto: 'Comprobable en FLENI. Pedir a el investigador clinico principal si la cohorte tiene genotipo de TREM2.', creadoEn: hace(1.5 * DIA) },
+      ],
+    ),
+    hallazgos: [],
+    revisiones: [
+      { fecha: hace(2 * DIA), quien: 'Rosa', accion: 'propuesta', nota: 'Iteracion 3', aCiegas: false },
+      { fecha: hace(1.5 * DIA), quien: 'la persona responsable', accion: 'aceptada', nota: 'Comprobable en FLENI. Pedir a el investigador clinico principal si la cohorte tiene genotipo de TREM2.', aCiegas: false },
+    ],
+    creadaEn: hace(2 * DIA),
+    iteracion: 3,
+    cluster: 'Genetica y microglia',
+    evidenciaEstadistica: 'moderada',
+    relevancia: { justificacion: 'Propone un orden temporal de biomarcadores en un subgrupo genetico definido: es exactamente el tipo de hipotesis que el objetivo pide y FLENI puede comprobar.', votoHumano: 'alta' },
+    partidos: [
+      { iteracion: 6, rivalId: 'hip-1', resultado: 'gano', resumenDebate: 'Sin precedente publicado frente a una mejora incremental.', ejeDecisivo: 'novedad' },
+      { iteracion: 10, rivalId: 'hip-1', resultado: 'perdio', resumenDebate: 'El cociente tiene mas evidencia previa y un desenlace clinico mas claro.', ejeDecisivo: 'correccion' },
+    ],
+    replicacion: { total: 5, hechas: 5, sostienen: 5, contradicen: 0, estado: 'terminada', empezadaEn: hace(1.6 * DIA) },
+    experimento: {
+      protocolo: 'Genotipar TREM2 R47H en los portadores de APOE4 de la cohorte de FLENI con muestras seriadas de plasma; medir GFAP y NfL (Simoa) en cada punto.',
+      ensayo: 'Tiempo hasta la primera alteracion de GFAP frente a NfL, por grupo genetico',
+      costeEstimado: 'Unas 180 muestras; genotipado mas dos inmunoensayos por muestra',
+      laboratorio: null,
+      estado: 'propuesto',
+      ficheroDatos: null,
+      analisisPedido: '',
+    },
+    coste: { literatura: 4.2, analisis: 11.3 },
+  },
+  {
+    id: 'hip-5',
+    investigacionId: 'inv-1',
+    titulo: 'Un oligomero especifico de Abeta (Abeta*56) es el desencadenante de la perdida de memoria',
+    enunciado: 'Un oligomero de 56 kDa seria la especie toxica que inicia la perdida de memoria, y su medicion en plasma anticiparia el deterioro.',
+    mecanismo: 'Toxicidad sinaptica directa del oligomero.',
+    comprobacion: { biomarcador: 'Abeta*56 en plasma', cohorte: 'Cualquiera con seguimiento cognitivo', diseno: 'Asociacion con conversion a MCI' },
+    estado: 'descartada',
+    elo: 1_320,
+    historialElo: [
+      { iteracion: 2, elo: 1_500 },
+      { iteracion: 4, elo: 1_410 },
+      { iteracion: 5, elo: 1_320 },
+    ],
+    rivales: [],
+    novedad: {
+      openTargets: { estado: 'evidencia_previa', detalle: 'APP con asociacion fuerte' },
+      ensayos: { estado: 'sin_ensayo', detalle: '', nct: null },
+      agora: { estado: 'no_nominada', detalle: '' },
+      precedente: { estado: 'ya_publicado', detalle: 'Publicado en 2006 y retractado en 2024.' },
+    },
+    afirmaciones: [
+      { texto: 'Abeta*56 se correlaciona con la perdida de memoria en ratones.', cita: '[Articulo retractado, 2022, pag. 3]', veredicto: 'cita_no_resuelve', motivo: 'La fuente esta retractada segun Crossref y se excluyo del corpus. No vale como evidencia.', entidadDistinta: false, tipo: 'literatura', trayectoria: null },
+    ],
+    procedencia: procedencia(
+      [FUENTES.retractado!],
+      '',
+      [
+        'dia 1 10:11:03 generar -> 1 hipotesis',
+        'dia 1 10:11:09 retracciones.comprobar(10.1038/nature04533) -> retractado (Crossref updated-by)',
+        'dia 1 10:11:09 fuente excluida del corpus; afirmacion -> cita_no_resuelve',
+        'dia 1 10:11:10 cola_revision.anadir(hip-5, estado=propuesta) con bloqueo',
+        'dia 1 12:40:00 revision humana (Companero): descartada. "Se apoya en un articulo retractado."',
+      ],
+      [
+        { id: 'm10', de: 'rosa', texto: 'La unica fuente que sostiene esta hipotesis esta retractada. La propongo solo para que quede constancia de por que no se persigue.', creadoEn: hace(2.5 * DIA) },
+        { id: 'm11', de: 'investigadora', texto: 'Se apoya en un articulo retractado. Descartar y anotar en el modelo de mundo.', creadoEn: hace(2.4 * DIA) },
+      ],
+    ),
+    hallazgos: [],
+    revisiones: [
+      { fecha: hace(2.5 * DIA), quien: 'Rosa', accion: 'propuesta', nota: 'Iteracion 2', aCiegas: false },
+      { fecha: hace(2.4 * DIA), quien: 'Companero', accion: 'descartada', nota: 'Se apoya en un articulo retractado.', aCiegas: false },
+    ],
+    creadaEn: hace(2.5 * DIA),
+    iteracion: 2,
+    cluster: 'Amiloide',
+    evidenciaEstadistica: 'no_aplica',
+    relevancia: { justificacion: 'Relevante en apariencia; sin evidencia valida.', votoHumano: 'baja' },
+    coste: { literatura: 0.6, analisis: 0 },
+  },
+];
+
+export const HIPOTESIS: Hipotesis[] = HIPOTESIS_BASE.map(completarHipotesis);
+
+/* ---------------------------------------------------------------------
+   Modelo de mundo
+   --------------------------------------------------------------------- */
+
+type HechoParcial = Omit<HechoMundo, 'citas' | 'historial'> & Partial<Pick<HechoMundo, 'citas' | 'historial'>>;
+
+function hecho(h: HechoParcial): HechoMundo {
+  return {
+    citas: [],
+    historial: [{ fecha: h.actualizadoEn, de: null, a: h.estado, quien: 'Rosa', motivo: 'Anadido por el bucle' }],
+    ...h,
+  };
+}
+
+export const HECHOS: HechoMundo[] = [
+  hecho({
+    id: 'he-1', investigacionId: 'inv-1', tipo: 'hecho', tema: 'Biomarcadores', estado: 'sabido', origen: 'fuente',
+    enunciado: 'El cociente p-tau217/Abeta42 en plasma tiene una precision comparable a la PET y al liquido cefalorraquideo para detectar biologia de Alzheimer.',
+    procedencia: [{ fuenteId: 'f-cohorte-2025', referencia: 'Cohorte clinica, 2025', pagina: 7 }, { fuenteId: 'f-fda-2025', referencia: 'FDA, 2025', pagina: null }],
+    motivoDescarte: null, actualizadoEn: hace(2 * DIA), prioridad: 1,
+    citas: [
+      { referencia: 'Consenso de biomarcadores, 2026', seccion: 'Resultados', clasificacion: 'apoya', fragmento: 'El cociente p-tau217/Abeta42 alcanzo un AUC de 0,95 frente a PET de amiloide en tres cohortes.' },
+      { referencia: 'Cohorte multietnica, 2025', seccion: 'Discusion', clasificacion: 'contrasta', fragmento: 'En participantes con filtrado glomerular reducido la precision del cociente cayo a 0,84; los umbrales no se trasladan sin ajustar por funcion renal.' },
+      { referencia: 'Revision de p-tau, 2025', seccion: 'Introduccion', clasificacion: 'menciona', fragmento: 'Varios grupos han propuesto el cociente como alternativa a la PET.' },
+    ],
+  }),
+  hecho({
+    id: 'he-2', investigacionId: 'inv-1', tipo: 'hecho', tema: 'Farmacos', estado: 'sabido', origen: 'fuente',
+    enunciado: 'El pipeline de 2026 tiene 158 agentes en 192 ensayos; inflamacion e inmunidad y tau suben al 20 % cada una, el amiloide baja al 20 %.',
+    procedencia: [{ fuenteId: 'f-cummings-2026', referencia: 'Cummings et al., 2026', pagina: 4 }],
+    motivoDescarte: null, actualizadoEn: hace(2 * DIA), prioridad: 2,
+    citas: [{ referencia: 'Alzheimer Association, 2026', seccion: 'Noticias', clasificacion: 'apoya', fragmento: 'El pipeline crece y se diversifica hacia inflamacion y tau.' }],
+  }),
+  hecho({
+    id: 'he-3', investigacionId: 'inv-1', tipo: 'hecho', tema: 'Genetica', estado: 'sabido', origen: 'fuente',
+    enunciado: 'TREM2 R47H atenua la respuesta microglial y su efecto se acumula con APOE4.',
+    procedencia: [{ fuenteId: 'f-trem2-apoe', referencia: 'Revision TREM2 y APOE, 2025', pagina: 12 }],
+    motivoDescarte: null, actualizadoEn: hace(2 * DIA), prioridad: 3,
+    citas: [
+      { referencia: 'Single-cell de microglia, 2025', seccion: 'Resultados', clasificacion: 'apoya', fragmento: 'Los portadores de R47H y APOE4 muestran menos microglia asociada a enfermedad.' },
+      { referencia: 'Cohorte islandesa, 2024', seccion: 'Resultados', clasificacion: 'apoya', fragmento: 'Riesgo combinado superior al aditivo.' },
+    ],
+  }),
+  hecho({
+    id: 'he-4', investigacionId: 'inv-1', tipo: 'hecho', tema: 'Neuroinflamacion', estado: 'sabido', origen: 'fuente',
+    enunciado: 'NLRP3 activado en microglia libera motas de ASC que siembran la agregacion de tau; su inhibicion redujo la patologia de tau en ratones.',
+    procedencia: [{ fuenteId: 'f-nlrp3', referencia: 'Revision neuroinflamacion, 2024', pagina: 5 }],
+    motivoDescarte: null, actualizadoEn: hace(1 * DIA), prioridad: 4,
+    citas: [
+      { referencia: 'Modelo Tau22, 2019', seccion: 'Resultados', clasificacion: 'apoya', fragmento: 'La deficiencia de NLRP3 redujo la hiperfosforilacion de tau.' },
+      { referencia: 'Cohorte de LCR, 2025', seccion: 'Discusion', clasificacion: 'contrasta', fragmento: 'IL-1beta en LCR no se asocio con p-tau en personas; el circuito puede no trasladarse.' },
+    ],
+  }),
+  hecho({
+    id: 'he-5', investigacionId: 'inv-1', tipo: 'hipotesis', tema: 'Genetica', estado: 'abierto', origen: 'inferencia',
+    enunciado: 'Hipotesis aceptada para perseguir: TREM2 R47H y APOE4 en sinergia, con GFAP alterado antes que NfL.',
+    procedencia: [{ fuenteId: 'f-trem2-apoe', referencia: 'Revision TREM2 y APOE, 2025', pagina: 12 }],
+    motivoDescarte: null, actualizadoEn: hace(1.5 * DIA), prioridad: 1,
+    historial: [
+      { fecha: hace(2 * DIA), de: null, a: 'abierto', quien: 'Rosa', motivo: 'Propuesta en la iteracion 3' },
+      { fecha: hace(1.5 * DIA), de: 'abierto', a: 'abierto', quien: 'la persona responsable', motivo: 'Aceptada: comprobable en FLENI' },
+    ],
+  }),
+  hecho({
+    id: 'he-6', investigacionId: 'inv-1', tipo: 'pregunta', tema: 'Biomarcadores', estado: 'abierto', origen: 'inferencia',
+    enunciado: 'Que orden siguen NfL y GFAP en la fase preclinica, y si depende de APOE4.',
+    procedencia: [], motivoDescarte: null, actualizadoEn: hace(6 * MIN), prioridad: 1,
+  }),
+  hecho({
+    id: 'he-7', investigacionId: 'inv-1', tipo: 'pregunta', tema: 'Farmacos', estado: 'abierto', origen: 'inferencia',
+    enunciado: 'Que agonistas de TREM2 estan en ensayo y con que biomarcador de respuesta.',
+    procedencia: [], motivoDescarte: null, actualizadoEn: hace(6 * MIN), prioridad: 2,
+  }),
+  hecho({
+    id: 'he-8', investigacionId: 'inv-1', tipo: 'pregunta', tema: 'Seguridad', estado: 'abierto', origen: 'inferencia',
+    enunciado: 'Como varia la frecuencia de ARIA con anti-amiloide segun el numero de alelos APOE4.',
+    procedencia: [], motivoDescarte: null, actualizadoEn: hace(6 * MIN), prioridad: 3,
+  }),
+  hecho({
+    id: 'he-9', investigacionId: 'inv-1', tipo: 'pregunta', tema: 'Farmacos', estado: 'descartado', origen: 'inferencia',
+    enunciado: 'Si el cociente p-tau217/Abeta42 sirve como criterio de inclusion en ensayos de fase 3.',
+    procedencia: [], motivoDescarte: 'Cerrada en la iteracion 13: ya se usa como criterio de inclusion en al menos dos ensayos registrados. No es una pregunta abierta.',
+    actualizadoEn: hace(50 * MIN), prioridad: 9,
+    historial: [
+      { fecha: hace(2 * DIA), de: null, a: 'abierto', quien: 'Rosa', motivo: 'Pregunta abierta desde la iteracion 4' },
+      { fecha: hace(50 * MIN), de: 'abierto', a: 'descartado', quien: 'Rosa', motivo: 'Ya se usa como criterio de inclusion en dos ensayos' },
+    ],
+  }),
+  hecho({
+    id: 'he-10', investigacionId: 'inv-1', tipo: 'hipotesis', tema: 'Amiloide', estado: 'descartado', origen: 'inferencia',
+    enunciado: 'Abeta*56 como desencadenante de la perdida de memoria.',
+    procedencia: [{ fuenteId: 'f-retractado', referencia: 'Articulo retractado, 2022', pagina: 3 }],
+    motivoDescarte: 'La unica fuente esta retractada segun Crossref. Descartada por el companero el dia 1.',
+    actualizadoEn: hace(2.4 * DIA), prioridad: 9,
+    historial: [
+      { fecha: hace(2.5 * DIA), de: null, a: 'abierto', quien: 'Rosa', motivo: 'Propuesta en la iteracion 2' },
+      { fecha: hace(2.4 * DIA), de: 'abierto', a: 'descartado', quien: 'Companero', motivo: 'Se apoya en un articulo retractado' },
+    ],
+  }),
+];
+
+/* ---------------------------------------------------------------------
+   Artefactos
+   --------------------------------------------------------------------- */
+
+export const ARTEFACTOS: Artefacto[] = [
+  {
+    id: 'art-1', investigacionId: 'inv-1', nombre: 'informe-iteracion.md', tipo: 'informe', destacado: true,
+    versiones: [
+      {
+        n: 1, creadaEn: hace(3 * HORA), iteracion: 11, resumen: 'Primer informe con dos hipotesis',
+        contenido: '# Informe de la corrida 3\n\n## Hipotesis en la cola\n\n1. NLRP3 como puente entre amiloide y tau (Elo 1690)\n2. Semaglutida y microglia (Elo 1495)\n\n## Preguntas abiertas\n\n- Orden de NfL y GFAP en preclinico\n- Agonistas de TREM2 en ensayo\n\n## Hechos anadidos\n\n- NLRP3 activado libera motas de ASC [Revision neuroinflamacion, 2024, pag. 5]',
+      },
+      {
+        n: 2, creadaEn: hace(55 * MIN), iteracion: 13, resumen: 'Anade la hipotesis del cociente y cierra una pregunta',
+        contenido: '# Informe de la corrida 3\n\n## Hipotesis en la cola\n\n1. NLRP3 como puente entre amiloide y tau (Elo 1701)\n2. p-tau217/Abeta42 anticipa la progresion en familiar (Elo 1642)\n3. Semaglutida y microglia (Elo 1488, refinar)\n\n## Preguntas abiertas\n\n- Orden de NfL y GFAP en preclinico\n- Agonistas de TREM2 en ensayo\n- ARIA segun alelos APOE4\n\n## Preguntas cerradas\n\n- El cociente como criterio de inclusion: ya se usa en dos ensayos\n\n## Hechos anadidos\n\n- NLRP3 activado libera motas de ASC [Revision neuroinflamacion, 2024, pag. 5]\n- El cociente p-tau217/Abeta42 iguala a la PET de tau [Cohorte clinica, 2025, pag. 7]',
+      },
+    ],
+  },
+  {
+    id: 'art-2', investigacionId: 'inv-1', nombre: 'tabla-hipotesis.csv', tipo: 'tabla', destacado: false,
+    versiones: [
+      { n: 1, creadaEn: hace(55 * MIN), iteracion: 13, resumen: 'Ranking con Elo y estado', contenido: 'id,titulo,elo,estado\nhip-2,NLRP3 puente amiloide-tau,1701,en_revision\nhip-1,p-tau217/Abeta42 en familiar,1642,propuesta\nhip-4,TREM2 R47H y APOE4 con GFAP,1575,aceptada\nhip-3,GLP-1 y microglia,1488,refinar\nhip-5,Abeta*56,1320,descartada' },
+    ],
+  },
+  {
+    id: 'art-3', investigacionId: 'inv-1', nombre: 'modelo-de-mundo.json', tipo: 'modelo_mundo', destacado: false,
+    versiones: [
+      { n: 1, creadaEn: hace(1 * DIA), iteracion: 9, resumen: '6 hechos, 2 preguntas', contenido: '{\n  "hechos": 6,\n  "preguntas_abiertas": 2,\n  "descartados": 1\n}' },
+      { n: 2, creadaEn: hace(55 * MIN), iteracion: 13, resumen: '8 hechos, 3 preguntas, 2 descartados', contenido: '{\n  "hechos": 8,\n  "preguntas_abiertas": 3,\n  "descartados": 2\n}' },
+    ],
+  },
+];
+
+/* ---------------------------------------------------------------------
+   Calidad
+   --------------------------------------------------------------------- */
+
+export const CASOS: CasoControl[] = [
+  { clave: 'entidad-001', categoria: 'entidad', critico: true, estado: 'propuesto', origen: 'generado', pregunta: 'Las guias NICE contienen recomendaciones complejas con criterios de inclusion y exclusion, y esta sintesis sustituye o no a sus algoritmos completos?', respuestaEsperada: 'Debe decir que no encuentra informacion sobre guias NICE en tus documentos, sin atribuirle lo que dicen de guias AHA/ASA.' },
+  { clave: 'abstencion-002', categoria: 'abstencion', critico: true, estado: 'propuesto', origen: 'generado', pregunta: 'Se incluye sutezolid dentro de algun regimen para tuberculosis multirresistente y se detalla su dosis?', respuestaEsperada: 'Debe decir que sutezolid no aparece en los documentos.' },
+  { clave: 'abstencion-001', categoria: 'abstencion', critico: true, estado: 'propuesto', origen: 'generado', pregunta: 'Se describe el neurofilamento de cadena ligera como biomarcador pronostico tras accidente cerebrovascular?', respuestaEsperada: 'Debe decir que NfL no aparece en el documento de accidente cerebrovascular.' },
+  { clave: 'multi_hop-003', categoria: 'multi_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Segun estos resumenes, como se diferencia la confirmacion diagnostica por funcion pulmonar entre EPOC y asma?', respuestaEsperada: 'Espirometria post-broncodilatador con FEV1/FVC < 0,70 en EPOC; reversibilidad en asma.' },
+  { clave: 'multi_hop-002', categoria: 'multi_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'En un adulto con diabetes tipo 2 e hipertension, que dos mensajes clinicos coinciden entre los documentos?', respuestaEsperada: 'Control de la presion arterial y cambios de estilo de vida, con cita a ambos documentos.' },
+  { clave: 'multi_hop-001', categoria: 'multi_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que medida preventiva comparten ambos textos y como difiere su formulacion?', respuestaEsperada: 'La vacunacion; un documento la formula como recomendacion y el otro como indicacion estacional.' },
+  { clave: 'tabla-003', categoria: 'tabla', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Cual es el ano de compilacion de esta revision sobre resistencia a los antimicrobianos?', respuestaEsperada: '2024, con cita a la pagina del encabezado.' },
+  { clave: 'tabla-002', categoria: 'tabla', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que ano aparece junto a CDC en el encabezado de esta revision sobre accidente cerebrovascular?', respuestaEsperada: '2023.' },
+  { clave: 'tabla-001', categoria: 'tabla', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Cual es el ano de compilacion de esta monografia sobre hipertension arterial en adultos?', respuestaEsperada: '2024.' },
+  { clave: 'single_hop-008', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que fuentes resume la monografia clinica extensa sobre EPOC?', respuestaEsperada: 'GOLD 2024 y la ficha de la OMS.' },
+  { clave: 'single_hop-007', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'En que base documental se apoya esta sintesis educativa sobre diabetes mellitus tipo 2?', respuestaEsperada: 'ADA Standards of Care 2024 y la ficha de la OMS.' },
+  { clave: 'single_hop-006', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que referencias institucionales se citan como base de esta monografia clinica extensa sobre asma?', respuestaEsperada: 'GINA 2024 y la ficha de la OMS.' },
+  { clave: 'single_hop-005', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'En que fuentes institucionales se basa esta monografia clinica extensa sobre influenza?', respuestaEsperada: 'OMS y CDC, con sus anos.' },
+  { clave: 'single_hop-004', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que anos tienen las WHO Consolidated Guidelines TB y la ficha OMS citadas como base documental?', respuestaEsperada: '2022 y 2023.' },
+  { clave: 'single_hop-003', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que fuentes y que periodo del plan de accion mundial actualizado se indican como base documental?', respuestaEsperada: 'OMS, plan de accion 2023-2030.' },
+  { clave: 'single_hop-002', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'Que anos de AHA/ASA se citan como base documental para el ictus isquemico y la hemorragia?', respuestaEsperada: '2019 y 2022.' },
+  { clave: 'single_hop-001', categoria: 'single_hop', critico: false, estado: 'propuesto', origen: 'generado', pregunta: 'De que anos son la directriz farmacologica de la OMS y la ficha de hipertension usadas como base?', respuestaEsperada: '2021 y 2023.' },
+];
+
+export const METRICAS: MetricasJuez[] = [
+  { fecha: hace(2 * DIA), juez: 'anthropic/claude-opus-5', casos: 17, acuerdoConHumanos: 0, sostenidas: 0.89, cobertura: 0.81, ausenciasRefutadas: 2, entidadDistinta: 1, sinVerificar: 0.04, aciertoPorTipo: { dato: null, literatura: null, interpretacion: null } },
+  { fecha: hace(1 * DIA), juez: 'anthropic/claude-opus-5', casos: 17, acuerdoConHumanos: 0, sostenidas: 0.91, cobertura: 0.84, ausenciasRefutadas: 1, entidadDistinta: 1, sinVerificar: 0.03, aciertoPorTipo: { dato: 0.86, literatura: 0.83, interpretacion: 0.6 } },
+  { fecha: hace(1 * DIA), juez: 'openai/gpt-6-astra (comparado)', casos: 17, acuerdoConHumanos: 0, sostenidas: 0.9, cobertura: 0.84, ausenciasRefutadas: 1, entidadDistinta: 2, sinVerificar: 0.07, aciertoPorTipo: { dato: 0.85, literatura: 0.8, interpretacion: 0.55 } },
+];
+
+export const GEPA: CorridaGepa[] = [
+  { id: 'gepa-1', fecha: hace(2 * DIA), programa: 'ExtractorDeAfirmaciones', presupuesto: 'light', metricaInicial: 0.71, metricaFinal: 0.83, candidatos: 14, enlaceMlflow: 'http://localhost:5000/#/experiments/1', estado: 'terminada' },
+  { id: 'gepa-2', fecha: hace(20 * HORA), programa: 'GeneradorDeHipotesis', presupuesto: 'medium', metricaInicial: 0.58, metricaFinal: 0.66, candidatos: 31, enlaceMlflow: 'http://localhost:5000/#/experiments/2', estado: 'terminada' },
+  { id: 'gepa-3', fecha: hace(40 * MIN), programa: 'ExtractorDeAfirmaciones', presupuesto: 'medium', metricaInicial: 0.83, metricaFinal: 0.83, candidatos: 6, enlaceMlflow: 'http://localhost:5000/#/experiments/3', estado: 'en_marcha' },
+];
+
+export const MEMORIA: Recuerdo[] = [
+  { id: 'rec-1', texto: 'la persona responsable prefiere que las hipotesis lleven siempre el biomarcador y la cohorte con los que se comprobarian.', creadoEn: hace(3 * DIA) },
+  { id: 'rec-2', texto: 'Las revisiones las hace el companero por la manana; los avisos van a Slack, no al correo.', creadoEn: hace(2 * DIA) },
+  { id: 'rec-3', texto: 'el investigador clinico principal lee las hipotesis en terminos de biomarcadores y cohortes longitudinales.', creadoEn: hace(2 * DIA) },
+];
+
+export const CRITERIOS: string[] = [
+  'Una hipotesis sin biomarcador o cohorte de comprobacion no se acepta.',
+  'Toda cifra de eficacia debe llevar el nombre del ensayo del que sale.',
+  'Estratificar siempre por numero de alelos APOE4 (0, 1, 2).',
+];
+
+/** Eventos de las ultimas horas, para el resumen "mientras no estabas". */
+export const EVENTOS: Evento[] = [
+  { id: 'ev-1', investigacionId: 'inv-1', t: hace(14 * HORA), tipo: 'iteracion_terminada', texto: 'Iteracion 10 terminada: 3 busquedas, 19 articulos, 1 hecho nuevo', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-2', investigacionId: 'inv-1', t: hace(9 * HORA), tipo: 'permiso_pendiente', texto: 'Rosa pide gastar 400 llamadas en la hipotesis de NLRP3', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-3', investigacionId: 'inv-1', t: hace(8 * HORA), tipo: 'iteracion_terminada', texto: 'Iteracion 11 terminada: 1 hipotesis nueva (NLRP3), 2 hallazgos abiertos del revisor', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-4', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'hipotesis_nueva', texto: 'Hipotesis nueva en la cola: NLRP3 como puente entre amiloide y tau', ruta: '#/investigaciones/inv-1/hipotesis/hip-2' },
+  { id: 'ev-5', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'incidencia', texto: 'La clave de Semantic Scholar caduco; Rosa sigue sin el grafo de citas', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-6', investigacionId: 'inv-1', t: hace(1.5 * HORA), tipo: 'presupuesto', texto: 'La corrida paso del 50 % del presupuesto global (1.500 de 3.000 llamadas)', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-7', investigacionId: 'inv-1', t: hace(58 * MIN), tipo: 'hipotesis_nueva', texto: 'Hipotesis nueva en la cola: el cociente p-tau217/Abeta42 en autosomico dominante', ruta: '#/investigaciones/inv-1/hipotesis/hip-1' },
+  { id: 'ev-8', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'ranking_cambio', texto: 'NLRP3 subio al primer puesto del ranking (Elo 1701) tras ganar a la hipotesis del cociente', ruta: '#/investigaciones/inv-1/ranking' },
+  { id: 'ev-9', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'hecho_nuevo', texto: 'Pregunta cerrada en el modelo de mundo: el cociente ya se usa como criterio de inclusion', ruta: '#/investigaciones/inv-1/mundo' },
+  { id: 'ev-10', investigacionId: 'inv-1', t: hace(7 * MIN), tipo: 'iteracion_terminada', texto: 'Iteracion 13 terminada: 201 afirmaciones (183 sostenidas), 1 hipotesis nueva, 2 hechos', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-11', investigacionId: 'inv-1', t: hace(3 * MIN), tipo: 'incidencia', texto: 'El extractor devolvio vacio por filtro de contenido en un articulo', ruta: '#/investigaciones/inv-1/corrida' },
+];
+
+export function estadoDeMuestra(): EstadoRosa {
+  return {
+    conexion: 'muestra',
+    investigaciones: [INVESTIGACION],
+    corridas: [CORRIDA, CORRIDA_ANTERIOR],
+    iteraciones: [ITERACION_ANTERIOR, ITERACION_ACTUAL],
+    solicitudes: SOLICITUDES,
+    incidencias: INCIDENCIAS,
+    permisos: PERMISOS,
+    autonomia: AUTONOMIA,
+    hipotesis: HIPOTESIS,
+    comentarios: [],
+    hechos: HECHOS,
+    artefactos: ARTEFACTOS,
+    casos: CASOS,
+    metricas: METRICAS,
+    gepa: GEPA,
+    memoria: MEMORIA,
+    planesGuardados: [
+      { id: 'plan-1', nombre: 'Validacion de diana en single-cell', pasos: ['Descargar el conjunto de GEO', 'Control de calidad y normalizacion', 'Expresion por tipo celular', 'Comparar con Agora'], vecesUsado: 3, exitos: 2 },
+      { id: 'plan-2', nombre: 'Comprobacion de novedad estandar', pasos: ['Open Targets', 'ClinicalTrials.gov v2', 'Agora', 'Precedente en literatura'], vecesUsado: 11, exitos: 11 },
+    ],
+    criteriosRevision: CRITERIOS,
+    avisos: {
+      correo: { activo: false, direccion: '' },
+      slack: { activo: true, canal: '#rosa-hallazgos' },
+      cuando: { hipotesisNueva: true, permisoPendiente: true, corridaDetenida: true, resumenDiario: true },
+    },
+    politicaEsperas: { horas: 24, accion: 'recordar', escalarA: 'Companero' },
+    eventos: EVENTOS,
+    ultimaVisita: hace(10 * HORA),
+  };
+}

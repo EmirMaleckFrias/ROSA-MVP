@@ -10,7 +10,7 @@ metadata:
 
 # En FIREtech-RAG el proveedor es el AI Gateway de Vercel, no OpenAI
 
-Emir lo dijo como norma explícita: *"siempre usa la api de vercel bro, nunca la
+la persona responsable lo dijo como norma explícita: *"siempre usa la api de vercel bro, nunca la
 de open ai, es mas, elimina la de open ai"*. El motivo es que **la empresa le
 proporciona el AI Gateway de Vercel**, así que las llamadas por ahí las cubre
 la empresa y las que van directas a OpenAI las paga alguien más. No es solo

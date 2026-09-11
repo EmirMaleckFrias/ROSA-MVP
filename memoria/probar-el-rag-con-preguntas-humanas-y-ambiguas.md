@@ -1,6 +1,6 @@
 ---
 name: probar-el-rag-con-preguntas-humanas-y-ambiguas
-description: "Al atacar el RAG de FIREtech, Emir quiere preguntas descuidadas y ambiguas como las de una persona real, no prompts perfectos ni abusos de volumen; los fallos que le importan son los realistas."
+description: "Al atacar el RAG de FIREtech, la persona responsable quiere preguntas descuidadas y ambiguas como las de una persona real, no prompts perfectos ni abusos de volumen; los fallos que le importan son los realistas."
 metadata: 
   node_type: memory
   pinned: false
@@ -10,7 +10,7 @@ metadata:
 
 # Atacar el RAG como lo usaría una persona, no con prompts perfectos
 
-Mientras yo diseñaba ataques adversariales contra el asistente, Emir me
+Mientras yo diseñaba ataques adversariales contra el asistente, la persona responsable me
 corrigió el enfoque: *"trata de meter ambigüedades también, que puedan hacer
 pensar al agente dos cosas distintas a la vez, muchas veces ahí fallan los LLM
 con los humanos, en vez de con un prompt perfecto que explique todo

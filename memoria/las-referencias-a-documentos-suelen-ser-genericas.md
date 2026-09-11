@@ -12,7 +12,7 @@ metadata:
 
 Al implementar que una pregunta pueda limitarse a un documento concreto
 ("únicamente el PDF X"), diseñé la resolución alrededor de un nombre o título
-que buscar entre los ficheros. Emir me corrigió a mitad de camino: *"quiero
+que buscar entre los ficheros. la persona responsable me corrigió a mitad de camino: *"quiero
 que tengas en cuenta que Manus nunca le dijo cuál era el documento, solo le
 dijo esto: Usando únicamente el PDF indexado, analiza este escenario
 hipotético"*. Poco después me trajo una pregunta real que decía "usando
@@ -22,7 +22,7 @@ tampoco encajaba: el fichero se llama `--M6U1_PDF.pdf` y no tiene título.
 La lección, que va más allá de esos dos casos: quien usa el asistente (una
 médica, o un evaluador externo que se comporta como ella) nombra sus
 documentos como se hace en una conversación. Hay al menos tres formas y todas
-tienen que funcionar: **por nombre** ("el PDF M6U1", "el de Allegri"), **de
+tienen que funcionar: **por nombre** ("el PDF M6U1", "el de el investigador clinico principal"), **de
 forma genérica** ("el PDF", "el documento que subí") y **por su tema** ("el
 PDF de sistemas eléctricos"). El nombre del fichero es la forma menos
 frecuente, y encima suele ser un código sin significado. Cualquier función que

@@ -1,0 +1,15 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+mlruns/
+frontend/node_modules/
+frontend/dist/
+mlflow.db
+mlartifacts/
+rosa.db
+rosa.db-wal
+rosa.db-shm
+pdfs/
+*.log
+node_modules/

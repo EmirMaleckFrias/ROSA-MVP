@@ -1,0 +1,127 @@
+// Barra lateral: la marca, las investigaciones, y dentro de la investigacion
+// actual sus pantallas. La cola de hipotesis, los permisos e incidencias
+// pendientes llevan su cuenta al lado, porque son lo que espera a una persona.
+
+import type { EstadoRosa, Investigacion } from '../datos/tipos';
+import { ESTADO_CORRIDA } from '../lib/etiquetas';
+import { pendientesDeRevision } from '../lib/hipotesis';
+import { rutaDe, type Pantalla, type Ruta } from '../lib/ruta';
+import {
+  IconActivity,
+  IconDocument,
+  IconFlask,
+  IconGauge,
+  IconGlobe,
+  IconLayers,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconTrophy,
+  IconUsers,
+} from './icons';
+
+const PANTALLAS: { clave: Pantalla; etiqueta: string; icono: (p: { size?: number }) => JSX.Element }[] = [
+  { clave: 'corrida', etiqueta: 'Corrida en vivo', icono: IconActivity },
+  { clave: 'hipotesis', etiqueta: 'Cola de hipotesis', icono: IconFlask },
+  { clave: 'ranking', etiqueta: 'Ranking', icono: IconTrophy },
+  { clave: 'panorama', etiqueta: 'Panorama', icono: IconGlobe },
+  { clave: 'mundo', etiqueta: 'Modelo de mundo', icono: IconLayers },
+  { clave: 'artefactos', etiqueta: 'Artefactos', icono: IconDocument },
+  { clave: 'calidad', etiqueta: 'Calidad', icono: IconGauge },
+  { clave: 'investigacion', etiqueta: 'Objetivo y datos', icono: IconUsers },
+];
+
+interface Props {
+  estado: EstadoRosa;
+  ruta: Ruta;
+  abierta: boolean;
+  onCerrar: () => void;
+  onBuscar: () => void;
+}
+
+export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Props) {
+  const invId = ruta.tipo === 'investigacion' ? ruta.investigacionId : null;
+  const pantalla = ruta.tipo === 'investigacion' ? ruta.pantalla : null;
+  const actual = estado.investigaciones.find((i) => i.id === invId) ?? null;
+
+  const cuentas = (inv: Investigacion | null): Partial<Record<Pantalla, number>> => {
+    if (!inv) return {};
+    const hip = estado.hipotesis.filter((h) => h.investigacionId === inv.id);
+    const corridas = estado.corridas.filter((c) => c.investigacionId === inv.id).map((c) => c.id);
+    const permisos = estado.solicitudes.filter((s) => corridas.includes(s.corridaId) && s.estado === 'pendiente').length;
+    const incidencias = estado.incidencias.filter((i) => corridas.includes(i.corridaId) && i.estado === 'pendiente').length;
+    const planes = estado.iteraciones.filter((i) => corridas.includes(i.corridaId) && !i.planAprobado && i.terminadaEn === null).length;
+    const datos = inv.datasets.filter((d) => d.estado === 'pendiente').length;
+    return { hipotesis: pendientesDeRevision(hip), corrida: permisos + incidencias + planes, investigacion: datos };
+  };
+  const n = cuentas(actual);
+
+  return (
+    <>
+      {abierta && <div className="scrim" onClick={onCerrar} aria-hidden="true" />}
+      <nav className={`barra ${abierta ? 'abierta' : ''}`} aria-label="Navegacion principal">
+        <a className="marca" href="#/" onClick={onCerrar}>
+          <img src="/arbol-marca.png" alt="" width={30} height={30} />
+          <div>
+            <strong>Rosa</strong>
+            <small>Alzheimer Project</small>
+          </div>
+        </a>
+
+        <button type="button" className="nav-item nav-buscar" onClick={onBuscar} disabled={actual === null} title="Buscar en la investigacion (Cmd+K o Ctrl+K)">
+          <IconSearch size={14} />
+          Buscar
+          <span className="meta" style={{ marginLeft: 'auto' }}>
+            Cmd K
+          </span>
+        </button>
+
+        <div className="barra-seccion">
+          <div className="barra-titulo">
+            <span>Investigaciones</span>
+            <a href="#/nueva" onClick={onCerrar} title="Nueva investigacion">
+              <IconPlus size={13} /> Nueva
+            </a>
+          </div>
+          {estado.investigaciones.map((inv) => {
+            const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0];
+            return (
+              <a key={inv.id} className="nav-inv" href={rutaDe(inv.id, 'corrida')} aria-current={inv.id === invId ? 'true' : undefined} onClick={onCerrar}>
+                <span>{inv.titulo}</span>
+                <small>{corrida ? `Corrida ${corrida.numero} · ${ESTADO_CORRIDA[corrida.estado]}` : 'Sin corridas'}</small>
+              </a>
+            );
+          })}
+        </div>
+
+        {actual && (
+          <div className="barra-seccion">
+            <div className="barra-titulo">
+              <span>Esta investigacion</span>
+            </div>
+            {PANTALLAS.map((p) => {
+              const Icono = p.icono;
+              const cuenta = n[p.clave] ?? 0;
+              return (
+                <a key={p.clave} className="nav-item" href={rutaDe(actual.id, p.clave)} aria-current={pantalla === p.clave ? 'page' : undefined} onClick={onCerrar}>
+                  <Icono size={15} />
+                  {p.etiqueta}
+                  {cuenta > 0 && <span className="nav-cuenta">{cuenta}</span>}
+                </a>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="barra-seccion">
+          <a className="nav-item" href="#/ajustes" aria-current={ruta.tipo === 'ajustes' ? 'page' : undefined} onClick={onCerrar}>
+            <IconSettings size={15} />
+            Ajustes
+          </a>
+        </div>
+
+        <p className="barra-pie">Rosa investiga; la persona decide. Ninguna hipotesis entra al modelo de mundo sin pasar por la cola.</p>
+      </nav>
+    </>
+  );
+}

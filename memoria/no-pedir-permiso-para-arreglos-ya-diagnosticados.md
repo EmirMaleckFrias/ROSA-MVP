@@ -1,6 +1,6 @@
 ---
 name: no-pedir-permiso-para-arreglos-ya-diagnosticados
-description: "Emir prefiere que aplique directamente los arreglos que ya he diagnosticado y recomendado, sin pedirle confirmación primero; y cuando dice \"arréglalo\" tras una lista de hallazgos, se refiere a toda la lista."
+description: "la persona responsable prefiere que aplique directamente los arreglos que ya he diagnosticado y recomendado, sin pedirle confirmación primero; y cuando dice \"arréglalo\" tras una lista de hallazgos, se refiere a toda la lista."
 metadata: 
   node_type: memory
   pinned: true
@@ -11,7 +11,7 @@ metadata:
 # Aplicar los arreglos diagnosticados sin pedir confirmación
 
 Cuando ya he investigado un problema, he identificado la causa y he
-recomendado un arreglo concreto, Emir espera que lo aplique en lugar de
+recomendado un arreglo concreto, la persona responsable espera que lo aplique en lugar de
 terminar el turno preguntándole "¿quieres que te lo arregle?". Al ofrecerle
 arreglar un test frágil que acababa de diagnosticar en detalle, su respuesta
 fue: *"arreglalo bro, claro que si, como me preguntas eso"*.

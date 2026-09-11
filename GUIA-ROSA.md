@@ -6,7 +6,7 @@ trabajo; esto es el conocimiento de fondo. Donde algo es una inferencia mía y
 no un dato de fuente, lo digo.
 
 Cómo leerla si hay poco tiempo: las secciones 1 y 2 son para hablar con el
-compañero y con Allegri sin quedarse fuera de la conversación; la 3 y la 5 son
+compañero y con el investigador clinico principal sin quedarse fuera de la conversación; la 3 y la 5 son
 las que se abren al escribir código; la 7 es la que evita un problema legal.
 
 ## 1. El Alzheimer a nivel de ingeniero
@@ -68,7 +68,7 @@ otra entidad presentado como propio) es aquí crítica, no cosmética.
 
 ## 2. El investigador principal
 
-**Ricardo F. Allegri**: doctor en Medicina y profesor de Neurología de la
+**el investigador clinico principal**: doctor en Medicina y profesor de Neurología de la
 Universidad de Buenos Aires, jefe de Neurología Cognitiva, Neuropsicología y
 Neuropsiquiatría del Instituto Neurológico FLENI (Buenos Aires), investigador
 principal del CONICET y del Consejo de Investigación del Ministerio de Salud
@@ -382,7 +382,7 @@ procedencia; preregistro.
    una asociación biomarcador-progresión, un candidato a reposicionamiento?
 2. Contra qué se mide la novedad: ¿Open Targets, ClinicalTrials.gov, Agora,
    la literatura, todo?
-3. Quién revisa y con qué frecuencia; qué formato quiere Allegri para leer
+3. Quién revisa y con qué frecuencia; qué formato quiere el investigador clinico principal para leer
    una hipótesis.
 4. Qué datos entran además de literatura: ¿RNA-Seq de GEO, cohortes propias,
    datos de FLENI? Si hay personas, cuándo pasa por CONABIOS.
@@ -400,7 +400,7 @@ https://pmc.ncbi.nlm.nih.gov/articles/PMC12897309/ ;
 https://alz-journals.onlinelibrary.wiley.com/doi/10.1002/alz.71552 ;
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11710122/
 
-Allegri: https://bicyt.conicet.gov.ar/fichas/p/ricardo-f-allegri ;
+Perfil institucional del investigador clinico principal: referencia retirada durante la anonimización.
 https://scholar.google.com/citations?user=-SIKk2UAAAAJ&hl=es ;
 https://pmc.ncbi.nlm.nih.gov/articles/PMC13060398/ ;
 https://www.medrxiv.org/content/10.1101/2025.05.14.25326954.full.pdf

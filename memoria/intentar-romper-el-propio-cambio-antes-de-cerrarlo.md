@@ -1,6 +1,6 @@
 ---
 name: intentar-romper-el-propio-cambio-antes-de-cerrarlo
-description: "Emir exige que antes de dar por bueno un cambio se intente romperlo activamente, no basta con que pase la suite existente."
+description: "la persona responsable exige que antes de dar por bueno un cambio se intente romperlo activamente, no basta con que pase la suite existente."
 metadata: 
   node_type: memory
   pinned: true
@@ -10,7 +10,7 @@ metadata:
 
 # Intentar romper el propio cambio antes de darlo por bueno
 
-Emir me lo dijo tras una jornada en la que introduje varios fallos seguidos:
+la persona responsable me lo dijo tras una jornada en la que introduje varios fallos seguidos:
 *"necesito que verifiques lo que estas haciendo, cada vez dejas mas errores"*.
 La crítica era exacta y el patrón estaba medido: cada defecto que introduje lo
 cazó **un test adversarial o una revisión externa, no yo**. Escribía el cambio,

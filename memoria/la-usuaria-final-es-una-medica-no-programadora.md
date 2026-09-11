@@ -10,7 +10,7 @@ metadata:
 
 # La usuaria final es una médica, no una programadora
 
-Emir lo dijo al ver la primera versión de la integración con Notion, que
+la persona responsable lo dijo al ver la primera versión de la integración con Notion, que
 mostraba "Notion no configurado, falta NOTION_TOKEN" y esperaba que alguien
 pusiera un secreto con la CLI de Convex: *"me gustaría que lo hagas que se
 pueda vincular de la manera más fácil, no así. y que también se vea dinámico en
@@ -22,7 +22,7 @@ si un paso lo tiene que dar la usuaria, tiene que ser un botón o un formulario
 en la interfaz, con el estado visible y actualizándose solo (las suscripciones
 reactivas de Convex lo hacen gratis), y con textos en su idioma, no en el de
 las APIs. Las variables de entorno, los tokens, los ids de bases de datos y la
-terminal son cosas que puede hacer Emir una sola vez como dueño de la
+terminal son cosas que puede hacer la persona responsable una sola vez como dueño de la
 aplicación (por ejemplo registrar la aplicación OAuth de Notion), pero nunca
 parte del uso diario. Un mensaje del tipo "falta NOTION_TOKEN" en pantalla es
 un error de diseño, no una configuración pendiente.

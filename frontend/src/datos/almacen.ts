@@ -1,0 +1,402 @@
+// El almacen de Rosa: un solo estado, suscripciones, y las acciones que lo
+// cambian. Las pantallas leen con `useRosa()` y escriben con `acciones`.
+//
+// Dos modos:
+// - Servidor: al arrancar, `conectar()` pide `/api/estado`. Si responde, el
+//   estado viene del servidor y se mantiene al dia por Server-Sent Events
+//   (`/api/eventos`), que manda el estado completo en cada cambio. Cada
+//   accion se aplica al instante en local con el reducer (acciones.ts) para
+//   que la interfaz responda, y se envia al servidor por POST; el servidor
+//   aplica la misma regla y su estado sustituye al local en cuanto llega.
+// - Muestra: si el servidor no responde, el estado nace de la muestra
+//   (muestra.ts) y avanza con la simulacion (simulacion.ts). Las pantallas
+//   no distinguen un modo del otro salvo por `estado.conexion`.
+
+import { useSyncExternalStore } from 'react';
+import * as A from './acciones';
+import { estadoDeMuestra } from './muestra';
+import { iniciarSimulacion } from './simulacion';
+import type {
+  AlcancePermiso,
+  AnclaComentario,
+  Avisos,
+  ClaseAccion,
+  ClasificacionDatos,
+  Dataset,
+  EstadoRosa,
+  Investigacion,
+  NivelAutonomia,
+  PasoPlan,
+  PoliticaEsperas,
+  RevisionHumana,
+  TipoArtefacto,
+} from './tipos';
+
+const CLAVE_VISITA = 'rosa-ultima-visita';
+const API = '/api';
+
+function leerVisita(): number | null {
+  try {
+    const v = localStorage.getItem(CLAVE_VISITA);
+    return v ? Number(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+let estado: EstadoRosa = (() => {
+  const base = estadoDeMuestra();
+  const visita = leerVisita();
+  return visita !== null ? { ...base, ultimaVisita: visita } : base;
+})();
+const oyentes = new Set<() => void>();
+let modo: 'muestra' | 'servidor' = 'muestra';
+
+function leer(): EstadoRosa {
+  return estado;
+}
+
+function suscribir(oyente: () => void): () => void {
+  oyentes.add(oyente);
+  return () => oyentes.delete(oyente);
+}
+
+function notificar(): void {
+  for (const o of oyentes) o();
+}
+
+/** Aplica un cambio puro. Si devuelve el mismo objeto, nadie se entera. */
+export function aplicar(fn: (e: EstadoRosa) => EstadoRosa): void {
+  const siguiente = fn(estado);
+  if (siguiente === estado) return;
+  estado = siguiente;
+  notificar();
+}
+
+/** El estado completo, reactivo. Las pantallas derivan de aqui con useMemo. */
+export function useRosa(): EstadoRosa {
+  return useSyncExternalStore(suscribir, leer, leer);
+}
+
+/** Quien firma las revisiones. Cuando haya cuentas, sale de la sesion. */
+export const QUIEN = 'la persona responsable';
+
+export function modoActual(): 'muestra' | 'servidor' {
+  return modo;
+}
+
+/* ---------------------------------------------------------------------
+   Conexion con el servidor
+   --------------------------------------------------------------------- */
+
+function recibirRemoto(remoto: EstadoRosa): void {
+  const visita = leerVisita();
+  estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
+  notificar();
+}
+
+let fuenteEventos: EventSource | null = null;
+
+function abrirEventos(): void {
+  if (fuenteEventos) fuenteEventos.close();
+  const es = new EventSource(`${API}/eventos`);
+  fuenteEventos = es;
+  es.addEventListener('estado', (ev) => {
+    try {
+      recibirRemoto(JSON.parse((ev as MessageEvent).data) as EstadoRosa);
+    } catch {
+      // Un mensaje corrupto no tumba la interfaz; el siguiente lo arregla.
+    }
+  });
+  es.onopen = () => {
+    if (estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
+  };
+  es.onerror = () => {
+    // EventSource reintenta solo. Mientras, se avisa.
+    if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+  };
+}
+
+/** Envia una accion al servidor. El estado local ya se aplico de forma
+ *  optimista; el servidor manda el suyo por SSE en cuanto la procesa. */
+function enviar(nombre: string, args: Record<string, unknown>): void {
+  if (modo !== 'servidor') return;
+  void fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) })
+    .then((r) => {
+      if (!r.ok && estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+    })
+    .catch(() => {
+      if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+    });
+}
+
+/** Intenta el servidor; si no esta, arranca la muestra. Idempotente. */
+export async function conectar(): Promise<'muestra' | 'servidor'> {
+  try {
+    const r = await fetch(`${API}/estado`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    const remoto = (await r.json()) as EstadoRosa;
+    if (!Array.isArray(remoto.investigaciones)) throw new Error('respuesta sin forma de EstadoRosa');
+    modo = 'servidor';
+    if (pararSimulacion) {
+      pararSimulacion();
+      pararSimulacion = null;
+    }
+    recibirRemoto(remoto);
+    abrirEventos();
+  } catch {
+    modo = 'muestra';
+    arrancarMuestra();
+  }
+  return modo;
+}
+
+/* ---------------------------------------------------------------------
+   Acciones
+   --------------------------------------------------------------------- */
+
+export const acciones = {
+  marcarVisita: () => {
+    const ahora = Date.now();
+    try {
+      localStorage.setItem(CLAVE_VISITA, String(ahora));
+    } catch {
+      // Sin almacenamiento: la visita dura lo que la pestana.
+    }
+    aplicar((e) => A.marcarVisita(e, ahora));
+    enviar('marcarVisita', { ahora });
+  },
+  pausarCorrida: (id: string) => {
+    aplicar((e) => A.pausarCorrida(e, id));
+    enviar('pausarCorrida', { corrida_id: id });
+  },
+  reanudarCorrida: (id: string) => {
+    aplicar((e) => A.reanudarCorrida(e, id));
+    enviar('reanudarCorrida', { corrida_id: id });
+  },
+  detenerCorrida: (id: string, motivo: string, vigilarDias: number | null) => {
+    aplicar((e) => A.detenerCorrida(e, id, motivo, Date.now(), vigilarDias));
+    enviar('detenerCorrida', { corrida_id: id, motivo, vigilar_literatura_dias: vigilarDias });
+  },
+  /** Arranca una corrida nueva (solo con servidor: el bucle propone el plan). */
+  iniciarCorrida: (investigacionId: string) => {
+    enviar('iniciarCorrida', { investigacion_id: investigacionId });
+  },
+  ampliarPresupuesto: (id: string, limite: number) => {
+    aplicar((e) => A.ampliarPresupuesto(e, id, limite, Date.now()));
+    enviar('ampliarPresupuesto', { corrida_id: id, nuevo_limite: limite });
+  },
+  dirigirCorrida: (id: string, texto: string) => {
+    aplicar((e) => A.dirigirCorrida(e, id, texto));
+    enviar('dirigirCorrida', { corrida_id: id, texto });
+  },
+  editarPlan: (iteracionId: string, plan: PasoPlan[]) => {
+    aplicar((e) => A.editarPlan(e, iteracionId, plan));
+    enviar('editarPlan', { iteracion_id: iteracionId, plan });
+  },
+  aprobarPlan: (iteracionId: string) => {
+    aplicar((e) => A.aprobarPlan(e, iteracionId, Date.now()));
+    enviar('aprobarPlan', { iteracion_id: iteracionId });
+  },
+  fijarAutoaprobacionPlan: (corridaId: string, segundos: number | null) => {
+    aplicar((e) => A.fijarAutoaprobacionPlan(e, corridaId, segundos));
+    enviar('fijarAutoaprobacionPlan', { corrida_id: corridaId, segundos });
+  },
+  detenerPista: (pistaId: string, indicacion: string) => {
+    aplicar((e) => A.detenerPista(e, pistaId, indicacion));
+    enviar('detenerPista', { pista_id: pistaId, indicacion });
+  },
+  detenerProceso: (corridaId: string, procesoId: string, indicacion: string) => {
+    aplicar((e) => A.detenerProceso(e, corridaId, procesoId, indicacion));
+    enviar('detenerProceso', { corrida_id: corridaId, proceso_id: procesoId, indicacion });
+  },
+  volverAIteracion: (iteracionId: string, que: 'plan' | 'mundo' | 'ambos') => {
+    aplicar((e) => A.volverAIteracion(e, iteracionId, que, Date.now()));
+    enviar('volverAIteracion', { iteracion_id: iteracionId, que });
+  },
+  resolverSolicitud: (id: string, decision: 'conceder' | 'denegar', alcance: AlcancePermiso | null, argumentos?: Record<string, string>) => {
+    aplicar((e) => A.resolverSolicitud(e, id, decision, alcance, Date.now(), argumentos));
+    enviar('resolverSolicitud', { solicitud_id: id, decision, alcance, argumentos: argumentos ?? null });
+  },
+  resolverSolicitudes: (ids: string[], decision: 'conceder' | 'denegar', alcance: AlcancePermiso | null) => {
+    aplicar((e) => A.resolverSolicitudes(e, ids, decision, alcance, Date.now()));
+    enviar('resolverSolicitudes', { ids, decision, alcance });
+  },
+  revocarPermiso: (id: string) => {
+    aplicar((e) => A.revocarPermiso(e, id));
+    enviar('revocarPermiso', { permiso_id: id });
+  },
+  resolverIncidencia: (id: string, resolucion: string) => {
+    aplicar((e) => A.resolverIncidencia(e, id, resolucion, Date.now()));
+    enviar('resolverIncidencia', { incidencia_id: id, resolucion });
+  },
+  fijarAutonomia: (clase: ClaseAccion, nivel: NivelAutonomia) => {
+    aplicar((e) => A.fijarAutonomia(e, clase, nivel));
+    enviar('fijarAutonomia', { clase, nivel });
+  },
+  revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null) => {
+    aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana));
+    enviar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana });
+  },
+  votarRelevancia: (id: string, voto: 'alta' | 'media' | 'baja') => {
+    aplicar((e) => A.votarRelevancia(e, id, voto));
+    enviar('votarRelevancia', { hipotesis_id: id, voto });
+  },
+  solicitarRevision: (id: string) => {
+    aplicar((e) => A.solicitarRevision(e, id, Date.now()));
+    enviar('solicitarRevision', { hipotesis_id: id });
+  },
+  replicarHipotesis: (id: string, total: number) => {
+    aplicar((e) => A.replicarHipotesis(e, id, total, Date.now()));
+    enviar('replicarHipotesis', { hipotesis_id: id, total });
+  },
+  proponerHipotesis: (investigacionId: string, datos: A.DatosHipotesisHumana): string | null => {
+    let id: string | null = null;
+    aplicar((e) => {
+      const r = A.proponerHipotesis(e, investigacionId, datos, QUIEN, Date.now());
+      id = r.id;
+      return r.estado;
+    });
+    if (id !== null) enviar('proponerHipotesis', { investigacion_id: investigacionId, datos, quien: QUIEN, id_: id });
+    return id;
+  },
+  asignarExperimento: (id: string, laboratorio: string) => {
+    aplicar((e) => A.asignarExperimento(e, id, laboratorio));
+    enviar('asignarExperimento', { hipotesis_id: id, laboratorio });
+  },
+  registrarDatosExperimento: (id: string, fichero: string, analisis: string) => {
+    aplicar((e) => A.registrarDatosExperimento(e, id, fichero, analisis));
+    enviar('registrarDatosExperimento', { hipotesis_id: id, fichero, analisis });
+  },
+  anadirComentario: (hipotesisId: string, ancla: AnclaComentario, nota: string) => {
+    aplicar((e) => A.anadirComentario(e, hipotesisId, ancla, nota, Date.now()));
+    enviar('anadirComentario', { hipotesis_id: hipotesisId, ancla, nota });
+  },
+  editarComentario: (id: string, nota: string) => {
+    aplicar((e) => A.editarComentario(e, id, nota));
+    enviar('editarComentario', { comentario_id: id, nota });
+  },
+  quitarComentario: (id: string) => {
+    aplicar((e) => A.quitarComentario(e, id));
+    enviar('quitarComentario', { comentario_id: id });
+  },
+  enviarComentarios: (hipotesisId: string, mensaje: string) => {
+    aplicar((e) => A.enviarComentarios(e, hipotesisId, mensaje, QUIEN, Date.now()));
+    enviar('enviarComentarios', { hipotesis_id: hipotesisId, mensaje, quien: QUIEN });
+  },
+  inyectarDebilidad: (corridaId: string, debilidadId: string) => {
+    aplicar((e) => A.inyectarDebilidad(e, corridaId, debilidadId));
+    enviar('inyectarDebilidad', { corrida_id: corridaId, debilidad_id: debilidadId });
+  },
+  recomprobarRetracciones: (investigacionId: string) => {
+    aplicar((e) => A.recomprobarRetracciones(e, investigacionId, Date.now()));
+    enviar('recomprobarRetracciones', { investigacion_id: investigacionId });
+  },
+  crearInvestigacion: (datos: A.DatosInvestigacion): string | null => {
+    let id: string | null = null;
+    aplicar((e) => {
+      const r = A.crearInvestigacion(e, datos, Date.now());
+      id = r.id;
+      return r.estado;
+    });
+    if (id !== null) {
+      enviar('crearInvestigacion', { datos, id_: id });
+      // Con servidor, la primera corrida arranca sola: Rosa propone el plan
+      // y lo deja esperando aprobacion.
+      enviar('iniciarCorrida', { investigacion_id: id });
+    }
+    return id;
+  },
+  bifurcarInvestigacion: (investigacionId: string, motivo: string): string | null => {
+    let id: string | null = null;
+    aplicar((e) => {
+      const r = A.bifurcarInvestigacion(e, investigacionId, motivo, Date.now());
+      id = r.id;
+      return r.estado;
+    });
+    if (id !== null) enviar('bifurcarInvestigacion', { investigacion_id: investigacionId, motivo, id_: id });
+    return id;
+  },
+  actualizarConfiguracion: (investigacionId: string, configuracion: Investigacion['configuracion']) => {
+    aplicar((e) => A.actualizarConfiguracion(e, investigacionId, configuracion));
+    enviar('actualizarConfiguracion', { investigacion_id: investigacionId, configuracion });
+  },
+  anadirDataset: (investigacionId: string, dataset: Omit<Dataset, 'id' | 'estado'>) => {
+    aplicar((e) => A.anadirDataset(e, investigacionId, dataset));
+    enviar('anadirDataset', { investigacion_id: investigacionId, dataset });
+  },
+  decidirDataset: (investigacionId: string, datasetId: string, decision: 'aprobado' | 'rechazado') => {
+    aplicar((e) => A.decidirDataset(e, investigacionId, datasetId, decision));
+    enviar('decidirDataset', { investigacion_id: investigacionId, dataset_id: datasetId, decision });
+  },
+  aprobarDiccionario: (investigacionId: string, datasetId: string) => {
+    aplicar((e) => A.aprobarDiccionario(e, investigacionId, datasetId));
+    enviar('aprobarDiccionario', { investigacion_id: investigacionId, dataset_id: datasetId });
+  },
+  corregirDataset: (investigacionId: string, datasetId: string) => {
+    aplicar((e) => A.corregirDataset(e, investigacionId, datasetId));
+    enviar('corregirDataset', { investigacion_id: investigacionId, dataset_id: datasetId });
+  },
+  clasificarDataset: (investigacionId: string, datasetId: string, c: ClasificacionDatos) => {
+    aplicar((e) => A.clasificarDataset(e, investigacionId, datasetId, c));
+    enviar('clasificarDataset', { investigacion_id: investigacionId, dataset_id: datasetId, clasificacion: c });
+  },
+  destacarArtefacto: (id: string) => {
+    aplicar((e) => A.destacarArtefacto(e, id));
+    enviar('destacarArtefacto', { artefacto_id: id });
+  },
+  guardarArtefacto: (investigacionId: string, nombre: string, tipo: TipoArtefacto, contenido: string, resumen: string, iteracion: number): string => {
+    let id = '';
+    aplicar((e) => {
+      const r = A.guardarArtefacto(e, investigacionId, nombre, tipo, contenido, resumen, iteracion, Date.now());
+      id = r.id;
+      return r.estado;
+    });
+    enviar('guardarArtefacto', { investigacion_id: investigacionId, nombre, tipo, contenido, resumen, iteracion, id_: id });
+    return id;
+  },
+  cambiarEstadoCaso: (clave: string, nuevo: 'aprobado' | 'descartado' | 'propuesto') => {
+    aplicar((e) => A.cambiarEstadoCaso(e, clave, nuevo));
+    enviar('cambiarEstadoCaso', { clave, nuevo });
+  },
+  editarRespuestaCaso: (clave: string, respuesta: string) => {
+    aplicar((e) => A.editarRespuestaCaso(e, clave, respuesta));
+    enviar('editarRespuestaCaso', { clave, respuesta });
+  },
+  editarRecuerdo: (id: string, texto: string) => {
+    aplicar((e) => A.editarRecuerdo(e, id, texto));
+    enviar('editarRecuerdo', { id_: id, texto });
+  },
+  borrarRecuerdo: (id: string) => {
+    aplicar((e) => A.borrarRecuerdo(e, id));
+    enviar('borrarRecuerdo', { id_: id });
+  },
+  anadirCriterio: (texto: string) => {
+    aplicar((e) => A.anadirCriterio(e, texto));
+    enviar('anadirCriterio', { texto });
+  },
+  borrarCriterio: (indice: number) => {
+    aplicar((e) => A.borrarCriterio(e, indice));
+    enviar('borrarCriterio', { indice });
+  },
+  actualizarAvisos: (avisos: Avisos) => {
+    aplicar((e) => A.actualizarAvisos(e, avisos));
+    enviar('actualizarAvisos', { avisos });
+  },
+  actualizarPoliticaEsperas: (p: PoliticaEsperas) => {
+    aplicar((e) => A.actualizarPoliticaEsperas(e, p));
+    enviar('actualizarPoliticaEsperas', { politica: p });
+  },
+  borrarPlanGuardado: (id: string) => {
+    aplicar((e) => A.borrarPlanGuardado(e, id));
+    enviar('borrarPlanGuardado', { id_: id });
+  },
+};
+
+let pararSimulacion: (() => void) | null = null;
+
+/** Arranca la corrida simulada. Idempotente. */
+export function arrancarMuestra(): void {
+  if (pararSimulacion !== null || modo === 'servidor') return;
+  pararSimulacion = iniciarSimulacion(aplicar);
+}

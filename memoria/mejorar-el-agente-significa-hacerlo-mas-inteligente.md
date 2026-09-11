@@ -1,6 +1,6 @@
 ---
 name: mejorar-el-agente-significa-hacerlo-mas-inteligente
-description: "Cuando Emir pide mejorar el pipeline o el agente del RAG, quiere que el agente razone y recupere mejor; el trabajo periférico de robustez le parece esquivar la petición."
+description: "Cuando la persona responsable pide mejorar el pipeline o el agente del RAG, quiere que el agente razone y recupere mejor; el trabajo periférico de robustez le parece esquivar la petición."
 metadata: 
   node_type: memory
   pinned: false
@@ -10,7 +10,7 @@ metadata:
 
 # "Mejorar el agente" significa hacerlo más inteligente, no más robusto
 
-Emir pidió "busca cómo podrías arreglar el pipeline y llevarlo al siguiente
+la persona responsable pidió "busca cómo podrías arreglar el pipeline y llevarlo al siguiente
 nivel... mejora el agente de una forma que me deje sorprendido, que esté listo
 para usar por la médica". Yo respondí lanzando, entre otras cosas, arreglos de
 ingesta (parseo de PDF, tablas de Word, firmas Vancouver) y una vetación de

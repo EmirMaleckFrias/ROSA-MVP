@@ -1,0 +1,70 @@
+# Frontend de Rosa
+
+La interfaz web de Rosa: la vista de una corrida de dias, la cola de revision
+de hipotesis con procedencia, el ranking, el explorador del modelo de mundo,
+los artefactos versionados, el tablero de calidad y los ajustes. Sigue
+`UI-ROSA.md` patron por patron.
+
+## Arrancar
+
+```
+npm install
+npm run dev        # http://localhost:5174
+npm test           # vitest: logica pura y acciones
+npm run typecheck  # tsc estricto
+npm run build      # produccion en dist/
+```
+
+## Estado actual: datos de muestra
+
+Rosa todavia no tiene bucle ni servidor. La interfaz arranca con datos de
+muestra del dominio (`src/datos/muestra.ts`) y una corrida que avanza sola
+(`src/datos/simulacion.ts`) para poder construirla y juzgarla en vivo. La
+cabecera lo dice ("Datos de muestra") y cada pantalla lleva el aviso.
+
+Para conectar Rosa de verdad se cambia un solo modulo, `src/datos/almacen.ts`:
+`useRosa()` pasa a leer las suscripciones del servidor (Convex, o Postgres con
+suscripciones; decision pendiente) y cada funcion de `acciones` pasa a llamar
+a su mutacion, con las mismas firmas. Las pantallas no cambian. Los tipos del
+contrato estan en `src/datos/tipos.ts`.
+
+## Como esta organizado
+
+- `src/datos/`: tipos del dominio, muestra, acciones puras (con tests),
+  simulacion (con tests) y el almacen reactivo.
+- `src/lib/`: logica pura sin React, cada modulo con su test: formato de
+  numeros y tiempos, rutas, orden de la cola y del ranking, resumen de la
+  verificacion, diff por lineas, etiquetas de cada estado.
+- `src/componentes/`: piezas reutilizables: tarjeta de permiso, plan en vivo
+  con pistas y transcripcion, verificacion plegable, tarjetas del revisor,
+  comentarios anclados, cajon de procedencia de seis pestanas.
+- `src/pantallas/`: una por pantalla.
+- `src/styles.css`: el sistema visual, heredado del RAG, con el morado del
+  arbol del Alzheimer Project como acento. Claro y oscuro via `data-theme`.
+
+## Reglas que la interfaz hace cumplir
+
+- Una hipotesis no entra al modelo de mundo como aceptada sin pasar por la
+  cola, y no se puede aceptar con afirmaciones bloqueantes ni hallazgos
+  abiertos del revisor (`motivoNoAceptable`).
+- Descartar exige motivo, y el motivo queda en el modelo de mundo.
+- Las tarjetas de permiso llevan el nombre exacto del recurso y los alcances
+  elegibles; lo concedido con alcance mayor que "una vez" se lista y se revoca
+  en Ajustes.
+- `sin_verificar` se pinta como aviso, nunca como aprobado. Arriba se resume
+  el fallo, no el acierto.
+- Los comentarios se anclan a una seleccion de texto, se acumulan como
+  pendientes y salen juntos a Rosa con el siguiente mensaje.
+- Nada de confirmaciones del navegador: las decisiones irreversibles se
+  confirman inline, en dos pasos.
+
+
+## Conexion con el servidor de Rosa
+
+Al arrancar, `src/datos/almacen.ts` pide `/api/estado`. Si el servidor de Rosa
+responde (`uv run python -m rosa.main`, puerto 8765; Vite reenvia `/api`), la
+interfaz entra en modo servidor: el estado llega por Server-Sent Events
+(`/api/eventos`, el estado completo en cada cambio) y cada accion se aplica al
+instante con el reducer local y se envia por `POST /api/acciones/{nombre}`. Si
+el servidor no responde, sigue con los datos de muestra y la simulacion, y lo
+avisa en la franja amarilla. Las pantallas no distinguen un modo del otro.

@@ -1,6 +1,6 @@
 ---
 name: las-citas-deben-resolver-a-la-pagina-exacta
-description: En FIREtech-RAG una cita con la página desfasada aunque sea en uno se considera un fallo grave; Emir verifica las citas contra el PDF real (también con herramientas externas) y espera que el localizador sea exacto.
+description: En FIREtech-RAG una cita con la página desfasada aunque sea en uno se considera un fallo grave; la persona responsable verifica las citas contra el PDF real (también con herramientas externas) y espera que el localizador sea exacto.
 metadata: 
   node_type: memory
   pinned: false
@@ -10,7 +10,7 @@ metadata:
 
 # Las citas tienen que resolver a la página exacta del dato
 
-Emir lo pidió tras probar el asistente con otra herramienta de IA (Manus) que
+la persona responsable lo pidió tras probar el asistente con otra herramienta de IA (Manus) que
 juzgó buenas las respuestas pero detectó que las páginas citadas iban una o
 dos por delante o por detrás de donde estaba el dato: *"cuando un humano
 quiera verificar la página del pdf real y vea que el agente se adelantó o
