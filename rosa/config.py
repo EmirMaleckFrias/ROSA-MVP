@@ -65,5 +65,8 @@ except Exception:  # noqa: BLE001
 
 
 def coste_usd(modelo: str, tokens_entrada: int, tokens_salida: int) -> float:
-    entrada, salida = PRECIOS.get(modelo) or PRECIOS.get(modelo.split("/")[-1]) or (5.0, 20.0)
+    # DSPy nombra los modelos del gateway como "openai/anthropic/claude-opus-5":
+    # se quita el prefijo del proveedor compatible antes de buscar el precio.
+    limpio = modelo.removeprefix("openai/") if modelo.count("/") > 1 else modelo
+    entrada, salida = PRECIOS.get(modelo) or PRECIOS.get(limpio) or PRECIOS.get(modelo.split("/")[-1]) or (5.0, 20.0)
     return (tokens_entrada * entrada + tokens_salida * salida) / 1_000_000

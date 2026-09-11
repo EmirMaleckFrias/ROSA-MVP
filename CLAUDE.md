@@ -47,6 +47,12 @@ sin aprobar por un humano.
   sirve por `/api/estado`, lo empuja por SSE en `/api/eventos` y recibe las
   acciones en `POST /api/acciones/{nombre}`. Arranque: `uv run python -m
   rosa.main` o `./rosa.sh` (servidor mas interfaz).
+  Piezas con regla propia: `rosa/killer.py` (Killer, misma cohorte,
+  direccion y unidades), `rosa/causal.py` (grafo causal tipado, base
+  curada), `rosa/torneo.py` (Elo y Bradley-Terry), `rosa/secuencial.py`
+  (e-valores), `rosa/priorizacion.py`, `rosa/politicas.py`, y
+  `rosa/evaluacion/panel_killer.py` (panel con fallos plantados; cuesta
+  llamadas al juez, no correrlo sin motivo).
 - `frontend/`: la interfaz web de Rosa (React, Vite, TypeScript). Ver su
   `README.md`. `frontend/src/datos/almacen.ts` prueba el servidor al arrancar
   y, si no responde, cae a los datos de muestra con la corrida simulada.

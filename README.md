@@ -75,8 +75,48 @@ nada de esto se opera desde la terminal.
   evalua y promueve; politicas), el registro de metodos con su estado, y las
   politicas tal como estan en el codigo.
 
-Arrancar Docker Desktop antes de una demostracion con datos reales: sin
-runtime de aislamiento, los analisis quedan en "no ejecutado" con el motivo.
+- **Ranking por Bradley-Terry y evidencia acumulada.** Las candidatas se
+  ordenan por la fuerza de Bradley-Terry sobre los partidos del torneo, con
+  intervalo del 95 % por bootstrap; el Elo queda como vista. Cuando un plan
+  de analisis tiene aleatoriedad (permutacion, bootstrap) el sandbox lo
+  repite con dos semillas mas. Los p-valores de los analisis validos de una
+  hipotesis se agregan con e-valores (producto de kappa p^(kappa-1)), que
+  controlan el error aunque se sigan anadiendo pruebas.
+- **Misma cohorte sin nombre y comprobaciones de registro.** Dos fuentes
+  primarias que comparten dos autores, o el centro y un autor, con pocos anos
+  de diferencia cuentan como una sola cohorte aunque no la nombren. El Killer
+  comprueba ademas que la evidencia sostenida va en la direccion del enunciado
+  (si va al reves, reformula) y que las cifras comparadas estan en la misma
+  unidad (si no, avisa).
+- **Protocolo real y enmiendas fechadas.** En la ficha del experimento, tras
+  asignarlo, se registra lo que el laboratorio hizo de verdad (protocolo
+  ejecutado, desviaciones, identidad de las muestras) y cualquier cambio del
+  prerregistro queda como enmienda con fecha, autor, texto anterior y motivo.
+  El juez lee las tres cosas al evaluar los datos.
+- **Gobierno de areas y jerarquia.** Cada area del programa se puede elegir,
+  pausar con la condicion que la reabriria, reabrir, dejar sin explorar o
+  asignar a una campana (corrida); todo con historial. En Objetivo y datos se
+  ve la jerarquia programa, areas, campanas y preguntas con sus huecos.
+- **Motor causal minimo.** Cada hipotesis juzgada lleva un grafo local con
+  aristas tipadas (supuesto, inferencia con evidencia, base curada), las
+  alternativas que planteo el Killer como nodos, y una identificacion por
+  regla: identificable, acotado (con los supuestos que faltan) o sin
+  resolver. Las relaciones entran al modelo de mundo con su tipo; la base
+  curada vive en `rosa/causal.py`.
+- **Panel del Killer.** Un panel con fallos plantados en hipotesis reales
+  (cifra alterada, prediccion no falsable, causalidad sin temporalidad, misma
+  cohorte, supuesto contradicho) y un conjunto gris mide la tasa de deteccion,
+  si lo vio el juez, la abstencion y cuanto mata de mas. Se corre con el
+  servidor encendido (cuesta llamadas al juez) y el resultado queda en Calidad:
+
+  ```
+  uv run python -m rosa.evaluacion.panel_killer --hipotesis 5
+  ```
+
+Los datasets admiten hasta 200 MB (una matriz de expresion de GEO en formato
+largo ronda los 100 MB). Arrancar Docker Desktop antes de una demostracion con
+datos reales: sin runtime de aislamiento, los analisis quedan en "no ejecutado"
+con el motivo.
 
 ## Como se investiga
 
