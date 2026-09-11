@@ -104,7 +104,21 @@ def estado_inicial() -> dict[str, Any]:
         "politicaEsperas": {"horas": 24, "accion": "recordar", "escalarA": ""},
         "eventos": [],
         "ultimaVisita": None,
+        # Registros de ROSA2018 (septiembre de 2026).
+        "decisiones": [],
+        "planesAnalisis": [],
+        "ejecuciones": [],
+        "reproducciones": [],
+        "aprendizaje": [],
+        "metodos": metodos_iniciales(),
+        "politicas": _politicas(),
     }
+
+
+def _politicas() -> dict[str, Any]:
+    from rosa import politicas
+
+    return politicas.resumen()
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +146,7 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         "panorama": [],
         "autoAprobarPlanSegundos": None,
         "arnes": _arnes(),
+        "pregunta": None,
     }
 
 
@@ -141,8 +156,8 @@ def _arnes() -> dict[str, str]:
     return arnes()
 
 
-def nuevo_paso(titulo: str, detalle: str, presupuesto: int | None = None, humano: bool = False) -> dict[str, Any]:
-    return {"id": nuevo_id("paso"), "titulo": titulo, "detalle": detalle, "estado": "pendiente", "indicacionHumana": humano, "motivoFallo": None, "presupuesto": presupuesto}
+def nuevo_paso(titulo: str, detalle: str, presupuesto: int | None = None, humano: bool = False, valor_decision: str = "") -> dict[str, Any]:
+    return {"id": nuevo_id("paso"), "titulo": titulo, "detalle": detalle, "estado": "pendiente", "indicacionHumana": humano, "motivoFallo": None, "presupuesto": presupuesto, "valorDecision": valor_decision}
 
 
 def nueva_iteracion(corrida_id: str, numero: int, ahora: int, plan: list[dict[str, Any]], limite: int | None = None) -> dict[str, Any]:
@@ -255,6 +270,15 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "coste": {"literatura": 0, "analisis": 0},
         "experimento": None,
         "prerregistradaEn": ahora,
+        # ROSA2018: contrato minimo, versiones, decisiones, bloqueos.
+        "tarjeta": None,
+        "version": 1,
+        "versiones": [],
+        "decisionKiller": None,
+        "bloqueos": [],
+        "candidata": False,
+        "dossierArtefactoId": None,
+        "ejecuciones": [],
     }
     h.update(campos)
     return h
@@ -280,3 +304,264 @@ def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, est
 
 def nuevo_evento(investigacion_id: str, tipo: str, texto: str, ruta: str | None, t: int) -> dict[str, Any]:
     return {"id": nuevo_id("ev"), "investigacionId": investigacion_id, "t": t, "tipo": tipo, "texto": texto, "ruta": ruta}
+
+
+# ---------------------------------------------------------------------------
+# ROSA2018: mision, tarjeta, decisiones, analisis, aprendizaje
+# ---------------------------------------------------------------------------
+
+
+def mision_vacia() -> dict[str, Any]:
+    from rosa import politicas
+
+    return {
+        "poblacion": "",
+        "etapa": "",
+        "celulaTejido": "",
+        "mecanismo": "",
+        "tipoIntervencion": "",
+        "capacidadesLaboratorio": [],
+        "presupuesto": {"llamadas": config.PRESUPUESTO_CORRIDA, "usd": politicas.PRESUPUESTO_USD_POR_DEFECTO, "horas": politicas.PRESUPUESTO_HORAS_POR_DEFECTO},
+        "propuestaPorRosa": False,
+        "aprobadaEn": None,
+        "aprobadaPor": None,
+        # Plan completo ROSA2018: meta amplia, areas, acciones permitidas, roles.
+        "metaAmplia": "",
+        "areas": [],
+        "accionesPermitidas": ["buscar_literatura", "extraer_y_verificar", "analisis_in_silico_con_datasets_aprobados"],
+        "responsables": {"patrocinador": "", "liderCientifico": "", "metodos": "", "datos": "", "ingenieria": "", "laboratorio": "", "evaluacion": ""},
+    }
+
+
+def nueva_area(**campos: Any) -> dict[str, Any]:
+    a = {"id": nuevo_id("area"), "titulo": "", "familiaMecanismo": "", "relevancia": "", "valorIntervencion": "", "incertidumbre": "", "comprobabilidad": "", "coste": "", "demora": "", "dependeDe": "", "estado": "propuesta", "condicionReapertura": ""}
+    a.update(campos)
+    return a
+
+
+def pregunta_vacia() -> dict[str, Any]:
+    return {"contexto": "", "etapa": "", "intervencion": "", "comparador": "", "desenlace": "", "ventana": "", "unidadBiologica": "", "mecanismos": "", "decision": "", "umbralEfecto": "", "umbralResuelto": False, "pasoRuta": "mecanismo", "propuestaPorRosa": True, "aprobadaEn": None}
+
+
+PASOS_RUTA = ("mecanismo", "opciones_intervencion", "compromiso_diana", "efecto_funcional", "selectividad_toxicidad", "exposicion", "replicacion_independiente", "evidencia_poblacion")
+
+
+def nuevo_metodo(nombre: str, tipo: str, evalua: str, ahora: int, **campos: Any) -> dict[str, Any]:
+    m = {
+        "id": nuevo_id("met"),
+        "nombre": nombre,
+        "tipo": tipo,
+        "evalua": evalua,
+        "contextos": [],
+        "exclusiones": [],
+        "entradas": "",
+        "salidas": "",
+        "validacion": "",
+        "fallosConocidos": "",
+        "version": "",
+        "dependeDe": [],
+        "coste": "",
+        "responsable": "",
+        "estado": "implementado",
+        "probadoEn": [],
+        "actualizadoEn": ahora,
+    }
+    m.update(campos)
+    return m
+
+
+def metodos_iniciales() -> list[dict[str, Any]]:
+    """El registro de metodos con lo que Rosa ya tiene (plan completo,
+    seccion 5). Cada entrada dice que evalua, donde aplica, como se valido y
+    en que estado esta. Lo probado en contexto lo marca la puerta de
+    reproduccion; lo demas empieza en 'implementado'."""
+    t = ahora_ms()
+    return [
+        nuevo_metodo("Busqueda bibliografica (PubMed, Europe PMC, preprints)", "busqueda", "Que literatura existe sobre una pregunta; cobertura estimada por tema", t, contextos=["literatura biomedica en ingles y espanol"], exclusiones=["texto completo sin acceso abierto"], entradas="consultas booleanas", salidas="fuentes con resumen y, si hay, texto completo por pagina", validacion="Cobertura estimada con curva 1 - exp(-n/tau); sin evaluacion independiente todavia", fallosConocidos="Una fuente que no responde no es 'no hay'", version="rosa/fuentes", coste="1 llamada por articulo cribado", responsable="ingenieria"),
+        nuevo_metodo("Verificador de afirmaciones (deterministas + juez Opus 5)", "revision", "Si un fragmento citado sostiene una afirmacion; entidad distinta; ausencia refutada", t, contextos=["afirmaciones con cita a fragmento literal"], entradas="afirmacion, fragmento, pistas normalizadas", salidas="veredicto TRASPASO 4.1", validacion="17 casos de control del RAG anterior, sin aprobar por humano", fallosConocidos="Interpretaciones: 58 % de acierto en Kosmos; aqui se marcan aparte", version="rosa/verificador.py", coste="1 llamada por afirmacion que va al juez", responsable="metodos"),
+        nuevo_metodo("Hypothesis Killer (lista fija + decision por regla)", "revision", "Si una hipotesis avanza, se reformula, se suspende o se descarta en contexto", t, contextos=["hipotesis con tarjeta y afirmaciones verificadas"], entradas="hipotesis, afirmaciones, supuestos, comprobaciones deterministas", salidas="decision con comprobaciones y auditoria muestreada", validacion="Pendiente: panel de prueba con fallos plantados (ver PLAN-ROSA2018.md)", fallosConocidos="Sesgo de autoridad y de posicion en jueces LLM; se ocultan recuentos de citas", version="rosa/killer.py", coste="1 a 3 llamadas por hipotesis", responsable="metodos"),
+        nuevo_metodo("Comparacion de dos grupos (t de Welch o Mann-Whitney) con baseline y control barajado", "analisis", "Diferencia de una medida continua entre dos grupos independientes", t, contextos=["datos tabulares con una columna de grupo y una medida"], exclusiones=["medidas repetidas", "mas de dos grupos sin correccion"], entradas="CSV con columna de grupo y medida", salidas="RESULTADO estadistico, p, IC, n por grupo; BASELINE; CONTROL", validacion="Sin probar en contexto hasta superar la puerta de reproduccion", fallosConocidos="p grande con n pequeno no es 'sin efecto'", version="sandbox rosa-sandbox:1 (pandas, scipy, statsmodels)", coste="1 evaluacion costosa", responsable="metodos", estado="implementado"),
+        nuevo_metodo("Correlacion y regresion simple con permutacion", "analisis", "Asociacion entre dos medidas continuas, ajustada por confusores declarados", t, contextos=["datos tabulares"], exclusiones=["causalidad: solo asociacion"], entradas="CSV", salidas="coeficiente, p por permutacion con reajuste, IC", validacion="Sin probar en contexto hasta la puerta", fallosConocidos="Asociacion repetida no es causa", version="sandbox rosa-sandbox:1", coste="1 evaluacion costosa", responsable="metodos"),
+        nuevo_metodo("Reproduccion de analisis publicado (GSE1297, OASIS-1, SEA-AD)", "analisis", "Si el pipeline reproduce una cifra publicada dentro de tolerancia", t, contextos=["datasets publicos del Alzheimer"], entradas="dataset con hash, referencia, cifra publicada, tolerancia congelada", salidas="superada o fallida; error tecnico aparte", validacion="Es la validacion de los demas metodos de analisis", version="rosa/bucle/analisis.py", coste="1 evaluacion por reproduccion", responsable="metodos"),
+        nuevo_metodo("Open Targets, ClinicalTrials.gov y OpenAlex (novedad)", "recurso_datos", "Si una diana, un ensayo o una idea ya existen", t, contextos=["genes y proteinas humanas", "ensayos registrados"], entradas="simbolo de gen, terminos", salidas="asociacion, ensayos, precedente", validacion="APIs publicas; sin evaluacion propia", fallosConocidos="Sin respuesta no es ausencia", version="rosa/fuentes", coste="llamadas HTTP", responsable="ingenieria"),
+        nuevo_metodo("Modelos de lenguaje por el AI Gateway (Astra cerebro, Opus 5 juez, Sonnet 5 volumen)", "predictor", "Propuestas de plan, hipotesis, extraccion y juicio; nunca confirmacion independiente", t, contextos=["texto biomedico"], exclusiones=["Claude Fable 5.1: filtros de doble uso en biologia"], entradas="firmas DSPy", salidas="campos tipados", validacion="Metricas del juez contra decisiones humanas (pantalla Calidad)", fallosConocidos="Un predictor no confirma sus propios datos de entrenamiento; acuerdo entre modelos no es evidencia", version="gateway", coste="por token", responsable="ingenieria"),
+    ]
+
+
+def puerta_reproduccion() -> dict[str, Any]:
+    from rosa import politicas
+
+    return {"requeridas": politicas.REPRODUCCIONES_REQUERIDAS, "superadas": 0, "estado": "bloqueada", "eximidaPor": None, "motivo": "", "fecha": None}
+
+
+def tarjeta_vacia() -> dict[str, Any]:
+    return {"diana": "", "celula": "", "etapa": "", "intervencion": "", "direccion": "sin_intervencion", "prediccionFalsable": "", "riesgos": [], "pasoRuta": "mecanismo"}
+
+
+def version_de(h: dict[str, Any], ahora: int, quien: str, motivo: str) -> dict[str, Any]:
+    """Instantanea de la hipotesis tal como esta, para guardarla antes de reformular."""
+    return {
+        "n": h.get("version", 1),
+        "fecha": ahora,
+        "quien": quien,
+        "motivo": motivo,
+        "titulo": h["titulo"],
+        "enunciado": h["enunciado"],
+        "mecanismo": h["mecanismo"],
+        "comprobacion": dict(h["comprobacion"]),
+        "tarjeta": dict(h["tarjeta"]) if h.get("tarjeta") else None,
+    }
+
+
+def nueva_decision(investigacion_id: str, hipotesis_id: str, version: int, etapa: str, decision: str, motivo: str, quien: str, ahora: int, comprobaciones: list[dict[str, Any]] | None = None, que_haria_falta: str = "") -> dict[str, Any]:
+    return {
+        "id": nuevo_id("dec"),
+        "investigacionId": investigacion_id,
+        "hipotesisId": hipotesis_id,
+        "version": version,
+        "etapa": etapa,
+        "decision": decision,
+        "motivo": motivo,
+        "comprobaciones": comprobaciones or [],
+        "queHariaFalta": que_haria_falta,
+        "quien": quien,
+        "fecha": ahora,
+        "auditoria": None,
+    }
+
+
+def nuevo_plan_analisis(investigacion_id: str, hipotesis_id: str | None, dataset_id: str, ahora: int, **campos: Any) -> dict[str, Any]:
+    plan = {
+        "id": nuevo_id("plan"),
+        "investigacionId": investigacion_id,
+        "hipotesisId": hipotesis_id,
+        "datasetId": dataset_id,
+        "tipo": "confirmatorio",
+        "pregunta": "",
+        "variables": [],
+        "poblacion": "",
+        "preprocesado": [],
+        "prueba": "",
+        "hipotesisNula": "",
+        "hipotesisAlternativa": "",
+        "alpha": 0.05,
+        "direccionEsperada": "",
+        "tamanoEfectoMinimo": "",
+        "baseline": "",
+        "controlNegativo": "",
+        "correccionMultiplicidad": "",
+        "umbralEfecto": "",
+        "criterioNoEvaluable": "",
+        "semilla": 12345,
+        "hashDatos": "",
+        "hashPlan": "",
+        "congeladoEn": ahora,
+        "autor": config.QUIEN_ROSA,
+        "reproduccionId": None,
+    }
+    plan.update(campos)
+    plan["hashPlan"] = hash_plan(plan)
+    return plan
+
+
+def hash_plan(plan: dict[str, Any]) -> str:
+    """sha256 del plan canonico (sin id ni fechas): si cambia una variable o
+    la prueba, cambia el hash y es otro plan."""
+    import hashlib
+
+    claves = ("tipo", "pregunta", "variables", "poblacion", "preprocesado", "prueba", "hipotesisNula", "hipotesisAlternativa", "alpha", "direccionEsperada", "tamanoEfectoMinimo", "baseline", "controlNegativo", "correccionMultiplicidad", "umbralEfecto", "criterioNoEvaluable", "semilla", "hashDatos", "datasetId")
+    canonico = json.dumps({k: plan.get(k) for k in claves}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonico.encode("utf-8")).hexdigest()[:16]
+
+
+def nueva_ejecucion(investigacion_id: str, hipotesis_id: str | None, plan_id: str, tipo: str, codigo: str, semilla: int, hash_datos: str, ahora: int) -> dict[str, Any]:
+    import platform
+
+    return {
+        "id": nuevo_id("run"),
+        "investigacionId": investigacion_id,
+        "hipotesisId": hipotesis_id,
+        "planId": plan_id,
+        "tipo": tipo,
+        "codigo": codigo,
+        "entorno": {"python": platform.python_version(), "paquetes": []},
+        "semilla": semilla,
+        "hashDatos": hash_datos,
+        "hashPlan": "",
+        "inicio": ahora,
+        "fin": None,
+        "estado": "no_ejecutado",
+        "runtime": "ninguno",
+        "red": "deshabilitada",
+        "codigoSalida": None,
+        "duracionS": None,
+        "salida": "",
+        "error": "",
+        "resultados": {},
+        "baseline": {},
+        "controlNegativo": {},
+        "repeticiones": [],
+        "interpretacion": None,
+        "plausibilidadVerificada": None,
+        "auditoria": None,
+    }
+
+
+def nueva_reproduccion(investigacion_id: str, dataset_id: str, ahora: int, **campos: Any) -> dict[str, Any]:
+    r = {
+        "id": nuevo_id("rep"),
+        "investigacionId": investigacion_id,
+        "datasetId": dataset_id,
+        "referencia": "",
+        "doi": "",
+        "descripcion": "",
+        "cifraPublicada": "",
+        "valorPublicado": 0.0,
+        "tolerancia": 0.1,
+        "planId": None,
+        "ejecucionId": None,
+        "valorObtenido": None,
+        "estado": "pendiente",
+        "creadaEn": ahora,
+    }
+    r.update(campos)
+    return r
+
+
+def nuevo_cambio_aprendizaje(investigacion_id: str | None, nivel: int, tipo: str, descripcion: str, origen: str, estado: str, quien: str, ahora: int, evaluacion: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "id": nuevo_id("apr"),
+        "investigacionId": investigacion_id,
+        "nivel": nivel,
+        "tipo": tipo,
+        "descripcion": descripcion,
+        "origen": origen,
+        "estado": estado,
+        "evaluacion": evaluacion,
+        "quien": quien,
+        "fecha": ahora,
+        "resueltoEn": ahora if estado in ("aplicado", "promovido") else None,
+        "resueltoPor": quien if estado in ("aplicado", "promovido") else None,
+    }
+
+
+def procedencia_dataset_vacia() -> dict[str, Any]:
+    return {
+        "origen": "",
+        "version": "",
+        "licencia": "",
+        "permisos": "",
+        "fechaObtencion": None,
+        "hash": "",
+        "fichero": None,
+        "filas": 0,
+        "diccionario": [],
+        "usoIAAutorizado": "desconocido",
+        "sintetico": False,
+        "clase": "observacion_original",
+        "cohorte": "",
+        "permiteLlmTerceros": False,
+        "restriccionIA": "",
+        "acceso": "propio",
+        "columnas": [],
+    }

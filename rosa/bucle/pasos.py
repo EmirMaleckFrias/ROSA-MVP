@@ -25,7 +25,8 @@ from typing import Any
 
 import dspy
 
-from rosa import config
+from rosa import config, politicas
+from rosa import killer as K
 from rosa import verificador as V
 from rosa import torneo
 from rosa.bucle import contexto as T
@@ -269,7 +270,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         async def puntuar(a: dict[str, Any]) -> None:
             async with sem:
                 try:
-                    pred = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=preguntas, titulo=a.get("titulo", ""), resumen=(a.get("resumen") or "")[:3000])
+                    pred = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=preguntas, titulo=a.get("titulo", ""), resumen=K.como_dato((a.get("resumen") or "")[:3000]))
                     puntuados.append((int(pred.puntuacion), a, pred.motivo))
                 except PresupuestoAgotado:
                     raise
@@ -423,9 +424,13 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
             texto = fr["texto"][:6000]
             if len(texto.strip()) < 80:
                 continue
+            sospechoso = K.sospechoso_inyeccion(texto)
+            if sospechoso:
+                pista.nota(f"{f['referencia']} ({fr['localizador']}): el fragmento contiene texto que parece una instruccion para un modelo; se marca y se ensena, no se bloquea")
             async with sem:
                 try:
-                    pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=preguntas, referencia=f["referencia"], localizador=fr["localizador"], fragmento=texto)
+                    # El fragmento entra delimitado como dato (spotlighting), nunca como instruccion.
+                    pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=preguntas, referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
                 except PresupuestoAgotado:
                     raise
                 except Exception as ex:  # noqa: BLE001
@@ -439,12 +444,30 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
                     motivo = "El fragmento citado no aparece literalmente en la pagina indicada."
                 else:
                     veredicto_inicial, motivo = "sin_verificar", "Pendiente de verificacion"
-                nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": f"[{f['referencia']}, {fr['localizador']}]", "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": a.tipo, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
+                cohorte = (getattr(a, "cohorte", "") or "").strip()[:60]
+                nivel = getattr(a, "nivel_medicion", "resultado_analisis") or "resultado_analisis"
+                registro = {k: (getattr(a, k, "") or "").strip()[:80] for k in ("n", "comparador", "efecto", "incertidumbre")}
+                # Comprobaciones automaticas del registro de evidencia (plan completo,
+                # seccion 3): lo que un dato deberia traer y no trae queda sin resolver.
+                sin_resolver = [k for k in ("n", "comparador", "efecto") if a.tipo == "dato" and not registro[k]]
+                if a.tipo == "dato" and nivel == "interpretacion_autor":
+                    sin_resolver.append("una interpretacion de los autores no es una medida: se rebaja a literatura")
+                    tipo_af = "literatura"
+                else:
+                    tipo_af = a.tipo
+                nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": f"[{f['referencia']}, {fr['localizador']}]", "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": tipo_af, "clase": "literatura", "sintetico": False, "cohorte": cohorte, "sospechosoInyeccion": sospechoso, "nivelMedicion": nivel, **registro, "sinResolver": sin_resolver, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
 
         def guardar(e: dict[str, Any]) -> bool:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
             c.setdefault("_afirmaciones", []).extend(nuevas)
-            c["_fuentes"][f["id"]]["extraida"] = True
+            fuente = c["_fuentes"][f["id"]]
+            fuente["extraida"] = True
+            # La cohorte de la fuente: la que mas dijeron sus afirmaciones, o la que
+            # se reconoce en el titulo y el resumen. Sirve para contar cohortes, no
+            # articulos, al medir replicacion.
+            if not fuente.get("cohorte"):
+                dichas = [a["cohorte"] for a in nuevas if a.get("cohorte")]
+                fuente["cohorte"] = (max(set(dichas), key=dichas.count) if dichas else K.cohorte_en_texto(fuente.get("titulo", "") + " " + " ".join(fr.get("texto", "")[:600] for fr in fuente.get("fragmentos", [])[:1]))) or None
             c["busqueda"]["usados"] = len({a["fuenteId"] for a in c["_afirmaciones"]})
             return True
 
@@ -491,7 +514,7 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
         frag = r.fragmento
         async with sem:
             try:
-                pred = await ctx.llamar("juez", ctx.programas.juzgar, pregunta=pregunta, afirmacion=a["texto"], fragmento=f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}", pistas=r.pistas)
+                pred = await ctx.llamar("juez", ctx.programas.juzgar, pregunta=pregunta, afirmacion=a["texto"], fragmento=K.como_dato(f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}"), pistas=r.pistas)
                 v = pred.veredicto
                 a["veredicto"] = v.veredicto
                 a["motivo"] = v.motivo
@@ -558,7 +581,8 @@ async def paso_verificacion(ctx: Ctx, paso: dict[str, Any]) -> str:
 def _fuente_publica(f: dict[str, Any], afirmacion: dict[str, Any] | None = None) -> dict[str, Any]:
     """La Fuente tal como la ve la interfaz, con la pagina y el fragmento de
     la afirmacion concreta si se da."""
-    publica = {k: v for k, v in f.items() if not k.startswith("_") and k not in ("fragmentos", "relevancia", "extraida", "iteracion")}
+    publica = {k: v for k, v in f.items() if not k.startswith("_") and k not in ("fragmentos", "relevancia", "extraida", "iteracion", "consultas")}
+    publica.setdefault("cohorte", None)
     if afirmacion:
         loc = afirmacion.get("localizador", "")
         m = re.match(r"p[aá]g\.\s*(\d+)", loc)
@@ -624,8 +648,204 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _texto_mision(inv: dict[str, Any]) -> str:
+    m = inv.get("mision") or {}
+    if not m:
+        return "Sin mision estructurada todavia"
+    return f"Poblacion: {m.get('poblacion') or 'sin fijar'}. Etapa: {m.get('etapa') or 'sin fijar'}. Celula o tejido: {m.get('celulaTejido') or 'sin fijar'}. Mecanismo: {m.get('mecanismo') or 'sin fijar'}. Tipo de intervencion: {m.get('tipoIntervencion') or 'sin fijar'}. Capacidades del laboratorio: {'; '.join(m.get('capacidadesLaboratorio', [])) or 'sin declarar'}."
+
+
+async def _completar_tarjeta(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
+    """La tarjeta (contrato minimo) de una hipotesis que no la trae: humana o
+    anterior a septiembre de 2026. La escribe el modelo de volumen: es
+    descriptivo, no juzga."""
+    try:
+        pred = await ctx.llamar("volumen", ctx.programas.tarjeta, hipotesis=T.hipotesis_texto(h), mision=_texto_mision(ctx.inv()), afirmaciones="\n".join(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna")
+        t = pred.tarjeta
+        tarjeta = {"diana": t.diana.strip(), "celula": t.celula.strip(), "etapa": t.etapa.strip(), "intervencion": t.intervencion.strip(), "direccion": t.direccion, "prediccionFalsable": t.prediccion_falsable.strip(), "riesgos": [r.strip() for r in t.riesgos if r.strip()][:6], "pasoRuta": getattr(t, "paso_ruta", "mecanismo") or "mecanismo"}
+    except PresupuestoAgotado:
+        raise
+    except Exception as ex:  # noqa: BLE001
+        if pista:
+            pista.error(f"No se pudo completar la tarjeta de {h['titulo'][:50]}: {str(ex)[:100]}")
+        tarjeta = None
+
+    def fn(e: dict[str, Any]) -> bool:
+        x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return False
+        x["_tarjetaIntentada"] = True
+        if tarjeta:
+            x["tarjeta"] = tarjeta
+        return True
+
+    ctx.mutar(fn, "tarjeta")
+
+
+async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: Pista | None, profundidad: int = 0) -> str:
+    """El Hypothesis Killer sobre la version actual de la hipotesis. Devuelve
+    la decision. Si decide reformular, reformula (version nueva) y vuelve a
+    juzgar la nueva version, hasta el limite de la politica."""
+    e = ctx.e
+    inv = ctx.inv()
+    h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
+    if h.get("tarjeta") is None and not h.get("_tarjetaIntentada"):
+        await _completar_tarjeta(ctx, h, pista)
+        h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
+    deterministas = K.comprobaciones_deterministas(h, e)
+    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    try:
+        pred = await ctx.llamar(
+            "juez",
+            ctx.programas.killer,
+            objetivo=inv["objetivo"],
+            mision=_texto_mision(inv),
+            hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
+            afirmaciones=afs_texto,
+            supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
+            modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id, maximo=40) + "\n\nOtras hipotesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], ctx.investigacion_id),
+            comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
+            criterios_revision="\n".join(e["criteriosRevision"]),
+        )
+        rev = pred.revision
+        del_juez = [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in rev.comprobaciones]
+        resumen, sugerida, falta, alternativas, invalidante = rev.resumen.strip(), rev.reformulacion_sugerida.strip(), rev.que_haria_falta.strip(), list(rev.alternativas)[:4], rev.supuesto_invalidante.strip()
+    except PresupuestoAgotado:
+        raise
+    except Exception as ex:  # noqa: BLE001
+        if pista:
+            pista.error(f"El Killer no respondio para {h['titulo'][:50]}: {str(ex)[:100]}; la hipotesis queda suspendida hasta la siguiente revision")
+        del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondio: {str(ex)[:120]}", "", "Repetir la revision cuando el modelo responda", [], ""
+    comprobaciones = K.fusionar(deterministas, del_juez)
+    if invalidante and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
+        comprobaciones = [c for c in comprobaciones if c["comprobacion"] != "supuestos"] + [{"comprobacion": "supuestos", "resultado": "falla", "detalle": f"Supuesto invalidante: {invalidante[:200]}"}]
+    tiene_prediccion = bool((h.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in (h.get("tarjeta") or {}).get("prediccionFalsable", "").lower()
+    decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
+    if not del_juez and decision == "avanzar":
+        decision, motivo = "suspender", "El juez no respondio: no se puede dar por revisada"
+    ahora = P.ahora_ms()
+    quien = ctx.modelos.juez.model
+    fallidas = [c for c in comprobaciones if c["resultado"] in ("falla", "no_comprobable")]
+
+    def aplicar(e2: dict[str, Any]) -> dict[str, Any] | bool:
+        x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return False
+        d = A.registrar_decision(e2, x, "killer_1", decision, motivo, quien, ahora, comprobaciones, falta)
+        d["_alternativas"] = alternativas
+        x["decisionKiller"] = decision
+        for r in x["revisionesAutomaticas"]:
+            if r["tipo"] == "completa":
+                r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"Killer: {decision}. {resumen}", fecha=ahora)
+        x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Hypothesis Killer (v{x.get('version', 1)}): {decision.replace('_', ' ')}. {resumen}" + (f" Alternativas a considerar: {'; '.join(alternativas)}" if alternativas else ""), "creadoEn": ahora})
+        x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "killer", "nota": f"{decision.replace('_', ' ')}: {motivo[:240]}", "aCiegas": False})
+        if decision == "suspender":
+            x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": falta[:240] or motivo[:240], "aCiegas": False})
+        if decision == "descartar_en_contexto":
+            if e2["autonomia"].get("descartar_hipotesis") == "actuar":
+                A.revisar_hipotesis(e2, x["id"], "descartar", f"Descartada en este contexto por el Killer: {motivo[:300]}", quien, ahora, False, None, etapa="killer_1")
+            else:
+                x["estado"] = "en_revision"
+                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "El Killer propone descartarla en este contexto", "razonamiento": motivo, "estado": "abierto", "respuestaDeRosa": None})
+                A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer propone descartar: {x['titulo'][:80]}. Decide tu.", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}", ahora)
+        elif decision == "avanzar":
+            A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer deja avanzar (v{x.get('version', 1)}): {x['titulo'][:80]}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}", ahora)
+        A.recalcular_bloqueos(e2, x)
+        return d
+
+    d = ctx.mutar(aplicar, "killer")
+    if pista:
+        pista.resultado(f"Killer sobre '{h['titulo'][:50]}' (v{h.get('version', 1)}): {decision.replace('_', ' ')}. " + "; ".join(f"{c['comprobacion']} {c['resultado']}" for c in fallidas)[:200])
+    # Auditoria de una muestra de descartes y reformulaciones, con otro metodo (debate) y otra familia (cerebro).
+    if decision in ("descartar_en_contexto", "reformular") and isinstance(d, dict):
+        c = ctx.corrida()
+        indice = c.get("_descartesVistos", 0)
+        ctx.mutar(lambda e2: (next(x for x in e2["corridas"] if x["id"] == ctx.corrida_id).__setitem__("_descartesVistos", indice + 1), True)[1], "auditoria_contador")
+        if K.muestrear_para_auditoria(indice):
+            await _auditar_descarte(ctx, h, d, fallidas, afs_texto, pista)
+    if decision == "reformular" and profundidad < politicas.MAX_REFORMULACIONES:
+        ok = await _reformular(ctx, h, "Killer: " + motivo + (f". Sugerencia: {sugerida}" if sugerida else ""), quien, pista)
+        if ok:
+            nueva = next((y for y in ctx.e["hipotesis"] if y["id"] == h["id"]), h)
+            return await _killer(ctx, nueva, texto_afirmaciones, pista, profundidad + 1)
+    return decision
+
+
+async def _auditar_descarte(ctx: Ctx, h: dict[str, Any], decision: dict[str, Any], fallidas: list[dict[str, str]], evidencia: str, pista: Pista | None) -> None:
+    """Segundo metodo, otra familia: el cerebro defiende la hipotesis y luego
+    juzga si la decision del Killer resiste. Un desacuerdo no revierte nada:
+    va a la persona con las dos posturas."""
+    try:
+        pred = await ctx.llamar("cerebro", ctx.programas.auditar_descarte, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), decision=f"{decision['decision']}: {decision['motivo']}", comprobaciones_fallidas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in fallidas) or "ninguna", evidencia=evidencia + "\n\nSupuestos:\n" + "\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]))
+        au = pred.auditoria
+        auditoria = {"quien": ctx.modelos.cerebro.model, "acuerdo": bool(au.acuerdo), "motivo": (au.motivo.strip() + (f" Mejor argumento a favor: {au.mejor_argumento_a_favor.strip()}" if not au.acuerdo else ""))[:600], "fecha": P.ahora_ms(), "comprobacionDiscutida": au.comprobacion_discutida.strip()[:80]}
+    except PresupuestoAgotado:
+        raise
+    except Exception as ex:  # noqa: BLE001
+        auditoria = {"quien": ctx.modelos.cerebro.model, "acuerdo": True, "motivo": f"El auditor no respondio: {str(ex)[:120]}", "fecha": P.ahora_ms(), "comprobacionDiscutida": ""}
+
+    def fn(e: dict[str, Any]) -> bool:
+        d = next((x for x in e.get("decisiones", []) if x["id"] == decision["id"]), None)
+        if not d:
+            return False
+        d["auditoria"] = auditoria
+        if not auditoria["acuerdo"]:
+            x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
+            if x:
+                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "La auditoria discrepa del Killer", "razonamiento": auditoria["motivo"], "estado": "abierto", "respuestaDeRosa": None})
+            A.con_evento(e, h["investigacionId"], "killer", f"Auditoria en desacuerdo con el Killer sobre '{h['titulo'][:60]}': revisa las dos posturas", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", P.ahora_ms())
+        return True
+
+    ctx.mutar(fn, "auditoria_descarte")
+    if pista:
+        pista.resultado(f"Auditoria del descarte de '{h['titulo'][:40]}': {'de acuerdo' if auditoria['acuerdo'] else 'EN DESACUERDO'}")
+
+
+async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pista: Pista | None) -> bool:
+    """Version nueva de la hipotesis que atiende el motivo. Si la politica ya
+    no permite reformular, se descarta en este contexto (o se propone
+    descartar, segun la autonomia)."""
+    e = ctx.e
+    texto_af, _ = T.afirmaciones_sostenidas(ctx.afirmaciones())
+    if not politicas.puede_reformular(h.get("version", 1)):
+        ahora = P.ahora_ms()
+
+        def agotada(e2: dict[str, Any]) -> bool:
+            x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
+            if not x:
+                return False
+            m = f"Agoto las {politicas.MAX_REFORMULACIONES} reformulaciones de la politica: {motivo[:200]}"
+            A.registrar_decision(e2, x, "killer_1", "descartar_en_contexto", m, quien, ahora)
+            x["decisionKiller"] = "descartar_en_contexto"
+            if e2["autonomia"].get("descartar_hipotesis") == "actuar":
+                A.revisar_hipotesis(e2, x["id"], "descartar", m, quien, ahora, False, None, etapa="killer_1")
+            else:
+                x["estado"] = "en_revision"
+                A.con_evento(e2, ctx.investigacion_id, "killer", f"Sin reformulaciones disponibles: el Killer propone descartar {x['titulo'][:70]}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}", ahora)
+            return True
+
+        ctx.mutar(agotada, "reformulacion_agotada")
+        return False
+    try:
+        pred = await ctx.llamar("cerebro", ctx.programas.reformular, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), motivo=motivo, afirmaciones=texto_af[:8000] or "Ninguna", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id, maximo=30))
+        r = pred.reformulacion
+        t = r.tarjeta
+        cambios = {"titulo": r.titulo, "enunciado": r.enunciado, "mecanismo": r.mecanismo, "comprobacion": {"biomarcador": r.biomarcador, "cohorte": r.cohorte, "diseno": r.diseno}, "tarjeta": {"diana": t.diana, "celula": t.celula, "etapa": t.etapa, "intervencion": t.intervencion, "direccion": t.direccion, "prediccionFalsable": t.prediccion_falsable, "riesgos": [x.strip() for x in t.riesgos if x.strip()][:6], "pasoRuta": getattr(t, "paso_ruta", "mecanismo") or "mecanismo"}}
+        ok = ctx.mutar(lambda e2: A.reformular_hipotesis(e2, h["id"], cambios, quien, f"{motivo[:200]} | {r.que_cambio.strip()[:200]}", P.ahora_ms()), "reformular")
+        if pista:
+            pista.resultado(f"Reformulada como version {h.get('version', 1) + 1}: {r.titulo[:70]}" if ok else "No se pudo reformular")
+        return bool(ok)
+    except PresupuestoAgotado:
+        raise
+    except Exception as ex:  # noqa: BLE001
+        if pista:
+            pista.error(f"La reformulacion fallo: {str(ex)[:120]}")
+        return False
+
+
 async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: Pista | None) -> None:
-    """Revision inicial (juez), supuestos (volumen) y marca de revision completa."""
+    """Revision inicial (juez), supuestos (volumen), y el Killer con su
+    decision derivada por regla."""
     inv = ctx.inv()
     ahora = P.ahora_ms()
     try:
@@ -675,6 +895,9 @@ async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: st
         return True
 
     ctx.mutar(aplicar, "revision_hipotesis")
+    actual = next((y for y in ctx.e["hipotesis"] if y["id"] == h["id"]), None)
+    if actual and actual["estado"] not in ("descartada", "aceptada"):
+        await _killer(ctx, actual, texto_afirmaciones, pista)
 
 
 async def _torneo(ctx: Ctx, pista: Pista) -> int:
@@ -726,6 +949,10 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
     texto_af, validas = T.afirmaciones_sostenidas(ctx.afirmaciones())
     pista = ctx.pista(paso["id"], "modelo", "Generar y revisar hipotesis", "GPT-6 Astra + Opus 5")
     nuevas_ids: list[str] = []
+    vivas = sum(1 for x in e["hipotesis"] if x["investigacionId"] == ctx.investigacion_id and x["estado"] not in ("descartada",))
+    if vivas >= politicas.MAX_HIPOTESIS_VIVAS_POR_MISION:
+        pista.nota(f"Hay {vivas} hipotesis vivas: la politica fija {politicas.MAX_HIPOTESIS_VIVAS_POR_MISION} por mision, asi que no se generan nuevas hasta que se decidan algunas")
+        validas = []
     if validas:
         pista.accion(f"Generando hipotesis a partir de {len(validas)} afirmaciones sostenidas y las preguntas abiertas")
         try:
@@ -744,7 +971,7 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
             if not respaldo:
                 pista.nota(f"Descartada antes de entrar: '{hp.titulo[:60]}' no cita ninguna afirmacion sostenida")
                 continue
-            afirmaciones = [{"texto": a["texto"], "cita": a["cita"], "veredicto": a["veredicto"], "motivo": a["motivo"], "entidadDistinta": a.get("entidadDistinta", False), "tipo": a["tipo"], "trayectoria": None, "fragmento": (a.get("fragmento") or "")[:600]} for a in respaldo]
+            afirmaciones = [{"afirmacionId": a.get("id"), "texto": a["texto"], "cita": a["cita"], "veredicto": a["veredicto"], "motivo": a["motivo"], "entidadDistinta": a.get("entidadDistinta", False), "tipo": a["tipo"], "clase": a.get("clase", "literatura"), "sintetico": False, "cohorte": a.get("cohorte", ""), "sospechosoInyeccion": bool(a.get("sospechosoInyeccion")), "nivelMedicion": a.get("nivelMedicion", "resultado_analisis"), "n": a.get("n", ""), "comparador": a.get("comparador", ""), "efecto": a.get("efecto", ""), "incertidumbre": a.get("incertidumbre", ""), "sinResolver": list(a.get("sinResolver", [])), "trayectoria": None, "fragmento": (a.get("fragmento") or "")[:600]} for a in respaldo]
             vistas: set[str] = set()
             fuentes_h = []
             for a in respaldo:
@@ -767,6 +994,7 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
                 derivadaDe=derivada,
                 evidenciaEstadistica="moderada" if any(a["tipo"] == "dato" for a in afirmaciones) else "no_aplica",
                 coste={"literatura": round(len(respaldo) * 0.15, 2), "analisis": 0},
+                tarjeta={"diana": (hp.diana or "").strip(), "celula": (hp.celula or "").strip(), "etapa": (hp.etapa or "").strip(), "intervencion": (hp.intervencion or "").strip(), "direccion": hp.direccion or "sin_intervencion", "prediccionFalsable": (hp.prediccion_falsable or "").strip(), "riesgos": [r.strip() for r in (hp.riesgos or []) if r.strip()][:6], "pasoRuta": getattr(hp, "paso_ruta", "mecanismo") or "mecanismo"},
             )
             h["procedencia"] = P.procedencia_vacia(f"Generada en la iteracion {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuacion.", ahora, codigo=f"programas.hipotesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[f"iteracion {ctx.numero}: generar -> {hp.titulo[:60]}"])
             h["procedencia"]["fuentes"] = fuentes_h
@@ -895,13 +1123,59 @@ async def paso_meta(ctx: Ctx, paso: dict[str, Any]) -> str:
 
     def aplicar(e2: dict[str, Any]) -> bool:
         c = next(x for x in e2["corridas"] if x["id"] == ctx.corrida_id)
-        c["metaRevisiones"].append({"iteracion": ctx.numero, "fecha": ahora, "debilidades": [{"id": P.nuevo_id("deb"), "texto": d.texto, "hipotesisAfectadas": [x for x in d.hipotesis if x in ids], "inyectada": False} for d in pred.debilidades[:6]]})
+        debilidades = [{"id": P.nuevo_id("deb"), "texto": d.texto, "hipotesisAfectadas": [x for x in d.hipotesis if x in ids], "inyectada": False} for d in pred.debilidades[:6]]
+        c["metaRevisiones"].append({"iteracion": ctx.numero, "fecha": ahora, "debilidades": debilidades})
         c["panorama"] = [{"titulo": d.titulo, "razon": d.razon, "hallazgosRecientes": d.hallazgos[:5], "queInvestigar": d.que_investigar[:5], "ideaEjemplo": d.idea_ejemplo, "inesperada": d.inesperada, "hipotesisIds": [x for x in d.hipotesis if x in ids]} for d in pred.direcciones[:4]]
+        # Cada debilidad es un cambio de nivel 2 propuesto: cambiaria como razona
+        # Rosa. Queda en el registro de aprendizaje hasta que una persona lo promueva.
+        existentes = {a["descripcion"] for a in e2.get("aprendizaje", [])}
+        for d in debilidades:
+            if d["texto"] not in existentes and d["texto"] not in e2["criteriosRevision"]:
+                e2.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(ctx.investigacion_id, 2, "criterio", d["texto"], f"debilidad:{d['id']}", "propuesto", config.QUIEN_ROSA, ahora))
         return True
 
     ctx.mutar(aplicar, "meta_revision")
     pista.cerrar(f"{len(pred.debilidades)} debilidades, {len(pred.direcciones)} direcciones")
     return f"{len(pred.debilidades)} debilidades recurrentes y {len(pred.direcciones)} direcciones en el panorama"
+
+
+# ---------------------------------------------------------------------------
+# Analisis in silico (ROSA2018, etapas 5 a 7)
+# ---------------------------------------------------------------------------
+
+
+async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
+    """Primero las reproducciones pendientes de la puerta; despues los
+    analisis que pidio la persona; despues, si la autonomia lo permite, un
+    analisis por hipotesis que el Killer dejo avanzar y aun no tiene datos,
+    sobre el primer dataset aprobado. Todo dentro de las politicas."""
+    from rosa.bucle import analisis as AN
+
+    e = ctx.e
+    inv = ctx.inv()
+    datasets_ok = [d for d in inv.get("datasets", []) if d["estado"] == "aprobado" and (d.get("procedencia") or {}).get("hash")]
+    pista = ctx.pista(paso["id"], "modelo", "Analisis in silico", "Sandbox + GPT-6 Astra + Opus 5")
+    hechos = 0
+    for rep in [r for r in e.get("reproducciones", []) if r["investigacionId"] == ctx.investigacion_id and r["estado"] == "pendiente"][:3]:
+        await AN.reproducir(ctx, rep, pista)
+        hechos += 1
+    if not datasets_ok:
+        pista.cerrar("Sin datasets aprobados con fichero: no hay analisis que hacer" + (f"; {hechos} reproducciones" if hechos else ""))
+        return "Sin datasets aprobados con fichero"
+    pedidos = [h for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h.get("_analisisPedido")]
+    for h in pedidos:
+        p = h["_analisisPedido"]
+        await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
+        hechos += 1
+    if e["autonomia"].get("correr_analisis") == "actuar":
+        candidatas = [h for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h.get("decisionKiller") == "avanzar" and not h.get("ejecuciones") and h["estado"] not in ("descartada",) and (h.get("tarjeta") or {}).get("prediccionFalsable")]
+        for h in sorted(candidatas, key=lambda x: -x["elo"])[:2]:
+            if pista.detenida():
+                break
+            await AN.analizar_hipotesis(ctx, h, datasets_ok[0]["id"], "", pista)
+            hechos += 1
+    pista.cerrar(f"{hechos} analisis o reproducciones")
+    return f"{hechos} analisis in silico o reproducciones ejecutados"
 
 
 EJECUTORES = {
@@ -913,4 +1187,5 @@ EJECUTORES = {
     "modelo": paso_modelo,
     "hipotesis": paso_hipotesis,
     "meta": paso_meta,
+    "analisis": paso_analisis,
 }

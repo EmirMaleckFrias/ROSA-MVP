@@ -25,9 +25,12 @@ import type {
   Dataset,
   EstadoRosa,
   Investigacion,
+  MetodoRegistrado,
   NivelAutonomia,
   PasoPlan,
   PoliticaEsperas,
+  PreguntaCampana,
+  ProcedenciaDataset,
   RevisionHumana,
   TipoArtefacto,
 } from './tipos';
@@ -349,13 +352,14 @@ export const acciones = {
   },
   crearInvestigacion: (datos: A.DatosInvestigacion): string | null => {
     let id: string | null = null;
+    const conQuien = { ...datos, quien: QUIEN };
     aplicar((e) => {
-      const r = A.crearInvestigacion(e, datos, Date.now());
+      const r = A.crearInvestigacion(e, conQuien, Date.now());
       id = r.id;
       return r.estado;
     });
     if (id !== null) {
-      enviar('crearInvestigacion', { datos, id_: id });
+      enviar('crearInvestigacion', { datos: conQuien, id_: id });
       // Con servidor, la primera corrida arranca sola: Rosa propone el plan
       // y lo deja esperando aprobacion.
       enviar('iniciarCorrida', { investigacion_id: id });
@@ -445,6 +449,78 @@ export const acciones = {
   borrarPlanGuardado: (id: string) => {
     aplicar((e) => A.borrarPlanGuardado(e, id));
     enviar('borrarPlanGuardado', { id_: id });
+  },
+  /* ---- ROSA2018 ---- */
+  aprobarMision: (investigacionId: string, mision: A.DatosInvestigacion['mision']) => {
+    aplicar((e) => A.aprobarMision(e, investigacionId, mision, QUIEN, Date.now()));
+    enviar('aprobarMision', { investigacion_id: investigacionId, mision, quien: QUIEN });
+  },
+  eximirPuerta: (investigacionId: string, motivo: string) => {
+    aplicar((e) => A.eximirPuerta(e, investigacionId, motivo, QUIEN, Date.now()));
+    enviar('eximirPuerta', { investigacion_id: investigacionId, motivo, quien: QUIEN });
+  },
+  cerrarPuerta: (investigacionId: string) => {
+    aplicar((e) => A.cerrarPuerta(e, investigacionId, QUIEN, Date.now()));
+    enviar('cerrarPuerta', { investigacion_id: investigacionId, quien: QUIEN });
+  },
+  anadirReproduccion: (investigacionId: string, datasetId: string, datos: A.DatosReproduccion): string | null => {
+    let id: string | null = null;
+    aplicar((e) => {
+      const r = A.anadirReproduccion(e, investigacionId, datasetId, datos, Date.now());
+      id = r.id;
+      return r.estado;
+    });
+    if (id !== null) enviar('anadirReproduccion', { investigacion_id: investigacionId, dataset_id: datasetId, datos });
+    return id;
+  },
+  pedirAnalisis: (hipotesisId: string, datasetId: string, pregunta: string) => {
+    aplicar((e) => A.pedirAnalisis(e, hipotesisId, datasetId, pregunta, Date.now()));
+    enviar('pedirAnalisis', { hipotesis_id: hipotesisId, dataset_id: datasetId, pregunta });
+  },
+  promoverAprendizaje: (cambioId: string) => {
+    aplicar((e) => A.promoverAprendizaje(e, cambioId, QUIEN, Date.now()));
+    enviar('promoverAprendizaje', { cambio_id: cambioId, quien: QUIEN });
+  },
+  revertirAprendizaje: (cambioId: string, motivo: string) => {
+    aplicar((e) => A.revertirAprendizaje(e, cambioId, QUIEN, motivo, Date.now()));
+    enviar('revertirAprendizaje', { cambio_id: cambioId, quien: QUIEN, motivo });
+  },
+  /** Evaluar un criterio propuesto sobre el conjunto reservado. Solo con servidor: gasta llamadas al juez. */
+  evaluarAprendizaje: (cambioId: string) => {
+    enviar('evaluarAprendizaje', { cambio_id: cambioId });
+  },
+  actualizarPregunta: (corridaId: string, pregunta: Partial<PreguntaCampana>) => {
+    aplicar((e) => A.actualizarPregunta(e, corridaId, pregunta, Date.now()));
+    enviar('actualizarPregunta', { corrida_id: corridaId, pregunta, quien: QUIEN });
+  },
+  actualizarMetodo: (metodoId: string, cambios: Partial<MetodoRegistrado>) => {
+    aplicar((e) => A.actualizarMetodo(e, metodoId, cambios, QUIEN, Date.now()));
+    enviar('actualizarMetodo', { metodo_id: metodoId, cambios, quien: QUIEN });
+  },
+  actualizarProcedenciaDataset: (investigacionId: string, datasetId: string, procedencia: Partial<ProcedenciaDataset>) => {
+    aplicar((e) => A.actualizarProcedenciaDataset(e, investigacionId, datasetId, procedencia));
+    enviar('actualizarProcedenciaDataset', { investigacion_id: investigacionId, dataset_id: datasetId, procedencia });
+  },
+  /** El dossier se arma en el servidor con todo el estado; llega como artefacto por SSE. */
+  generarDossier: (hipotesisId: string) => {
+    enviar('generarDossier', { hipotesis_id: hipotesisId, quien: QUIEN });
+  },
+  /** Sube un dataset con su fichero. El servidor calcula el hash, perfila las
+   *  columnas y lo deja pendiente hasta completar el libro de procedencia. */
+  subirDataset: async (investigacionId: string, fichero: File, nombre: string, descripcion: string, sintetico: boolean): Promise<string | null> => {
+    if (modo !== 'servidor') return 'Subir datasets requiere el servidor de Rosa.';
+    const cuerpo = new FormData();
+    cuerpo.append('fichero', fichero, fichero.name);
+    cuerpo.append('nombre', nombre);
+    cuerpo.append('descripcion', descripcion);
+    cuerpo.append('sintetico', sintetico ? 'si' : 'no');
+    try {
+      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/datasets`, { method: 'POST', body: cuerpo });
+      if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
+      return null;
+    } catch {
+      return 'No se pudo subir el fichero: sin conexion con el servidor.';
+    }
   },
 };
 

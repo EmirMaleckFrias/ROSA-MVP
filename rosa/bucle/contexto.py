@@ -132,6 +132,9 @@ def inferir_tipo_paso(paso: dict[str, Any]) -> str:
         ("hechos", "modelo"),
         ("hipotesis", "hipotesis"),
         ("torneo", "hipotesis"),
+        ("analisis", "analisis"),
+        ("in silico", "analisis"),
+        ("reproduc", "analisis"),
         ("meta", "meta"),
         ("panorama", "meta"),
     ]:

@@ -236,6 +236,45 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_consultas(estado)
     _migrar_conclusiones(estado)
     _migrar_experimentos(estado)
+    _migrar_rosa2018(estado)
+
+
+def _migrar_rosa2018(estado: dict[str, Any]) -> None:
+    """Campos de septiembre de 2026 (mision, tarjeta, versiones, decisiones,
+    puerta, procedencia de datasets) en estados guardados antes. Las
+    politicas se refrescan siempre desde el codigo: no viven en el estado."""
+    estado["politicas"] = P._politicas()
+    if not estado.get("metodos"):
+        estado["metodos"] = P.metodos_iniciales()
+    for inv in estado.get("investigaciones", []):
+        inv.setdefault("mision", None)
+        inv.setdefault("puertaReproduccion", P.puerta_reproduccion())
+        if inv.get("mision"):
+            for k, v in P.mision_vacia().items():
+                inv["mision"].setdefault(k, v)
+        for ds in inv.get("datasets", []):
+            ds.setdefault("procedencia", None)
+    for c in estado.get("corridas", []):
+        c.setdefault("pregunta", None)
+        c["gasto"].setdefault("usd", 0.0)
+    for h in estado.get("hipotesis", []):
+        h.setdefault("tarjeta", None)
+        h.setdefault("version", 1)
+        h.setdefault("versiones", [])
+        h.setdefault("decisionKiller", None)
+        h.setdefault("bloqueos", [])
+        h.setdefault("candidata", False)
+        h.setdefault("dossierArtefactoId", None)
+        h.setdefault("ejecuciones", [])
+        for a in h.get("afirmaciones", []):
+            a.setdefault("clase", "derivado" if a.get("tipo") == "dato" and a.get("trayectoria") else "literatura")
+            a.setdefault("sintetico", False)
+    # Los bloqueos se recalculan al arrancar: la regla vive en el codigo y puede
+    # haber cambiado desde que se guardaron.
+    from rosa.priorizacion import bloqueos_de
+
+    for h in estado.get("hipotesis", []):
+        h["bloqueos"] = bloqueos_de(estado, h)
 
 
 def _migrar_experimentos(estado: dict[str, Any]) -> None:
@@ -359,6 +398,20 @@ _TABLA: dict[str, Callable] = {
     "actualizarPoliticaEsperas": A.actualizar_politica_esperas,
     "borrarPlanGuardado": A.borrar_plan_guardado,
     "iniciarCorrida": A.iniciar_corrida,
+    # ROSA2018
+    "aprobarMision": A.aprobar_mision,
+    "reformularHipotesis": A.reformular_hipotesis,
+    "eximirPuerta": A.eximir_puerta,
+    "cerrarPuerta": A.cerrar_puerta,
+    "anadirReproduccion": A.anadir_reproduccion,
+    "pedirAnalisis": A.pedir_analisis,
+    "promoverAprendizaje": A.promover_aprendizaje,
+    "revertirAprendizaje": A.revertir_aprendizaje,
+    "generarDossier": A.generar_dossier,
+    "actualizarProcedenciaDataset": A.actualizar_procedencia_dataset,
+    "evaluarAprendizaje": A.evaluar_aprendizaje,
+    "actualizarPregunta": A.actualizar_pregunta,
+    "actualizarMetodo": A.actualizar_metodo,
 }
 
 ACCIONES: dict[str, tuple[Callable, bool]] = {n: (f, _con_ahora(f)) for n, f in _TABLA.items()}

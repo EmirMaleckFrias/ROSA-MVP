@@ -28,6 +28,56 @@ simulada y lo avisa con una franja amarilla.
 La clave del gateway va en `.env` (`ROSA_GATEWAY_KEY`), copiada del `.env` del
 RAG. Nunca al codigo ni a un chat.
 
+## Lo que trae ROSA2018 (septiembre de 2026)
+
+El documento de concepto del programa y el plan completo del sistema (ver
+`PLAN-ROSA2018.md`) anaden a Rosa estas piezas. Todas estan en la interfaz;
+nada de esto se opera desde la terminal.
+
+- **Mision y areas.** Al arrancar la primera corrida Rosa propone la mision
+  (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion,
+  capacidades del laboratorio, presupuesto en llamadas, dolares y horas) y las
+  areas de investigacion que comparo para elegir por donde empezar. Se
+  aprueba con el primer plan o en Objetivo y datos. Cada corrida lleva su
+  pregunta con plantilla (contexto, etapa, intervencion, comparador,
+  desenlace, ventana, unidad biologica, mecanismos, decision, umbral).
+- **Datasets con libro de procedencia.** En Objetivo y datos se sube un CSV,
+  TSV o JSON: el servidor calcula el sha256, cuenta filas y columnas, detecta
+  valores centinela y prepara el diccionario. Antes de aprobar el contrato hay
+  que completar origen, licencia y si el uso con IA esta autorizado. Las filas
+  individuales no salen hacia un modelo salvo que el libro lo permita (solo
+  datos abiertos o sinteticos).
+- **Puerta de reproduccion.** Rosa no descubre con datos hasta reproducir
+  tres analisis publicados dentro de una tolerancia fijada antes (hay tres
+  precargados: GSE1297, OASIS-1, SEA-AD). Se puede eximir con motivo: queda
+  registrado como cambio de politica.
+- **Analisis in silico.** Desde la ficha de una hipotesis, con un dataset
+  aprobado: Rosa congela un plan de analisis sin ver las filas, escribe el
+  codigo, lo corre en un sandbox sin red (Docker Desktop encendido, o Apple
+  `container`), interpreta las cifras contra el umbral del plan y un auditor
+  independiente dice si el analisis vale. Solo lo valido entra como evidencia.
+  Con datasets sinteticos funciona sin Docker, con aislamiento blando.
+- **Hypothesis Killer.** Cada hipotesis pasa una lista fija de once
+  comprobaciones; la decision (avanzar, reformular, suspender, descartar en
+  este contexto) se deriva por regla. Reformular crea una version nueva (hasta
+  dos por politica). Un tercio de los descartes lo audita otro modelo
+  defendiendo la hipotesis. Todo queda en el registro de decisiones.
+- **Candidatas y dossier.** El ranking muestra las candidatas al laboratorio
+  (hasta tres, sin repetir cluster) y por que las demas no lo son (bloqueos
+  no compensables). El dossier en siete partes se genera desde la ficha y
+  queda en Artefactos.
+- **Retorno.** Los datos del laboratorio se clasifican en seis clases con
+  definiciones operativas mas las dimensiones que coexisten; cada clase
+  dispara una accion distinta (una correccion de contexto crea una hipotesis
+  derivada; un fallo tecnico no toca la hipotesis).
+- **Aprendizaje y metodos.** En Ajustes: el registro de aprendizaje en tres
+  niveles (creencias; criterios y programas, que Rosa propone y una persona
+  evalua y promueve; politicas), el registro de metodos con su estado, y las
+  politicas tal como estan en el codigo.
+
+Arrancar Docker Desktop antes de una demostracion con datos reales: sin
+runtime de aislamiento, los analisis quedan en "no ejecutado" con el motivo.
+
 ## Como se investiga
 
 1. **Nueva investigacion**: titulo, objetivo, que cuenta como relevante,

@@ -46,3 +46,24 @@ QUIEN_ROSA = "Rosa"
 PRESUPUESTO_CORRIDA = int(os.environ.get("ROSA_PRESUPUESTO", "1500"))
 ALERTAS_PRESUPUESTO = [0.5, 0.8, 0.95]
 PRESUPUESTO_ITERACION = int(os.environ.get("ROSA_PRESUPUESTO_ITERACION", "300"))
+
+# Precios estimados por millon de tokens (entrada, salida) en dolares, para
+# el presupuesto en dinero de la mision. Son estimaciones para ordenar el
+# gasto, no la factura: la factura real la da el AI Gateway. Se pueden
+# sobreescribir con ROSA_PRECIOS='{"openai/gpt-6-astra": [5, 20], ...}'.
+_PRECIOS_POR_DEFECTO = {
+    "openai/gpt-6-astra": (5.0, 20.0),
+    "anthropic/claude-opus-5": (15.0, 75.0),
+    "anthropic/claude-sonnet-5": (3.0, 15.0),
+}
+try:
+    import json as _json
+
+    PRECIOS = {k: tuple(v) for k, v in _json.loads(os.environ.get("ROSA_PRECIOS", "{}")).items()} or dict(_PRECIOS_POR_DEFECTO)
+except Exception:  # noqa: BLE001
+    PRECIOS = dict(_PRECIOS_POR_DEFECTO)
+
+
+def coste_usd(modelo: str, tokens_entrada: int, tokens_salida: int) -> float:
+    entrada, salida = PRECIOS.get(modelo) or PRECIOS.get(modelo.split("/")[-1]) or (5.0, 20.0)
+    return (tokens_entrada * entrada + tokens_salida * salida) / 1_000_000

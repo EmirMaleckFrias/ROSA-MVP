@@ -7,10 +7,12 @@
 import { useMemo, useState } from 'react';
 import type { EstadoRosa, Hipotesis, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip } from '../componentes/piezas';
+import { Bloqueos, Candidatas } from '../componentes/Rosa2018';
 import { calibracion } from '../lib/calidad';
-import { ESTADO_HIPOTESIS } from '../lib/etiquetas';
+import { DECISION_KILLER, ESTADO_HIPOTESIS } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
 import { ranking, variacionElo } from '../lib/hipotesis';
+import { bloqueosDe, candidatos } from '../lib/priorizacion';
 import { rutaDe } from '../lib/ruta';
 
 function GraficaElo({ puntos }: { puntos: Hipotesis['historialElo'] }) {
@@ -35,7 +37,7 @@ function GraficaElo({ puntos }: { puntos: Hipotesis['historialElo'] }) {
   );
 }
 
-function Fila({ h, i, inv }: { h: Hipotesis; i: number; inv: Investigacion }) {
+function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigacion; estado: EstadoRosa }) {
   const d = variacionElo(h);
   const pocos = h.partidos.length < 3;
   return (
@@ -47,6 +49,8 @@ function Fila({ h, i, inv }: { h: Hipotesis; i: number; inv: Investigacion }) {
           <Chip>{ESTADO_HIPOTESIS[h.estado]}</Chip>
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <Chip tono="borde">{h.cluster}</Chip>
+          {h.decisionKiller && <Chip tono={DECISION_KILLER[h.decisionKiller].tono}>Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}</Chip>}
+          <Bloqueos bloqueos={bloqueosDe(estado, h)} candidata={h.candidata} />
           <span title={pocos ? 'Con menos de 3 partidos el Elo dice poco' : ''} className={pocos ? 'tono-aviso' : ''}>
             {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}
           </span>
@@ -76,6 +80,18 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
     for (const h of lista) m.set(h.cluster, [...(m.get(h.cluster) ?? []), h]);
     return [...m.entries()].sort((a, b) => (b[1][0]?.elo ?? 0) - (a[1][0]?.elo ?? 0));
   }, [lista]);
+  const cands = useMemo(() => candidatos(estado, inv.id), [estado, inv.id]);
+  const noCands = useMemo(
+    () =>
+      propias
+        .filter((h) => h.estado !== 'descartada' && !cands.some((c) => c.id === h.id))
+        .map((h) => {
+          const b = bloqueosDe(estado, h);
+          const motivo = b.length > 0 ? '' : h.decisionKiller !== 'avanzar' ? (h.decisionKiller ? `El Killer decidio: ${DECISION_KILLER[h.decisionKiller].etiqueta.toLowerCase()}` : 'El Killer todavia no la juzgo') : 'Sin bloqueos, pero otras puntuan mas o repiten su cluster';
+          return { h, bloqueos: b, motivo };
+        }),
+    [propias, cands, estado],
+  );
 
   return (
     <div className="contenido">
@@ -99,6 +115,8 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         </div>
       </div>
 
+      <Candidatas inv={inv} estado={estado} candidatas={cands} noCandidatas={noCands} />
+
       <div className="acciones" style={{ marginBottom: 14 }}>
         <Chip tono={cal.acuerdo === null ? undefined : cal.acuerdo >= 0.7 ? 'ok' : 'aviso'} title="Cuantas veces la recomendacion del revisor coincidio con lo que decidio una persona">
           Acuerdo revisor y personas: {cal.acuerdo === null ? 'sin decisiones todavia' : formatearPorcentaje(cal.acuerdo)}
@@ -109,7 +127,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
       {vista === 'lista' ? (
         <div className="cola">
           {lista.map((h, i) => (
-            <Fila key={h.id} h={h} i={i} inv={inv} />
+            <Fila key={h.id} h={h} i={i} inv={inv} estado={estado} />
           ))}
         </div>
       ) : (
@@ -128,7 +146,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
               </div>
               <div className="cola">
                 {(soloMejor ? hs.slice(0, 1) : hs).map((h) => (
-                  <Fila key={h.id} h={h} i={lista.indexOf(h)} inv={inv} />
+                  <Fila key={h.id} h={h} i={lista.indexOf(h)} inv={inv} estado={estado} />
                 ))}
               </div>
             </div>

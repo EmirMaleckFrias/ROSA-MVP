@@ -23,6 +23,8 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
   const [heredar, setHeredar] = useState<string>('');
   const [verParafrasis, setVerParafrasis] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verMision, setVerMision] = useState(false);
+  const [mision, setMision] = useState({ poblacion: '', etapa: '', celulaTejido: '', mecanismo: '', tipoIntervencion: '', capacidades: '' });
 
   const avisos = useMemo(() => avisosDelObjetivo(objetivo, parada), [objetivo, parada]);
   const propuesta = useMemo(() => proponerConfiguracion(objetivo, relevancia, limites.split('\n')), [objetivo, relevancia, limites]);
@@ -40,6 +42,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
       revisores: revisores.split(/[\n,]/),
       configuracion: { preferencias: configEfectiva.preferencias, atributos: configEfectiva.atributos.split('\n'), restricciones: configEfectiva.restricciones.split('\n') },
       heredarModeloDe: heredar || null,
+      mision: verMision ? { poblacion: mision.poblacion, etapa: mision.etapa, celulaTejido: mision.celulaTejido, mecanismo: mision.mecanismo, tipoIntervencion: mision.tipoIntervencion, capacidadesLaboratorio: mision.capacidades.split('\n') } : undefined,
     });
     if (id === null) {
       setError('Faltan el titulo, el objetivo o la condicion de parada. Sin condicion de parada la corrida no sabe cuando terminar.');
@@ -119,6 +122,36 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
             <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setConfig(null)}>
               Volver a la propuesta de Rosa
             </button>
+          )}
+        </Seccion>
+
+        <Seccion
+          titulo="Mision (opcional)"
+          nota="El objetivo puede ser amplio: Rosa propone el marco (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio) y las areas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aqui y queda aprobado por ti."
+          acciones={
+            <button type="button" className="btn btn-s" onClick={() => setVerMision((v) => !v)}>
+              {verMision ? 'Dejar que Rosa la proponga' : 'Escribirla yo'}
+            </button>
+          }
+        >
+          {verMision && (
+            <div className="rejilla-2">
+              {(
+                [
+                  ['poblacion', 'Poblacion', 'Adultos con deterioro cognitivo leve, amiloide positivos'],
+                  ['etapa', 'Etapa', 'Prodromica'],
+                  ['celulaTejido', 'Celula o tejido', 'Astrocitos; plasma'],
+                  ['mecanismo', 'Mecanismo', 'Reactividad astrocitaria'],
+                  ['tipoIntervencion', 'Tipo de intervencion o resultado', 'Biomarcador de progresion'],
+                  ['capacidades', 'Capacidades del laboratorio (una por linea)', 'Inmunoensayo Simoa en plasma'],
+                ] as const
+              ).map(([k, label, marcador]) => (
+                <div className="campo" key={k}>
+                  <label htmlFor={`nm-${k}`}>{label}</label>
+                  {k === 'capacidades' ? <textarea id={`nm-${k}`} rows={2} value={mision[k]} placeholder={marcador} onChange={(e) => setMision({ ...mision, [k]: e.target.value })} /> : <input id={`nm-${k}`} value={mision[k]} placeholder={marcador} onChange={(e) => setMision({ ...mision, [k]: e.target.value })} />}
+                </div>
+              ))}
+            </div>
           )}
         </Seccion>
 

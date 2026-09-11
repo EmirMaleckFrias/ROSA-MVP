@@ -112,6 +112,51 @@ def crear_app(almacen: Almacen) -> FastAPI:
         resultado = almacen.aplicar("registrarDatosExperimento", {"hipotesis_id": hipotesis_id, "fichero": ruta.name, "analisis": analisis})
         return {"ok": resultado is not False, "fichero": ruta.name, "bytes": len(contenido), "version": almacen.version}
 
+    @app.post("/api/investigaciones/{investigacion_id}/datasets")
+    async def subir_dataset(investigacion_id: str, fichero: UploadFile = File(...), nombre: str = Form(""), descripcion: str = Form(""), sintetico: str = Form("no")) -> dict[str, Any]:
+        """Un dataset con su libro de procedencia: el fichero se guarda en
+        `datos/_datasets/<investigacion>/<dataset>/`, se calcula su sha256, se
+        perfila (columnas, filas, centinelas, duplicados, diccionario por
+        rellenar) y queda pendiente hasta que la persona complete origen,
+        licencia y permisos y apruebe el contrato. Nada del fichero pasa por
+        un modelo aqui."""
+        from rosa import datos as D
+        from rosa.ejecucion import hash_fichero
+        from rosa.estado import plantilla as P
+
+        inv = next((i for i in almacen.estado["investigaciones"] if i["id"] == investigacion_id), None)
+        if not inv:
+            raise HTTPException(404, "Investigacion desconocida")
+        contenido = await fichero.read()
+        dataset_id = P.nuevo_id("ds")
+        try:
+            ruta = D.guardar_dataset(investigacion_id, dataset_id, fichero.filename or "datos", contenido)
+        except ValueError as ex:
+            raise HTTPException(413, str(ex))
+        perfil = D.perfil_dataset(ruta)
+        es_sintetico = sintetico.strip().lower() in ("si", "sí", "true", "1", "yes")
+        procedencia = {**P.procedencia_dataset_vacia(), "hash": hash_fichero(ruta), "fichero": ruta.name, "filas": perfil["filas"], "diccionario": perfil["diccionario"], "columnas": perfil["columnas"], "sintetico": es_sintetico, "fechaObtencion": P.ahora_ms(), "clase": "prediccion" if es_sintetico else "observacion_original", "permiteLlmTerceros": es_sintetico}
+        dataset = {
+            "nombre": nombre.strip() or (fichero.filename or "datos"),
+            "descripcion": descripcion.strip(),
+            "tamanoMb": round(len(contenido) / (1024 * 1024), 2),
+            "columnas": len(perfil["columnas"]),
+            "columnasSinDiccionario": len(perfil["diccionario"]),
+            "valoresCentinela": perfil["valoresCentinela"],
+            "nombresDuplicados": perfil["nombresDuplicados"],
+            "clasificacion": "publico" if es_sintetico else "interno",
+            "origen": "subida",
+            "procedencia": procedencia,
+        }
+        resultado = almacen.aplicar("anadirDataset", {"investigacion_id": investigacion_id, "dataset": dataset, "id_": dataset_id})
+        return {"ok": resultado is not False, "datasetId": dataset_id, "fichero": ruta.name, "bytes": len(contenido), "perfil": {k: perfil[k] for k in ("filas", "valoresCentinela", "nombresDuplicados", "tabular")}, "version": almacen.version}
+
+    @app.get("/api/politicas")
+    async def politicas_actuales() -> dict[str, Any]:
+        from rosa import politicas
+
+        return politicas.resumen()
+
     @app.get("/api/salud")
     async def salud() -> dict[str, Any]:
         return {"ok": True, "version": almacen.version}

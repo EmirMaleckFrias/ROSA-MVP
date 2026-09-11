@@ -21,6 +21,7 @@ import type {
   AlcancePermiso,
   AnclaComentario,
   Avisos,
+  CambioAprendizaje,
   ClaseAccion,
   ClasificacionDatos,
   Comentario,
@@ -32,9 +33,15 @@ import type {
   Hipotesis,
   Investigacion,
   Iteracion,
+  MetodoRegistrado,
+  Mision,
   NivelAutonomia,
   PasoPlan,
   PoliticaEsperas,
+  PreguntaCampana,
+  ProcedenciaDataset,
+  PuertaReproduccion,
+  Reproduccion,
   Revision,
   RevisionHumana,
   TipoArtefacto,
@@ -744,6 +751,17 @@ export interface DatosInvestigacion {
   configuracion?: Investigacion['configuracion'];
   /** Investigacion cuyo modelo de mundo se hereda, si se pide. */
   heredarModeloDe?: string | null;
+  /** La mision escrita por la persona al crear; si falta, Rosa la propone. */
+  mision?: Partial<Omit<Mision, 'presupuesto'>> & { presupuesto?: Partial<Mision['presupuesto']> };
+  quien?: string;
+}
+
+export function misionVacia(): Mision {
+  return { poblacion: '', etapa: '', celulaTejido: '', mecanismo: '', tipoIntervencion: '', capacidadesLaboratorio: [], presupuesto: { llamadas: 1500, usd: 60, horas: 72 }, propuestaPorRosa: false, aprobadaEn: null, aprobadaPor: null };
+}
+
+export function puertaVacia(): PuertaReproduccion {
+  return { requeridas: 3, superadas: 0, estado: 'bloqueada', eximidaPor: null, motivo: '', fecha: null };
 }
 
 export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion, ahora: number): { estado: EstadoRosa; id: string | null } {
@@ -763,13 +781,172 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
     configuracion: datos.configuracion ?? { preferencias: '', atributos: [], restricciones: [] },
     datasets: [],
     vigilarLiteraturaHasta: null,
+    mision: null,
+    puertaReproduccion: puertaVacia(),
   };
   let hechos = estado.hechos;
   if (datos.heredarModeloDe) {
     const heredados = estado.hechos.filter((h) => h.investigacionId === datos.heredarModeloDe).map((h) => ({ ...h, id: `${h.id}-${id}`, investigacionId: id }));
     hechos = [...estado.hechos, ...heredados];
   }
-  return { estado: { ...estado, investigaciones: [...estado.investigaciones, inv], hechos }, id };
+  let siguiente: EstadoRosa = { ...estado, investigaciones: [...estado.investigaciones, inv], hechos };
+  const m = datos.mision;
+  if (m && [m.poblacion, m.etapa, m.mecanismo, m.tipoIntervencion].some((v) => (v ?? '').trim() !== '')) {
+    siguiente = aprobarMision(siguiente, id, m, datos.quien ?? 'Investigadora', ahora);
+  }
+  return { estado: siguiente, id };
+}
+
+/* ---------------------------------------------------------------------
+   ROSA2018: mision, puerta, reproducciones, analisis, aprendizaje
+   --------------------------------------------------------------------- */
+
+/** La persona aprueba (o corrige y aprueba) la mision. Misma regla que
+ *  `aprobar_mision` en el servidor: los presupuestos tienen que ser positivos. */
+export function aprobarMision(estado: EstadoRosa, investigacionId: string, mision: DatosInvestigacion['mision'], quien: string, ahora: number): EstadoRosa {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  if (!inv || !mision) return estado;
+  const base = inv.mision ?? misionVacia();
+  const p = mision.presupuesto ?? {};
+  const num = (v: number | undefined, fallback: number) => (v === undefined || v === null || Number.isNaN(v) ? fallback : v);
+  const nueva: Mision = {
+    ...base,
+    poblacion: (mision.poblacion ?? base.poblacion).trim(),
+    etapa: (mision.etapa ?? base.etapa).trim(),
+    celulaTejido: (mision.celulaTejido ?? base.celulaTejido).trim(),
+    mecanismo: (mision.mecanismo ?? base.mecanismo).trim(),
+    tipoIntervencion: (mision.tipoIntervencion ?? base.tipoIntervencion).trim(),
+    capacidadesLaboratorio: (mision.capacidadesLaboratorio ?? base.capacidadesLaboratorio).map((c) => c.trim()).filter((c) => c !== ''),
+    presupuesto: { llamadas: Math.round(num(p.llamadas, base.presupuesto.llamadas)), usd: num(p.usd, base.presupuesto.usd), horas: num(p.horas, base.presupuesto.horas) },
+    aprobadaEn: ahora,
+    aprobadaPor: quien,
+  };
+  if (nueva.presupuesto.llamadas <= 0 || nueva.presupuesto.usd <= 0 || nueva.presupuesto.horas <= 0) return estado;
+  const siguiente: EstadoRosa = {
+    ...estado,
+    investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, mision: nueva })),
+    corridas: estado.corridas.map((c) => (c.investigacionId === investigacionId && c.estado !== 'detenida' && c.estado !== 'terminada' && nueva.presupuesto.llamadas > c.gasto.llamadas ? { ...c, presupuesto: { ...c.presupuesto, limiteLlamadas: nueva.presupuesto.llamadas } } : c)),
+  };
+  return conEvento(siguiente, investigacionId, 'mision', `Mision aprobada por ${quien}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+}
+
+/** Eximir la puerta de reproduccion es una excepcion de politica (nivel 3):
+ *  exige motivo y queda en el registro de aprendizaje. */
+export function eximirPuerta(estado: EstadoRosa, investigacionId: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  const texto = motivo.trim();
+  if (!inv || texto === '') return estado;
+  const puerta = inv.puertaReproduccion ?? puertaVacia();
+  if (puerta.estado === 'eximida') return estado;
+  const cambio: CambioAprendizaje = { id: nuevoId('apr'), investigacionId, nivel: 3, tipo: 'politica', descripcion: `Puerta de reproduccion eximida: ${texto}`, origen: 'puertaReproduccion', estado: 'aplicado', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien };
+  const siguiente: EstadoRosa = {
+    ...estado,
+    investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, puertaReproduccion: { ...puerta, estado: 'eximida', eximidaPor: quien, motivo: texto, fecha: ahora } })),
+    aprendizaje: [...(estado.aprendizaje ?? []), cambio],
+  };
+  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproduccion eximida por ${quien}: ${texto.slice(0, 120)}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+}
+
+export function cerrarPuerta(estado: EstadoRosa, investigacionId: string, quien: string, ahora: number): EstadoRosa {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  if (!inv) return estado;
+  const puerta = inv.puertaReproduccion ?? puertaVacia();
+  if (puerta.estado !== 'eximida') return estado;
+  const siguiente: EstadoRosa = {
+    ...estado,
+    investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, puertaReproduccion: { ...puerta, estado: puerta.superadas >= puerta.requeridas ? 'abierta' : 'bloqueada', eximidaPor: null, motivo: '', fecha: ahora } })),
+  };
+  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproduccion vuelta a exigir por ${quien}`, null, ahora);
+}
+
+export interface DatosReproduccion {
+  referencia: string;
+  doi: string;
+  descripcion: string;
+  cifraPublicada: string;
+  valorPublicado: number;
+  tolerancia: number;
+}
+
+/** Registrar un analisis publicado que hay que reproducir. La tolerancia se
+ *  fija aqui, antes de ejecutar nada. */
+export function anadirReproduccion(estado: EstadoRosa, investigacionId: string, datasetId: string, datos: DatosReproduccion, ahora: number): { estado: EstadoRosa; id: string | null } {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  if (!inv || !inv.datasets.some((d) => d.id === datasetId)) return { estado, id: null };
+  if (datos.referencia.trim() === '' || datos.descripcion.trim() === '' || !Number.isFinite(datos.valorPublicado) || !(datos.tolerancia > 0 && datos.tolerancia <= 1)) return { estado, id: null };
+  const r: Reproduccion = { id: nuevoId('rep'), investigacionId, datasetId, referencia: datos.referencia.trim(), doi: datos.doi.trim(), descripcion: datos.descripcion.trim(), cifraPublicada: datos.cifraPublicada.trim(), valorPublicado: datos.valorPublicado, tolerancia: datos.tolerancia, planId: null, ejecucionId: null, valorObtenido: null, estado: 'pendiente', creadaEn: ahora };
+  const siguiente = conEvento({ ...estado, reproducciones: [...(estado.reproducciones ?? []), r] }, investigacionId, 'analisis', `Reproduccion registrada: ${r.referencia}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+  return { estado: siguiente, id: r.id };
+}
+
+/** Pedir a Rosa un analisis in silico. Solo con un dataset aprobado y fijado
+ *  por hash; el bucle lo ejecuta en el sandbox. */
+export function pedirAnalisis(estado: EstadoRosa, hipotesisId: string, datasetId: string, pregunta: string, ahora: number): EstadoRosa {
+  const h = estado.hipotesis.find((x) => x.id === hipotesisId);
+  if (!h) return estado;
+  const inv = estado.investigaciones.find((i) => i.id === h.investigacionId);
+  const ds = inv?.datasets.find((d) => d.id === datasetId);
+  if (!ds || ds.estado !== 'aprobado' || !ds.procedencia?.hash) return estado;
+  const mensaje = { id: nuevoId('m'), de: 'investigadora' as const, texto: `Analisis pedido sobre ${ds.nombre}: ${pregunta.trim() || 'aplicar la prediccion falsable de la hipotesis'}`, creadoEn: ahora };
+  const siguiente: EstadoRosa = { ...estado, hipotesis: reemplazar(estado.hipotesis, hipotesisId, (x) => ({ ...x, procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, mensaje] } })) };
+  return conEvento(siguiente, h.investigacionId, 'analisis', `Analisis in silico pedido sobre ${ds.nombre}: ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+}
+
+/** Promover un cambio de nivel 2. Solo una persona; un criterio promovido
+ *  entra a los criterios de revision. */
+export function promoverAprendizaje(estado: EstadoRosa, cambioId: string, quien: string, ahora: number): EstadoRosa {
+  const c = (estado.aprendizaje ?? []).find((x) => x.id === cambioId);
+  if (!c || c.nivel !== 2 || (c.estado !== 'propuesto' && c.estado !== 'evaluado')) return estado;
+  const criterios = c.tipo === 'criterio' && !estado.criteriosRevision.includes(c.descripcion) ? [...estado.criteriosRevision, c.descripcion] : estado.criteriosRevision;
+  const siguiente: EstadoRosa = { ...estado, criteriosRevision: criterios, aprendizaje: (estado.aprendizaje ?? []).map((x) => (x.id === cambioId ? { ...x, estado: 'promovido', resueltoEn: ahora, resueltoPor: quien } : x)) };
+  return conEvento(siguiente, c.investigacionId ?? '', 'aprendizaje', `Cambio de nivel 2 promovido por ${quien}: ${c.descripcion.slice(0, 100)}`, '#/ajustes', ahora);
+}
+
+export function revertirAprendizaje(estado: EstadoRosa, cambioId: string, quien: string, motivo: string, ahora: number): EstadoRosa {
+  const c = (estado.aprendizaje ?? []).find((x) => x.id === cambioId);
+  if (!c || c.nivel === 3 || c.estado === 'revertido') return estado;
+  const criterios = c.tipo === 'criterio' ? estado.criteriosRevision.filter((x) => x !== c.descripcion) : estado.criteriosRevision;
+  const evaluacion = motivo.trim() !== '' ? { ...(c.evaluacion ?? { conjunto: '', casos: 0, antes: null, despues: null }), nota: motivo.trim() } : c.evaluacion;
+  const siguiente: EstadoRosa = { ...estado, criteriosRevision: criterios, aprendizaje: (estado.aprendizaje ?? []).map((x) => (x.id === cambioId ? { ...x, estado: 'revertido', resueltoEn: ahora, resueltoPor: quien, evaluacion } : x)) };
+  return conEvento(siguiente, c.investigacionId ?? '', 'aprendizaje', `Cambio revertido por ${quien}: ${c.descripcion.slice(0, 100)}`, '#/ajustes', ahora);
+}
+
+/** La persona corrige la pregunta de la campana. La anterior se conserva. */
+export function actualizarPregunta(estado: EstadoRosa, corridaId: string, pregunta: Partial<PreguntaCampana>, ahora: number): EstadoRosa {
+  const c = corridaDe(estado, corridaId);
+  if (!c) return estado;
+  const base: PreguntaCampana = c.pregunta ?? { contexto: '', etapa: '', intervencion: '', comparador: '', desenlace: '', ventana: '', unidadBiologica: '', mecanismos: '', decision: '', umbralEfecto: '', umbralResuelto: false, pasoRuta: 'mecanismo', propuestaPorRosa: true, aprobadaEn: null };
+  const nueva: PreguntaCampana = { ...base, ...pregunta, propuestaPorRosa: false, aprobadaEn: ahora };
+  nueva.umbralResuelto = nueva.umbralEfecto.trim() !== '' && !nueva.umbralEfecto.toLowerCase().includes('sin resolver');
+  const siguiente: EstadoRosa = { ...estado, corridas: reemplazar(estado.corridas, corridaId, (x) => ({ ...x, pregunta: nueva })) };
+  return conEvento(siguiente, c.investigacionId, 'corrida_estado', `Pregunta de la corrida ${c.numero} corregida`, `#/investigaciones/${c.investigacionId}/corrida`, ahora);
+}
+
+/** El registro de metodos lo edita una persona. Cambiar el estado queda como
+ *  cambio de nivel 2 promovido por ella. */
+export function actualizarMetodo(estado: EstadoRosa, metodoId: string, cambios: Partial<MetodoRegistrado>, quien: string, ahora: number): EstadoRosa {
+  const m = (estado.metodos ?? []).find((x) => x.id === metodoId);
+  if (!m) return estado;
+  const { id: _i, actualizadoEn: _a, ...resto } = cambios;
+  const nuevo: MetodoRegistrado = { ...m, ...resto, actualizadoEn: ahora };
+  let aprendizaje = estado.aprendizaje ?? [];
+  if (cambios.estado && cambios.estado !== m.estado) {
+    aprendizaje = [...aprendizaje, { id: nuevoId('apr'), investigacionId: null, nivel: 2, tipo: 'programa', descripcion: `Metodo '${m.nombre.slice(0, 60)}': de ${m.estado} a ${cambios.estado}`, origen: `metodo:${metodoId}`, estado: 'promovido', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien }];
+  }
+  return { ...estado, metodos: (estado.metodos ?? []).map((x) => (x.id === metodoId ? nuevo : x)), aprendizaje };
+}
+
+/** La persona completa el libro de procedencia. El hash y el fichero los
+ *  fija el servidor al subir; aqui no se tocan. */
+export function actualizarProcedenciaDataset(estado: EstadoRosa, investigacionId: string, datasetId: string, procedencia: Partial<ProcedenciaDataset>): EstadoRosa {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  const ds = inv?.datasets.find((d) => d.id === datasetId);
+  if (!inv || !ds) return estado;
+  const base: ProcedenciaDataset = ds.procedencia ?? { origen: '', version: '', licencia: '', permisos: '', fechaObtencion: null, hash: '', fichero: null, filas: 0, diccionario: [], usoIAAutorizado: 'desconocido', sintetico: false, clase: 'observacion_original', cohorte: '', permiteLlmTerceros: false, restriccionIA: '', acceso: 'propio', columnas: [] };
+  const { hash: _h, fichero: _f, filas: _n, columnas: _c, ...editables } = procedencia;
+  const nueva: ProcedenciaDataset = { ...base, ...editables };
+  const sinDiccionario = procedencia.diccionario ? nueva.diccionario.filter((c) => c.descripcion.trim() === '').length : ds.columnasSinDiccionario;
+  return { ...estado, investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, datasets: i.datasets.map((d) => (d.id === datasetId ? { ...d, procedencia: nueva, columnasSinDiccionario: sinDiccionario } : d)) })) };
 }
 
 export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: string, motivo: string, ahora: number): { estado: EstadoRosa; id: string | null } {
@@ -818,6 +995,9 @@ export function decidirDataset(estado: EstadoRosa, investigacionId: string, data
   const ds = inv?.datasets.find((d) => d.id === datasetId);
   if (!inv || !ds) return estado;
   if (decision === 'aprobado' && (ds.columnasSinDiccionario > 0 || ds.valoresCentinela > 0 || ds.nombresDuplicados > 0)) return estado;
+  // Un dataset con fichero no se aprueba sin libro de procedencia completo.
+  const p = ds.procedencia;
+  if (decision === 'aprobado' && p && p.hash && (p.origen.trim() === '' || p.licencia.trim() === '' || p.usoIAAutorizado !== 'si')) return estado;
   return { ...estado, investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, datasets: i.datasets.map((d) => (d.id === datasetId ? { ...d, estado: decision } : d)) })) };
 }
 

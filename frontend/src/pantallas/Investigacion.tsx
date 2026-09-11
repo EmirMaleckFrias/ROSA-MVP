@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import type { Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
+import { FormularioMision, LibroDeProcedencia, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
 import { CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
@@ -90,6 +91,7 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
           Datos de personas: antes de que Rosa los toque hay que desidentificarlos (la skill deidentify corre en local, sin red) y la fase pasa por un comite certificado y por CONABIOS (Ley 172-13). Las herramientas que envian texto al gateway quedan bloqueadas para este fichero.
         </p>
       )}
+      <LibroDeProcedencia inv={inv} d={d} />
     </article>
   );
 }
@@ -164,6 +166,11 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           </div>
         </div>
       </div>
+
+      <Seccion titulo="Mision" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quien aplica, en que etapa, en que celula o tejido, que mecanismo, que tipo de resultado se busca, que puede hacer el laboratorio y con que presupuesto. Rosa propone; una persona aprueba. Debajo, las areas de investigacion que Rosa comparo para elegir por donde empezar.">
+        {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la mision al arrancar la primera corrida. Tambien puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
+        <FormularioMision inv={inv} />
+      </Seccion>
 
       <Seccion
         titulo="Configuracion que Rosa lee"
@@ -248,6 +255,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         {inv.datasets.map((d) => (
           <TarjetaDataset key={d.id} d={d} inv={inv} />
         ))}
+        {estado.conexion !== 'muestra' && <SubirDataset inv={inv} />}
         {verCatalogo && (
           <table className="tabla">
             <thead>
@@ -296,6 +304,8 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           </table>
         )}
       </Seccion>
+
+      <PuertaYReproducciones inv={inv} estado={estado} ahora={ahora} />
 
       <Seccion titulo="Corridas" nota="Cada corrida es un arranque del bucle con estas instrucciones.">
         {corridas.length === 0 ? (

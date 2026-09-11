@@ -3,9 +3,24 @@
 // y las pantallas nunca ensenan la clave interna.
 
 import type {
+  Afirmacion,
+  Bloqueo,
+  CambioAprendizaje,
   CertezaEvidencia,
+  ClaseEvidencia,
+  DecisionKiller,
+  DimensionesResultado,
   DireccionEvidencia,
+  Ejecucion,
+  EtapaDecision,
   FactorCerteza,
+  InterpretacionEjecucion,
+  MetodoRegistrado,
+  NivelAprendizaje,
+  PasoRutaTerapeutica,
+  ProcedenciaDataset,
+  Reproduccion,
+  ResultadoLaboratorio,
   AccionEspera,
   AlcancePermiso,
   CategoriaCaso,
@@ -261,6 +276,154 @@ export const TIPO_ARTEFACTO: Record<TipoArtefacto, string> = {
   figura: 'Figura',
   cuaderno: 'Cuaderno',
   specific_aims: 'Specific Aims (NIH)',
+  dossier: 'Dossier para el laboratorio',
+  prerregistro: 'Prerregistro',
+};
+
+/* ---------------------------------------------------------------------
+   ROSA2018: Killer, decisiones, bloqueos, analisis, retorno, aprendizaje
+   --------------------------------------------------------------------- */
+
+export const DECISION_KILLER: Record<DecisionKiller, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string }> = {
+  avanzar: { etiqueta: 'Avanza', tono: 'ok', nota: 'Pasa las comprobaciones criticas y tiene prediccion falsable. Puede ser candidata al laboratorio.' },
+  reformular: { etiqueta: 'Reformular', tono: 'aviso', nota: 'Falla algo arreglable (causalidad, falsabilidad, factibilidad o redundancia). Rosa escribe una version nueva y la vuelve a juzgar.' },
+  suspender: { etiqueta: 'Suspendida (no evaluable)', tono: 'borde', nota: 'Una comprobacion critica no se pudo hacer: una fuente no respondio o falta el dato. No es un fallo de la hipotesis.' },
+  descartar_en_contexto: { etiqueta: 'Descartar en este contexto', tono: 'mal', nota: 'La evidencia no la sostiene: citas que no resuelven, afirmaciones no sostenidas o un supuesto invalidante.' },
+};
+
+export const ETAPA_DECISION: Record<EtapaDecision, string> = {
+  killer_1: 'Hypothesis Killer',
+  killer_2: 'Auditor del analisis',
+  priorizacion: 'Priorizacion',
+  persona: 'Persona',
+  retorno: 'Retorno del laboratorio',
+};
+
+export const COMPROBACION_KILLER: Record<string, string> = {
+  citas_reales: 'Las citas resuelven a una fuente real',
+  fidelidad_evidencia: 'La fuente dice lo que la afirmacion dice',
+  supuestos: 'Ningun supuesto necesario esta contradicho',
+  independencia_cohortes: 'Replicacion en cohortes distintas',
+  fuente_primaria: 'Hay fuentes con datos propios, no solo citas',
+  direccion_causal: 'La direccion causal tiene temporalidad y alternativa',
+  falsabilidad: 'Hay una observacion medible que la refutaria',
+  novedad: 'Novedad comprobada con busqueda',
+  factibilidad: 'Existe cohorte, ensayo o tecnica para comprobarla',
+  redundancia: 'No repite lo ya sabido ni otra hipotesis viva',
+  sesgo_evidencia: 'La evidencia no tiene un riesgo de sesgo serio',
+  semilla: 'El codigo fija la semilla',
+  fuga_de_datos: 'Sin fuga entre entrenamiento y prueba',
+  coincide_con_plan: 'El codigo hace lo que dice el plan',
+  baseline_y_control: 'Hay baseline y control negativo',
+  tamano_muestral: 'El n por grupo basta',
+  multiplicidad: 'La multiplicidad se corrigio',
+  relevancia_prueba: 'La prueba responde a la pregunta',
+  confusores: 'Los confusores tratados son razonables',
+  interpretacion_no_sobrepasa: 'La interpretacion no sobrepasa las cifras',
+  unidades_y_escala: 'Unidades y escala plausibles',
+};
+
+export const RESULTADO_COMPROBACION: Record<'pasa' | 'falla' | 'no_aplica' | 'no_comprobable', { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' }> = {
+  pasa: { etiqueta: 'Pasa', tono: 'ok' },
+  falla: { etiqueta: 'Falla', tono: 'mal' },
+  no_aplica: { etiqueta: 'No aplica', tono: 'borde' },
+  no_comprobable: { etiqueta: 'No se pudo comprobar', tono: 'aviso' },
+};
+
+export const BLOQUEO: Record<Bloqueo, string> = {
+  trazabilidad_insuficiente: 'Trazabilidad insuficiente',
+  datos_no_autorizados: 'Datos no autorizados',
+  analisis_invalido: 'Analisis invalido',
+  sin_experimento_interpretable: 'Sin experimento interpretable',
+  descartada_por_killer: 'Descartada en este contexto',
+  fuente_retractada: 'Fuente retractada',
+};
+
+export const CLASE_EVIDENCIA: Record<ClaseEvidencia, { etiqueta: string; nota: string }> = {
+  observacion_original: { etiqueta: 'Observacion', nota: 'Medida directa: un dato de laboratorio o de un dataset con procedencia.' },
+  derivado: { etiqueta: 'Derivado', nota: 'Calculado a partir de otros datos por codigo auditado.' },
+  literatura: { etiqueta: 'Literatura', nota: 'Lo que afirma una fuente publicada.' },
+  prediccion: { etiqueta: 'Prediccion', nota: 'Salida de un modelo o dato sintetico. Nunca cuenta como observacion.' },
+};
+
+export const ESTADO_EJECUCION: Record<Ejecucion['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
+  no_ejecutado: { etiqueta: 'No ejecutado', tono: 'borde' },
+  en_curso: { etiqueta: 'En curso', tono: 'acento' },
+  error_tecnico: { etiqueta: 'Error tecnico', tono: 'mal' },
+  tiempo_agotado: { etiqueta: 'Tiempo agotado (error tecnico)', tono: 'mal' },
+  completado: { etiqueta: 'Ejecutado', tono: 'ok' },
+};
+
+export const INTERPRETACION_EJECUCION: Record<InterpretacionEjecucion, { etiqueta: string; tono: 'ok' | 'aviso' | 'borde' }> = {
+  efecto_detectado: { etiqueta: 'Efecto detectado', tono: 'ok' },
+  sin_efecto_detectable: { etiqueta: 'Sin efecto detectable', tono: 'aviso' },
+  no_evaluable: { etiqueta: 'No evaluable con estos datos', tono: 'borde' },
+};
+
+export const VEREDICTO_AUDITORIA: Record<'valido' | 'no_valido' | 'no_evaluable_computacionalmente', { etiqueta: string; tono: 'ok' | 'mal' | 'borde' }> = {
+  valido: { etiqueta: 'Analisis valido', tono: 'ok' },
+  no_valido: { etiqueta: 'Analisis no valido', tono: 'mal' },
+  no_evaluable_computacionalmente: { etiqueta: 'No evaluable computacionalmente', tono: 'borde' },
+};
+
+export const RUNTIME_EJECUCION: Record<Ejecucion['runtime'], string> = {
+  docker: 'Contenedor Docker sin red',
+  container: 'Micro-VM de Apple container sin red',
+  local_sintetico: 'Aislamiento blando local (solo datos sinteticos)',
+  ninguno: 'Sin runtime de aislamiento',
+};
+
+export const ESTADO_REPRODUCCION: Record<Reproduccion['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
+  pendiente: { etiqueta: 'Pendiente', tono: 'borde' },
+  en_curso: { etiqueta: 'En curso', tono: 'acento' },
+  superada: { etiqueta: 'Reproducida dentro de tolerancia', tono: 'ok' },
+  fallida: { etiqueta: 'Fuera de tolerancia', tono: 'mal' },
+  error_tecnico: { etiqueta: 'Error tecnico (no cuenta como fallo cientifico)', tono: 'aviso' },
+};
+
+export const RESULTADO_LABORATORIO: Record<ResultadoLaboratorio, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string }> = {
+  apoyo_reproducido: { etiqueta: 'Apoyo reproducido', tono: 'ok', nota: 'Efecto en la direccion predicha, controles validos, criterio cumplido.' },
+  negativo_interpretable: { etiqueta: 'Negativo interpretable', tono: 'mal', nota: 'Controles validos y potencia suficiente: el resultado va en contra.' },
+  inconcluso: { etiqueta: 'Inconcluso', tono: 'aviso', nota: 'Controles validos pero potencia insuficiente o intervalo que cruza el efecto minimo.' },
+  fallo_tecnico: { etiqueta: 'Fallo tecnico', tono: 'borde', nota: 'El ensayo no se ejecuto como se prerregistro o un control fallo. No toca la hipotesis.' },
+  toxicidad_inviabilidad: { etiqueta: 'Toxicidad o inviabilidad', tono: 'mal', nota: 'El modelo no tolero la intervencion o no hubo exposicion en el tejido.' },
+  correccion_contexto: { etiqueta: 'Correccion de contexto', tono: 'aviso', nota: 'El efecto existe pero en otra variable, tejido, etapa o poblacion: nace una hipotesis derivada.' },
+};
+
+export const NIVEL_APRENDIZAJE: Record<NivelAprendizaje, { etiqueta: string; nota: string }> = {
+  1: { etiqueta: 'Nivel 1: creencias', nota: 'Que cree Rosa de cada hipotesis. Automatico y registrado; reversible reabriendo la hipotesis.' },
+  2: { etiqueta: 'Nivel 2: como razona', nota: 'Criterios de revision y programas optimizados. Rosa propone, se evalua sobre el conjunto reservado y una persona promueve o revierte.' },
+  3: { etiqueta: 'Nivel 3: politicas', nota: 'Los limites del sistema. Solo los cambia una persona, en el codigo o eximiendo una puerta con motivo.' },
+};
+
+export const ESTADO_APRENDIZAJE: Record<CambioAprendizaje['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
+  aplicado: { etiqueta: 'Aplicado', tono: 'ok' },
+  propuesto: { etiqueta: 'Propuesto', tono: 'acento' },
+  evaluado: { etiqueta: 'Evaluado', tono: 'aviso' },
+  promovido: { etiqueta: 'Promovido', tono: 'ok' },
+  revertido: { etiqueta: 'Revertido', tono: 'mal' },
+};
+
+export const TIPO_APRENDIZAJE: Record<CambioAprendizaje['tipo'], string> = {
+  creencia: 'Creencia sobre una hipotesis',
+  criterio: 'Criterio de revision',
+  programa: 'Programa optimizado (GEPA)',
+  politica: 'Politica',
+  modelo_de_mundo: 'Modelo de mundo',
+  hipotesis_derivada: 'Hipotesis derivada',
+};
+
+export const ACCESO_DATASET: Record<ProcedenciaDataset['acceso'], string> = {
+  abierto: 'Abierto',
+  controlado: 'Controlado (acuerdo de uso)',
+  colaboracion: 'Por colaboracion',
+  propio: 'Propio del laboratorio',
+};
+
+export const USO_IA: Record<ProcedenciaDataset['usoIAAutorizado'], { etiqueta: string; tono: 'ok' | 'mal' | 'aviso' }> = {
+  si: { etiqueta: 'Uso con IA autorizado', tono: 'ok' },
+  no: { etiqueta: 'Uso con IA no autorizado', tono: 'mal' },
+  desconocido: { etiqueta: 'Uso con IA sin confirmar', tono: 'aviso' },
 };
 
 export const CATEGORIA_CASO: Record<CategoriaCaso, string> = {
@@ -297,4 +460,53 @@ export const TIPO_EVENTO: Record<TipoEvento, string> = {
   retraccion: 'Retractacion',
   literatura_nueva: 'Literatura nueva',
   revision_automatica: 'Revisor',
+  killer: 'Hypothesis Killer',
+  analisis: 'Analisis con datos',
+  aprendizaje: 'Aprendizaje',
+  mision: 'Mision',
+  dependencias: 'Recalculo por cambio de fuente',
+};
+
+export const PASO_RUTA: Record<PasoRutaTerapeutica, { etiqueta: string; orden: number }> = {
+  mecanismo: { etiqueta: 'Mecanismo', orden: 1 },
+  opciones_intervencion: { etiqueta: 'Opciones de intervencion', orden: 2 },
+  compromiso_diana: { etiqueta: 'Compromiso de diana', orden: 3 },
+  efecto_funcional: { etiqueta: 'Efecto funcional', orden: 4 },
+  selectividad_toxicidad: { etiqueta: 'Selectividad y toxicidad', orden: 5 },
+  exposicion: { etiqueta: 'Entrega y exposicion', orden: 6 },
+  replicacion_independiente: { etiqueta: 'Replicacion independiente', orden: 7 },
+  evidencia_poblacion: { etiqueta: 'Evidencia en la poblacion', orden: 8 },
+};
+
+export const ESTADO_METODO: Record<MetodoRegistrado['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
+  propuesto: { etiqueta: 'Propuesto', tono: 'borde' },
+  implementado: { etiqueta: 'Implementado, sin probar en contexto', tono: 'aviso' },
+  probado_en_contexto: { etiqueta: 'Probado en contexto', tono: 'ok' },
+  restringido: { etiqueta: 'Restringido', tono: 'mal' },
+  retirado: { etiqueta: 'Retirado', tono: 'mal' },
+};
+
+export const TIPO_METODO: Record<MetodoRegistrado['tipo'], string> = {
+  analisis: 'Metodo de analisis',
+  predictor: 'Predictor',
+  recurso_datos: 'Recurso de datos',
+  ensayo_laboratorio: 'Ensayo de laboratorio',
+  busqueda: 'Busqueda y recuperacion',
+  revision: 'Revision y verificacion',
+};
+
+export const NIVEL_MEDICION: Record<NonNullable<Afirmacion['nivelMedicion']>, string> = {
+  medida: 'Medida directa',
+  resultado_analisis: 'Resultado de un analisis',
+  interpretacion_autor: 'Interpretacion de los autores',
+  interpretacion_rosa: 'Interpretacion de Rosa',
+};
+
+export const DIMENSION_RESULTADO: Record<keyof Omit<DimensionesResultado, 'nota'>, string> = {
+  falloTecnico: 'Fallo tecnico',
+  inconcluso: 'Inconcluso',
+  efectoPequenoInterpretable: 'Efecto pequeno interpretable',
+  efectoPredicho: 'Efecto predicho',
+  efectoInesperado: 'Efecto inesperado',
+  toxicidad: 'Toxicidad',
 };

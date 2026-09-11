@@ -1,52 +1,72 @@
 # Pendiente para la siguiente sesion
 
-Acordado el 10 de septiembre de 2026 a partir de la revision "Closing the
-Loop in AI-Driven Biomedical Discovery" (Fang, Li, Noori, Fesser, Zitnik;
-Preprints 2026, doi 10.20944/preprints202608.2107.v1).
+Actualizado el 11 de septiembre de 2026. El plan completo por etapas esta en
+`PLAN-ROSA2018.md`; esto es la lista corta de lo inmediato.
 
-## Hechos el 11 de septiembre de 2026
+## Hecho el 11 de septiembre (ROSA2018)
 
-1. Prerregistro: al asignar un experimento a un laboratorio, congelar
-   hipotesis, protocolo, criterio de exito y refutacion con fecha, como
-   artefacto inmutable. Reportar despues que fraccion se sostuvo.
-2. El plan de cada iteracion elige acciones por lo que discriminan entre las
-   hipotesis vivas (ganancia de informacion), no solo por las preguntas
-   abiertas. Cambio en la firma `ProponerPlan`.
-3. Version del arnes en cada corrida: commit de git y hash de las firmas
-   DSPy, para auditoria.
+- Mision con areas de investigacion y pregunta de campana; politicas en
+  codigo; tarjeta y versiones de hipotesis; Hypothesis Killer con decision
+  por regla, reformulacion y auditoria de descartes; registro de decisiones;
+  datasets con libro de procedencia y hash; puerta de reproduccion; analisis
+  in silico con plan congelado, sandbox, interpretacion y auditor; bloqueos
+  no compensables, candidatas y dossier; retorno con seis clases y
+  dimensiones; registro de aprendizaje en tres niveles con evaluacion sobre
+  conjunto reservado; registro de metodos; recalculo con informe de
+  diferencias al cambiar el estado editorial de una fuente; presupuesto en
+  dolares y horas; documentos recuperados como datos.
+- Los puntos 1 a 5 de la lista anterior (prerregistro, plan por ganancia de
+  informacion, version del arnes, cierre del loop con datos, analisis en
+  entorno aislado) estan cubiertos.
 
-Los tres estan implementados: `asignar_experimento` congela el
-prerregistro como artefacto (misma regla en `acciones.ts`); `ProponerPlan` y
-`GenerarConsultas` reciben `hipotesis_vivas` con certeza, direccion, lo mas
-fragil y que las subiria o bajaria; `rosa/version.py` guarda commit, hash de
-firmas y programas optimizados en cada corrida nueva (`arnes`).
+## Datos: solo publicos por ahora
 
-4. Cerrar el loop con el verificador duro. Hecho el 11 de septiembre: el
-   fichero se sube por `POST /api/hipotesis/{id}/datos`, `rosa/datos.py` lo
-   resume de forma determinista, la firma `EvaluarResultado` (juez) dicta
-   confirma / refuta / inconcluso / no_evaluable contra los criterios del
-   prerregistro, el veredicto entra como afirmacion de tipo dato y la
-   conclusion se rehace con `resultado_experimental` como evidencia dura.
-   El protocolo se genera en pasos y los criterios van separados.
+Decision de la persona responsable del programa (11 de septiembre): no se
+piden accesos controlados (ADNI, AD Knowledge Portal, dbGaP). Rosa trabaja
+con datos publicos: GEO, SEA-AD procesado (abierto) y OASIS (registro
+gratuito). El libro de procedencia y la regla de no enviar filas al modelo
+siguen activos para cuando entren datos controlados.
 
-## Siguiente MVP
+## Inmediato
 
-5. Analisis de datos sobre datasets adjuntos, en entorno aislado, con la
-   cifra ligada a su trayectoria.
+1. Puerta de reproduccion con datos publicos. GSE1297 (Blalock 2004) esta
+   cargado con su libro de procedencia y Docker construido; tres intentos
+   de reproduccion registrados, los tres fallidos porque el criterio de la
+   lista publicada no esta en el resumen: hay que leer los metodos completos
+   del articulo (PMC357071) y congelar el criterio exacto. Alternativas mas
+   limpias para la puerta: OASIS-1 (volumen cerebral por CDR, un p-valor) y
+   otros GEO del Alzheimer (GSE5281, GSE48350, GSE44770).
+2. SEA-AD procesado: agregar por donante (los ficheros pesan de 1 a 33 GB;
+   Rosa admite 50 MB) antes de subirlo.
+3. Asignar responsables en la mision (patrocinador, lider cientifico,
+   metodos, datos, ingenieria, laboratorio, evaluacion).
+4. Alinear con la persona responsable del documento de concepto los nombres
+   de los registros (ver `PLAN-ROSA2018.md`, introduccion).
 
-## Evaluacion
+## Codigo (orden del plan, seccion 4)
 
-6. Tres niveles: retrospectiva (redescubrir hallazgos posteriores al corte
-   de los modelos ocultandolos en la busqueda), de loops (si Rosa revisa
-   hipotesis cuando la evidencia la contradice; metrica: campo `cambio` de
-   la conclusion) y prospectiva (prerregistrada).
+6. Panel de prueba del Killer: 20 hipotesis buenas, 20 con fallo plantado, 20
+   grises con veredicto humano; metricas de deteccion por tipo de fallo y de
+   abstencion. Rechazar todo no puede puntuar bien.
+7. Misma cohorte por autores, centro, periodo y n (hoy solo por nombre y
+   NCT); comprobaciones automaticas de unidades y direccion invertida.
+8. Bradley-Terry con intervalos por bootstrap en el ranking; Elo solo como
+   vista. Valor esperado de la informacion como desempate.
+9. Jerarquia programa, areas, campanas, preguntas en la interfaz; reasignacion
+   entre areas; reapertura de areas pausadas con condicion.
+10. Motor causal minimo: aristas del modelo de mundo tipadas como supuesto o
+    inferencia con evidencia, con contexto; consultas que devuelven cantidad,
+    supuestos, evidencia, metodo, incertidumbre y limites, o "sin resolver".
+11. Importar el protocolo real y las desviaciones; identidad de experimento y
+    muestra; enmiendas fechadas.
+12. Las cuatro condiciones de comparacion y los cinco niveles de prueba del
+    plan completo (seccion 7); replay historico con evidencia fechada.
+13. Repeticiones con semillas distintas en el sandbox cuando el plan tenga
+    aleatoriedad; e-valores para agregar pruebas por hipotesis (Popper).
 
 ## Tambien
 
-- Adoptar el vocabulario del paper en la documentacion: loop, campana,
-  verificador blando y duro, creencia sobre hipotesis en competencia.
-- Revisor independiente del generador para la evaluacion de supuestos.
 - Clasificar las citas de cada hecho del modelo de mundo en apoya, menciona,
   contrasta (campo `citas`, hoy vacio).
-- Nada esta en git todavia; el escaneo de secretos esta limpio.
 - Rotar el token de Convex que aparecio en el chat.
+- Las corridas anteriores a septiembre no tienen `arnes` ni `pregunta`.

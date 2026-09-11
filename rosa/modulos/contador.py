@@ -21,6 +21,8 @@ from typing import Any
 import dspy
 from dspy.utils.callback import BaseCallback
 
+from rosa import config
+
 
 class PresupuestoAgotado(RuntimeError):
     pass
@@ -88,6 +90,7 @@ class Contador(BaseCallback):
             g["llamadas"] += 1
             g["tokensEntrada"] += entrada
             g["tokensSalida"] += salida
+            g["usd"] = round(g.get("usd", 0.0) + config.coste_usd(str(modelo), entrada, salida), 4)
             c["contexto"]["tokensUsados"] = min(c["contexto"]["tokensLimite"], c["contexto"]["tokensUsados"] + entrada // 8)
             for it in e["iteraciones"]:
                 if it["corridaId"] == ctx.corrida_id and it["numero"] == ctx.iteracion:

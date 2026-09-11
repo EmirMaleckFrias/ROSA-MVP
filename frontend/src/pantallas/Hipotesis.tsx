@@ -17,11 +17,13 @@ import { Revisor } from '../componentes/Revisor';
 import { Verificacion } from '../componentes/Verificacion';
 import { ConclusionDeRosa, HipotesisEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion, Vacio, descargar } from '../componentes/piezas';
+import { Bloqueos, DecisionesKiller, Dimensiones, EjecucionesInSilico, TarjetaDeHipotesis } from '../componentes/Rosa2018';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
-import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA } from '../lib/etiquetas';
+import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
 import { formatearDuracion } from '../lib/formato';
 import { motivoNoAceptable, ordenarCola, resumirVerificacion, variacionElo } from '../lib/hipotesis';
+import { bloqueosDe } from '../lib/priorizacion';
 import { rutaDe } from '../lib/ruta';
 
 const TONO_ESTADO: Record<Hip['estado'], 'ok' | 'aviso' | 'mal' | 'acento' | undefined> = {
@@ -62,8 +64,9 @@ function TextoConFuertes({ texto, campo, como = 'p' }: { texto: string; campo: '
   );
 }
 
-function FilaCola({ h, ahora, href, horasEspera }: { h: Hip; ahora: number; href: string; horasEspera: number }) {
+function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: number; href: string; horasEspera: number; estado: EstadoRosa }) {
   const r = resumirVerificacion(h.afirmaciones);
+  const bloqueos = bloqueosDe(estado, h);
   const abiertos = h.hallazgos.filter((x) => x.estado === 'abierto').length;
   const d = variacionElo(h);
   const pendiente = h.estado === 'propuesta' || h.estado === 'en_revision' || h.estado === 'refinar';
@@ -83,6 +86,14 @@ function FilaCola({ h, ahora, href, horasEspera }: { h: Hip; ahora: number; href
               {CERTEZA_EVIDENCIA[h.conclusion.certeza].etiqueta}
             </Chip>
           )}
+          {h.decisionKiller && (
+            <Chip tono={DECISION_KILLER[h.decisionKiller].tono} title={DECISION_KILLER[h.decisionKiller].nota}>
+              Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}
+            </Chip>
+          )}
+          {(h.version ?? 1) > 1 && <Chip tono="borde">v{h.version}</Chip>}
+          {h.candidata && bloqueos.length === 0 && <Chip tono="ok">Candidata</Chip>}
+          {bloqueos.length > 0 && <span className="tono-mal">{bloqueos.length} {bloqueos.length === 1 ? 'bloqueo' : 'bloqueos'}</span>}
           {abiertos > 0 && <span className="tono-mal">{abiertos} {abiertos === 1 ? 'hallazgo abierto' : 'hallazgos abiertos'}</span>}
           {retractadas.length > 0 && <span className="tono-mal">depende de una fuente retractada</span>}
           <span>Iteracion {h.iteracion}</span>
@@ -216,6 +227,13 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           )}
           <span className="meta">Elo {h.elo} · {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}</span>
           <span className="meta">Iteracion {h.iteracion}</span>
+          <span className="meta">Version {h.version ?? 1}</span>
+          {h.decisionKiller && (
+            <Chip tono={DECISION_KILLER[h.decisionKiller].tono} title={DECISION_KILLER[h.decisionKiller].nota}>
+              Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}
+            </Chip>
+          )}
+          <Bloqueos bloqueos={bloqueosDe(estado, h)} candidata={h.candidata} />
           <span className="meta">
             Prerregistrada <Momento t={h.prerregistradaEn} ahora={ahora} />
           </span>
@@ -262,6 +280,10 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <HipotesisEnLlano texto={h.enLlano} />
 
       <ConclusionDeRosa conclusion={h.conclusion} ahora={ahora} />
+
+      <TarjetaDeHipotesis h={h} />
+
+      <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} />
 
       <Seccion titulo="Enunciado">
         <TextoConFuertes texto={h.enunciado} campo="enunciado" />
@@ -348,6 +370,8 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <Seccion titulo="Verificacion" nota="Cada afirmacion contrastada con su fuente, con su tipo (dato, literatura, interpretacion). Lo bloqueante impide aceptar.">
         <Verificacion afirmaciones={h.afirmaciones} cobertura={cobertura} ocultarCitas={aCiegas} onVerTrayectoria={(_, celda) => onAbrirProcedencia('codigo', celda)} />
       </Seccion>
+
+      <EjecucionesInSilico h={h} estado={estado} ahora={ahora} />
 
       {h.supuestos.length > 0 && (
         <Seccion titulo="Supuestos" nota="La hipotesis descompuesta en lo que da por cierto, independiente de las citas (la verificacion profunda de Co-Scientist).">
@@ -478,6 +502,34 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </div>
               </div>
             )}
+            {(h.experimento.controles || h.experimento.tamanoMuestral || h.experimento.alternativa) && (
+              <div className="conclusion-columnas">
+                {h.experimento.controles && (
+                  <div className="experimento-bloque">
+                    <h4>Controles</h4>
+                    <p>{h.experimento.controles}</p>
+                  </div>
+                )}
+                {h.experimento.tamanoMuestral && (
+                  <div className="experimento-bloque">
+                    <h4>Tamano muestral</h4>
+                    <p>{h.experimento.tamanoMuestral}</p>
+                  </div>
+                )}
+                {h.experimento.alternativa && (
+                  <div className="experimento-bloque">
+                    <h4>Explicacion alternativa y como se distingue</h4>
+                    <p>{h.experimento.alternativa}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {h.experimento.decisionQueCambia && (
+              <div className="experimento-bloque">
+                <h4>Que decision cambia con el resultado</h4>
+                <p>{h.experimento.decisionQueCambia}</p>
+              </div>
+            )}
             <div className="experimento-bloque">
               <h4>Coste estimado</h4>
               <p>{h.experimento.costeEstimado}</p>
@@ -495,11 +547,27 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                   <Chip tono={h.experimento.resultado.veredicto === 'confirma' ? 'ok' : h.experimento.resultado.veredicto === 'refuta' ? 'mal' : 'aviso'}>
                     {h.experimento.resultado.veredicto === 'confirma' ? 'Confirma la hipotesis' : h.experimento.resultado.veredicto === 'refuta' ? 'Refuta la hipotesis' : h.experimento.resultado.veredicto === 'inconcluso' ? 'Inconcluso' : 'No evaluable con estos datos'}
                   </Chip>
+                  {h.experimento.resultado.clasificacion && (
+                    <Chip tono={RESULTADO_LABORATORIO[h.experimento.resultado.clasificacion].tono} title={RESULTADO_LABORATORIO[h.experimento.resultado.clasificacion].nota}>
+                      {RESULTADO_LABORATORIO[h.experimento.resultado.clasificacion].etiqueta}
+                    </Chip>
+                  )}
+                  {h.experimento.resultado.versionProbada !== undefined && h.experimento.resultado.compatibleConActual === false && <Chip tono="aviso" title="El resultado probo una version anterior de la hipotesis">Probo la v{h.experimento.resultado.versionProbada}</Chip>}
                   <span className="meta">
                     {h.experimento.resultado.fichero} · <Momento t={h.experimento.resultado.fecha} ahora={ahora} />
                   </span>
                 </div>
+                <Dimensiones d={h.experimento.resultado.dimensiones} />
                 <p>{h.experimento.resultado.resultado}</p>
+                {h.experimento.resultado.accionTomada && <p className="meta">Que hizo Rosa: {h.experimento.resultado.accionTomada}</p>}
+                {h.experimento.resultado.hipotesisDerivadaId && (
+                  <p className="meta">
+                    Hipotesis derivada:{' '}
+                    <a className="enlace" href={rutaDe(h.investigacionId, 'hipotesis', h.experimento.resultado.hipotesisDerivadaId)}>
+                      abrir
+                    </a>
+                  </p>
+                )}
                 <p className="meta">{h.experimento.resultado.motivo}</p>
                 {h.experimento.resultado.cifras.length > 0 && (
                   <ul className="cifras">
@@ -664,6 +732,28 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
+      <Seccion
+        titulo="Dossier para el laboratorio"
+        nota="El expediente con el que la hipotesis sale al laboratorio, en siete partes: si va o no y por que (bloqueos), la hipotesis completa con su version, la evidencia con procedencia, los analisis con datos, las decisiones, el protocolo prerregistrado y que se aprende con cada resultado. Se arma sin ningun modelo, con lo que hay en el estado."
+        acciones={
+          <button type="button" className="btn btn-s" disabled={estado.conexion === 'muestra'} onClick={() => acciones.generarDossier(h.id)}>
+            {h.dossierArtefactoId ? 'Regenerar dossier' : 'Generar dossier'}
+          </button>
+        }
+      >
+        {h.dossierArtefactoId ? (
+          <p className="meta">
+            Ultimo dossier:{' '}
+            <a className="enlace" href={rutaDe(h.investigacionId, 'artefactos', h.dossierArtefactoId)}>
+              abrir en Artefactos
+            </a>
+            . Cada generacion es una version nueva; las anteriores se conservan.
+          </p>
+        ) : (
+          <p className="meta">Sin dossier todavia.</p>
+        )}
+      </Seccion>
+
       <Seccion titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipotesis fuera de Rosa: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
         <div className="dirigir">
           <input className="entrada" value={aplicableA} placeholder="Aplicable a (cohorte, modelo, condicion): por ejemplo portadores de APOE4 con genotipo de TREM2" onChange={(e) => setAplicableA(e.target.value)} aria-label="Aplicable a" />
@@ -756,7 +846,7 @@ export function Hipotesis({
       ) : (
         <div className="cola" style={{ marginTop: proponiendo ? 16 : 0 }}>
           {visibles.map((h) => (
-            <FilaCola key={h.id} h={h} ahora={ahora} href={rutaDe(inv.id, 'hipotesis', h.id)} horasEspera={estado.politicaEsperas.horas} />
+            <FilaCola key={h.id} h={h} ahora={ahora} href={rutaDe(inv.id, 'hipotesis', h.id)} horasEspera={estado.politicaEsperas.horas} estado={estado} />
           ))}
         </div>
       )}

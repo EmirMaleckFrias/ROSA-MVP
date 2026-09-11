@@ -22,11 +22,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from datetime import datetime, timezone
+from pathlib import Path
 import re
 import traceback
 from typing import Any
 
-from rosa import config
+from rosa import config, politicas, priorizacion as PR
 from rosa.bucle import contexto as T
 from rosa.bucle import pasos as PASOS
 from rosa.bucle.pasos import Ctx
@@ -44,7 +45,7 @@ from rosa.modulos.firmas import Programas
 # es una llamada por articulo, la extraccion una por fragmento, el juez una
 # por afirmacion. El modelo que propone el plan no conoce este coste, asi que
 # su cifra se sustituye por esta.
-COSTE_POR_TIPO = {"literatura": 70, "ensayos": 4, "extraccion": 60, "verificacion": 80, "novedad": 25, "modelo": 4, "hipotesis": 60, "meta": 4, "indicacion": 0}
+COSTE_POR_TIPO = {"literatura": 70, "ensayos": 4, "extraccion": 60, "verificacion": 80, "novedad": 25, "modelo": 4, "hipotesis": 90, "analisis": 14, "meta": 4, "indicacion": 0}
 
 PLAN_POR_DEFECTO = [
     ("Buscar literatura", "PubMed, Europe PMC y preprints sobre las preguntas abiertas", "literatura", 30),
@@ -84,6 +85,19 @@ class Supervisor:
                     if paso["estado"] == "en_curso":
                         paso["estado"] = "pendiente"
                         cambiado = True
+            # Una ejecucion in silico a medias no se repite sola (evitar ejecucion
+            # duplicada tras un reinicio): queda como error tecnico con motivo.
+            for run in e.get("ejecuciones", []):
+                if run["estado"] == "en_curso":
+                    run["estado"] = "error_tecnico"
+                    run["error"] = "Interrumpida por un reinicio de Rosa. No se repite sola: pide el analisis otra vez si hace falta."
+                    run["fin"] = ahora
+                    cambiado = True
+            for r in e.get("reproducciones", []):
+                if r["estado"] == "en_curso":
+                    r["estado"] = "error_tecnico"
+                    r["_error"] = "Interrumpida por un reinicio"
+                    cambiado = True
             return cambiado or False
 
         self.almacen.mutar(fn, "recuperacion")
@@ -162,10 +176,157 @@ class Supervisor:
                 await self._responder_comentarios(ctx, h)
             if h.get("replicacion") and h["replicacion"]["estado"] == "en_curso":
                 await self._replicar_paso(ctx, h)
+            if h.get("_reformularPedida") is not None and h["estado"] == "refinar":
+                await self._reformular_por_persona(ctx, h)
+            if h.get("_revisionPedida") and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
+                # Una revision pedida con la corrida parada no espera al siguiente paso
+                # de hipotesis: revision inicial, supuestos y Killer ahora.
+                texto_af, _ = T.afirmaciones_sostenidas(corrida.get("_afirmaciones", []))
+                pista = ctx.pista(None, "modelo", f"Revision pedida: {h['titulo'][:60]}", "Opus 5 (Killer)")
+                try:
+                    await PASOS._revisar_hipotesis(ctx, h, texto_af[:8000], pista)
+                    pista.cerrar("Revision y Killer terminados")
+                except Exception as ex:  # noqa: BLE001
+                    traceback.print_exc()
+                    pista.fallar(f"La revision fallo: {str(ex)[:160]}")
+                finally:
+                    self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_revisionPedida", None), True)[1], "revision")
+                return
+            if h.get("_analisisPedido") and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
+                # Con la corrida parada, el analisis pedido no espera a un paso del plan.
+                from rosa.bucle import analisis as AN
+
+                p = h["_analisisPedido"]
+                pista = ctx.pista(None, "modelo", f"Analisis pedido: {h['titulo'][:60]}", "Sandbox")
+                try:
+                    await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
+                except Exception as ex:  # noqa: BLE001
+                    traceback.print_exc()
+                    self.almacen.mutar(lambda e2: (next(x for x in e2["hipotesis"] if x["id"] == h["id"]).pop("_analisisPedido", None), True)[1], "analisis")
+                    pista.fallar(f"El analisis fallo: {str(ex)[:160]}")
+                else:
+                    pista.cerrar("Analisis terminado")
+                return
+        for rep in [r for r in e.get("reproducciones", []) if r["estado"] == "pendiente"]:
+            corrida = A.ultima_corrida_de(e, rep["investigacionId"])
+            if corrida and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
+                from rosa.bucle import analisis as AN
+
+                ctx = self._ctx(corrida)
+                pista = ctx.pista(None, "modelo", f"Reproduccion: {rep['referencia'][:60]}", "Sandbox")
+                try:
+                    await AN.reproducir(ctx, rep, pista)
+                except Exception as ex:  # noqa: BLE001
+                    traceback.print_exc()
+                    pista.fallar(f"La reproduccion fallo: {str(ex)[:160]}")
+                    self.almacen.mutar(lambda e2: AN._estado_rep(e2, rep["id"], "error_tecnico", None, None, str(ex)[:200]), "reproduccion")
+                else:
+                    pista.cerrar("Reproduccion terminada")
+                return
         for inv in list(e["investigaciones"]):
             if inv.get("_recomprobarRetracciones"):
                 await self._recomprobar_retracciones(inv)
+        for cambio in list(e.get("aprendizaje", [])):
+            if cambio.get("_evaluar"):
+                await self._evaluar_cambio(cambio)
+                return
+            if cambio.get("_promover"):
+                self._promover_programa(cambio)
         await self._completar_en_llano()
+
+    async def _reformular_por_persona(self, ctx: Ctx, h: dict[str, Any]) -> None:
+        """La persona pidio refinar: Rosa reformula como version nueva con su
+        nota, y el Killer vuelve a juzgar la version nueva."""
+        nota = h.get("_reformularPedida") or "La persona pidio refinarla"
+        texto_af, _ = T.afirmaciones_sostenidas(ctx.corrida().get("_afirmaciones", []))
+        pista = ctx.pista(None, "modelo", f"Reformular a peticion: {h['titulo'][:60]}", "GPT-6 Astra + Opus 5")
+        try:
+            ok = await PASOS._reformular(ctx, h, f"Persona: {nota}", config.QUIEN_ROSA, pista)
+            if ok:
+                nueva = next((y for y in self.almacen.estado["hipotesis"] if y["id"] == h["id"]), None)
+                if nueva:
+                    await PASOS._killer(ctx, nueva, texto_af[:8000], pista, profundidad=1)
+            pista.cerrar("Reformulada y revisada" if ok else "No se pudo reformular")
+        except Exception as ex:  # noqa: BLE001
+            traceback.print_exc()
+            pista.fallar(f"Fallo al reformular: {str(ex)[:160]}")
+        finally:
+            self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_reformularPedida", None), True)[1], "reformular")
+
+    async def _evaluar_cambio(self, cambio: dict[str, Any]) -> None:
+        """Evaluacion de un criterio propuesto (nivel 2) sobre el conjunto
+        reservado: las hipotesis con decision humana de aceptar o descartar.
+        Se corre el Killer con y sin el criterio y se mide el acuerdo con
+        la persona (avanzar = aceptar; descartar o reformular = descartar).
+        La cifra va al registro; la promocion sigue siendo de la persona."""
+        e = self.almacen.estado
+        reservado = [h for h in e["hipotesis"] if h["estado"] in ("aceptada", "descartada") and any(r["quien"] != config.QUIEN_ROSA and r["accion"] in ("aceptada", "descartada") for r in h["revisiones"])][:6]
+        ahora = P.ahora_ms()
+        if not reservado:
+            self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], {"conjunto": "hipotesis con decision humana", "casos": 0, "antes": None, "despues": None, "nota": "Sin conjunto reservado todavia: hacen falta hipotesis aceptadas o descartadas por una persona"}, ahora), "aprendizaje")
+            return
+        corrida = A.ultima_corrida_de(e, cambio.get("investigacionId") or reservado[0]["investigacionId"]) or A.ultima_corrida_de(e, reservado[0]["investigacionId"])
+        if not corrida:
+            return
+        ctx = self._ctx(corrida)
+        from rosa import killer as K
+
+        async def acuerdo_con(criterios: list[str]) -> float:
+            aciertos = 0
+            for h in reservado:
+                inv = next(i for i in e["investigaciones"] if i["id"] == h["investigacionId"])
+                deterministas = K.comprobaciones_deterministas(h, e)
+                try:
+                    pred = await ctx.llamar("juez", self.programas.killer, objetivo=inv["objetivo"], mision=PASOS._texto_mision(inv), hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna", supuestos="\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]) or "Sin supuestos", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], h["investigacionId"], maximo=30), comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas), criterios_revision="\n".join(criterios))
+                    comprobaciones = K.fusionar(deterministas, [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in pred.revision.comprobaciones])
+                    decision, _ = K.decidir(comprobaciones, bool((h.get("tarjeta") or {}).get("prediccionFalsable")), 1)
+                except Exception:  # noqa: BLE001
+                    continue
+                humana = h["estado"] == "aceptada"
+                if (decision == "avanzar") == humana:
+                    aciertos += 1
+            return round(aciertos / len(reservado), 3)
+
+        try:
+            sin = [c for c in e["criteriosRevision"] if c != cambio["descripcion"]]
+            antes = await acuerdo_con(sin)
+            despues = await acuerdo_con(sin + [cambio["descripcion"]])
+            nota = "Mejora el acuerdo con las decisiones humanas" if despues > antes else ("Empeora el acuerdo" if despues < antes else "No cambia el acuerdo")
+        except Exception as ex:  # noqa: BLE001
+            antes, despues, nota = None, None, f"La evaluacion fallo: {str(ex)[:120]}"
+        self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], {"conjunto": "hipotesis con decision humana", "casos": len(reservado), "antes": antes, "despues": despues, "nota": nota}, ahora), "aprendizaje")
+
+    def _promover_programa(self, cambio: dict[str, Any]) -> None:
+        """Un programa optimizado por GEPA promovido por una persona pasa de
+        `mlruns/candidatos/` a `mlruns/optimizados/` y se carga en el
+        siguiente arranque. El anterior queda como `.anterior` para revertir."""
+        import shutil
+
+        nombre = cambio["origen"].split(":")[-1]
+        origen = Path(config.RAIZ) / "mlruns" / "candidatos" / f"{nombre}.json"
+        destino = Path(config.RAIZ) / "mlruns" / "optimizados" / f"{nombre}.json"
+        nota = ""
+        try:
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            if destino.exists():
+                shutil.copy(destino, destino.with_suffix(".json.anterior"))
+            if origen.exists():
+                shutil.copy(origen, destino)
+                nota = f"Programa {nombre} promovido; se carga al reiniciar Rosa"
+            else:
+                nota = f"No se encontro el candidato {origen.name}; nada que promover"
+        except Exception as ex:  # noqa: BLE001
+            nota = f"No se pudo promover: {str(ex)[:120]}"
+
+        def fn(e: dict[str, Any]) -> bool:
+            c = next((x for x in e.get("aprendizaje", []) if x["id"] == cambio["id"]), None)
+            if not c:
+                return False
+            c.pop("_promover", None)
+            c["evaluacion"] = {**(c.get("evaluacion") or {"conjunto": "", "casos": 0, "antes": None, "despues": None}), "nota": nota}
+            return True
+
+        self.almacen.mutar(fn, "aprendizaje")
 
     async def _explicar_en_llano(self, ctx: Ctx, inv: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], sin_comprobar: list[dict]) -> dict[str, Any] | None:
         """El resumen de la iteracion en lenguaje llano, con la estructura de los
@@ -261,6 +422,10 @@ class Supervisor:
                 "ensayo": x.ensayo.strip(),
                 "confirma": x.resultado_que_confirma.strip(),
                 "refuta": x.resultado_que_refuta.strip(),
+                "controles": (x.controles or "").strip(),
+                "tamanoMuestral": (x.tamano_muestral or "").strip(),
+                "alternativa": (x.alternativa or "").strip(),
+                "decisionQueCambia": (x.decision_que_cambia or "").strip(),
                 "costeEstimado": x.coste_estimado.strip(),
                 "laboratorio": None,
                 "estado": "propuesto",
@@ -278,7 +443,8 @@ class Supervisor:
             y["_experimentoIntentado"] = True
             if experimento and not y.get("experimento"):
                 y["experimento"] = experimento
-                y["procedencia"]["registro"].append("experimento propuesto por Rosa (protocolo, ensayo, coste)")
+                y["procedencia"]["registro"].append("experimento propuesto por Rosa (protocolo, ensayo, controles, criterios, coste)")
+                A.recalcular_bloqueos(e, y)
             return True
 
         self.almacen.mutar(fn, "experimento")
@@ -291,16 +457,17 @@ class Supervisor:
                 "juez",
                 self.programas.concluir,
                 hipotesis=T.hipotesis_texto(h),
-                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
+                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO: no cuenta como evidencia' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
                 supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
                 partidos="\n".join(f"- {p['resultado']} por {p['ejeDecisivo']}: {p['resumenDebate']}" for p in h["partidos"]) or "Sin partidos todavia",
-                novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()),
-                revisiones_humanas=T.revisiones_humanas(h),
+                novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()) + f". Cohortes distintas entre las fuentes: {len(PR.cohortes_de(h))}" + (f" ({', '.join(PR.cohortes_de(h))})" if PR.cohortes_de(h) else ""),
+                revisiones_humanas=T.revisiones_humanas(h) + (f"\nKiller: {h.get('decisionKiller')}" if h.get("decisionKiller") else ""),
                 resultado_experimental=T.resultado_experimental(h),
             )
             c = pred.conclusion
-            # La base se cuenta de forma determinista, no la estima el modelo.
-            sostenidas = [a for a in h["afirmaciones"] if a["veredicto"] in ("sostenida", "parcial")]
+            # La base se cuenta de forma determinista, no la estima el modelo. Lo
+            # sintetico no cuenta como evidencia.
+            sostenidas = [a for a in h["afirmaciones"] if a["veredicto"] in ("sostenida", "parcial") and not a.get("sintetico")]
             fuentes = {f["referencia"] for f in h["procedencia"]["fuentes"]}
             anterior = h.get("conclusion")
             cambio = None
@@ -338,6 +505,10 @@ class Supervisor:
             y["_conclusionIntentada"] = ctx.numero
             if conclusion:
                 y["conclusion"] = conclusion
+                if conclusion.get("cambio"):
+                    # Nivel 1 del aprendizaje: cambio lo que Rosa cree de esta hipotesis. Automatico y registrado.
+                    de = conclusion["cambio"]["de"]
+                    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "creencia", f"{y['titulo'][:80]}: de {de.get('certeza')}/{de.get('direccion')} a {conclusion['certeza']}/{conclusion['direccion']}. {conclusion['cambio']['motivo'][:160]}", f"hipotesis:{y['id']}", "aplicado", config.QUIEN_ROSA, conclusion["fecha"]))
             return True
 
         self.almacen.mutar(fn, "conclusion")
@@ -348,28 +519,48 @@ class Supervisor:
         afirmacion de tipo dato con su trayectoria, y la conclusion se rehace."""
         from rosa import datos as D
 
+        from rosa.dossier import APRENDIZAJE_POR_RESULTADO
+
         x = h["experimento"]
         ruta = D.ruta_de(h["id"], x.get("ficheroDatos") or "")
         ahora = P.ahora_ms()
+        derivada_texto = None
         if ruta is None or not ruta.exists():
-            resultado = {"veredicto": "no_evaluable", "resultado": "No se encontro el fichero de datos en el servidor.", "motivo": f"Se registro el nombre '{x.get('ficheroDatos')}' pero el fichero no se subio. Sube el fichero desde la ficha.", "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": x.get("ficheroDatos")}
+            resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "No se encontro el fichero de datos en el servidor.", "motivo": f"Se registro el nombre '{x.get('ficheroDatos')}' pero el fichero no se subio. Sube el fichero desde la ficha.", "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": x.get("ficheroDatos")}
         else:
-            resumen, muestra = D.resumir(ruta)
+            resumen, muestra = await asyncio.to_thread(D.resumir, ruta)
             try:
                 pred = await ctx.llamar(
                     "juez",
                     self.programas.evaluar_resultado,
                     hipotesis=T.hipotesis_texto(h),
-                    prerregistro=f"Protocolo:\n{x['protocolo']}\n\nEnsayo: {x['ensayo']}\n\nCONFIRMA si: {x.get('confirma') or '(no separado; ver ensayo)'}\nREFUTA si: {x.get('refuta') or '(no separado; ver ensayo)'}",
+                    prerregistro=f"Protocolo:\n{x['protocolo']}\n\nEnsayo: {x['ensayo']}\n\nControles: {x.get('controles') or 'no declarados'}\nTamano muestral previsto: {x.get('tamanoMuestral') or 'no declarado'}\n\nCONFIRMA si: {x.get('confirma') or '(no separado; ver ensayo)'}\nREFUTA si: {x.get('refuta') or '(no separado; ver ensayo)'}",
                     analisis_pedido=x.get("analisisPedido") or "Ninguno en particular: aplicar los criterios prerregistrados.",
                     resumen_datos=resumen,
                     muestra_datos=muestra,
                 )
                 r = pred.resultado
-                resultado = {"veredicto": r.veredicto, "resultado": r.resultado.strip(), "motivo": r.motivo.strip(), "limitaciones": r.limitaciones.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in r.cifras][:12], "exploratorio": r.exploratorio.strip(), "fecha": ahora, "fichero": ruta.name}
+                dm = r.dimensiones
+                resultado = {"veredicto": r.veredicto, "clasificacion": r.clasificacion, "dimensiones": {"falloTecnico": bool(dm.fallo_tecnico), "inconcluso": bool(dm.inconcluso), "efectoPequenoInterpretable": bool(dm.efecto_pequeno_interpretable), "efectoPredicho": bool(dm.efecto_predicho), "efectoInesperado": bool(dm.efecto_inesperado), "toxicidad": bool(dm.toxicidad), "nota": dm.nota.strip()}, "resultado": r.resultado.strip(), "motivo": r.motivo.strip(), "limitaciones": r.limitaciones.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in r.cifras][:12], "exploratorio": r.exploratorio.strip(), "fecha": ahora, "fichero": ruta.name}
+                if r.clasificacion == "correccion_contexto" and r.contexto_corregido.strip():
+                    try:
+                        pd = await ctx.llamar("cerebro", self.programas.derivar, hipotesis=T.hipotesis_texto(h), resultado=f"{r.resultado} Contexto corregido: {r.contexto_corregido}")
+                        derivada_texto = pd.derivada
+                    except Exception:  # noqa: BLE001
+                        traceback.print_exc()
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()
-                resultado = {"veredicto": "no_evaluable", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
+                resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
+        clasificacion = resultado.get("clasificacion") or "inconcluso"
+        resultado["accionTomada"] = APRENDIZAJE_POR_RESULTADO.get(clasificacion, "")
+        # Un resultado prueba la version que se prerregistro; si la hipotesis cambio
+        # despues, se dice y la conclusion actual lo tiene en cuenta.
+        version_probada = x.get("versionPrerregistrada") or h.get("version", 1)
+        resultado["versionProbada"] = version_probada
+        resultado["compatibleConActual"] = version_probada == h.get("version", 1)
+        if not resultado["compatibleConActual"]:
+            resultado["limitaciones"] = (resultado.get("limitaciones") or "") + f" El resultado probo la version {version_probada}; la hipotesis esta en la version {h.get('version', 1)}: comprobar que la prediccion sigue siendo la misma."
+        quien = self.modelos.juez.model
 
         def fn(e: dict[str, Any]) -> bool:
             y = next((z for z in e["hipotesis"] if z["id"] == h["id"]), None)
@@ -377,14 +568,41 @@ class Supervisor:
                 return False
             y["experimento"]["resultado"] = resultado
             y["_resultadoEvaluado"] = True
-            if resultado["veredicto"] in ("confirma", "refuta", "inconcluso"):
-                cita = f"[Datos del laboratorio: {resultado['fichero']}, {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y')}]"
-                y["afirmaciones"].append({"texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']}.", "entidadDistinta": False, "tipo": "dato", "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
-                y["evidenciaEstadistica"] = "fuerte" if resultado["veredicto"] == "confirma" else "moderada"
-            y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']}. {resultado['resultado']}", "creadoEn": ahora})
-            y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']}")
+            fecha_txt = datetime.fromtimestamp(ahora / 1000).strftime("%d/%m/%Y")
+            if clasificacion in ("apoyo_reproducido", "negativo_interpretable", "inconcluso", "correccion_contexto") and resultado["veredicto"] != "no_evaluable":
+                cita = f"[Datos del laboratorio: {resultado['fichero']}, {fecha_txt}]"
+                y["afirmaciones"].append({"texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": False, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
+                y["evidenciaEstadistica"] = "fuerte" if clasificacion == "apoyo_reproducido" else ("moderada" if clasificacion == "negativo_interpretable" else "debil")
+            # Que hace Rosa con cada clase de resultado (taxonomia de retorno).
+            if clasificacion == "fallo_tecnico":
+                y["experimento"]["estado"] = "asignado"  # se puede repetir; la hipotesis no cambia
+                y["experimento"]["ficheroDatos"] = None
+            elif clasificacion == "toxicidad_inviabilidad":
+                t = y.get("tarjeta") or P.tarjeta_vacia()
+                t["riesgos"] = (t.get("riesgos") or []) + [f"Toxicidad o inviabilidad observada en el laboratorio ({fecha_txt}): {resultado['resultado'][:120]}"]
+                y["tarjeta"] = t
+                y["decisionKiller"] = "suspender"
+                y["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": "Toxicidad o inviabilidad: la via de intervencion se cierra en este contexto", "aCiegas": False})
+            elif clasificacion == "negativo_interpretable":
+                y["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "valor_contradice_fuente", "resumen": "El laboratorio devolvio un negativo interpretable", "razonamiento": resultado["resultado"], "estado": "abierto", "respuestaDeRosa": None})
+            elif clasificacion == "correccion_contexto":
+                y["decisionKiller"] = "suspender"
+                y["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": "Correccion de contexto: el efecto aparece en otro contexto; se crea una hipotesis derivada", "aCiegas": False})
+                if derivada_texto is not None:
+                    d = derivada_texto
+                    nueva = P.nueva_hipotesis(y["investigacionId"], ctx.numero, ahora, titulo=d.titulo.strip(), enunciado=d.enunciado.strip(), mecanismo=d.mecanismo.strip(), comprobacion={"biomarcador": d.biomarcador, "cohorte": d.cohorte, "diseno": d.diseno}, cluster=y["cluster"], derivadaDe=y["id"], relevancia={"justificacion": f"Derivada de '{y['titulo'][:60]}' por correccion de contexto del laboratorio: {d.que_cambio}", "votoHumano": None}, afirmaciones=[a for a in y["afirmaciones"] if a.get("clase") == "observacion_original"][-1:])
+                    nueva["procedencia"] = P.procedencia_vacia(f"Hipotesis derivada por correccion de contexto tras el resultado del laboratorio del {fecha_txt}. {d.que_cambio}", ahora)
+                    e["hipotesis"].append(nueva)
+                    resultado["hipotesisDerivadaId"] = nueva["id"]
+                    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "hipotesis_derivada", f"Correccion de contexto: '{y['titulo'][:60]}' deriva en '{nueva['titulo'][:60]}'", f"resultado:{y['id']}", "aplicado", quien, ahora))
+                    A.con_evento(e, y["investigacionId"], "hipotesis_nueva", f"Hipotesis derivada por correccion de contexto: {nueva['titulo'][:80]}", f"#/investigaciones/{y['investigacionId']}/hipotesis/{nueva['id']}", ahora)
+            A.registrar_decision(e, y, "retorno", "avanzar" if clasificacion == "apoyo_reproducido" else ("suspender" if clasificacion in ("toxicidad_inviabilidad", "correccion_contexto") else ("reformular" if clasificacion == "negativo_interpretable" else "avanzar")), f"Retorno del laboratorio: {clasificacion.replace('_', ' ')}. {resultado['resultado'][:200]}", quien, ahora)
+            e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "creencia", f"Resultado del laboratorio ({clasificacion.replace('_', ' ')}) para '{y['titulo'][:60]}': {resultado['accionTomada'][:160]}", f"resultado:{y['id']}", "aplicado", quien, ahora))
+            y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}). {resultado['resultado']} Que hace Rosa: {resultado['accionTomada']}", "creadoEn": ahora})
+            y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']} / {clasificacion}")
             y.pop("_conclusionIntentada", None)
-            A.con_evento(e, h["investigacionId"], "revision_automatica", f"Datos del laboratorio evaluados ({resultado['veredicto']}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+            A.recalcular_bloqueos(e, y)
+            A.con_evento(e, h["investigacionId"], "revision_automatica", f"Datos del laboratorio evaluados ({clasificacion.replace('_', ' ')}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
             return True
 
         self.almacen.mutar(fn, "resultado_experimento")
@@ -418,6 +636,17 @@ class Supervisor:
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
                 if corrida:
                     await self._proponer_experimento(self._ctx(corrida), h)
+                    return
+            if h.get("tarjeta") is None and not h.get("_tarjetaIntentada") and h["estado"] != "descartada":
+                corrida = A.ultima_corrida_de(e, h["investigacionId"])
+                if corrida:
+                    await PASOS._completar_tarjeta(self._ctx(corrida), h, None)
+                    return
+        for inv in e["investigaciones"]:
+            if inv.get("mision") is None and not inv.get("_misionIntentada"):
+                corrida = A.ultima_corrida_de(e, inv["id"])
+                if corrida:
+                    await self._proponer_mision(self._ctx(corrida), inv)
                     return
         for it in e["iteraciones"]:
             if it["terminadaEn"] is not None and it["resumen"] and it.get("resumenLlano") is None and not it.get("_llanoIntentado"):
@@ -529,6 +758,7 @@ class Supervisor:
                     except FuenteNoDisponible as ex:
                         dois[f["doi"]] = ("__error__", str(ex)[:100])
         cambios = 0
+        afectadas: list[dict[str, Any]] = []
 
         def fn(e: dict[str, Any]) -> bool:
             nonlocal cambios
@@ -538,18 +768,63 @@ class Supervisor:
             for h in e["hipotesis"]:
                 if h["investigacionId"] != inv["id"]:
                     continue
+                tocada = False
                 for f in h["procedencia"]["fuentes"]:
                     r = dois.get(f.get("doi") or "")
                     if not r or r[0] == "__error__":
                         continue
                     if f["retraccion"] != r[0]:
                         cambios += 1
+                        tocada = True
                         f["retraccion"] = r[0]
                     f["retraccionComprobadaEn"] = ahora
-            A.con_evento(e, inv["id"], "retraccion", f"Retractaciones recomprobadas en {len(dois)} DOI: {cambios} cambios" + (" (algunas consultas no llegaron)" if any(v[0] == '__error__' for v in dois.values()) else ""), None, ahora)
+                if tocada:
+                    # Seguimiento de dependencias (plan completo, seccion 9): la fuente
+                    # cambio, asi que la conclusion que dependia de ella se marca para
+                    # recalcular; la anterior se guarda para el informe de diferencias.
+                    h["_conclusionAnterior"] = h.get("conclusion")
+                    h.pop("_conclusionIntentada", None)
+                    h["_recalcularPorFuente"] = ahora
+                    A.recalcular_bloqueos(e, h)
+                    afectadas.append({"id": h["id"], "titulo": h["titulo"]})
+            A.con_evento(e, inv["id"], "retraccion", f"Retractaciones recomprobadas en {len(dois)} DOI: {cambios} cambios" + (f"; {len(afectadas)} hipotesis se recalculan" if afectadas else "") + (" (algunas consultas no llegaron)" if any(v[0] == '__error__' for v in dois.values()) else ""), None, ahora)
             return True
 
         self.almacen.mutar(fn, "retracciones")
+        if afectadas:
+            corrida = A.ultima_corrida_de(self.almacen.estado, inv["id"])
+            if corrida:
+                ctx = self._ctx(corrida)
+                for a in afectadas:
+                    y = next((z for z in self.almacen.estado["hipotesis"] if z["id"] == a["id"]), None)
+                    if y:
+                        await self._concluir_hipotesis(ctx, y)
+                self._informe_de_diferencias(inv, [a["id"] for a in afectadas], "cambio de estado editorial de una fuente")
+
+    def _informe_de_diferencias(self, inv: dict[str, Any], ids: list[str], causa: str) -> None:
+        """El informe de diferencias del plan completo: que decia cada
+        conclusion antes del cambio de fuente y que dice ahora. Los informes
+        anteriores no se tocan: lo historico sigue siendo historico."""
+        ahora = P.ahora_ms()
+
+        def fn(e: dict[str, Any]) -> bool:
+            L = [f"# Recalculo por {causa}", "", f"Fecha: {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')}. Investigacion: {inv['titulo']}.", ""]
+            for hid in ids:
+                h = next((z for z in e["hipotesis"] if z["id"] == hid), None)
+                if not h:
+                    continue
+                antes = h.pop("_conclusionAnterior", None) or {}
+                despues = h.get("conclusion") or {}
+                h.pop("_recalcularPorFuente", None)
+                L += [f"## {h['titulo']}", f"Antes: certeza {antes.get('certeza', 'sin conclusion')}, direccion {antes.get('direccion', '?')}. {antes.get('enunciado', '')}", f"Ahora: certeza {despues.get('certeza', 'sin conclusion')}, direccion {despues.get('direccion', '?')}. {despues.get('enunciado', '')}", f"Bloqueos ahora: {', '.join(h.get('bloqueos', [])) or 'ninguno'}", ""]
+                if h.get("experimento") and h["experimento"].get("estado") in ("asignado", "en_curso"):
+                    L.append("Experimento en marcha: el recalculo no lo cancela ni lo autoriza; decide una persona.")
+                    L.append("")
+            A.guardar_artefacto(e, inv["id"], f"Informe de diferencias: {causa}", "informe", "\n".join(L), f"{len(ids)} conclusiones recalculadas", (A.ultima_corrida_de(e, inv["id"]) or {}).get("iteracionActual", 0), ahora)
+            A.con_evento(e, inv["id"], "dependencias", f"Informe de diferencias: {len(ids)} conclusiones recalculadas por {causa}", f"#/investigaciones/{inv['id']}/artefactos", ahora)
+            return True
+
+        self.almacen.mutar(fn, "informe_diferencias")
 
     # -- el bucle de una corrida --------------------------------------------
 
@@ -580,7 +855,7 @@ class Supervisor:
                 await self._cerrar_iteracion(c, it)
                 continue
             inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
-            motivo = _condicion_de_parada(inv["condicionParada"], it["numero"] - 1, c)
+            motivo = _condicion_de_parada(inv["condicionParada"], it["numero"] - 1, c, mision=inv.get("mision"))
             if motivo:
                 # El tiempo o las llamadas se cumplieron a mitad de iteracion: lo
                 # pendiente se omite con motivo y la iteracion se cierra ya.
@@ -589,21 +864,91 @@ class Supervisor:
                 continue
             await self._ejecutar_paso(c, it, paso)
 
+    async def _proponer_mision(self, ctx: Ctx, inv: dict[str, Any]) -> None:
+        """La mision estructurada (etapa 0 de ROSA2018) a partir del objetivo.
+        Queda propuesta; la persona la aprueba (o la corrige) con el primer
+        plan o desde Objetivo y datos."""
+        try:
+            pred = await ctx.llamar("cerebro", self.programas.mision, objetivo=inv["objetivo"], relevancia=inv["relevancia"] or "Sin definir", limites="; ".join(inv["limites"]) or "Ninguno", configuracion=T.configuracion(inv))
+            m = pred.mision
+            mision = {**P.mision_vacia(), "metaAmplia": inv["objetivo"], "poblacion": m.poblacion.strip(), "etapa": m.etapa.strip(), "celulaTejido": m.celula_tejido.strip(), "mecanismo": m.mecanismo.strip(), "tipoIntervencion": m.tipo_intervencion.strip(), "capacidadesLaboratorio": [c.strip() for c in m.capacidades_laboratorio if c.strip()][:6], "propuestaPorRosa": True}
+            justificacion = m.justificacion.strip()
+            # El planificador del programa: areas de investigacion comparables, con
+            # familias de mecanismo distintas y las que quedan sin explorar.
+            try:
+                pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites="; ".join(inv["limites"]) or "Ninguno")
+                mision["areas"] = [P.nueva_area(titulo=a.titulo.strip(), familiaMecanismo=a.familia_mecanismo.strip(), relevancia=a.relevancia.strip(), valorIntervencion=a.valor_intervencion.strip(), incertidumbre=a.incertidumbre.strip(), comprobabilidad=a.comprobabilidad.strip(), coste=a.coste.strip(), demora=a.demora.strip(), dependeDe=a.depende_de.strip(), estado="elegida" if a.elegir else ("sin_explorar" if "sin ruta" in a.comprobabilidad.lower() else "propuesta")) for a in list(pa.areas)[:6]]
+                if not any(a["estado"] == "elegida" for a in mision["areas"]) and mision["areas"]:
+                    mision["areas"][0]["estado"] = "elegida"
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+        except Exception as ex:  # noqa: BLE001
+            traceback.print_exc()
+            mision, justificacion = None, str(ex)[:200]
+        ahora = P.ahora_ms()
+
+        def fn(e: dict[str, Any]) -> bool:
+            i = next((x for x in e["investigaciones"] if x["id"] == inv["id"]), None)
+            if not i:
+                return False
+            i["_misionIntentada"] = True
+            if mision and i.get("mision") is None:
+                mision["presupuesto"]["llamadas"] = (A.ultima_corrida_de(e, i["id"]) or {}).get("presupuesto", {}).get("limiteLlamadas", mision["presupuesto"]["llamadas"])
+                i["mision"] = mision
+                A.con_evento(e, i["id"], "mision", f"Rosa propone la mision: {justificacion[:140]}. Apruebala o corrigela en Objetivo y datos.", f"#/investigaciones/{i['id']}/investigacion", ahora)
+            return True
+
+        self.almacen.mutar(fn, "mision")
+
+    async def _formular_pregunta(self, ctx: Ctx, c: dict[str, Any], inv: dict[str, Any]) -> None:
+        """La pregunta concreta de la campana, con la plantilla del plan
+        completo, desde la meta, la mision y el area elegida. Queda
+        propuesta; se aprueba con el primer plan o se corrige en la corrida."""
+        m = inv.get("mision") or {}
+        elegida = next((a for a in m.get("areas", []) if a["estado"] == "elegida"), None)
+        area = (f"{elegida['titulo']} ({elegida['familiaMecanismo']}). Relevancia: {elegida['relevancia']}. Comprobabilidad: {elegida['comprobabilidad']}. Coste: {elegida['coste']}. Demora: {elegida['demora']}." if elegida else f"Objetivo tal como lo escribio la persona: {inv['objetivo']}")
+        try:
+            pred = await ctx.llamar("cerebro", self.programas.pregunta, meta_amplia=m.get("metaAmplia") or inv["objetivo"], mision=PASOS._texto_mision(inv), area=area, modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30))
+            q = pred.pregunta
+            pregunta = {**P.pregunta_vacia(), "contexto": q.contexto.strip(), "etapa": q.etapa.strip(), "intervencion": q.intervencion.strip(), "comparador": q.comparador.strip(), "desenlace": q.desenlace.strip(), "ventana": q.ventana.strip(), "unidadBiologica": q.unidad_biologica.strip(), "mecanismos": q.mecanismos.strip(), "decision": q.decision.strip(), "umbralEfecto": q.umbral_efecto.strip(), "umbralResuelto": bool(q.umbral_resuelto) and "sin resolver" not in q.umbral_efecto.lower(), "pasoRuta": q.paso_ruta, "enunciado": q.enunciado.strip(), "propuestaPorRosa": True}
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            pregunta = None
+        ahora = P.ahora_ms()
+
+        def fn(e: dict[str, Any]) -> bool:
+            c2 = next((x for x in e["corridas"] if x["id"] == c["id"]), None)
+            if not c2:
+                return False
+            c2["_preguntaIntentada"] = True
+            if pregunta and c2.get("pregunta") is None:
+                c2["pregunta"] = pregunta
+                A.con_evento(e, inv["id"], "corrida_estado", f"Pregunta de la corrida {c2['numero']}: {pregunta.get('enunciado', '')[:140]}", f"#/investigaciones/{inv['id']}/corrida", ahora)
+            return True
+
+        self.almacen.mutar(fn, "pregunta")
+
     async def _proponer_plan(self, c: dict[str, Any], anterior: dict[str, Any] | None) -> None:
         e = self.almacen.estado
         inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
         numero = (anterior["numero"] + 1) if anterior else 1
-        motivo = _condicion_de_parada(inv["condicionParada"], numero - 1, c) if anterior else None
+        motivo = _condicion_de_parada(inv["condicionParada"], numero - 1, c, mision=inv.get("mision")) if anterior else None
         if motivo:
             self.almacen.mutar(lambda e2: _terminar_corrida(e2, c["id"], motivo), "parada")
             return
         ctx = Ctx(self.almacen, self.programas, self.modelos, c["id"], inv["id"], anterior["id"] if anterior else "", numero)
+        if inv.get("mision") is None and not inv.get("_misionIntentada"):
+            await self._proponer_mision(ctx, inv)
+            inv = next(i for i in self.almacen.estado["investigaciones"] if i["id"] == c["investigacionId"])
+        if c.get("pregunta") is None and not c.get("_preguntaIntentada"):
+            await self._formular_pregunta(ctx, c, inv)
         plan: list[dict[str, Any]] = []
         try:
+            pregunta = (c.get("pregunta") or {}).get("enunciado") or (next((x for x in self.almacen.estado["corridas"] if x["id"] == c["id"]), {}).get("pregunta") or {}).get("enunciado")
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.plan,
-                objetivo=inv["objetivo"],
+                objetivo=inv["objetivo"] + (f"\nPregunta de esta campana: {pregunta}" if pregunta else ""),
                 relevancia=inv["relevancia"],
                 limites="; ".join(inv["limites"]) or "Ninguno declarado",
                 condicion_parada=inv["condicionParada"],
@@ -613,9 +958,16 @@ class Supervisor:
                 hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]),
                 numero_iteracion=numero,
             )
+            hay_datos = any(d["estado"] == "aprobado" and (d.get("procedencia") or {}).get("hash") for d in inv.get("datasets", []))
             for p in list(pred.plan)[:7]:
-                paso = P.nuevo_paso(p.titulo, p.detalle, COSTE_POR_TIPO.get(p.tipo, 20))
+                if p.tipo == "analisis" and not hay_datos:
+                    continue  # sin datasets aprobados no hay nada que analizar
+                paso = P.nuevo_paso(p.titulo, p.detalle, COSTE_POR_TIPO.get(p.tipo, 20), valor_decision=(p.valor_decision or "").strip())
                 paso["tipo"] = p.tipo
+                plan.append(paso)
+            if hay_datos and not any(p.get("tipo") == "analisis" for p in plan) and (any(r["investigacionId"] == inv["id"] and r["estado"] == "pendiente" for r in e.get("reproducciones", [])) or any(h["investigacionId"] == inv["id"] and h.get("_analisisPedido") for h in e["hipotesis"])):
+                paso = P.nuevo_paso("Analisis in silico", "Reproducciones pendientes de la puerta y analisis pedidos, en el sandbox", COSTE_POR_TIPO["analisis"])
+                paso["tipo"] = "analisis"
                 plan.append(paso)
             plan = _ordenar_plan(plan, hay_novedad_pendiente=any(h["investigacionId"] == inv["id"] and h["novedad"]["precedente"]["detalle"].startswith("No comprobado") for h in e["hipotesis"]))
         except PresupuestoAgotado:
@@ -749,7 +1101,7 @@ class Supervisor:
         ahora = P.ahora_ms()
         bloqueadas = [a for a in afs if a["veredicto"] in ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")]
         informe = _informe(inv, it, resumen, hechos_nuevos, hip_nuevas, afs, bloqueadas)
-        terminar = _condicion_de_parada(inv["condicionParada"], it["numero"], c)
+        terminar = _condicion_de_parada(inv["condicionParada"], it["numero"], c, mision=inv.get("mision"))
 
         def fn(e2: dict[str, Any]) -> bool:
             it2 = next(x for x in e2["iteraciones"] if x["id"] == it["id"])
@@ -757,6 +1109,11 @@ class Supervisor:
             it2["resumen"] = resumen
             if llano:
                 it2["resumenLlano"] = llano
+            # Priorizacion: bloqueos no compensables y candidatas con diversidad.
+            ids = PR.marcar_candidatas(e2, inv["id"])
+            if ids:
+                titulos = [next(x["titulo"][:50] for x in e2["hipotesis"] if x["id"] == i) for i in ids]
+                A.con_evento(e2, inv["id"], "ranking_cambio", f"Candidatas al laboratorio tras la iteracion {it['numero']}: " + "; ".join(titulos), f"#/investigaciones/{inv['id']}/ranking", ahora)
             A.guardar_artefacto(e2, inv["id"], f"Informe de la iteracion {it['numero']}", "informe", informe, resumen[:140], it["numero"], ahora)
             A.con_evento(e2, inv["id"], "iteracion_terminada", f"Iteracion {it['numero']} terminada: {resumen[:160]}", f"#/investigaciones/{inv['id']}/corrida", ahora)
             c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
@@ -788,7 +1145,25 @@ def _ordenar_plan(plan: list[dict[str, Any]], hay_novedad_pendiente: bool) -> li
     if "novedad" in tipos and "hipotesis" in tipos and tipos.index("novedad") < tipos.index("hipotesis") and not hay_novedad_pendiente:
         n = plan.pop(tipos.index("novedad"))
         plan.insert([p.get("tipo") for p in plan].index("hipotesis") + 1, n)
+        tipos = [p.get("tipo") for p in plan]
+    # El analisis con datos va despues de las hipotesis (necesita su prediccion
+    # falsable y la decision del Killer) y antes de la meta-revision.
+    if "analisis" in tipos and "hipotesis" in tipos and tipos.index("analisis") < tipos.index("hipotesis"):
+        a = plan.pop(tipos.index("analisis"))
+        plan.insert([p.get("tipo") for p in plan].index("hipotesis") + 1, a)
     return plan
+
+
+def _fijar_evaluacion(e: dict[str, Any], cambio_id: str, evaluacion: dict[str, Any], ahora: int) -> bool:
+    c = next((x for x in e.get("aprendizaje", []) if x["id"] == cambio_id), None)
+    if not c:
+        return False
+    c.pop("_evaluar", None)
+    c["evaluacion"] = evaluacion
+    if c["estado"] == "propuesto" and evaluacion.get("casos"):
+        c["estado"] = "evaluado"
+    A.con_evento(e, c.get("investigacionId"), "aprendizaje", f"Criterio evaluado sobre {evaluacion.get('casos', 0)} casos: acuerdo {evaluacion.get('antes')} antes, {evaluacion.get('despues')} despues. {evaluacion.get('nota', '')}", "#/ajustes", ahora)
+    return True
 
 
 def _omitir_pendientes(e: dict[str, Any], iteracion_id: str, motivo: str) -> bool:
@@ -866,13 +1241,22 @@ def _estado_paso(e: dict[str, Any], iteracion_id: str, paso_id: str, estado: str
     return False
 
 
-def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int | None = None) -> str | None:
+def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int | None = None, mision: dict[str, Any] | None = None) -> str | None:
     """Solo se automatiza lo que se puede medir en el texto de la condicion:
     "N iteraciones", "N minutos" u "N horas" de corrida, y "N llamadas".
     Lo demas ("cuando el modelo de mundo deje de cambiar") lo decide la
-    investigadora con el boton de detener. Devuelve el motivo o None."""
+    investigadora con el boton de detener. Devuelve el motivo o None.
+    Ademas, el presupuesto de la mision en dinero y en horas para la corrida."""
     t = texto.lower()
     ahora = ahora if ahora is not None else P.ahora_ms()
+    if mision and mision.get("presupuesto"):
+        pres = mision["presupuesto"]
+        usd = c["gasto"].get("usd", 0.0)
+        if pres.get("usd") and usd >= pres["usd"]:
+            return f"Se alcanzo el presupuesto de la mision en dinero ({usd:.2f} de {pres['usd']:.2f} USD estimados)"
+        horas = (ahora - c["empezadaEn"]) / 3_600_000
+        if pres.get("horas") and horas >= pres["horas"]:
+            return f"Se alcanzo el presupuesto de la mision en tiempo ({horas:.1f} de {pres['horas']:.0f} horas)"
     m = re.search(r"(\d+)\s*iteraci", t)
     if m and numero >= int(m.group(1)):
         return f"Se alcanzaron las {m.group(1)} iteraciones de la condicion de parada"

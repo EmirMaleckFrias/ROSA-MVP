@@ -21,7 +21,18 @@ INTEC. Antes de tocar nada, leer en este orden:
    scientists y las herramientas de literatura, las convenciones de la
    medicina basada en evidencia (GRADE, Cochrane, AAN, IPCC, ICD 203) y lo que
    se fusiono en la "Conclusion de Rosa" y el resumen de cada iteracion.
-7. `README.md`: como arrancar Rosa y como se investiga con ella.
+7. `ROSA2018_SYSTEM_PLAN.md`: el plan completo del sistema (10 de septiembre
+   de 2026), tal como lo mando la persona responsable del programa. Es el
+   documento que manda sobre la arquitectura; el concepto del MVP es su
+   primer demostrador.
+8. `PLAN-ROSA2018.md`: los dos documentos del programa (el concepto del MVP
+   del 31 de octubre y el plan completo del sistema en etapas A a G) mapeados
+   a lo que Rosa tiene y le falta, con el orden de trabajo. Manda sobre el
+   alcance.
+9. `INVESTIGACION-ROSA2018.md`: los cuatro informes (Killer, procedencia,
+   ejecucion in silico, priorizacion y aprendizaje) que sostienen las
+   decisiones de diseno de ROSA2018 en Rosa, con URL por afirmacion.
+10. `README.md`: como arrancar Rosa y como se investiga con ella.
 
 `casos_evaluacion.jsonl` son los 17 casos de control del RAG anterior, todos
 sin aprobar por un humano.
@@ -55,6 +66,9 @@ sin aprobar por un humano.
 - Sin guiones largos (U+2014) en codigo, comentarios ni interfaz.
 - Antes de cada commit, escanear `sk-proj-`, `sb_secret_`, `vcp_`, `vck_`,
   `github_pat_`, `ghp_`, `eyJhbGci`, `eyJ2MiI6`, `ntn_`, `secret_`, `GOCSPX-`.
+- Commit y push al cerrar cada bloque de trabajo, sin esperar a que se pida
+  (regla de Emir, 11 de septiembre de 2026), con los tests pasando y el
+  escaneo de secretos limpio. Remoto `origin`, rama `main`.
 - La marca grafica de Rosa es el arbol del Alzheimer Project; no se usa el
   logo de AI Robotix.
 - Intentar romper el propio cambio antes de cerrarlo: test adversarial,

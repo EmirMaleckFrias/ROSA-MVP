@@ -63,8 +63,14 @@ def _ic_mediana(nums: list[float], remuestras: int = 2000) -> tuple[float, float
     if len(nums) < 4:
         return (min(nums), max(nums))
     rng = random.Random(12345)
-    medianas = sorted(statistics.median(rng.choices(nums, k=len(nums))) for _ in range(remuestras))
-    return (medianas[int(0.025 * remuestras)], medianas[int(0.975 * remuestras) - 1])
+    # Con tablas grandes el remuestreo completo tarda minutos y bloquearia el
+    # servidor: se remuestrea una submuestra fija de 5000 valores con menos
+    # repeticiones. Es orientativo; el analisis prerregistrado va aparte.
+    base = nums if len(nums) <= 5000 else rng.sample(nums, 5000)
+    if len(nums) > 5000:
+        remuestras = min(remuestras, 300)
+    medianas = sorted(statistics.median(rng.choices(base, k=len(base))) for _ in range(remuestras))
+    return (medianas[int(0.025 * remuestras)], medianas[max(0, int(0.975 * remuestras) - 1)])
 
 
 def _resumen_tabla(cabecera: list[str], filas: list[list[str]]) -> str:
@@ -94,6 +100,112 @@ def _resumen_tabla(cabecera: list[str], filas: list[list[str]]) -> str:
                 distintos[k] = distintos.get(k, 0) + 1
             top = sorted(distintos.items(), key=lambda kv: -kv[1])[:8]
             lineas.append(f"- {col} (categorica): {len(distintos)} valores distintos; mas frecuentes: " + ", ".join(f"{k}={n}" for k, n in top) + f"; faltantes={faltan}")
+    return "\n".join(lineas)
+
+
+DIR_DATASETS = DIR_DATOS / "_datasets"
+CENTINELAS = {"-1", "-9", "-99", "-999", "NA", "N/A", "null", "NULL", "None", "#N/A", ".", "?"}
+
+
+def ruta_dataset(investigacion_id: str, dataset_id: str, fichero: str) -> Path:
+    return DIR_DATASETS / re.sub(r"[^\w\-]+", "_", investigacion_id) / re.sub(r"[^\w\-]+", "_", dataset_id) / nombre_seguro(fichero)
+
+
+def guardar_dataset(investigacion_id: str, dataset_id: str, nombre: str, contenido: bytes) -> Path:
+    if len(contenido) > MAX_BYTES:
+        raise ValueError("El fichero supera los 50 MB")
+    ruta = ruta_dataset(investigacion_id, dataset_id, nombre)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_bytes(contenido)
+    return ruta
+
+
+def _leer_tabla(ruta: Path) -> tuple[list[str], list[list[str]]] | None:
+    suf = ruta.suffix.lower()
+    raw = ruta.read_bytes()
+    try:
+        texto = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        texto = raw.decode("latin-1", errors="replace")
+    if suf == ".json":
+        try:
+            datos = json.loads(texto)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(datos, list) and datos and isinstance(datos[0], dict):
+            cabecera = sorted({k for d in datos for k in d})
+            return cabecera, [[str(d.get(k, "")) for k in cabecera] for d in datos]
+        return None
+    if suf in (".csv", ".tsv", ".txt"):
+        try:
+            dialecto = csv.Sniffer().sniff(texto[:5000], delimiters=",;\t|")
+        except csv.Error:
+            dialecto = csv.excel
+        filas = [f for f in csv.reader(io.StringIO(texto), dialecto) if any(c.strip() for c in f)]
+        if len(filas) >= 2:
+            return filas[0], filas[1:]
+    return None
+
+
+def perfil_dataset(ruta: Path) -> dict:
+    """El contrato de datos que la interfaz ya pintaba pero nadie calculaba:
+    columnas, filas, columnas con valores centinela, nombres duplicados, y el
+    esqueleto del diccionario (tipo inferido, descripcion vacia para que la
+    persona la rellene). Determinista."""
+    tabla = _leer_tabla(ruta)
+    if tabla is None:
+        return {"columnas": [], "filas": 0, "valoresCentinela": 0, "nombresDuplicados": 0, "diccionario": [], "tabular": False}
+    cabecera, filas = tabla
+    vistos: dict[str, int] = {}
+    for c in cabecera:
+        vistos[c.strip().lower()] = vistos.get(c.strip().lower(), 0) + 1
+    duplicados = sum(1 for v in vistos.values() if v > 1)
+    centinelas = 0
+    diccionario = []
+    for i, col in enumerate(cabecera):
+        valores = [f[i] if i < len(f) else "" for f in filas]
+        nums = [n for n in (_numero(v) for v in valores) if n is not None]
+        no_vacios = [v for v in valores if v.strip()]
+        # Un centinela real se repite: negativos codificados (-1, -9, -99, -999) en
+        # al menos el 1 % de los valores, o 999 y 9999 en al menos el 2 %. Ocho
+        # valores de 657.975 que valen 999 son datos, no centinelas.
+        negativos = sum(1 for x in nums if x in (-1, -9, -99, -999))
+        positivos = sum(1 for x in nums if x in (999, 9999))
+        con_centinela = any(v.strip() in CENTINELAS for v in valores if not _numero(v)) or (bool(nums) and len(nums) >= 10 and (negativos >= max(3, 0.01 * len(nums)) or positivos >= max(3, 0.02 * len(nums))))
+        if con_centinela:
+            centinelas += 1
+        if nums and len(nums) >= max(3, len(no_vacios) * 0.6):
+            tipo = "numerica"
+            if len(set(nums)) <= 2 and all(x in (0.0, 1.0) for x in nums):
+                tipo = "categorica"
+        elif all(re.match(r"^\d{4}-\d{2}-\d{2}", v.strip()) for v in no_vacios[:20] if v.strip()) and no_vacios:
+            tipo = "fecha"
+        elif len(set(no_vacios)) == len(no_vacios) and len(no_vacios) > 10 and re.search(r"id", col, re.I):
+            tipo = "identificador"
+        elif len(set(no_vacios)) <= max(12, len(no_vacios) * 0.1):
+            tipo = "categorica"
+        else:
+            tipo = "texto"
+        diccionario.append({"columna": col, "descripcion": "", "tipo": tipo, "unidad": ""})
+    return {"columnas": list(cabecera), "filas": len(filas), "valoresCentinela": centinelas, "nombresDuplicados": duplicados, "diccionario": diccionario, "tabular": True}
+
+
+def esquema_para_modelo(ruta: Path, procedencia: dict, incluir_filas: bool = False) -> str:
+    """Lo que ve el modelo de un dataset: diccionario y estadisticos por
+    columna. Las filas solo si el libro de procedencia lo permite; con datos
+    controlados (NIH NOT-OD-25-081, DUA de A4 y del AD Knowledge Portal) no
+    salen nunca hacia el gateway."""
+    resumen, muestra = resumir(ruta, filas_muestra=20)
+    lineas = [f"Dataset: {procedencia.get('origen') or 'origen sin declarar'}, version {procedencia.get('version') or '?'}, {procedencia.get('filas', 0)} filas, sha256 {str(procedencia.get('hash', ''))[:12]}." + (" SINTETICO." if procedencia.get("sintetico") else "")]
+    dic = procedencia.get("diccionario") or []
+    if dic:
+        lineas.append("Diccionario de columnas:")
+        lineas += [f"- {c['columna']} ({c['tipo']}{', ' + c['unidad'] if c.get('unidad') else ''}): {c['descripcion'] or 'sin descripcion'}" for c in dic]
+    lineas += ["Resumen estadistico:", resumen]
+    if incluir_filas and procedencia.get("permiteLlmTerceros"):
+        lineas += ["Primeras filas (autorizado por el libro de procedencia):", muestra[:4000]]
+    else:
+        lineas.append("Filas individuales: no se muestran (el libro de procedencia no autoriza enviarlas a un modelo de terceros).")
     return "\n".join(lineas)
 
 

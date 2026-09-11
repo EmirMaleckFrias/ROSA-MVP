@@ -35,6 +35,51 @@ export interface ConfiguracionObjetivo {
 
 export type ClasificacionDatos = 'publico' | 'interno' | 'personas';
 
+/** Clase de evidencia del libro de procedencia (ROSA2018, etapa 1): una
+ *  observacion medida, un dato derivado de otro, lo que afirma un articulo,
+ *  o una prediccion de un modelo. No se suman entre si. */
+export type ClaseEvidencia = 'observacion_original' | 'derivado' | 'literatura' | 'prediccion';
+
+/** Una columna del diccionario de datos. */
+export interface ColumnaDiccionario {
+  columna: string;
+  descripcion: string;
+  tipo: 'numerica' | 'categorica' | 'fecha' | 'texto' | 'identificador';
+  unidad: string;
+}
+
+/** El libro de procedencia de un dataset: de donde salio, con que version,
+ *  licencia y permisos, su hash para fijarlo, su diccionario, si se autorizo
+ *  el uso con IA y si es sintetico. Sin esto un dato no entra a un analisis. */
+export interface ProcedenciaDataset {
+  origen: string;
+  version: string;
+  licencia: string;
+  permisos: string;
+  fechaObtencion: number | null;
+  /** sha256 del fichero tal como se subio. Un hash distinto es otro dataset. */
+  hash: string;
+  fichero: string | null;
+  filas: number;
+  diccionario: ColumnaDiccionario[];
+  usoIAAutorizado: 'si' | 'no' | 'desconocido';
+  /** Un dato sintetico se etiqueta siempre; nunca cuenta como observacion. */
+  sintetico: boolean;
+  clase: ClaseEvidencia;
+  /** Cohorte de origen, para detectar que dos fuentes reutilizan la misma. */
+  cohorte: string;
+  /** Si filas individuales pueden salir hacia un modelo de terceros (el AI
+   *  Gateway). Nace en falso: el NIH (NOT-OD-25-081) y los acuerdos de A4 y
+   *  del AD Knowledge Portal lo prohiben para datos controlados. Con falso,
+   *  al modelo solo llegan agregados y salidas del codigo. */
+  permiteLlmTerceros: boolean;
+  /** Texto literal de la clausula de IA del acuerdo de uso, si la hay. */
+  restriccionIA: string;
+  acceso: 'abierto' | 'controlado' | 'colaboracion' | 'propio';
+  /** Columnas y filas detectadas al subir, y valores centinela por columna. */
+  columnas: string[];
+}
+
 /** Un conjunto de datos adjunto a la investigacion, con su contrato de
  *  datos: la comprobacion previa que evita que un p-valor guardado como 0
  *  contamine horas de corrida (fallo documentado en Kosmos). */
@@ -50,6 +95,105 @@ export interface Dataset {
   clasificacion: ClasificacionDatos;
   estado: 'pendiente' | 'aprobado' | 'rechazado';
   origen: 'subida' | 'catalogo';
+  /** El libro de procedencia. Los datasets del catalogo lo traen vacio hasta que se sube el fichero. */
+  procedencia?: ProcedenciaDataset | null;
+}
+
+/** Un area de investigacion propuesta por el planificador a partir de la
+ *  meta amplia (plan completo ROSA2018, seccion 1). Se comparan por
+ *  relevancia, valor de intervencion, incertidumbre, comprobabilidad, coste,
+ *  demora y dependencia; se conservan familias de mecanismo distintas y se
+ *  anotan las que quedan sin explorar. */
+export interface AreaInvestigacion {
+  id: Id;
+  titulo: string;
+  familiaMecanismo: string;
+  relevancia: string;
+  valorIntervencion: string;
+  incertidumbre: string;
+  comprobabilidad: string;
+  coste: string;
+  demora: string;
+  dependeDe: string;
+  estado: 'propuesta' | 'elegida' | 'pausada' | 'sin_explorar';
+  /** Si se pauso, con que condicion se reabre. */
+  condicionReapertura: string;
+}
+
+/** La pregunta concreta de una campana (corrida), con la plantilla del plan
+ *  completo: en el contexto C y la etapa S, la intervencion A cambia el
+ *  desenlace P en el tiempo T frente al comparador B, y el experimento
+ *  distingue M1 de M2. El umbral de efecto puede quedar "sin resolver". */
+export interface PreguntaCampana {
+  contexto: string;
+  etapa: string;
+  intervencion: string;
+  comparador: string;
+  desenlace: string;
+  ventana: string;
+  unidadBiologica: string;
+  mecanismos: string;
+  decision: string;
+  umbralEfecto: string;
+  umbralResuelto: boolean;
+  /** Paso de la ruta terapeutica al que sirve la campana. */
+  pasoRuta: PasoRutaTerapeutica;
+  propuestaPorRosa: boolean;
+  aprobadaEn: number | null;
+}
+
+/** La ruta terapeutica explicita del plan completo (seccion 10). Una
+ *  campana celular completada no completa la ruta. */
+export type PasoRutaTerapeutica = 'mecanismo' | 'opciones_intervencion' | 'compromiso_diana' | 'efecto_funcional' | 'selectividad_toxicidad' | 'exposicion' | 'replicacion_independiente' | 'evidencia_poblacion';
+
+/** Roles del programa (plan completo, seccion 12). Se pueden combinar, pero
+ *  quien escribe una conclusion no es su unico evaluador. */
+export interface Responsables {
+  patrocinador: string;
+  liderCientifico: string;
+  metodos: string;
+  datos: string;
+  ingenieria: string;
+  laboratorio: string;
+  evaluacion: string;
+}
+
+/** La mision cientifica (DiseaseMission en ROSA2018; "programme charter" en
+ *  el plan completo): lo que fija el marco antes de la primera corrida. Rosa
+ *  propone valores a partir del objetivo y una persona los aprueba. Lo que
+ *  no se sabe queda "sin fijar": un recurso desconocido no se trata como
+ *  disponible ni un permiso desconocido como concedido. */
+export interface Mision {
+  poblacion: string;
+  etapa: string;
+  celulaTejido: string;
+  mecanismo: string;
+  tipoIntervencion: string;
+  capacidadesLaboratorio: string[];
+  /** Presupuesto en llamadas al modelo, dolares estimados y horas de reloj. */
+  presupuesto: { llamadas: number; usd: number; horas: number };
+  propuestaPorRosa: boolean;
+  aprobadaEn: number | null;
+  aprobadaPor: string | null;
+  /** Meta amplia del programa, si el objetivo escrito es la campana y no la meta. */
+  metaAmplia?: string;
+  /** Areas de investigacion propuestas por el planificador, con su comparacion. */
+  areas?: AreaInvestigacion[];
+  /** Acciones permitidas sin volver a preguntar, y las que siempre preguntan. */
+  accionesPermitidas?: string[];
+  responsables?: Responsables;
+}
+
+/** Puerta de reproduccion (ROSA2018, etapa 2): el modulo de analisis con
+ *  datos no descubre nada hasta reproducir N analisis publicados dentro de
+ *  tolerancia. Una persona puede eximirla dejando el motivo. */
+export interface PuertaReproduccion {
+  requeridas: number;
+  superadas: number;
+  estado: 'bloqueada' | 'abierta' | 'eximida';
+  eximidaPor: string | null;
+  motivo: string;
+  fecha: number | null;
 }
 
 export interface Investigacion {
@@ -69,6 +213,9 @@ export interface Investigacion {
   datasets: Dataset[];
   /** Hasta cuando vigilar la literatura tras cerrar la corrida. Null = no. */
   vigilarLiteraturaHasta: number | null;
+  /** La mision estructurada. Falta en investigaciones anteriores a septiembre de 2026. */
+  mision?: Mision | null;
+  puertaReproduccion?: PuertaReproduccion;
 }
 
 export type EstadoCorrida =
@@ -88,6 +235,8 @@ export interface Gasto {
   segundos: number;
   /** Articulos leidos en toda la corrida. */
   articulosLeidos: number;
+  /** Dolares estimados a partir de los tokens y la tabla de precios de Rosa. */
+  usd?: number;
 }
 
 /** Tope duro de la corrida completa, con alarmas antes del tope. Al llegar
@@ -214,6 +363,9 @@ export interface Corrida {
   /** Que Rosa exacta corrio: commit del codigo, hash de las firmas DSPy y
    *  programas optimizados cargados. Para auditar cada hipotesis. */
   arnes?: { commit: string; firmas: string; optimizados: string };
+  /** La pregunta concreta de esta campana, formulada por Rosa desde la meta
+   *  y aprobada con el primer plan. Falta en corridas anteriores. */
+  pregunta?: PreguntaCampana | null;
 }
 
 export type EstadoPaso = 'pendiente' | 'en_curso' | 'hecho' | 'fallido' | 'omitido';
@@ -230,6 +382,9 @@ export interface PasoPlan {
   motivoFallo: string | null;
   /** Presupuesto de llamadas para este paso, si se fijo. */
   presupuesto: number | null;
+  /** Que decision cambiaria segun el resultado de este paso. Si la siguiente
+   *  accion es la misma salga lo que salga, el paso vale poco (plan completo, seccion 6). */
+  valorDecision?: string;
 }
 
 export type TipoPista = 'literatura' | 'ensayos' | 'grafo' | 'extraccion' | 'verificacion' | 'novedad' | 'modelo' | 'replicacion';
@@ -405,6 +560,56 @@ export interface Afirmacion {
    *  extractor. Es lo que se ensena al lado de la cita para que la persona
    *  compruebe sin abrir el PDF. */
   fragmento?: string;
+  /** Clase de evidencia del libro de procedencia. Literatura por defecto. */
+  clase?: ClaseEvidencia;
+  /** Si el dato viene de un fichero sintetico. Nunca cuenta como observacion. */
+  sintetico?: boolean;
+  /** Cohorte o estudio del que salen los datos, tal como lo dice la fuente. */
+  cohorte?: string;
+  /** El fragmento contenia texto que parece una instruccion para el modelo.
+   *  No se bloquea (los clasificadores fallan en texto tecnico): se ensena. */
+  sospechosoInyeccion?: boolean;
+  /** Id de la afirmacion en el almacen compartido de la corrida: una
+   *  observacion no pertenece a una hipotesis, se enlaza a todas las
+   *  compatibles (plan completo, seccion 8). */
+  afirmacionId?: string;
+  /** Nivel de medicion (plan completo, seccion 3): una conclusion de la
+   *  discusion no se convierte en un resultado medido. */
+  nivelMedicion?: 'medida' | 'resultado_analisis' | 'interpretacion_autor' | 'interpretacion_rosa';
+  /** Campos del registro de evidencia cuando la afirmacion es un dato: n
+   *  independiente, comparador, efecto con unidades e incertidumbre. Lo
+   *  que la fuente no dice queda vacio y se lista en `sinResolver`. */
+  n?: string;
+  comparador?: string;
+  efecto?: string;
+  unidades?: string;
+  incertidumbre?: string;
+  sinResolver?: string[];
+}
+
+/** Un metodo, predictor, recurso de datos o ensayo registrado (MethodVersion
+ *  en el plan completo, seccion 5): que puede evaluar, donde aplica, que
+ *  necesita, como se valido y en que estado esta. La popularidad no lo
+ *  hace apto; la validacion si. */
+export interface MetodoRegistrado {
+  id: Id;
+  nombre: string;
+  tipo: 'analisis' | 'predictor' | 'recurso_datos' | 'ensayo_laboratorio' | 'busqueda' | 'revision';
+  evalua: string;
+  contextos: string[];
+  exclusiones: string[];
+  entradas: string;
+  salidas: string;
+  validacion: string;
+  fallosConocidos: string;
+  version: string;
+  dependeDe: string[];
+  coste: string;
+  responsable: string;
+  estado: 'propuesto' | 'implementado' | 'probado_en_contexto' | 'restringido' | 'retirado';
+  /** Contextos donde se probo (por ejemplo, reproducciones superadas). */
+  probadoEn: string[];
+  actualizadoEn: number;
 }
 
 export type TipoFuente = 'articulo' | 'preprint' | 'ensayo' | 'grafo' | 'base_curada';
@@ -446,6 +651,9 @@ export interface Fuente {
   /** Se leyo el texto completo o solo el resumen. */
   textoCompleto: boolean;
   citas: number | null;
+  /** Cohorte o estudio del que salen los datos (ADNI, BioFINDER, un NCT).
+   *  Dos fuentes con la misma cohorte no son dos evidencias independientes. */
+  cohorte?: string | null;
 }
 
 export interface MensajeProcedencia {
@@ -530,7 +738,7 @@ export interface Comentario {
 export interface Revision {
   fecha: number;
   quien: string;
-  accion: 'propuesta' | 'aceptada' | 'descartada' | 'refinar' | 'reabierta' | 'comentada' | 'no_puedo_juzgar' | 'aclarada' | 'replicada';
+  accion: 'propuesta' | 'aceptada' | 'descartada' | 'refinar' | 'reabierta' | 'comentada' | 'no_puedo_juzgar' | 'aclarada' | 'replicada' | 'reformulada' | 'suspendida' | 'killer';
   nota: string;
   /** La decision se tomo sin ver las citas ni el codigo. */
   aCiegas: boolean;
@@ -581,6 +789,11 @@ export interface Experimento {
   protocolo: string;
   ensayo: string;
   costeEstimado: string;
+  /** Controles positivo y negativo, tamano muestral con su supuesto, y lo
+   *  que se veria bajo la explicacion alternativa (Platt). */
+  controles?: string;
+  tamanoMuestral?: string;
+  alternativa?: string;
   laboratorio: string | null;
   estado: 'propuesto' | 'asignado' | 'en_curso' | 'datos_recibidos';
   ficheroDatos: string | null;
@@ -592,9 +805,20 @@ export interface Experimento {
    *  protocolo, criterios) como artefacto inmutable. */
   prerregistradoEn?: number | null;
   prerregistroArtefactoId?: string | null;
+  /** La version de la hipotesis que se prerregistro: es la que el resultado prueba. */
+  versionPrerregistrada?: number;
+  /** Que decision cambia segun salga el experimento (valor de decision). */
+  decisionQueCambia?: string;
   /** El veredicto del juez sobre los datos del laboratorio contra el prerregistro. */
   resultado?: ResultadoExperimento | null;
 }
+
+/** Los seis resultados que puede devolver el laboratorio (ROSA2018, etapa
+ *  9). Cada uno dispara un aprendizaje distinto: apoyo y negativo actualizan
+ *  la creencia; inconcluso pide potencia; fallo tecnico no toca la
+ *  hipotesis; toxicidad cierra la via; correccion de contexto crea una
+ *  hipotesis derivada con el contexto corregido. */
+export type ResultadoLaboratorio = 'apoyo_reproducido' | 'negativo_interpretable' | 'inconcluso' | 'fallo_tecnico' | 'toxicidad_inviabilidad' | 'correccion_contexto';
 
 export interface ResultadoExperimento {
   veredicto: 'confirma' | 'refuta' | 'inconcluso' | 'no_evaluable';
@@ -605,7 +829,101 @@ export interface ResultadoExperimento {
   exploratorio: string;
   fecha: number;
   fichero: string | null;
+  /** La clase principal del resultado en la taxonomia de retorno (decide la
+   *  accion de aprendizaje), y que hizo Rosa con el. */
+  clasificacion?: ResultadoLaboratorio;
+  accionTomada?: string;
+  /** Las dimensiones del resultado, que pueden coexistir (plan completo,
+   *  seccion 4): un fallo tecnico parcial con un efecto inesperado en otra
+   *  medida es las dos cosas, no una. */
+  dimensiones?: DimensionesResultado;
+  /** Si fue una correccion de contexto: la hipotesis derivada que se creo. */
+  hipotesisDerivadaId?: Id | null;
+  /** Que version de la hipotesis probo de verdad este resultado, y si es
+   *  compatible con la version actual. Un resultado tardio actualiza la
+   *  version que probo. */
+  versionProbada?: number;
+  compatibleConActual?: boolean;
 }
+
+export interface DimensionesResultado {
+  falloTecnico: boolean;
+  inconcluso: boolean;
+  efectoPequenoInterpretable: boolean;
+  efectoPredicho: boolean;
+  efectoInesperado: boolean;
+  toxicidad: boolean;
+  nota: string;
+}
+
+/** El contrato minimo de una hipotesis (Hypothesis Card, ROSA2018 etapa 3):
+ *  lo que hace falta para que el Killer la pueda juzgar y el laboratorio la
+ *  pueda ejecutar. Sin prediccion falsable no hay tarjeta. */
+export interface TarjetaHipotesis {
+  /** Diana molecular o proceso biologico. */
+  diana: string;
+  celula: string;
+  etapa: string;
+  intervencion: string;
+  direccion: 'aumenta' | 'disminuye' | 'modula' | 'sin_intervencion';
+  prediccionFalsable: string;
+  riesgos: string[];
+  /** En que paso de la ruta terapeutica esta esta hipotesis. */
+  pasoRuta?: PasoRutaTerapeutica;
+}
+
+/** Una version anterior de la hipotesis. Reformular no sobrescribe: crea
+ *  una version nueva y guarda la anterior aqui con el motivo del cambio. */
+export interface VersionHipotesis {
+  n: number;
+  fecha: number;
+  quien: string;
+  motivo: string;
+  titulo: string;
+  enunciado: string;
+  mecanismo: string;
+  comprobacion: { biomarcador: string; cohorte: string; diseno: string };
+  tarjeta: TarjetaHipotesis | null;
+}
+
+/** Decisiones que toma el Hypothesis Killer (ROSA2018, etapa 4). El
+ *  generador no esta entre quienes deciden: nunca aprueba lo suyo. */
+export type DecisionKiller = 'avanzar' | 'reformular' | 'suspender' | 'descartar_en_contexto';
+
+/** Una comprobacion de la lista del Killer o del auditor, con su resultado. */
+export interface Comprobacion {
+  comprobacion: string;
+  resultado: 'pasa' | 'falla' | 'no_aplica' | 'no_comprobable';
+  detalle: string;
+}
+
+export type EtapaDecision = 'killer_1' | 'killer_2' | 'priorizacion' | 'persona' | 'retorno';
+
+export type TipoDecision = DecisionKiller | 'valido' | 'no_valido' | 'no_evaluable_computacionalmente' | 'candidata' | 'bloqueada' | 'aceptada' | 'descartada' | 'reabierta' | 'refinar';
+
+/** DecisionRecord: cada decision sobre una hipotesis, con quien la tomo
+ *  (modelo o persona), la version juzgada, las comprobaciones y, si fue un
+ *  descarte auditado, lo que dijo el auditor de otra familia. */
+export interface Decision {
+  id: Id;
+  investigacionId: Id;
+  hipotesisId: Id;
+  version: number;
+  etapa: EtapaDecision;
+  decision: TipoDecision;
+  motivo: string;
+  comprobaciones: Comprobacion[];
+  /** Que haria falta para poder evaluarla, si se suspendio. */
+  queHariaFalta: string;
+  quien: string;
+  fecha: number;
+  auditoria: { quien: string; acuerdo: boolean; motivo: string; fecha: number } | null;
+}
+
+/** Bloqueos no compensables de la priorizacion (ROSA2018, etapa 8): uno
+ *  solo basta para sacar la hipotesis de los candidatos, puntue lo que
+ *  puntue en lo demas. */
+export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada';
 
 export interface Hipotesis {
   id: Id;
@@ -648,6 +966,151 @@ export interface Hipotesis {
    *  al cerrar cada iteracion. No dice si es cierta: dice cuanto la apoya lo
    *  que hay. */
   conclusion?: ConclusionHipotesis | null;
+  /** El contrato minimo (Hypothesis Card). Null si Rosa no pudo rellenarlo. */
+  tarjeta?: TarjetaHipotesis | null;
+  /** Version actual (1 al nacer) y las anteriores. */
+  version?: number;
+  versiones?: VersionHipotesis[];
+  /** La ultima decision del Killer sobre esta version. */
+  decisionKiller?: DecisionKiller | null;
+  /** Los bloqueos no compensables que hoy la sacan de los candidatos. */
+  bloqueos?: Bloqueo[];
+  /** Si la priorizacion la marco candidata al laboratorio en este ciclo. */
+  candidata?: boolean;
+  /** Artefacto con el dossier para el laboratorio, si se genero. */
+  dossierArtefactoId?: Id | null;
+  /** Ids de las ejecuciones in silico sobre esta hipotesis. */
+  ejecuciones?: Id[];
+}
+
+/* ---------------------------------------------------------------------
+   Analisis in silico: plan congelado, ejecucion, auditoria, reproduccion
+   --------------------------------------------------------------------- */
+
+/** AnalysisPlan: lo que se va a calcular, congelado antes de ver ningun
+ *  resultado. Cambiarlo despues es otro plan. */
+export interface PlanAnalisis {
+  id: Id;
+  investigacionId: Id;
+  hipotesisId: Id | null;
+  datasetId: Id;
+  tipo: 'confirmatorio' | 'exploratorio' | 'reproduccion';
+  pregunta: string;
+  /** Dependiente, independientes, confusores y constantes, nombradas como en el diccionario. */
+  variables: string[];
+  poblacion: string;
+  preprocesado: string[];
+  prueba: string;
+  hipotesisNula: string;
+  hipotesisAlternativa: string;
+  alpha: number;
+  direccionEsperada: string;
+  tamanoEfectoMinimo: string;
+  /** Con que comparar: la baseline simple obligatoria (clase mayoritaria, regresion sin la variable, permutacion con reajuste). */
+  baseline: string;
+  /** El control negativo: la misma prueba con etiquetas barajadas debe dar nada. */
+  controlNegativo: string;
+  correccionMultiplicidad: string;
+  umbralEfecto: string;
+  criterioNoEvaluable: string;
+  semilla: number;
+  hashDatos: string;
+  /** sha256 del plan canonico: cambiarlo despues es otro plan. */
+  hashPlan: string;
+  congeladoEn: number;
+  autor: string;
+  /** Si es una reproduccion de un analisis publicado, su id. */
+  reproduccionId: Id | null;
+}
+
+export type EstadoEjecucion = 'no_ejecutado' | 'en_curso' | 'error_tecnico' | 'completado' | 'tiempo_agotado';
+
+/** Que dice el resultado, separado de si el codigo corrio. */
+export type InterpretacionEjecucion = 'efecto_detectado' | 'sin_efecto_detectable' | 'no_evaluable';
+
+/** RunRecord: una ejecucion en el sandbox, con todo lo necesario para
+ *  repetirla: codigo, entorno, semilla, hash de los datos, salidas y estado
+ *  real. "No ejecutado", "error tecnico" y "sin efecto" son estados
+ *  distintos y no se confunden. */
+export interface Ejecucion {
+  id: Id;
+  investigacionId: Id;
+  hipotesisId: Id | null;
+  planId: Id;
+  tipo: 'hipotesis' | 'reproduccion';
+  codigo: string;
+  entorno: { python: string; paquetes: Paquete[] };
+  semilla: number;
+  hashDatos: string;
+  hashPlan: string;
+  inicio: number;
+  fin: number | null;
+  estado: EstadoEjecucion;
+  /** Donde corrio: contenedor Docker, micro-VM de Apple container, o el
+   *  aislamiento blando local (solo permitido con datos sinteticos). */
+  runtime: 'docker' | 'container' | 'local_sintetico' | 'ninguno';
+  red: 'deshabilitada';
+  codigoSalida: number | null;
+  duracionS: number | null;
+  salida: string;
+  error: string;
+  /** Las cifras que el codigo imprimio como RESULTADO nombre=valor. */
+  resultados: Record<string, string>;
+  baseline: Record<string, string>;
+  controlNegativo: Record<string, string>;
+  /** Corridas repetidas con otras semillas, si el plan tiene aleatoriedad. */
+  repeticiones: { semilla: number; resultados: Record<string, string> }[];
+  interpretacion: { estado: InterpretacionEjecucion; resumen: string } | null;
+  /** La llena el auditor: si el numero es plausible (unidades, escala, n). */
+  plausibilidadVerificada: boolean | null;
+  /** Killer II: el auditor independiente del analisis. */
+  auditoria: { veredicto: 'valido' | 'no_valido' | 'no_evaluable_computacionalmente'; comprobaciones: Comprobacion[]; motivo: string; quien: string; fecha: number } | null;
+}
+
+/** Un analisis publicado que hay que reproducir para abrir la puerta. */
+export interface Reproduccion {
+  id: Id;
+  investigacionId: Id;
+  datasetId: Id;
+  referencia: string;
+  doi: string;
+  descripcion: string;
+  cifraPublicada: string;
+  valorPublicado: number;
+  /** Tolerancia relativa (0,1 = 10 %), fijada antes de ejecutar. */
+  tolerancia: number;
+  planId: Id | null;
+  ejecucionId: Id | null;
+  valorObtenido: number | null;
+  estado: 'pendiente' | 'en_curso' | 'superada' | 'fallida' | 'error_tecnico';
+  creadaEn: number;
+}
+
+/* ---------------------------------------------------------------------
+   Aprendizaje (LearningChange)
+   --------------------------------------------------------------------- */
+
+export type NivelAprendizaje = 1 | 2 | 3;
+
+/** Un cambio que Rosa aprende, con su nivel: 1 cambia lo que cree de una
+ *  hipotesis (automatico, registrado); 2 cambia como razona (un criterio, un
+ *  programa optimizado) y solo se promueve tras compararlo sobre un conjunto
+ *  reservado, por una persona; 3 cambia una politica y solo lo hace una
+ *  persona en el codigo. */
+export interface CambioAprendizaje {
+  id: Id;
+  investigacionId: Id | null;
+  nivel: NivelAprendizaje;
+  tipo: 'creencia' | 'criterio' | 'programa' | 'politica' | 'modelo_de_mundo' | 'hipotesis_derivada';
+  descripcion: string;
+  /** De donde salio: id de resultado, debilidad, corrida GEPA o decision. */
+  origen: string;
+  estado: 'aplicado' | 'propuesto' | 'evaluado' | 'promovido' | 'revertido';
+  evaluacion: { conjunto: string; casos: number; antes: number | null; despues: number | null; nota: string } | null;
+  quien: string;
+  fecha: number;
+  resueltoEn: number | null;
+  resueltoPor: string | null;
 }
 
 /** Certeza de la evidencia, escala GRADE. */
@@ -734,7 +1197,7 @@ export interface HechoMundo {
    Artefactos
    --------------------------------------------------------------------- */
 
-export type TipoArtefacto = 'informe' | 'tabla' | 'modelo_mundo' | 'figura' | 'cuaderno' | 'specific_aims';
+export type TipoArtefacto = 'informe' | 'tabla' | 'modelo_mundo' | 'figura' | 'cuaderno' | 'specific_aims' | 'dossier' | 'prerregistro';
 
 export interface VersionArtefacto {
   n: number;
@@ -851,7 +1314,12 @@ export type TipoEvento =
   | 'hecho_nuevo'
   | 'retraccion'
   | 'literatura_nueva'
-  | 'revision_automatica';
+  | 'revision_automatica'
+  | 'killer'
+  | 'analisis'
+  | 'aprendizaje'
+  | 'mision'
+  | 'dependencias';
 
 export interface Evento {
   id: Id;
@@ -891,4 +1359,16 @@ export interface EstadoRosa {
   eventos: Evento[];
   /** Ultima vez que la persona abrio Rosa (para "mientras no estabas"). */
   ultimaVisita: number | null;
+  /** Registros de ROSA2018: decisiones, planes de analisis, ejecuciones,
+   *  reproducciones y aprendizaje. Faltan en estados anteriores; el almacen
+   *  los crea vacios. */
+  decisiones?: Decision[];
+  planesAnalisis?: PlanAnalisis[];
+  ejecuciones?: Ejecucion[];
+  reproducciones?: Reproduccion[];
+  aprendizaje?: CambioAprendizaje[];
+  /** El registro de metodos y ensayos (plan completo, seccion 5). */
+  metodos?: MetodoRegistrado[];
+  /** Las politicas tal como estan en el codigo del servidor (solo lectura). */
+  politicas?: Record<string, number>;
 }

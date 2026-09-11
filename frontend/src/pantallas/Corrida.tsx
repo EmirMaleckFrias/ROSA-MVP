@@ -11,6 +11,7 @@ import { acciones } from '../datos/almacen';
 import { iteracionActualDe } from '../datos/acciones';
 import type { AlcancePermiso, EstadoRosa, Investigacion } from '../datos/tipos';
 import { PlanEnVivo } from '../componentes/PlanEnVivo';
+import { FormularioMision, PreguntaDeCampana } from '../componentes/Rosa2018';
 import { Presupuesto } from '../componentes/Presupuesto';
 import { TarjetaIncidencia } from '../componentes/TarjetaIncidencia';
 import { TarjetaPermiso } from '../componentes/TarjetaPermiso';
@@ -233,6 +234,14 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
           <Presupuesto corrida={corrida} onAmpliar={(l) => acciones.ampliarPresupuesto(corrida.id, l)} />
         </div>
       </div>
+
+      {inv.mision && !inv.mision.aprobadaEn && viva && (
+        <Seccion titulo="La mision espera tu aprobacion" nota="Rosa propuso el marco de la investigacion a partir de tu objetivo (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como esta; si quieres corregirla, hazlo aqui o en Objetivo y datos.">
+          <FormularioMision inv={inv} compacto />
+        </Seccion>
+      )}
+
+      <PreguntaDeCampana corrida={corrida} />
 
       {iteracion && (
         <Seccion
