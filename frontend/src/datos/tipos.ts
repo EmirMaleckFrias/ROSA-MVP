@@ -1396,6 +1396,8 @@ export interface EstadoRosa {
   /** Aristas tipadas del modelo de mundo: base curada del campo y la
    *  relacion X causa Y de cada hipotesis juzgada, con su tipo. */
   relaciones?: RelacionCausal[];
+  /** Paneles de evaluacion del sistema con fallos plantados (panel del Killer). */
+  evaluaciones?: RegistroEvaluacion[];
   artefactos: Artefacto[];
   casos: CasoControl[];
   metricas: MetricasJuez[];
@@ -1447,4 +1449,20 @@ export interface RelacionCausal {
   contexto: string;
   hipotesisId: Id | null;
   actualizadoEn: number;
+}
+
+/** Un panel de evaluacion: hipotesis reales con un fallo plantado (cifra
+ *  alterada, prediccion vaga, causalidad sin temporalidad, misma cohorte,
+ *  supuesto contradicho) y un conjunto gris. Se mide si el Killer lo detecta,
+ *  si lo detecta la comprobacion correcta, cuanto se abstiene y cuanto mata
+ *  de mas. Se repite con cada version del prompt o del modelo. */
+export interface RegistroEvaluacion {
+  id: string;
+  tipo: 'panel_killer';
+  fecha: number;
+  quien: string;
+  resumen: { casos: number; hipotesis: number; tasaDeteccion: number | null; tasaJuezDetecta: number | null; abstencion: number; sobreMatanzaGris: number | null; usd: number; segundos: number; juez: string };
+  porFallo: Record<string, { casos: number; detectados?: number; decisionEsperada?: number; comprobacionFalla?: number; juezFalla?: number; suspendidas?: number; descartadas?: number; errores?: number; acuerdoConReal?: number }>;
+  fallos: Record<string, string>;
+  casos: { hipotesisId: string; titulo: string; fallo: string; plantado?: string; decisionReal?: string | null; detectado?: boolean | null; juezFalla?: boolean | null; decision: string; comprobacionesFallidas: string[]; juezFallidas: string[]; usd: number }[];
 }

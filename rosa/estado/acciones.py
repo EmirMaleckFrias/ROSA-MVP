@@ -493,6 +493,20 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
     return True
 
 
+def registrar_evaluacion(e: Estado, evaluacion: dict, quien: str, ahora: int) -> bool:
+    """Un panel de evaluacion del sistema (por ahora, el panel del Killer con
+    fallos plantados) entra al estado como registro con fecha: resumen,
+    detalle por tipo de fallo y los casos. Sirve para comparar versiones del
+    prompt o del modelo con la misma prueba."""
+    if not isinstance(evaluacion, dict) or evaluacion.get("tipo") not in ("panel_killer",) or not isinstance(evaluacion.get("resumen"), dict):
+        return False
+    reg = {"id": P.nuevo_id("eval"), "tipo": evaluacion["tipo"], "fecha": int(evaluacion.get("fecha") or ahora), "quien": quien.strip() or "persona", "resumen": evaluacion["resumen"], "porFallo": evaluacion.get("porFallo") or {}, "fallos": evaluacion.get("fallos") or {}, "casos": list(evaluacion.get("casos") or [])[:400]}
+    e.setdefault("evaluaciones", []).append(reg)
+    r = reg["resumen"]
+    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Panel del Killer: deteccion {r.get('tasaDeteccion')}, abstencion {r.get('abstencion')}, sobre-matanza en gris {r.get('sobreMatanzaGris')} ({r.get('casos')} casos, {r.get('usd')} USD)", f"evaluacion:{reg['id']}", "promovido", quien, ahora))
+    return True
+
+
 ESTADOS_AREA = ("propuesta", "elegida", "pausada", "sin_explorar")
 
 

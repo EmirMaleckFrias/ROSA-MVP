@@ -19,7 +19,9 @@ from pathlib import Path
 from rosa import config
 
 DIR_DATOS = Path(config.RAIZ) / "datos"
-MAX_BYTES = 50 * 1024 * 1024
+# 200 MB: una matriz de expresion publica de GEO en formato largo (una fila por
+# sonda y muestra) ronda los 100 MB; los ficheros de laboratorio son mucho menores.
+MAX_BYTES = 200 * 1024 * 1024
 
 
 def nombre_seguro(nombre: str) -> str:
@@ -36,7 +38,7 @@ def ruta_de(hipotesis_id: str, fichero: str) -> Path | None:
 
 def guardar(hipotesis_id: str, nombre: str, contenido: bytes) -> Path:
     if len(contenido) > MAX_BYTES:
-        raise ValueError("El fichero supera los 50 MB")
+        raise ValueError("El fichero supera los 200 MB")
     ruta = ruta_de(hipotesis_id, nombre)
     assert ruta is not None
     ruta.parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +115,7 @@ def ruta_dataset(investigacion_id: str, dataset_id: str, fichero: str) -> Path:
 
 def guardar_dataset(investigacion_id: str, dataset_id: str, nombre: str, contenido: bytes) -> Path:
     if len(contenido) > MAX_BYTES:
-        raise ValueError("El fichero supera los 50 MB")
+        raise ValueError("El fichero supera los 200 MB")
     ruta = ruta_dataset(investigacion_id, dataset_id, nombre)
     ruta.parent.mkdir(parents=True, exist_ok=True)
     ruta.write_bytes(contenido)

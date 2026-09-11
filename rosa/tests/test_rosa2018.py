@@ -409,3 +409,29 @@ def test_grafo_causal_identifica_por_regla():
 
 def test_estado_arranca_con_la_base_curada(al):
     assert any(r["tipo"] == "base_curada" and r["de"] == "amiloide" and r["a"] == "tau" for r in al.estado["relaciones"])
+
+
+# -- Registro de evaluaciones ------------------------------------------------------
+
+
+def test_registrar_evaluacion_guarda_panel_y_aprendizaje(al):
+    ev = {"tipo": "panel_killer", "fecha": 1, "resumen": {"casos": 7, "hipotesis": 1, "tasaDeteccion": 0.8, "tasaJuezDetecta": 0.6, "abstencion": 0.1, "sobreMatanzaGris": 0.0, "usd": 1.2, "segundos": 30, "juez": "j"}, "porFallo": {"cifra_alterada": {"casos": 1, "detectados": 1}}, "fallos": {}, "casos": [{"hipotesisId": "h", "fallo": "cifra_alterada", "decision": "descartar_en_contexto"}]}
+    assert al.aplicar("registrarEvaluacion", {"evaluacion": ev, "quien": "panel"}) is True
+    assert al.aplicar("registrarEvaluacion", {"evaluacion": {"tipo": "otro"}, "quien": "panel"}) is False
+    assert al.estado["evaluaciones"][0]["resumen"]["tasaDeteccion"] == 0.8 and al.estado["evaluaciones"][0]["casos"][0]["fallo"] == "cifra_alterada"
+    assert any("Panel del Killer" in a["descripcion"] for a in al.estado["aprendizaje"])
+
+
+def test_plantar_fallos_del_panel():
+    from rosa.evaluacion import panel_killer as PK
+
+    h = {"id": "h", "investigacionId": "inv", "titulo": "GFAP sube", "enunciado": "GFAP sube antes", "version": 1, "tarjeta": {"diana": "GFAP", "prediccionFalsable": "GFAP > 100 pg/mL"}, "comprobacion": {"biomarcador": "GFAP"}, "supuestos": [], "afirmaciones": [_af(texto="GFAP was 0.8 pg/mL higher in carriers in longitudinal follow-up", fragmento="GFAP was 0.8 pg/mL higher in carriers across ten years of follow-up in the cohort")], "procedencia": {"fuentes": [{"id": "f1", "cohorte": None, "tipoEstudio": "cohorte"}, {"id": "f2", "cohorte": None, "tipoEstudio": "cohorte"}]}}
+    v = PK.plantar(h, "cifra_alterada")
+    assert "8 pg/mL" in v["afirmaciones"][0]["texto"] and v["afirmaciones"][0]["fragmento"] == h["afirmaciones"][0]["fragmento"]
+    assert PK.plantar(h, "prediccion_vaga")["tarjeta"]["prediccionFalsable"] != h["tarjeta"]["prediccionFalsable"]
+    assert "cross-sectional" in PK.plantar(h, "causal_sin_temporalidad")["afirmaciones"][0]["texto"]
+    assert all(f["cohorte"] == "COHORTE-UNICA" for f in PK.plantar(h, "misma_cohorte")["procedencia"]["fuentes"])
+    assert PK.plantar(h, "supuesto_contradicho")["supuestos"][0]["estado"] == "contradicho"
+    g = PK.plantar(h, "gris_parcial")
+    assert g["afirmaciones"][0]["veredicto"] == "parcial" and g["afirmaciones"][0]["fragmento"].endswith("...")
+    assert h["afirmaciones"][0]["veredicto"] == "sostenida"  # el original no se toca

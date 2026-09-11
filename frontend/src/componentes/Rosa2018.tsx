@@ -1022,7 +1022,7 @@ export function SubirDataset({ inv }: { inv: Investigacion }) {
   return (
     <div className="tarjeta seccion">
       <p className="campo-etiqueta">Subir un dataset con fichero</p>
-      <p className="meta">CSV, TSV o JSON (lista de objetos), hasta 50 MB. El servidor calcula el hash, cuenta filas y columnas, detecta valores centinela y prepara el diccionario para que lo completes. Ninguna fila pasa por un modelo al subir.</p>
+      <p className="meta">CSV, TSV o JSON (lista de objetos), hasta 200 MB. El servidor calcula el hash, cuenta filas y columnas, detecta valores centinela y prepara el diccionario para que lo completes. Ninguna fila pasa por un modelo al subir.</p>
       <div className="rejilla-2">
         <div className="campo">
           <label htmlFor="ds-fich">Fichero</label>
@@ -1545,6 +1545,70 @@ export function RelacionesCausales({ estado, inv }: { estado: EstadoRosa; inv: I
           ))}
         </ul>
       </details>
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Panel del Killer: fallos plantados y tasa de deteccion
+// ---------------------------------------------------------------------------
+
+const ETIQUETA_FALLO: Record<string, string> = {
+  original: 'Original (acuerdo con la decision real)',
+  cifra_alterada: 'Cifra alterada',
+  prediccion_vaga: 'Prediccion no falsable',
+  causal_sin_temporalidad: 'Causalidad sin temporalidad',
+  misma_cohorte: 'Misma cohorte (debe avanzar con aviso)',
+  supuesto_contradicho: 'Supuesto contradicho',
+  gris_parcial: 'Gris: pasaje parcial (no debe descartar)',
+};
+
+export function PanelKiller({ estado }: { estado: EstadoRosa }) {
+  const evs = [...(estado.evaluaciones ?? [])].filter((e) => e.tipo === 'panel_killer').sort((a, b) => b.fecha - a.fecha);
+  return (
+    <Seccion titulo="Panel del Killer" nota="Hipotesis reales con un fallo plantado a proposito (cifra alterada, prediccion vaga, causalidad sin temporalidad, misma cohorte, supuesto contradicho) y un conjunto gris que no debe descartarse. Mide que fraccion detecta el Killer, si lo detecta la comprobacion correcta, cuanto se abstiene y cuanto mata de mas. Se repite con cada version del prompt o del modelo: si baja, se sabe antes de que llegue a una hipotesis real.">
+      {evs.length === 0 ? (
+        <p className="meta">Sin paneles todavia. Se corre desde el servidor con el comando del README (cuesta llamadas al juez).</p>
+      ) : (
+        evs.slice(0, 3).map((ev) => (
+          <div key={ev.id} className="tarjeta">
+            <div className="acciones">
+              <Chip tono={ev.resumen.tasaDeteccion !== null && ev.resumen.tasaDeteccion >= 0.8 ? 'ok' : 'aviso'}>Deteccion {ev.resumen.tasaDeteccion === null ? 'n/a' : `${Math.round(ev.resumen.tasaDeteccion * 100)} %`}</Chip>
+              <Chip tono="borde">Juez detecta {ev.resumen.tasaJuezDetecta === null ? 'n/a' : `${Math.round(ev.resumen.tasaJuezDetecta * 100)} %`}</Chip>
+              <Chip tono="borde">Abstencion {Math.round(ev.resumen.abstencion * 100)} %</Chip>
+              <Chip tono={ev.resumen.sobreMatanzaGris !== null && ev.resumen.sobreMatanzaGris > 0 ? 'mal' : 'ok'}>Mata de mas en gris {ev.resumen.sobreMatanzaGris === null ? 'n/a' : `${Math.round(ev.resumen.sobreMatanzaGris * 100)} %`}</Chip>
+              <span className="meta">
+                {ev.resumen.casos} casos sobre {ev.resumen.hipotesis} hipotesis, juez {ev.resumen.juez}, {ev.resumen.usd} USD, {new Date(ev.fecha).toLocaleString('es')}
+              </span>
+            </div>
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Fallo plantado</th>
+                  <th>Casos</th>
+                  <th>Detectados</th>
+                  <th>Lo vio el juez</th>
+                  <th>Suspendidas</th>
+                  <th>Descartadas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(ev.porFallo).map(([f, r]) => (
+                  <tr key={f}>
+                    <td title={ev.fallos[f]}>{ETIQUETA_FALLO[f] ?? f}</td>
+                    <td>{r.casos}</td>
+                    <td>{f === 'original' ? `${r.acuerdoConReal ?? 0} de acuerdo con la real` : `${r.detectados ?? 0}`}</td>
+                    <td>{f === 'original' ? '' : (r.juezFalla ?? 0)}</td>
+                    <td>{r.suspendidas ?? 0}</td>
+                    <td>{r.descartadas ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      )}
     </Seccion>
   );
 }

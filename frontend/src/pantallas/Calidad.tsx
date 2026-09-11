@@ -4,6 +4,7 @@
 // coste por hipotesis, los casos de control (los 17 del RAG, sin aprobar) y
 // las optimizaciones de GEPA con su enlace a MLflow.
 
+import { PanelKiller } from '../componentes/Rosa2018';
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import type { CasoControl, EstadoRosa, Investigacion } from '../datos/tipos';
@@ -144,6 +145,8 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
           })}
         </div>
       </Seccion>
+
+      <PanelKiller estado={estado} />
 
       {(() => {
         const propias = (estado.decisiones ?? []).filter((d) => d.etapa === 'persona' && typeof d.segundosRevision === 'number' && estado.hipotesis.some((h) => h.id === d.hipotesisId && h.investigacionId === inv.id));
