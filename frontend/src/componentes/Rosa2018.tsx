@@ -9,7 +9,8 @@
 
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables } from '../datos/tipos';
+import { CAMPOS_ENMENDABLES } from '../datos/acciones';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -1229,5 +1230,100 @@ export function Candidatas({ inv, estado, candidatas, noCandidatas }: { inv: Inv
         </details>
       )}
     </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Protocolo real, desviaciones, identidad de muestras y enmiendas fechadas
+// ---------------------------------------------------------------------------
+
+const ETIQUETA_CAMPO: Record<CampoEnmendable, string> = {
+  protocolo: 'Protocolo',
+  ensayo: 'Ensayo',
+  controles: 'Controles',
+  tamanoMuestral: 'Tamano muestral',
+  confirma: 'Criterio de confirmacion',
+  refuta: 'Criterio de refutacion',
+  analisisPedido: 'Analisis pedido',
+};
+
+/** Lo que se planeo frente a lo que se hizo. El prerregistro queda congelado;
+ *  cambiarlo despues es una enmienda con fecha, autor y motivo, y lo que el
+ *  laboratorio ejecuto de verdad se registra aparte con sus desviaciones y la
+ *  identidad de las muestras. El juez lee las tres cosas al evaluar los datos. */
+export function ProtocoloYEnmiendas({ h, ahora }: { h: Hipotesis; ahora: number }) {
+  const x = h.experimento;
+  const [texto, setTexto] = useState(x?.protocoloReal?.texto ?? '');
+  const [desviaciones, setDesviaciones] = useState(x?.protocoloReal?.desviaciones ?? '');
+  const [muestras, setMuestras] = useState(x?.protocoloReal?.identidadMuestras ?? '');
+  const [campo, setCampo] = useState<CampoEnmendable>('confirma');
+  const [despues, setDespues] = useState('');
+  const [motivo, setMotivo] = useState('');
+  if (!x || x.estado === 'propuesto') return null;
+  const puedeEnmendar = Boolean(x.prerregistradoEn) && !x.resultado;
+  return (
+    <div className="seccion">
+      <h4>Protocolo real y enmiendas</h4>
+      {(x.enmiendas ?? []).length > 0 && (
+        <ul className="lista-plana">
+          {(x.enmiendas ?? []).map((en, i) => (
+            <li key={i}>
+              <strong>Enmienda {i + 1}</strong> <Momento t={en.fecha} ahora={ahora} /> por {en.quien}, {ETIQUETA_CAMPO[en.campo].toLowerCase()}: <span className="meta">"{en.antes.slice(0, 160) || 'vacio'}"</span> pasa a "{en.despues.slice(0, 160)}". Motivo: {en.motivo}
+            </li>
+          ))}
+        </ul>
+      )}
+      {puedeEnmendar ? (
+        <div className="campo-fila">
+          <select className="entrada" value={campo} onChange={(e) => setCampo(e.target.value as CampoEnmendable)} aria-label="Campo a enmendar">
+            {CAMPOS_ENMENDABLES.map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CAMPO[c]}
+              </option>
+            ))}
+          </select>
+          <input className="entrada" value={despues} placeholder={`Texto nuevo (ahora: ${(x[campo] ?? '').slice(0, 60) || 'vacio'})`} onChange={(e) => setDespues(e.target.value)} aria-label="Texto nuevo" />
+          <input className="entrada" value={motivo} placeholder="Motivo de la enmienda" onChange={(e) => setMotivo(e.target.value)} aria-label="Motivo" />
+          <button
+            type="button"
+            className="btn"
+            disabled={despues.trim() === '' || motivo.trim() === ''}
+            onClick={() => {
+              acciones.enmendarExperimento(h.id, campo, despues, motivo);
+              setDespues('');
+              setMotivo('');
+            }}
+          >
+            Registrar enmienda fechada
+          </button>
+        </div>
+      ) : (
+        <p className="meta">{x.resultado ? 'Con datos ya evaluados el prerregistro no se enmienda: los criterios ya se aplicaron.' : 'Las enmiendas se registran despues de congelar el prerregistro.'}</p>
+      )}
+      {x.protocoloReal && (
+        <p className="meta">
+          Protocolo real registrado <Momento t={x.protocoloReal.registradoEn} ahora={ahora} /> por {x.protocoloReal.quien}. Desviaciones: {x.protocoloReal.desviaciones || 'ninguna declarada'}. Muestras: {x.protocoloReal.identidadMuestras || 'no declaradas'}.
+        </p>
+      )}
+      <div className="campo">
+        <label htmlFor={`pr-texto-${h.id}`}>Protocolo realmente ejecutado</label>
+        <textarea id={`pr-texto-${h.id}`} className="entrada" rows={3} value={texto} placeholder="Lo que el laboratorio hizo, paso a paso, aunque coincida con lo planeado" onChange={(e) => setTexto(e.target.value)} />
+      </div>
+      <div className="campo">
+        <label htmlFor={`pr-desv-${h.id}`}>Desviaciones respecto al prerregistro</label>
+        <input id={`pr-desv-${h.id}`} className="entrada" value={desviaciones} placeholder="Ninguna, o que cambio y por que (n menor, otro reactivo, otro tiempo)" onChange={(e) => setDesviaciones(e.target.value)} />
+      </div>
+      <div className="campo">
+        <label htmlFor={`pr-mu-${h.id}`}>Identidad de las muestras</label>
+        <input id={`pr-mu-${h.id}`} className="entrada" value={muestras} placeholder="Lote, linea celular, cohorte y fechas de recogida" onChange={(e) => setMuestras(e.target.value)} />
+      </div>
+      <div className="acciones">
+        <button type="button" className="btn" disabled={texto.trim() === ''} onClick={() => acciones.registrarProtocoloReal(h.id, { texto, desviaciones, identidadMuestras: muestras })}>
+          {x.protocoloReal ? 'Actualizar protocolo real' : 'Registrar protocolo real'}
+        </button>
+        {x.resultado && <span className="meta">Si lo registras ahora, Rosa vuelve a evaluar los datos con esta informacion.</span>}
+      </div>
+    </div>
   );
 }

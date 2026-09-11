@@ -815,6 +815,31 @@ export interface Experimento {
   decisionQueCambia?: string;
   /** El veredicto del juez sobre los datos del laboratorio contra el prerregistro. */
   resultado?: ResultadoExperimento | null;
+  /** Lo que el laboratorio hizo de verdad, separado de lo planeado: protocolo
+   *  ejecutado, desviaciones e identidad de las muestras (lote, linea, cohorte). */
+  protocoloReal?: ProtocoloReal | null;
+  /** Cambios fechados del prerregistro despues de congelarlo: que campo, texto
+   *  anterior y nuevo, quien y por que. */
+  enmiendas?: EnmiendaPrerregistro[];
+}
+
+export interface ProtocoloReal {
+  texto: string;
+  desviaciones: string;
+  identidadMuestras: string;
+  registradoEn: number;
+  quien: string;
+}
+
+export type CampoEnmendable = 'protocolo' | 'ensayo' | 'controles' | 'tamanoMuestral' | 'confirma' | 'refuta' | 'analisisPedido';
+
+export interface EnmiendaPrerregistro {
+  fecha: number;
+  quien: string;
+  campo: CampoEnmendable;
+  antes: string;
+  despues: string;
+  motivo: string;
 }
 
 /** Los seis resultados que puede devolver el laboratorio (ROSA2018, etapa

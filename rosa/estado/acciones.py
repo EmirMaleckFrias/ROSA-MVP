@@ -809,6 +809,71 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
     return "\n".join(lineas)
 
 
+CAMPOS_ENMENDABLES = ("protocolo", "ensayo", "controles", "tamanoMuestral", "confirma", "refuta", "analisisPedido")
+
+
+def enmendar_experimento(e: Estado, hipotesis_id: str, campo: str, despues: str, motivo: str, quien: str, ahora: int) -> bool:
+    """Una enmienda fechada del prerregistro (plan completo, seccion 3): se
+    puede cambiar el protocolo o los criterios despues de congelarlos, pero
+    queda escrito que, cuando, quien y por que, con el texto anterior al
+    lado. Sin fecha de prerregistro no hay nada que enmendar: se edita. Con
+    datos ya evaluados no se enmienda: los criterios ya se aplicaron."""
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or not h.get("experimento") or campo not in CAMPOS_ENMENDABLES:
+        return False
+    x = h["experimento"]
+    if not x.get("prerregistradoEn") or x.get("resultado"):
+        return False
+    nuevo, razon = despues.strip(), motivo.strip()
+    if not nuevo or not razon or nuevo == (x.get(campo) or ""):
+        return False
+    x.setdefault("enmiendas", []).append({"fecha": ahora, "quien": quien.strip() or "persona", "campo": campo, "antes": x.get(campo) or "", "despues": nuevo, "motivo": razon})
+    x[campo] = nuevo
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} enmienda {len(x['enmiendas'])} del prerregistro por {quien}: {campo} ({razon[:80]})")
+    con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Enmienda {len(x['enmiendas'])} del prerregistro ({campo}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    return True
+
+
+def registrar_protocolo_real(e: Estado, hipotesis_id: str, protocolo_real: dict, quien: str, ahora: int) -> bool:
+    """Lo que el laboratorio hizo de verdad, separado de lo que se planeo:
+    protocolo ejecutado, desviaciones respecto al prerregistro e identidad de
+    las muestras (lote, linea celular, cohorte, fechas). El juez lo lee al
+    evaluar los datos: una desviacion que toca el criterio convierte el
+    resultado en fallo tecnico o lo limita, no lo maquilla."""
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or not h.get("experimento") or not isinstance(protocolo_real, dict):
+        return False
+    x = h["experimento"]
+    if x.get("estado") == "propuesto":
+        return False
+    texto = str(protocolo_real.get("texto", "")).strip()
+    if not texto:
+        return False
+    x["protocoloReal"] = {"texto": texto[:4000], "desviaciones": str(protocolo_real.get("desviaciones", "")).strip()[:2000], "identidadMuestras": str(protocolo_real.get("identidadMuestras", "")).strip()[:2000], "registradoEn": ahora, "quien": quien.strip() or "persona"}
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} protocolo real registrado por {quien}" + ("; con desviaciones" if x["protocoloReal"]["desviaciones"] else "; sin desviaciones declaradas"))
+    if x.get("resultado") and x.get("ficheroDatos"):
+        # Si los datos ya se evaluaron, el protocolo real cambia lo que el juez
+        # leyo: se vuelve a evaluar contra el prerregistro con esta informacion.
+        x.pop("resultado", None)
+        h.pop("_resultadoEvaluado", None)
+    return True
+
+
+def texto_protocolo_real(x: dict) -> str:
+    """El bloque que se le pasa al juez junto al prerregistro."""
+    pr = x.get("protocoloReal")
+    partes = []
+    if pr:
+        partes.append(f"PROTOCOLO REALMENTE EJECUTADO (registrado por {pr.get('quien')}):\n{pr.get('texto')}")
+        partes.append("DESVIACIONES RESPECTO AL PRERREGISTRO: " + (pr.get("desviaciones") or "ninguna declarada"))
+        partes.append("IDENTIDAD DE LAS MUESTRAS: " + (pr.get("identidadMuestras") or "no declarada"))
+    else:
+        partes.append("PROTOCOLO REALMENTE EJECUTADO: no registrado (asumir el prerregistrado y decirlo en limitaciones)")
+    if x.get("enmiendas"):
+        partes.append("ENMIENDAS FECHADAS DEL PRERREGISTRO:\n" + "\n".join(f"- {datetime.fromtimestamp(en['fecha'] / 1000).strftime('%d/%m/%Y')} {en['quien']}, {en['campo']}: '{en['antes'][:160]}' pasa a '{en['despues'][:160]}'. Motivo: {en['motivo'][:160]}" for en in x["enmiendas"]))
+    return "\n\n".join(partes)
+
+
 def registrar_datos_experimento(e: Estado, hipotesis_id: str, fichero: str, analisis: str) -> bool:
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h or not fichero.strip() or not h["experimento"]:

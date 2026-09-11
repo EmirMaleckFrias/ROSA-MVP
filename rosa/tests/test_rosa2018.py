@@ -316,3 +316,32 @@ def test_direccion_invertida_y_unidades_distintas():
     c2 = {d["comprobacion"]: d for d in K.consistencia_medidas(h2)}
     assert c2["direccion_evidencia"]["resultado"] == "pasa" and c2["unidades"]["resultado"] == "pasa"
     assert K.direccion_de("higher but lower") == "" and K.unidad_de("2.3 µg/dL") == "ug/dL"
+
+
+# -- Protocolo real y enmiendas fechadas ----------------------------------------
+
+
+def test_enmienda_fechada_y_protocolo_real(al):
+    inv = _inv(al)
+    h = _hip(al, inv)
+    al.mutar(lambda e: next(x for x in e["hipotesis"] if x["id"] == h).update(experimento={"protocolo": "1. Medir GFAP", "ensayo": "Simoa", "costeEstimado": "", "laboratorio": None, "estado": "propuesto", "ficheroDatos": None, "analisisPedido": "", "confirma": "GFAP mayor en portadores", "refuta": "sin diferencia"}) or True)
+    # Antes de prerregistrar no hay nada que enmendar.
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "otro", "motivo": "m", "quien": "persona"}) is False
+    assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "hecho"}, "quien": "persona"}) is False  # sin asignar
+    assert al.aplicar("asignarExperimento", {"hipotesis_id": h, "laboratorio": "Lab X"}) is True
+    # Enmienda: guarda antes y despues, y actualiza el campo. Sin motivo no vale; campo raro tampoco.
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "GFAP al menos 20 % mayor", "motivo": "efecto minimo explicito", "quien": "persona"}) is True
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "x", "motivo": "", "quien": "persona"}) is False
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "laboratorio", "despues": "x", "motivo": "m", "quien": "persona"}) is False
+    x = next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"]
+    assert x["confirma"] == "GFAP al menos 20 % mayor" and x["enmiendas"][0]["antes"] == "GFAP mayor en portadores" and x["enmiendas"][0]["quien"] == "persona"
+    # Protocolo real con desviaciones; el texto para el juez lo lleva todo.
+    assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "Se midio GFAP con Simoa", "desviaciones": "n = 12 en vez de 20", "identidadMuestras": "lote 7, cohorte local, 2026"}, "quien": "persona"}) is True
+    x = next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"]
+    t = A.texto_protocolo_real(x)
+    assert "n = 12" in t and "lote 7" in t and "ENMIENDAS FECHADAS" in t and "efecto minimo explicito" in t
+    # Con resultado evaluado ya no se enmienda; registrar el protocolo real borra el resultado para reevaluar.
+    al.mutar(lambda e: next(y for y in e["hipotesis"] if y["id"] == h)["experimento"].update(resultado={"veredicto": "confirma"}, ficheroDatos="d.csv") or True)
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "refuta", "despues": "otra", "motivo": "m", "quien": "persona"}) is False
+    assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "corregido"}, "quien": "persona"}) is True
+    assert next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"].get("resultado") is None

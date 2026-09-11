@@ -483,7 +483,7 @@ class EvaluarResultado(dspy.Signature):
     informativo. Lenguaje corriente, con denominadores."""
 
     hipotesis: str = dspy.InputField()
-    prerregistro: str = dspy.InputField(desc="Protocolo, ensayo, criterio de confirmacion y de refutacion, tal como se congelaron")
+    prerregistro: str = dspy.InputField(desc="Protocolo, ensayo, criterio de confirmacion y de refutacion tal como se congelaron; despues, el protocolo realmente ejecutado con sus desviaciones e identidad de muestras, y las enmiendas fechadas. Una desviacion que toca el criterio o un ensayo que no se ejecuto como se prerregistro es fallo_tecnico o una limitacion explicita, nunca se ignora")
     analisis_pedido: str = dspy.InputField(desc="Lo que la persona pidio analizar al registrar los datos")
     resumen_datos: str = dspy.InputField(desc="Resumen determinista del fichero: filas, columnas, estadisticos por columna, faltantes")
     muestra_datos: str = dspy.InputField(desc="Las primeras filas del fichero o el texto, tal cual")

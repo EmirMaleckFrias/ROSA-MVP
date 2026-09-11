@@ -3,6 +3,9 @@ import {
   aclararHipotesis,
   ampliarPresupuesto,
   anadirComentario,
+  asignarExperimento,
+  enmendarExperimento,
+  registrarProtocoloReal,
   aprobarPlan,
   bifurcarInvestigacion,
   crearInvestigacion,
@@ -315,5 +318,39 @@ describe('casos', () => {
     const e0 = estadoDeMuestra();
     expect(editarRespuestaCaso(e0, 'tabla-001', '   ')).toBe(e0);
     expect(editarRespuestaCaso(e0, 'tabla-001', '2025.').casos.find((c) => c.clave === 'tabla-001')?.respuestaEsperada).toBe('2025.');
+  });
+});
+
+describe('protocolo real y enmiendas fechadas', () => {
+  const conExperimento = () => {
+    const e = estadoDeMuestra();
+    const h = e.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    return { e, id: h.id };
+  };
+  it('no enmienda antes de prerregistrar ni sin motivo, y guarda antes y despues', () => {
+    const { e, id } = conExperimento();
+    expect(enmendarExperimento(e, id, 'confirma', 'nuevo', 'motivo', 'persona', T)).toBe(e);
+    const asignado = asignarExperimento(e, id, 'Lab X', T);
+    expect(enmendarExperimento(asignado, id, 'confirma', 'nuevo', '', 'persona', T)).toBe(asignado);
+    const conEnmienda = enmendarExperimento(asignado, id, 'ensayo', 'Tiempo hasta alteracion, con efecto minimo del 20 %', 'efecto minimo explicito', 'persona', T + 1);
+    const x = conEnmienda.hipotesis.find((h) => h.id === id)!.experimento!;
+    expect(x.ensayo).toContain('20 %');
+    expect(x.enmiendas).toHaveLength(1);
+    expect(x.enmiendas?.[0]?.antes).toContain('Tiempo hasta la primera alteracion');
+    expect(x.enmiendas?.[0]?.quien).toBe('persona');
+  });
+  it('el protocolo real exige asignacion y texto; con resultado ya evaluado lo borra para reevaluar', () => {
+    const { e, id } = conExperimento();
+    expect(registrarProtocoloReal(e, id, { texto: 'hecho', desviaciones: '', identidadMuestras: '' }, 'persona', T)).toBe(e);
+    const asignado = asignarExperimento(e, id, 'Lab X', T);
+    expect(registrarProtocoloReal(asignado, id, { texto: '  ', desviaciones: '', identidadMuestras: '' }, 'persona', T)).toBe(asignado);
+    const conReal = registrarProtocoloReal(asignado, id, { texto: 'Se midio GFAP', desviaciones: 'n = 12 en vez de 20', identidadMuestras: 'lote 7' }, 'persona', T + 5);
+    const x = conReal.hipotesis.find((h) => h.id === id)!.experimento!;
+    expect(x.protocoloReal?.desviaciones).toBe('n = 12 en vez de 20');
+    expect(conReal.hipotesis.find((h) => h.id === id)!.procedencia.registro.at(-1)).toContain('con desviaciones');
+    const evaluado = { ...conReal, hipotesis: conReal.hipotesis.map((h) => (h.id === id ? { ...h, experimento: { ...h.experimento!, ficheroDatos: 'd.csv', resultado: { veredicto: 'confirma', resultado: '', motivo: '', limitaciones: '', cifras: [], exploratorio: '', fecha: T, fichero: 'd.csv' } as never } } : h)) };
+    expect(enmendarExperimento(evaluado, id, 'refuta', 'otra', 'm', 'persona', T)).toBe(evaluado);
+    const reevalua = registrarProtocoloReal(evaluado, id, { texto: 'corregido', desviaciones: '', identidadMuestras: '' }, 'persona', T + 9);
+    expect(reevalua.hipotesis.find((h) => h.id === id)!.experimento!.resultado).toBeNull();
   });
 });

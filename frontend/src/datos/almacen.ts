@@ -32,8 +32,7 @@ import type {
   PreguntaCampana,
   ProcedenciaDataset,
   RevisionHumana,
-  TipoArtefacto,
-} from './tipos';
+  TipoArtefacto, CampoEnmendable } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -522,6 +521,14 @@ export const acciones = {
   actualizarPregunta: (corridaId: string, pregunta: Partial<PreguntaCampana>) => {
     aplicar((e) => A.actualizarPregunta(e, corridaId, pregunta, Date.now()));
     enviar('actualizarPregunta', { corrida_id: corridaId, pregunta, quien: QUIEN });
+  },
+  enmendarExperimento: (hipotesisId: string, campo: CampoEnmendable, despues: string, motivo: string) => {
+    aplicar((e) => A.enmendarExperimento(e, hipotesisId, campo, despues, motivo, QUIEN, Date.now()));
+    enviar('enmendarExperimento', { hipotesis_id: hipotesisId, campo, despues, motivo, quien: QUIEN });
+  },
+  registrarProtocoloReal: (hipotesisId: string, protocoloReal: { texto: string; desviaciones: string; identidadMuestras: string }) => {
+    aplicar((e) => A.registrarProtocoloReal(e, hipotesisId, protocoloReal, QUIEN, Date.now()));
+    enviar('registrarProtocoloReal', { hipotesis_id: hipotesisId, protocolo_real: protocoloReal, quien: QUIEN });
   },
   actualizarMetodo: (metodoId: string, cambios: Partial<MetodoRegistrado>) => {
     aplicar((e) => A.actualizarMetodo(e, metodoId, cambios, QUIEN, Date.now()));

@@ -45,8 +45,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento,
-} from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -583,6 +582,45 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
     siguiente = conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Experimento prerregistrado y asignado a ${lab}: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/artefactos/${r.id}`, ahora);
   }
   return siguiente;
+}
+
+export const CAMPOS_ENMENDABLES: CampoEnmendable[] = ['protocolo', 'ensayo', 'controles', 'tamanoMuestral', 'confirma', 'refuta', 'analisisPedido'];
+
+/** Enmienda fechada del prerregistro: solo despues de congelarlo y antes de
+ *  evaluar datos; guarda el texto anterior, quien y por que. Misma regla que
+ *  `enmendar_experimento` en el servidor. */
+export function enmendarExperimento(estado: EstadoRosa, hipotesisId: string, campo: CampoEnmendable, despues: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const h = estado.hipotesis.find((x) => x.id === hipotesisId);
+  const x = h?.experimento;
+  if (!h || !x || !CAMPOS_ENMENDABLES.includes(campo) || !x.prerregistradoEn || x.resultado) return estado;
+  const nuevo = despues.trim();
+  const razon = motivo.trim();
+  if (nuevo === '' || razon === '' || nuevo === (x[campo] ?? '')) return estado;
+  const enmiendas = [...(x.enmiendas ?? []), { fecha: ahora, quien: quien.trim() || 'persona', campo, antes: x[campo] ?? '', despues: nuevo, motivo: razon }];
+  const siguiente = {
+    ...estado,
+    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({ ...y, experimento: { ...y.experimento!, [campo]: nuevo, enmiendas }, procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} enmienda ${enmiendas.length} del prerregistro por ${quien}: ${campo} (${razon.slice(0, 80)})`] } })),
+  };
+  return conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Enmienda ${enmiendas.length} del prerregistro (${campo}): ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+}
+
+/** El protocolo realmente ejecutado, con desviaciones e identidad de muestras.
+ *  Si los datos ya se evaluaron, el resultado se borra para que el juez los
+ *  reevalue con esta informacion (el servidor lo hace). */
+export function registrarProtocoloReal(estado: EstadoRosa, hipotesisId: string, protocoloReal: { texto: string; desviaciones: string; identidadMuestras: string }, quien: string, ahora: number): EstadoRosa {
+  const h = estado.hipotesis.find((x) => x.id === hipotesisId);
+  const x = h?.experimento;
+  if (!h || !x || x.estado === 'propuesto' || protocoloReal.texto.trim() === '') return estado;
+  const pr: ProtocoloReal = { texto: protocoloReal.texto.trim().slice(0, 4000), desviaciones: protocoloReal.desviaciones.trim().slice(0, 2000), identidadMuestras: protocoloReal.identidadMuestras.trim().slice(0, 2000), registradoEn: ahora, quien: quien.trim() || 'persona' };
+  const reevalua = Boolean(x.resultado && x.ficheroDatos);
+  return {
+    ...estado,
+    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({
+      ...y,
+      experimento: { ...y.experimento!, protocoloReal: pr, resultado: reevalua ? null : y.experimento!.resultado },
+      procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} protocolo real registrado por ${quien}${pr.desviaciones ? '; con desviaciones' : '; sin desviaciones declaradas'}`] },
+    })),
+  };
 }
 
 export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: number, arnes?: { commit: string; firmas: string; optimizados: string }): string {

@@ -412,6 +412,8 @@ _TABLA: dict[str, Callable] = {
     "evaluarAprendizaje": A.evaluar_aprendizaje,
     "actualizarPregunta": A.actualizar_pregunta,
     "actualizarMetodo": A.actualizar_metodo,
+    "enmendarExperimento": A.enmendar_experimento,
+    "registrarProtocoloReal": A.registrar_protocolo_real,
 }
 
 ACCIONES: dict[str, tuple[Callable, bool]] = {n: (f, _con_ahora(f)) for n, f in _TABLA.items()}
