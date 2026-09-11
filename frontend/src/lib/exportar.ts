@@ -105,7 +105,7 @@ export function specificAims(inv: Investigacion, hipotesis: Hipotesis[]): string
   const aims = candidatas
     .map(
       (h, i) =>
-        `## Specific Aim ${i + 1}\n\n**Objetivo general.** ${h.titulo}\n\n**Hipotesis.** ${h.enunciado}\n\n**Razonamiento.** ${h.mecanismo}\n\n**Enfoque.** Biomarcador: ${h.comprobacion.biomarcador}. Cohorte: ${h.comprobacion.cohorte}. Diseno: ${h.comprobacion.diseno}.\n\n**Fuentes.** ${h.procedencia.fuentes.map((f) => `${f.referencia}${f.pagina !== null ? `, pag. ${f.pagina}` : ''}`).join('; ') || 'sin fuentes'}`,
+        `## Specific Aim ${i + 1}\n\n**Objetivo general.** ${h.titulo}\n\n**Hipotesis.** ${h.enunciado}\n\n**Razonamiento.** ${h.mecanismo}\n\n**Enfoque.** Biomarcador: ${h.comprobacion.biomarcador}. Cohorte: ${h.comprobacion.cohorte}. Diseño: ${h.comprobacion.diseno}.\n\n**Fuentes.** ${h.procedencia.fuentes.map((f) => `${f.referencia}${f.pagina !== null ? `, pag. ${f.pagina}` : ''}`).join('; ') || 'sin fuentes'}`,
     )
     .join('\n\n');
   return `# Specific Aims\n\n**Descripcion de la enfermedad.** ${inv.objetivo}\n\n**Necesidad no cubierta.** ${inv.relevancia || 'Por definir.'}\n\n**Solucion propuesta.** ${inv.configuracion.preferencias || 'Por definir.'}\n\n${aims || '_Sin hipotesis candidatas todavia._'}\n\n## Evaluacion piloto\n\nCada aim se comprobara con el biomarcador y la cohorte indicados; las hipotesis se prerregistran en Rosa antes de probarse.\n\n_Generado por Rosa el ${new Date().toISOString().slice(0, 10)}. Borrador para revision humana._`;

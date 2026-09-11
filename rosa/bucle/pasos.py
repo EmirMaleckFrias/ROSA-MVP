@@ -430,7 +430,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
                 continue
             sospechoso = K.sospechoso_inyeccion(texto)
             if sospechoso:
-                pista.nota(f"{f['referencia']} ({fr['localizador']}): el fragmento contiene texto que parece una instruccion para un modelo; se marca y se ensena, no se bloquea")
+                pista.nota(f"{f['referencia']} ({fr['localizador']}): el fragmento contiene texto que parece una instruccion para un modelo; se marca y se enseña, no se bloquea")
             async with sem:
                 try:
                     # El fragmento entra delimitado como dato (spotlighting), nunca como instruccion.
@@ -628,7 +628,7 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
                 entrada = {"fuenteId": a["fuenteId"], "referencia": fuentes[a["fuenteId"]]["referencia"], "pagina": int(m.group(1)) if m else None}
                 if entrada not in procedencia:
                     procedencia.append(entrada)
-            h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Anadido en la iteracion {ctx.numero}")
+            h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteracion {ctx.numero}")
             e2["hechos"].append(h)
             existentes.add(V.normalizar(hp.enunciado))
             if hp.tipo == "hecho":

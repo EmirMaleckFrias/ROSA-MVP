@@ -258,6 +258,9 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
     PERMISOS.clear()
     PERMISOS.update(estado["permisosConectores"])
     estado["conectores"] = catalogo()
+    from rosa import skills as SK
+
+    estado["skills"] = SK.catalogo()
     for inv in estado.get("investigaciones", []):
         inv.setdefault("memoria", [])
         inv.setdefault("preguntasABases", [])

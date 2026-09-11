@@ -144,7 +144,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         faltantes.append("La tarjeta no fija " + ("la exposicion o intervencion" if not x else "el desenlace o biomarcador") + ": sin X y Y no hay efecto que identificar")
     elif _ALEATORIO.search(textos) and t.get("direccion") not in (None, "", "sin_intervencion"):
         identificacion = "identificable"
-        cumplidos.append("Hay evidencia de intervencion aleatorizada: confusores y causa inversa quedan controlados por diseno")
+        cumplidos.append("Hay evidencia de intervencion aleatorizada: confusores y causa inversa quedan controlados por diseño")
     else:
         # Temporalidad (contra la causa inversa).
         if _TEMPORALIDAD.search(textos):

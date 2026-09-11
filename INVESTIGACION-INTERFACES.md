@@ -28,7 +28,7 @@ conviene no tocarlas:
 - **La aprobacion va antes del efecto** (tarjetas de permiso con alcance,
   cola de revision antes de entrar al modelo de mundo). Es el patron central
   de Claude Science, Magentic-UI y las guias de OpenAI y Anthropic. El
-  estudio de Anthropic sobre autonomia (2026) anade un matiz: exigir aprobar
+  estudio de Anthropic sobre autonomia (2026) a�ade un matiz: exigir aprobar
   todo crea friccion sin seguridad; lo que importa es poder intervenir
   cuando cuenta.
 - **Verificacion por afirmacion con veredictos** y la distincion entre "no
@@ -76,14 +76,14 @@ corrida de dias unas horas al dia.
    Claude Science (0.1.18) pausa la sesion y pide confirmacion antes de
    gastar mas; los Managed Agents de Anthropic lo hacen con tope duro,
    alertas al 50 y 80 %, estado "pausada por presupuesto" reanudable
-   subiendo el tope, y una regla de diseno que vale copiar: **una pregunta
+   subiendo el tope, y una regla de dise�o que vale copiar: **una pregunta
    pendiente tiene prioridad sobre el tope** (la sesion queda en "requiere
    accion", no en "pausada"). En pantalla: barra con marcas 50/80/100,
    proyeccion "al ritmo actual llegas al tope en 6 h", boton "Ampliar y
    reanudar".
 
 3. **Marcas de tiempo absolutas en todo** (mensajes, pasos, hallazgos,
-   permisos). Claude Science las anadio en la 0.1.41. Rosa solo dice "hace
+   permisos). Claude Science las a�adi� en la 0.1.41. Rosa solo dice "hace
    31 min". Barato e indispensable para auditar dias.
 
 4. **Cola de revision con envejecimiento, prioridad y accion por defecto.**
@@ -106,7 +106,7 @@ corrida de dias unas horas al dia.
    OpenAlex o Semantic Scholar en una corrida de dias.
 
 6. **Aprobar o editar el plan antes de que arranque la iteracion.** Rosa
-   ensena el plan y permite dirigir, pero la iteracion arranca sola.
+   ense�a el plan y permite dirigir, pero la iteracion arranca sola.
    Claude Science (desde 0.1.27) no ejecuta ni marca pasos hasta que
    apruebas; Biomni-AD (la extension para Alzheimer) muestra "Aprobar y
    ejecutar / Revisar plan / Cancelar"; Devin espera 30 s y sigue si no
@@ -147,7 +147,7 @@ corrida de dias unas horas al dia.
    como lo hizo Kosmos para evitar el sesgo de confirmacion.
 
 10. **Citas de apoyo y contradictorias por hecho del modelo de mundo.**
-    Rosa verifica una afirmacion contra su cita, pero no ensena si otras
+    Rosa verifica una afirmacion contra su cita, pero no ense�a si otras
     fuentes la contradicen. Scite lo resuelve con tres numeros por
     afirmacion (apoya, menciona, contrasta) y el contexto de cada cita con
     la seccion del articulo; Consensus tiene una tabla "Claims & Evidence"
@@ -160,7 +160,7 @@ corrida de dias unas horas al dia.
 11. **Tipo de estudio y nivel de evidencia por fuente, y texto completo
     frente a resumen.** Hoy en Rosa un caso clinico y un metaanalisis se ven
     igual. Consensus etiqueta el tipo (ECA, revision sistematica, cohorte,
-    animal, in vitro) y la calidad de la revista; OpenEvidence anadio en
+    animal, in vitro) y la calidad de la revista; OpenEvidence a�adi� en
     julio de 2026 un grado A a D por cita basado en GRADE; Trip usa una
     piramide de cinco peldanos; Consensus marca si el analisis uso solo el
     resumen o el texto completo. En pantalla: chip de tipo por fuente, una
@@ -176,7 +176,7 @@ corrida de dias unas horas al dia.
     busqueda reproducible con fecha. En pantalla: por tema del modelo de
     mundo, barra "144 leidos, cobertura estimada 93 %"; si la curva no ha
     convergido, el veredicto "ausencia refutada" se degrada solo a "sin
-    verificar (cobertura 61 %)"; pestana "Metodos" en cada informe con las
+    verificar (cobertura 61 %)"; pesta�a "Metodos" en cada informe con las
     cajas PRISMA y las consultas exactas.
 
 13. **Retractaciones vivas.** Rosa marca la retraccion al indexar; falta
@@ -190,7 +190,7 @@ corrida de dias unas horas al dia.
 
 14. **Procedencia hasta la celda de codigo, no solo hasta la pagina.** Kosmos
     enlaza cada cifra a un cuaderno con id de trayectoria ([Trajectory r7])
-    y deja descargar el .ipynb; Claude Science ensena cada consulta a un
+    y deja descargar el .ipynb; Claude Science ense�a cada consulta a un
     conector como paso expandible con parametros y resultado; Biomni pinta
     la traza en dos columnas (respuesta limpia a la izquierda, ejecutor con
     razonamiento, codigo con lenguaje y duracion, observacion plegada y
@@ -226,7 +226,7 @@ corrida de dias unas horas al dia.
     un debate de tres expertos simulados sobre cinco ejes (correccion,
     utilidad, especificidad, novedad, deseabilidad) y termina "Mejor idea:
     1, porque..."; en 2026 paso a TrueSkill con incertidumbre. En pantalla:
-    pestana "Partidos" por hipotesis (rival, resultado, resumen del debate),
+    pesta�a "Partidos" por hipotesis (rival, resultado, resumen del debate),
     "n = 12 partidos" junto al Elo con aviso cuando son pocos, y la nota fija
     "Elo inicial 1200; funciona como el ranking de ajedrez".
 
@@ -247,12 +247,12 @@ corrida de dias unas horas al dia.
     que genera la pregunta de sondeo.
 
 21. **Grafo de proximidad de hipotesis y arbol de exploracion.** Co-Scientist
-    agrupa hipotesis parecidas para deduplicar y ensenar diversidad; Kosmos
+    agrupa hipotesis parecidas para deduplicar y ense�ar diversidad; Kosmos
     dibuja el camino de hipotesis generadas, probadas y refutadas hasta el
     hallazgo (su figura 8d); Sakana y ShinkaEvolve dibujan el arbol de
     experimentos con ramas muertas y el nodo que sembro la etapa siguiente.
     En pantalla: vista alternativa a la lista con nodos por cluster
-    mecanistico (microglia y TREM2, tau, vascular), tamano por Elo, y
+    mecanistico (microglia y TREM2, tau, vascular), tama�o por Elo, y
     "mostrar solo el mejor de cada cluster"; por informe, el arbol de
     hipotesis con nodos verdes, rojos y grises enlazados a su trayectoria.
 
@@ -267,7 +267,7 @@ corrida de dias unas horas al dia.
     crear la investigacion, Rosa propone la tarjeta de preferencias,
     atributos y restricciones para editar; avisos en linea ("objetivo con
     respuesta obvia", "faltan supuestos del campo"); boton "Probar tres
-    parafrasis en una iteracion corta" que ensena que primeras tareas
+    parafrasis en una iteracion corta" que ense�a que primeras tareas
     propondria con cada redaccion antes de gastar.
 
 23. **Contrato de datos y prueba de humo antes de la corrida larga.** El
@@ -286,10 +286,10 @@ corrida de dias unas horas al dia.
 25. **Panorama de investigacion y exportacion.** El "research overview" de
     Co-Scientist (direcciones principales, y por cada una razon, hallazgos
     recientes, areas, "por que investigar", "que investigar", idea ejemplo,
-    mas "areas inesperadas") es la salida principal que se le ensena al
+    mas "areas inesperadas") es la salida principal que se le ense�a al
     cientifico, y se exporta como pagina de Specific Aims del NIH. Rosa no
     tiene una vista de sintesis por encima de las hipotesis. En pantalla:
-    pestana "Panorama" y boton "Exportar como Specific Aims" como artefacto
+    pesta�a "Panorama" y boton "Exportar como Specific Aims" como artefacto
     versionado; mas exportacion BibTeX, RIS y CSV de las fuentes con DOI,
     PMID, NCT, pagina y veredicto; y "Exportar expediente" por hipotesis
     (versiones, decisiones humanas con fecha, trazas, cuadernos, fuentes,
@@ -323,7 +323,7 @@ corrida de dias unas horas al dia.
     corrida, "Partir del modelo de mundo de la corrida X, version N".
 
 29. **Monitor de computo y traspaso al laboratorio.** Claude Science tiene
-    una pestana Compute con cada kernel, su memoria y CPU, y un "detener con
+    una pesta�a Compute con cada kernel, su memoria y CPU, y un "detener con
     indicacion al agente" ("rehazlo con menos memoria"). Robin y Virtual Lab
     dependen de que una persona ejecute el experimento y suba los datos. En
     pantalla, cuando toque: procesos vivos con parada e indicacion; tarjeta
@@ -343,7 +343,7 @@ corrida de dias unas horas al dia.
     su revisor; Andrew White (Edison) cuenta que el acuerdo humano-modelo en
     "gusto cientifico" era del 52 % y que el RLHF sobre hipotesis no
     funciono, asi que usan los clics y descargas de los cientificos como
-    senal. En pantalla: en Calidad, matriz "el revisor recomendo / la
+    se�al. En pantalla: en Calidad, matriz "el revisor recomendo / la
     persona decidio" por mes y criterio con los desacuerdos enlazados (es el
     conjunto de entrenamiento de GEPA para el juez); en el ranking, columna
     de coste por hipotesis para ver las caras con Elo bajo.
@@ -366,9 +366,9 @@ corrida de dias unas horas al dia.
   hasta revocar), conector y trabajo remoto (una vez, esta conversacion,
   este proyecto, global). Rosa ya varia los alcances por solicitud; falta
   fijar el juego por tipo en el contrato con el backend.
-- La tarjeta de trabajo remoto ensena **el comando y el script completos**;
+- La tarjeta de trabajo remoto ense�a **el comando y el script completos**;
   la de Modal, la maquina, la facturacion por segundo y el tiempo maximo.
-  Rosa ensena el recurso; cuando haya analisis, ensenar el codigo exacto.
+  Rosa ense�a el recurso; cuando haya analisis, ense�ar el codigo exacto.
 - Que pasa al **denegar** no esta documentado en ningun sitio publico. Rosa
   lo define: la solicitud queda denegada, la corrida sigue y Rosa se entera
   en su siguiente paso.
@@ -413,7 +413,7 @@ corrida de dias unas horas al dia.
 
 ## 5. Lo que no se pudo ver
 
-- Ninguna captura de la interfaz del co-scientist de Google, ni como ensena
+- Ninguna captura de la interfaz del co-scientist de Google, ni como ense�a
   el Elo o el grafo de proximidad.
 - La pantalla de progreso de Kosmos y cualquier visor de su modelo de
   mundo; sus paginas de precios y preguntas frecuentes dan 404.

@@ -122,7 +122,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
           <div>
             <strong style={{ fontSize: 13 }}>Plan propuesto para la iteracion {iteracion.numero}</strong>
             <p className="meta">
-              Propuesto <Momento t={iteracion.planPropuestoEn} ahora={ahora} />. Rosa no ejecuta nada hasta que lo apruebes. Reordena, quita o anade pasos y fija el presupuesto de cada uno.
+              Propuesto <Momento t={iteracion.planPropuestoEn} ahora={ahora} />. Rosa no ejecuta nada hasta que lo apruebes. Reordena, quita o añade pasos y fija el presupuesto de cada uno.
             </p>
           </div>
           <button type="button" className="btn btn-primario" onClick={onAprobarPlan}>
@@ -165,7 +165,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
           ))}
         </ol>
         <div className="dirigir">
-          <input className="entrada entrada-s" value={nuevoPaso} placeholder="Anadir un paso" onChange={(e) => setNuevoPaso(e.target.value)} aria-label="Paso nuevo" />
+          <input className="entrada entrada-s" value={nuevoPaso} placeholder="Añadir un paso" onChange={(e) => setNuevoPaso(e.target.value)} aria-label="Paso nuevo" />
           <button
             type="button"
             className="btn btn-s"
@@ -175,7 +175,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
               setNuevoPaso('');
             }}
           >
-            Anadir
+            Añadir
           </button>
         </div>
       </div>

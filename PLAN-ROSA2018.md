@@ -23,7 +23,7 @@ son las afirmaciones con `clase`, `nivelMedicion` y registro; Run es
 `experimento.resultado`; Decision es `decisiones`; MethodVersion es `metodos`;
 ChangeProposal y LearningChange son `aprendizaje`.
 
-La investigacion que sostiene las decisiones de diseno (revision adversarial,
+La investigacion que sostiene las decisiones de dise�o (revision adversarial,
 procedencia, ejecucion in silico, priorizacion y aprendizaje) esta en
 `INVESTIGACION-ROSA2018.md`.
 
@@ -52,7 +52,7 @@ procedencia, ejecucion in silico, priorizacion y aprendizaje) esta en
 | D. Programa adaptativo | Varias campanas, revision del alcance, evidencia compartida, seleccion de metodos, resultados pendientes, asignacion de presupuesto | Corridas multiples por investigacion; afirmaciones compartidas por id; registro de metodos con estado; presupuesto por mision | Reasignacion entre areas al cambiar resultados o costes; reapertura de areas pausadas con condicion; seleccion de metodo desde el registro con filtros | Comparaciones con presupuesto fijo y recuperacion ante evidencia inesperada |
 | E. Operacion con laboratorio | Peticiones acordadas, protocolo real ejecutado, identidad de muestras, controles de calidad, revision de decisiones con consecuencia | Prerregistro con version, subida de datos, dimensiones del resultado, fallo tecnico que no toca la hipotesis | Importar el protocolo real y las desviaciones; identidad de experimento y muestra; enmiendas fechadas para trabajo adaptativo | Campanas prospectivas con predicciones registradas y reporte completo |
 | F. Evaluacion cientifica | Comparaciones independientes contra procesos mas simples | Acuerdo del juez con decisiones humanas (Calidad); evaluacion de criterios sobre conjunto reservado | Las cuatro condiciones (cientifico solo, cientifico con LLM y recuperacion, Rosa con componentes apagados, Rosa completa) y los cinco niveles de prueba; panel del Killer con fallos plantados; casos que exigen abstenerse | Efectos, incertidumbre, costes, fallos y limites de generalizacion |
-| G. Expansion | Mas metodos, contextos, clases de intervencion, aprendizaje controlado, operacion sostenida | Registro de metodos preparado para anadir | Cada extension con sus propias pruebas | Cada extension pasa sus comprobaciones |
+| G. Expansion | Mas metodos, contextos, clases de intervencion, aprendizaje controlado, operacion sostenida | Registro de metodos preparado para a�adir | Cada extension con sus propias pruebas | Cada extension pasa sus comprobaciones |
 
 ## 3. Lo que hay que hacer fuera del codigo, ya
 

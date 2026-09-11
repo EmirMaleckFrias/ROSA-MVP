@@ -9,7 +9,7 @@ INTEC. Antes de tocar nada, leer en este orden:
    fuentes de datos y sus APIs, DSPy y GEPA con la API exacta, evaluacion,
    marco legal dominicano).
 3. `UI-ROSA.md`: la interfaz, patron por patron, tomando Claude Science como
-   referencia y anadiendo lo que Rosa necesita y aquella no tiene.
+   referencia y a�adiendo lo que Rosa necesita y aquella no tiene.
 4. `INVESTIGACION-INTERFACES.md`: lo que hacen Claude Science, Kosmos,
    Co-Scientist, Biomni y las herramientas de literatura, y la lista
    priorizada de lo que le falta al frontend de Rosa.
@@ -31,7 +31,7 @@ INTEC. Antes de tocar nada, leer en este orden:
    alcance.
 9. `INVESTIGACION-ROSA2018.md`: los cuatro informes (Killer, procedencia,
    ejecucion in silico, priorizacion y aprendizaje) que sostienen las
-   decisiones de diseno de ROSA2018 en Rosa, con URL por afirmacion.
+   decisiones de dise�o de ROSA2018 en Rosa, con URL por afirmacion.
 10. `README.md`: como arrancar Rosa y como se investiga con ella.
 
 `casos_evaluacion.jsonl` son los 17 casos de control del RAG anterior, todos
@@ -66,7 +66,7 @@ sin aprobar por un humano.
   coste por token no es criterio. Claude Fable 5.1 queda fuera de Rosa
   (filtros de doble uso en biologia; ver `TRASPASO.md` 2.3).
 - La persona usuaria es medica, no programadora: botones y estado visible,
-  en espanol, nunca variables de entorno ni terminal.
+  en espa�ol, nunca variables de entorno ni terminal.
 - Las citas resuelven a la pagina exacta. Un desfase de una pagina es un
   fallo grave.
 - Sin guiones largos (U+2014) en codigo, comentarios ni interfaz.

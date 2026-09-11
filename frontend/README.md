@@ -37,7 +37,7 @@ contrato estan en `src/datos/tipos.ts`.
   verificacion, diff por lineas, etiquetas de cada estado.
 - `src/componentes/`: piezas reutilizables: tarjeta de permiso, plan en vivo
   con pistas y transcripcion, verificacion plegable, tarjetas del revisor,
-  comentarios anclados, cajon de procedencia de seis pestanas.
+  comentarios anclados, cajon de procedencia de seis pesta�as.
 - `src/pantallas/`: una por pantalla.
 - `src/styles.css`: el sistema visual, heredado del RAG, con el morado del
   arbol del Alzheimer Project como acento. Claro y oscuro via `data-theme`.

@@ -596,3 +596,45 @@ def test_permiso_conector_memoria_y_busqueda(al):
     # La respuesta de una pregunta con herramientas se registra con sus consultas.
     assert al.aplicar("registrarPreguntaBases", {"investigacion_id": inv, "pregunta": {"pregunta": "q", "respuesta": "r", "limites": "", "herramientas": ["mygene_gen"], "consultas": [], "iteraciones": 1, "quien": "persona", "error": None}}) is True
     assert al.estado["investigaciones"][0]["preguntasABases"][0]["herramientas"] == ["mygene_gen"]
+
+
+# -- Skills y entornos del sandbox -------------------------------------------------
+
+
+def test_skills_se_activan_por_palabras_y_traen_scripts():
+    from rosa import skills as SK
+
+    nombres = [s["nombre"] for s in SK.todas()]
+    assert {"expresion-geo", "tamano-muestral", "celula-unica-qc", "fila-de-evidencia", "eleccion-de-problema", "reproduccion-publicada", "revision-de-literatura"} <= set(nombres)
+    act = SK.para_texto("Reproducir la cifra publicada de la serie GEO GSE29378 (sondas Illumina)")
+    assert [s["nombre"] for s in act][:2] == ["expresion-geo", "reproduccion-publicada"] or set(s["nombre"] for s in act) >= {"expresion-geo", "reproduccion-publicada"}
+    assert SK.para_texto("nada que ver") == [] and SK.texto_para_prompt([]) == "Ninguna skill aplica"
+    cel = SK.para_texto("control de calidad de un h5ad de SEA-AD por tipo celular")
+    assert SK.entorno_de(cel) == "celula_unica"
+    sc = SK.scripts_de(SK.para_texto("tamano muestral con potencia 80 %"))
+    assert "tamano_muestral.py" in sc and "def continuo" in sc["tamano_muestral.py"]
+    cat = SK.catalogo()
+    assert all("texto" not in c and c["lineas"] > 5 for c in cat)
+
+
+def test_calculador_de_tamano_muestral():
+    import importlib.util
+    from pathlib import Path
+
+    ruta = Path("rosa/skills/tamano-muestral/scripts/tamano_muestral.py")
+    spec = importlib.util.spec_from_file_location("tm", ruta)
+    tm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tm)  # type: ignore[union-attr]
+    r = tm.continuo(delta=0.5, sigma=1.0, alfa=0.05, potencia=0.8)
+    assert r["n_por_grupo"] == 63 or r["n_por_grupo"] == 64  # el clasico n = 63 por grupo para d = 0,5
+    b = tm.binario(0.3, 0.5, alfa=0.05, potencia=0.8)
+    assert 90 <= b["n_por_grupo"] <= 100
+    assert tm.continuo(0.5, 1.0, abandono=0.2)["n_por_grupo_con_abandono"] > r["n_por_grupo"]
+
+
+def test_ejecucion_conoce_los_dos_entornos():
+    assert set(X.IMAGENES) == {"tabular", "celula_unica"}
+    assert X.IMAGENES["celula_unica"][1] == "Dockerfile.celula"
+    from pathlib import Path
+
+    assert (Path("rosa/sandbox") / "Dockerfile.celula").exists() and "scanpy" in (Path("rosa/sandbox") / "Dockerfile.celula").read_text()

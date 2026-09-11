@@ -166,7 +166,7 @@ function FormularioHipotesis({ inv, onCerrar, irA }: { inv: Investigacion; onCer
       <div className="rejilla-3">
         {campo('biomarcador', 'Biomarcador', 1)}
         {campo('cohorte', 'Cohorte', 1)}
-        {campo('diseno', 'Diseno', 1)}
+        {campo('diseno', 'Diseño', 1)}
       </div>
       {campo('cluster', 'Cluster (tema)', 1, 'Biomarcadores sanguineos')}
       {error && (
@@ -298,13 +298,13 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <TextoConFuertes texto={h.mecanismo} campo="mecanismo" />
       </Seccion>
 
-      <Seccion titulo="Como se comprobaria" nota="Siempre con biomarcador, cohorte y diseno: es lo que el investigador clinico principal necesita para juzgarla.">
+      <Seccion titulo="Como se comprobaria" nota="Siempre con biomarcador, cohorte y diseño: es lo que el investigador clinico principal necesita para juzgarla.">
         <dl className="comprobacion texto-comentable" data-campo="comprobacion">
           <dt>Biomarcador</dt>
           <dd>{h.comprobacion.biomarcador}</dd>
           <dt>Cohorte</dt>
           <dd>{h.comprobacion.cohorte}</dd>
-          <dt>Diseno</dt>
+          <dt>Diseño</dt>
           <dd>{h.comprobacion.diseno}</dd>
         </dl>
       </Seccion>
@@ -550,7 +550,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 )}
                 {h.experimento.tamanoMuestral && (
                   <div className="experimento-bloque">
-                    <h4>Tamano muestral</h4>
+                    <h4>Tamaño muestral</h4>
                     <p>{h.experimento.tamanoMuestral}</p>
                   </div>
                 )}

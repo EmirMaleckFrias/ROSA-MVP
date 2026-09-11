@@ -122,7 +122,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         )}
       </Seccion>
 
-      <Seccion titulo="Acierto por tipo de afirmacion" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. Rosa lo mide igual, con las afirmaciones verificadas por personas, y ensena la fiabilidad de cada tipo.">
+      <Seccion titulo="Acierto por tipo de afirmacion" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. Rosa lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
         <div className="rejilla-3">
           {(['dato', 'literatura', 'interpretacion'] as const).map((t) => {
             const v = ultima?.aciertoPorTipo[t] ?? null;
@@ -245,7 +245,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
 
       <Seccion
         titulo="Casos de control"
-        nota="Los 17 los propuso el RAG sobre otro corpus y ninguno esta aprobado. Sirven para probar el ciclo; los del dominio del Alzheimer hay que escribirlos con el companero."
+        nota="Los 17 los propuso el RAG sobre otro corpus y ninguno esta aprobado. Sirven para probar el ciclo; los del dominio del Alzheimer hay que escribirlos con el compañero."
         acciones={
           <div className="segmentos" role="group" aria-label="Filtro de casos">
             {(['propuesto', 'aprobado', 'descartado', 'todos'] as const).map((f) => (

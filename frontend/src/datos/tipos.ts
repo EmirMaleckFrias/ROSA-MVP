@@ -1057,6 +1057,8 @@ export interface PlanAnalisis {
   id: Id;
   investigacionId: Id;
   hipotesisId: Id | null;
+  /** Entorno del sandbox que el plan declara: tabular o celula unica. */
+  entorno?: 'tabular' | 'celula_unica';
   datasetId: Id;
   tipo: 'confirmatorio' | 'exploratorio' | 'reproduccion';
   pregunta: string;
@@ -1103,7 +1105,9 @@ export interface Ejecucion {
   planId: Id;
   tipo: 'hipotesis' | 'reproduccion';
   codigo: string;
-  entorno: { python: string; paquetes: Paquete[] };
+  entorno: { python: string; paquetes: Paquete[]; imagen?: string };
+  /** Skills de metodo que se cargaron al escribir el codigo. */
+  skills?: string[];
   semilla: number;
   hashDatos: string;
   hashPlan: string;
@@ -1454,6 +1458,8 @@ export interface EstadoRosa {
   conectores?: ConectorCatalogo[];
   /** Permiso por conector: permitir, solo cuando pregunta una persona, o bloquear. */
   permisosConectores?: Record<string, NivelPermisoConector>;
+  /** Las skills de metodo de Rosa (ficheros SKILL.md en rosa/skills/). */
+  skills?: SkillCatalogo[];
   artefactos: Artefacto[];
   casos: CasoControl[];
   metricas: MetricasJuez[];
@@ -1592,4 +1598,15 @@ export interface PreguntaABases {
   iteraciones: number;
   quien: string;
   error: string | null;
+}
+
+export interface SkillCatalogo {
+  nombre: string;
+  descripcion: string;
+  activaSi: string[];
+  paquetes: string[];
+  entorno: string;
+  scripts: string[];
+  ruta: string;
+  lineas: number;
 }

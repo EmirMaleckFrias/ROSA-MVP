@@ -84,7 +84,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
     else:
         L.append("Sin tarjeta de hipotesis: falta el contrato minimo (diana, celula, etapa, intervencion, prediccion falsable).")
     c = h["comprobacion"]
-    L.append(f"Comprobacion propuesta: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseno {c['diseno']}.")
+    L.append(f"Comprobacion propuesta: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}.")
     if mision:
         L.append(f"Encaje con la mision: poblacion {mision.get('poblacion') or '?'}; etapa {mision.get('etapa') or '?'}; celula o tejido {mision.get('celulaTejido') or '?'}; mecanismo {mision.get('mecanismo') or '?'}; intervencion {mision.get('tipoIntervencion') or '?'}.")
     if h.get("versiones"):
@@ -158,7 +158,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
     if not x:
         L.append("Sin experimento propuesto.")
     else:
-        L += ["Protocolo:", x.get("protocolo", ""), f"Ensayo: {x.get('ensayo', '')}", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamano muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}", f"La CONFIRMA si: {x.get('confirma') or 'sin criterio'}", f"La REFUTA si: {x.get('refuta') or 'sin criterio'}", f"Que decision cambia con el resultado: {x.get('decisionQueCambia') or 'no declarado'}", f"Coste estimado: {x.get('costeEstimado', '')}"]
+        L += ["Protocolo:", x.get("protocolo", ""), f"Ensayo: {x.get('ensayo', '')}", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamaño muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}", f"La CONFIRMA si: {x.get('confirma') or 'sin criterio'}", f"La REFUTA si: {x.get('refuta') or 'sin criterio'}", f"Que decision cambia con el resultado: {x.get('decisionQueCambia') or 'no declarado'}", f"Coste estimado: {x.get('costeEstimado', '')}"]
         if x.get("analisisPedido"):
             L.append(f"Con datos existentes: {x['analisisPedido']}")
         if x.get("prerregistradoEn"):

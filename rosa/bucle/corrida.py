@@ -387,7 +387,7 @@ class Supervisor:
     async def _hipotesis_en_llano(self, ctx: Ctx, h: dict[str, Any]) -> None:
         c = h["comprobacion"]
         try:
-            pred = await ctx.llamar("volumen", self.programas.hipotesis_en_llano, titulo=h["titulo"], enunciado=h["enunciado"], mecanismo=h["mecanismo"], comprobacion=f"Biomarcador: {c['biomarcador']}. Cohorte: {c['cohorte']}. Diseno: {c['diseno']}", relevancia=h["relevancia"]["justificacion"])
+            pred = await ctx.llamar("volumen", self.programas.hipotesis_en_llano, titulo=h["titulo"], enunciado=h["enunciado"], mecanismo=h["mecanismo"], comprobacion=f"Biomarcador: {c['biomarcador']}. Cohorte: {c['cohorte']}. Diseño: {c['diseno']}", relevancia=h["relevancia"]["justificacion"])
             texto = pred.explicacion.strip()
         except Exception as ex:  # noqa: BLE001
             texto = ""
@@ -877,7 +877,10 @@ class Supervisor:
             # El planificador del programa: areas de investigacion comparables, con
             # familias de mecanismo distintas y las que quedan sin explorar.
             try:
-                pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites="; ".join(inv["limites"]) or "Ninguno")
+                from rosa import skills as SK
+
+                guia = SK.texto_para_prompt(SK.para_texto("eleccion de problema mision areas programa"), maximo=2500)
+                pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites=("; ".join(inv["limites"]) or "Ninguno") + "\n\nGuia de eleccion de problema (skill):\n" + guia)
                 mision["areas"] = [P.nueva_area(titulo=a.titulo.strip(), familiaMecanismo=a.familia_mecanismo.strip(), relevancia=a.relevancia.strip(), valorIntervencion=a.valor_intervencion.strip(), incertidumbre=a.incertidumbre.strip(), comprobabilidad=a.comprobabilidad.strip(), coste=a.coste.strip(), demora=a.demora.strip(), dependeDe=a.depende_de.strip(), estado="elegida" if a.elegir else ("sin_explorar" if "sin ruta" in a.comprobabilidad.lower() else "propuesta")) for a in list(pa.areas)[:6]]
                 if not any(a["estado"] == "elegida" for a in mision["areas"]) and mision["areas"]:
                     mision["areas"][0]["estado"] = "elegida"

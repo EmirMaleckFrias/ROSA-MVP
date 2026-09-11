@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -656,6 +656,13 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
         </details>
       )}
       {run.interpretacion && <p style={{ fontSize: 13.5 }}>{run.interpretacion.resumen}</p>}
+      {(run.skills?.length || run.entorno?.imagen) && (
+        <p className="meta">
+          {run.entorno?.imagen ? `Entorno ${run.entorno.imagen}` : ''}
+          {run.skills?.length ? `${run.entorno?.imagen ? '; ' : ''}skills: ${run.skills.join(', ')}` : ''}
+          {run.entorno?.paquetes?.length ? `; ${run.entorno.paquetes.slice(0, 6).map((p) => `${p.nombre} ${p.version}`).join(', ')}` : ''}
+        </p>
+      )}
       {run.repeticiones && run.repeticiones.length > 0 && (
         <p className="meta">
           Repeticiones con otras semillas: {run.repeticiones.map((r) => `semilla ${r.semilla}: ${Object.entries(r.resultados).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(', ') || 'sin cifras'}`).join(' | ')}
@@ -1227,7 +1234,7 @@ const ETIQUETA_CAMPO: Record<CampoEnmendable, string> = {
   protocolo: 'Protocolo',
   ensayo: 'Ensayo',
   controles: 'Controles',
-  tamanoMuestral: 'Tamano muestral',
+  tamanoMuestral: 'Tamaño muestral',
   confirma: 'Criterio de confirmacion',
   refuta: 'Criterio de refutacion',
   analisisPedido: 'Analisis pedido',
@@ -1932,5 +1939,55 @@ export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefi
       )}
       <p className="meta">El registro de ejecucion manda sobre el codigo: si discrepan, lo que corrio es lo que vale.</p>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Skills de Rosa
+// ---------------------------------------------------------------------------
+
+/** Las skills: instrucciones de metodo que el planificador de analisis, el
+ *  escritor de codigo y el proponente de areas cargan cuando la tarea las
+ *  pide (por palabras de activacion). Mismo formato que las Agent Skills de
+ *  Anthropic; viven en rosa/skills/<nombre>/SKILL.md y se editan ahi. */
+export function Skills({ skills }: { skills: SkillCatalogo[] | undefined }) {
+  const lista = skills ?? [];
+  return (
+    <Seccion titulo="Skills de metodo" nota="Un fichero de instrucciones por metodo (como correr una reproduccion de GEO, como calcular un tamano muestral, como hacer control de calidad de celula unica). Rosa carga las que casan con el plan y las pasa al modelo junto con los modulos que el sandbox puede importar. Se anaden o cambian editando rosa/skills/; el catalogo se lee al arrancar.">
+      {lista.length === 0 ? (
+        <p className="meta">El catalogo de skills llega del servidor al arrancar.</p>
+      ) : (
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Skill</th>
+              <th>Que hace</th>
+              <th>Se activa con</th>
+              <th>Entorno y modulos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((s) => (
+              <tr key={s.nombre}>
+                <td>
+                  <strong style={{ fontSize: 13 }}>{s.nombre}</strong>
+                  <p className="meta">
+                    {s.ruta}/SKILL.md, {s.lineas} lineas
+                  </p>
+                </td>
+                <td className="meta">{s.descripcion}</td>
+                <td className="meta">{s.activaSi.join(', ')}</td>
+                <td className="meta">
+                  <Chip tono={s.entorno === 'celula_unica' ? 'aviso' : 'borde'}>{s.entorno === 'celula_unica' ? 'celula unica' : 'tabular'}</Chip>
+                  {s.paquetes.length > 0 && <p className="meta">Paquetes: {s.paquetes.join(', ')}</p>}
+                  {s.scripts.length > 0 && <p className="meta">Modulos: {s.scripts.join(', ')}</p>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Seccion>
   );
 }

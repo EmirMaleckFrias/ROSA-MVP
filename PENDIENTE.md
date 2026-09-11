@@ -67,7 +67,7 @@ siguen activos para cuando entren datos controlados.
    fidelidad, citas o supuestos la hipotesis se suspende en vez de morir.
    Lo que el juez si detecto: supuesto contradicho (4 de 5), causalidad sin
    temporalidad (5 de 5), prediccion vaga (2 de 3 sin error). Lo que no
-   detecto: cifra alterada frente al pasaje (0 de 5); se le anadio la
+   detecto: cifra alterada frente al pasaje (0 de 5); se le a�adi� la
    instruccion explicita de comparar texto y pasaje. Tres casos fallaron por
    JSON truncado; el juez pasa a 8000 tokens de salida. Queda un segundo
    panel reducido para medir el efecto; repetir el panel completo tras cada

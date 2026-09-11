@@ -32,6 +32,7 @@ cifras.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -46,6 +47,12 @@ from typing import Any
 from rosa import config, politicas
 
 IMAGEN = os.environ.get("ROSA_SANDBOX_IMAGEN", "rosa-sandbox:1")
+# Entornos del sandbox (como los "task environments" de Claude Science, pero
+# fijos y declarados): la imagen tabular y la de celula unica. El plan de
+# analisis elige el entorno y lo deja escrito; la ejecucion registra la
+# imagen y las versiones de sus paquetes.
+IMAGENES = {"tabular": (IMAGEN, "Dockerfile"), "celula_unica": (os.environ.get("ROSA_SANDBOX_IMAGEN_CELULA", "rosa-sandbox-celula:1"), "Dockerfile.celula")}
+_VERSIONES: dict[str, list[dict[str, str]]] = {}
 DIR_TRABAJO = Path(config.RAIZ) / "datos" / "_ejecuciones"
 PAQUETES_SANDBOX = ["pandas", "numpy", "scipy", "statsmodels"]
 
@@ -116,20 +123,21 @@ def runtime_disponible(sintetico: bool) -> tuple[str, str]:
     return "ninguno", motivo
 
 
-def _asegurar_imagen(runtime: str) -> str | None:
-    """Construye la imagen del sandbox si no existe. Devuelve un error o None."""
+def _asegurar_imagen(runtime: str, entorno: str = "tabular") -> str | None:
+    """Construye la imagen del sandbox del entorno si no existe. Devuelve un error o None."""
     cli = runtime
+    imagen, dockerfile_nombre = IMAGENES.get(entorno, IMAGENES["tabular"])
     try:
-        r = subprocess.run([cli, "image", "inspect", IMAGEN], capture_output=True, text=True, timeout=20)
+        r = subprocess.run([cli, "image", "inspect", imagen], capture_output=True, text=True, timeout=20)
         if r.returncode == 0:
             return None
         dockerfile = Path(config.RAIZ) / "rosa" / "sandbox"
-        r = subprocess.run([cli, "build", "-t", IMAGEN, str(dockerfile)], capture_output=True, text=True, timeout=900)
+        r = subprocess.run([cli, "build", "-t", imagen, "-f", str(dockerfile / dockerfile_nombre), str(dockerfile)], capture_output=True, text=True, timeout=1800)
         if r.returncode != 0:
             return f"No se pudo construir la imagen del sandbox: {r.stderr[-800:]}"
         return None
     except subprocess.TimeoutExpired:
-        return "La construccion de la imagen del sandbox tardo mas de 15 minutos"
+        return "La construccion de la imagen del sandbox tardo mas de 30 minutos"
     except Exception as ex:  # noqa: BLE001
         return f"No se pudo preparar la imagen del sandbox: {ex}"
 
@@ -202,6 +210,21 @@ def _parsear(salida: str) -> tuple[dict[str, str], dict[str, str], dict[str, str
     return resultados, baseline, control, no_evaluable
 
 
+def versiones_imagen(runtime: str, entorno: str = "tabular") -> list[dict[str, str]]:
+    """Las versiones de los paquetes de la imagen, leidas una vez por proceso
+    (el registro de procedencia exige el entorno exacto de cada artefacto)."""
+    imagen = IMAGENES.get(entorno, IMAGENES["tabular"])[0]
+    if imagen in _VERSIONES:
+        return _VERSIONES[imagen]
+    try:
+        r = subprocess.run([runtime, "run", "--rm", "--network", "none", imagen, "python", "-c", "import importlib.metadata as m, json, platform; print(json.dumps({'python': platform.python_version(), **{d.metadata['Name']: d.version for d in m.distributions()}}))"], capture_output=True, text=True, timeout=120)
+        datos = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 and r.stdout.strip() else {}
+    except Exception:  # noqa: BLE001
+        datos = {}
+    _VERSIONES[imagen] = [{"nombre": "imagen", "version": imagen}] + [{"nombre": k, "version": v} for k, v in sorted(datos.items()) if k.lower() in ("python", "pandas", "numpy", "scipy", "statsmodels", "scanpy", "anndata", "h5py", "matplotlib", "leidenalg", "igraph")]
+    return _VERSIONES[imagen]
+
+
 def _paquetes(runtime: str) -> list[dict[str, str]]:
     if runtime == "local_sintetico":
         salida = []
@@ -215,8 +238,10 @@ def _paquetes(runtime: str) -> list[dict[str, str]]:
     return [{"nombre": "imagen", "version": IMAGEN}]
 
 
-def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ejecucion: str) -> Resultado:
-    """Corre el script contra el fichero. Bloqueante: llamarlo desde un hilo."""
+def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ejecucion: str, entorno: str = "tabular", ficheros_extra: dict[str, str] | None = None) -> Resultado:
+    """Corre el script contra el fichero. Bloqueante: llamarlo desde un hilo.
+    `entorno` elige la imagen (tabular o celula_unica); `ficheros_extra` son
+    modulos de skills que se copian al directorio de trabajo para importarlos."""
     runtime, motivo = runtime_disponible(sintetico)
     if runtime == "ninguno":
         return Resultado(estado="no_ejecutado", runtime="ninguno", error=motivo)
@@ -226,10 +251,13 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
     tiempo = politicas.SEGUNDOS_MAX_EJECUCION
     try:
         if runtime in ("docker", "container"):
-            err = _asegurar_imagen(runtime)
+            err = _asegurar_imagen(runtime, entorno)
             if err:
                 return Resultado(estado="no_ejecutado", runtime=runtime, error=err)
             (trabajo / "analisis.py").write_text(codigo, encoding="utf-8")
+            for nombre, contenido in (ficheros_extra or {}).items():
+                if re.fullmatch(r"[a-z_][a-z0-9_]*\.py", nombre):
+                    (trabajo / nombre).write_text(contenido, encoding="utf-8")
             cmd = [
                 runtime, "run", "--rm",
                 "--network", "none",
@@ -239,7 +267,7 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
                 "-v", f"{trabajo}:/trabajo",
                 "-w", "/trabajo",
                 "-e", f"ROSA_SEMILLA={semilla}",
-                IMAGEN, "python", "-I", "/trabajo/analisis.py",
+                IMAGENES.get(entorno, IMAGENES["tabular"])[0], "python", "-I", "/trabajo/analisis.py",
             ]
             entorno = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "")}
             if runtime == "docker" and os.environ.get("DOCKER_HOST"):
@@ -248,6 +276,9 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
         else:
             preambulo = PREAMBULO_LOCAL.replace("__CPU__", str(tiempo))
             (trabajo / "analisis.py").write_text(preambulo + "\n" + codigo, encoding="utf-8")
+            for nombre, contenido in (ficheros_extra or {}).items():
+                if re.fullmatch(r"[a-z_][a-z0-9_]*\.py", nombre):
+                    (trabajo / nombre).write_text(contenido, encoding="utf-8")
             cmd = [sys.executable, "-I", str(trabajo / "analisis.py")]
             entorno = {"ROSA_DATOS": str(ruta_datos.resolve()), "ROSA_SEMILLA": str(semilla), "PATH": "/usr/bin:/bin", "HOME": str(trabajo), "PYTHONDONTWRITEBYTECODE": "1", "MPLBACKEND": "Agg"}
             cwd = str(trabajo)

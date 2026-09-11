@@ -100,7 +100,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         </div>
         <div className="campo">
           <label htmlFor="n-revisores">Quien revisa (separados por coma)</label>
-          <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Companero, el investigador clinico principal" />
+          <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Compañero, el investigador clinico principal" />
         </div>
 
         <Seccion titulo="Configuracion que Rosa leera" nota="Propuesta a partir del objetivo. Es lo que alimenta la generacion, la revision y los debates del torneo. Editala si no encaja.">

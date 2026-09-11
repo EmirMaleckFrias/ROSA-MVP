@@ -267,7 +267,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
                 <th>Conjunto</th>
                 <th>Que es</th>
                 <th>Acceso</th>
-                <th className="num">Tamano</th>
+                <th className="num">Tamaño</th>
                 <th></th>
               </tr>
             </thead>

@@ -31,7 +31,7 @@ RAG. Nunca al codigo ni a un chat.
 ## Lo que trae ROSA2018 (septiembre de 2026)
 
 El documento de concepto del programa y el plan completo del sistema (ver
-`PLAN-ROSA2018.md`) anaden a Rosa estas piezas. Todas estan en la interfaz;
+`PLAN-ROSA2018.md`) a�aden a Rosa estas piezas. Todas estan en la interfaz;
 nada de esto se opera desde la terminal.
 
 - **Mision y areas.** Al arrancar la primera corrida Rosa propone la mision
@@ -81,9 +81,9 @@ nada de esto se opera desde la terminal.
   de analisis tiene aleatoriedad (permutacion, bootstrap) el sandbox lo
   repite con dos semillas mas. Los p-valores de los analisis validos de una
   hipotesis se agregan con e-valores (producto de kappa p^(kappa-1)), que
-  controlan el error aunque se sigan anadiendo pruebas.
+  controlan el error aunque se sigan a�adiendo pruebas.
 - **Misma cohorte sin nombre y comprobaciones de registro.** Dos fuentes
-  primarias que comparten dos autores, o el centro y un autor, con pocos anos
+  primarias que comparten dos autores, o el centro y un autor, con pocos a�os
   de diferencia cuentan como una sola cohorte aunque no la nombren. El Killer
   comprueba ademas que la evidencia sostenida va en la direccion del enunciado
   (si va al reves, reformula) y que las cifras comparadas estan en la misma

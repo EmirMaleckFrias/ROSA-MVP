@@ -89,6 +89,7 @@ def estado_inicial() -> dict[str, Any]:
         "hechos": [],
         "evaluaciones": [],
         "permisosConectores": {},
+        "skills": [],
         "relaciones": __import__("rosa.causal", fromlist=["relaciones_iniciales"]).relaciones_iniciales(),
         "artefactos": [],
         "casos": casos_de_control(),
@@ -310,7 +311,7 @@ def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, est
         "actualizadoEn": ahora,
         "prioridad": prioridad,
         "citas": [],
-        "historial": [{"fecha": ahora, "de": None, "a": estado, "quien": config.QUIEN_ROSA, "motivo": motivo or "Anadido por Rosa"}],
+        "historial": [{"fecha": ahora, "de": None, "a": estado, "quien": config.QUIEN_ROSA, "motivo": motivo or "Añadido por Rosa"}],
     }
 
 
@@ -389,7 +390,7 @@ def metodos_iniciales() -> list[dict[str, Any]]:
     reproduccion; lo demas empieza en 'implementado'."""
     t = ahora_ms()
     return [
-        nuevo_metodo("Busqueda bibliografica (PubMed, Europe PMC, preprints)", "busqueda", "Que literatura existe sobre una pregunta; cobertura estimada por tema", t, contextos=["literatura biomedica en ingles y espanol"], exclusiones=["texto completo sin acceso abierto"], entradas="consultas booleanas", salidas="fuentes con resumen y, si hay, texto completo por pagina", validacion="Cobertura estimada con curva 1 - exp(-n/tau); sin evaluacion independiente todavia", fallosConocidos="Una fuente que no responde no es 'no hay'", version="rosa/fuentes", coste="1 llamada por articulo cribado", responsable="ingenieria"),
+        nuevo_metodo("Busqueda bibliografica (PubMed, Europe PMC, preprints)", "busqueda", "Que literatura existe sobre una pregunta; cobertura estimada por tema", t, contextos=["literatura biomedica en ingles y español"], exclusiones=["texto completo sin acceso abierto"], entradas="consultas booleanas", salidas="fuentes con resumen y, si hay, texto completo por pagina", validacion="Cobertura estimada con curva 1 - exp(-n/tau); sin evaluacion independiente todavia", fallosConocidos="Una fuente que no responde no es 'no hay'", version="rosa/fuentes", coste="1 llamada por articulo cribado", responsable="ingenieria"),
         nuevo_metodo("Verificador de afirmaciones (deterministas + juez Opus 5)", "revision", "Si un fragmento citado sostiene una afirmacion; entidad distinta; ausencia refutada", t, contextos=["afirmaciones con cita a fragmento literal"], entradas="afirmacion, fragmento, pistas normalizadas", salidas="veredicto TRASPASO 4.1", validacion="17 casos de control del RAG anterior, sin aprobar por humano", fallosConocidos="Interpretaciones: 58 % de acierto en Kosmos; aqui se marcan aparte", version="rosa/verificador.py", coste="1 llamada por afirmacion que va al juez", responsable="metodos"),
         nuevo_metodo("Hypothesis Killer (lista fija + decision por regla)", "revision", "Si una hipotesis avanza, se reformula, se suspende o se descarta en contexto", t, contextos=["hipotesis con tarjeta y afirmaciones verificadas"], entradas="hipotesis, afirmaciones, supuestos, comprobaciones deterministas", salidas="decision con comprobaciones y auditoria muestreada", validacion="Pendiente: panel de prueba con fallos plantados (ver PLAN-ROSA2018.md)", fallosConocidos="Sesgo de autoridad y de posicion en jueces LLM; se ocultan recuentos de citas", version="rosa/killer.py", coste="1 a 3 llamadas por hipotesis", responsable="metodos"),
         nuevo_metodo("Comparacion de dos grupos (t de Welch o Mann-Whitney) con baseline y control barajado", "analisis", "Diferencia de una medida continua entre dos grupos independientes", t, contextos=["datos tabulares con una columna de grupo y una medida"], exclusiones=["medidas repetidas", "mas de dos grupos sin correccion"], entradas="CSV con columna de grupo y medida", salidas="RESULTADO estadistico, p, IC, n por grupo; BASELINE; CONTROL", validacion="Sin probar en contexto hasta superar la puerta de reproduccion", fallosConocidos="p grande con n pequeno no es 'sin efecto'", version="sandbox rosa-sandbox:1 (pandas, scipy, statsmodels)", coste="1 evaluacion costosa", responsable="metodos", estado="implementado"),
@@ -465,6 +466,7 @@ def nuevo_plan_analisis(investigacion_id: str, hipotesis_id: str | None, dataset
         "umbralEfecto": "",
         "criterioNoEvaluable": "",
         "semilla": 12345,
+        "entorno": "tabular",
         "hashDatos": "",
         "hashPlan": "",
         "congeladoEn": ahora,

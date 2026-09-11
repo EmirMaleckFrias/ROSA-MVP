@@ -102,7 +102,7 @@ De la pagina oficial y del repositorio.
 | --- | --- | --- |
 | conducting-scientific-research | El flujo general: inspeccionar estado, fijar objetivo y evidencia, ejecutar, validar, guardar artefactos y procedencia, pedir revision, corregir, informar. Cinco referencias: trabajo cientifico, literatura y recuperacion, datos y estadistica, computo y artefactos, plantillas (brief de analisis, manifiesto de datos, fila del libro de experimentos, fila de evidencia) | `skills/conducting-scientific-research/` |
 | scientific-problem-selection | Eleccion de problema segun Fischbach y Walsh (Cell, 2024): bombas de intuicion, riesgo, funcion de optimizacion, que parametro fijar, arbol de decision, adversidad, inversion del problema | `skills/scientific-problem-selection/` |
-| clinical-trial-protocol | Protocolo de ensayo por pasos con puntos de guardado, investigacion de ensayos similares y guias FDA, y un calculador de tamano muestral (continuo y binario) | `skills/clinical-trial-protocol/` |
+| clinical-trial-protocol | Protocolo de ensayo por pasos con puntos de guardado, investigacion de ensayos similares y guias FDA, y un calculador de tama�o muestral (continuo y binario) | `skills/clinical-trial-protocol/` |
 | single-cell-rna-qc | Control de calidad de scRNA-seq con filtrado por MAD segun scverse | `skills/single-cell-rna-qc/` |
 | scvi-tools | scVI, scANVI, totalVI, PeakVI, MultiVI, DestVI, veloVI, scArches: integracion, transferencia de etiquetas, expresion diferencial | `skills/scvi-tools/` |
 | nextflow-development | Pipelines nf-core (rnaseq, atacseq, sarek) con adquisicion de datos crudos de GEO y SRA por E-utilities y ENA | `skills/nextflow-development/` |
@@ -133,7 +133,7 @@ sirvan:
    (cuenta esperada, registro control, resolucion reciproca de
    identificadores, segundo endpoint); investigar ceros y expansiones
    inesperadas.
-6. **Para cada fuente retenida**: identificador estable, diseno, poblacion,
+6. **Para cada fuente retenida**: identificador estable, dise�o, poblacion,
    n, intervencion, comparador, desenlace, efecto, incertidumbre,
    limitaciones y la afirmacion exacta que sostiene. No citar por parecido
    de titulo.
@@ -203,7 +203,7 @@ gratuita obligatoria desde julio de 2026; Rosa ya la envia), `rest.kegg.jp`,
 | Python en sandbox | `rosa/ejecucion.py`: Docker sin red, 2 GB, 180 s, imagen fija (pandas, numpy, scipy, statsmodels); contrato de salida `RESULTADO nombre=valor`; repeticiones con semillas | Si, con imagen unica |
 | Environment | Una imagen `rosa-sandbox:1`; no hay entornos por proyecto ni instalacion de paquetes | No |
 | R | No hay | No |
-| Artifact con procedencia | Artefactos inmutables (prerregistro, dossier, informes) con iteracion y fecha; los analisis guardan plan congelado, hash del dataset, codigo, salida y auditoria | Si, sin versiones del mismo nombre ni pestanas de procedencia |
+| Artifact con procedencia | Artefactos inmutables (prerregistro, dossier, informes) con iteracion y fecha; los analisis guardan plan congelado, hash del dataset, codigo, salida y auditoria | Si, sin versiones del mismo nombre ni pesta�as de procedencia |
 | RequestReview | Tres revisores: el verificador de citas (cada afirmacion contra su pasaje), el Killer (once comprobaciones) y el auditor del analisis (nueve comprobaciones sobre codigo y cifras). Un tercio de descartes auditado por un defensor | Si, mas fuerte que el de Claude Science en lo que revisa, pero no compara "lo que Rosa dijo" con "lo que corrio" al cerrar una iteracion |
 | Agent y delegacion | Pistas paralelas por paso con parada individual | Si |
 | Plan | Plan por iteracion con aprobacion, edicion y valor de decision | Si |
@@ -284,17 +284,17 @@ lo que Rosa ya hace con datos publicos:
    correlacion con variables clinicas; con las reglas que ya aprendimos con
    GSE1297, GSE29378 y GSE36980 (sondas sin simbolo, presencia en chips,
    escala log2 frente a lineal).
-2. `tamano-muestral`: el calculador continuo y binario del repositorio,
+2. `tama�o-muestral`: el calculador continuo y binario del repositorio,
    adaptado, para que el experimento propuesto lleve n con su supuesto en vez
    de "no estimable".
 3. `celula-unica-qc` y `scvi`: control de calidad por MAD e integracion, para
    SEA-AD y CELLxGENE cuando entren; exigen una imagen de sandbox con scanpy
    y scvi-tools, distinta de la actual.
 4. `revision-de-literatura`: la fila de evidencia de Claude Science
-   (identificador, diseno, poblacion, n, intervencion, comparador, desenlace,
+   (identificador, dise�o, poblacion, n, intervencion, comparador, desenlace,
    efecto, incertidumbre, limitaciones, afirmacion que sostiene) como forma
    obligatoria de la afirmacion de tipo dato; Rosa ya tiene nivel de medicion,
-   n, comparador, efecto e incertidumbre; faltan diseno y limitaciones.
+   n, comparador, efecto e incertidumbre; faltan dise�o y limitaciones.
 5. `eleccion-de-problema`: las preguntas de Fischbach y Walsh (por que
    importa si sale, cuales son los riesgos, que parametro fijar) como
    comprobaciones de la mision y de las areas antes de aprobarlas.
@@ -377,7 +377,7 @@ cliente Python mantenido, y usar MCP solo donde es oficial.
 | BioContextAI knowledgebase-mcp | Un servidor con UniProt, Open Targets, Reactome, STRING, HPA, AlphaFold, OLS, Ensembl, Europe PMC, bioRxiv, ClinicalTrials.gov; registro comunitario de MCP biomedicos (Nature Biotechnology) | 28 estrellas, Apache-2.0 |
 | Augmented-Nature, JackKuo666, bio-mcp | Un servidor por base, JavaScript o Python | Sin commits en 2026; no apoyarse en ellos |
 
-### 4.3 Las doce fuentes que mas valor anaden a Rosa, por orden
+### 4.3 Las doce fuentes que mas valor a�aden a Rosa, por orden
 
 Rosa ya tiene PubMed, Europe PMC, OpenAlex, Crossref, Unpaywall,
 ClinicalTrials.gov y Open Targets (una consulta fija). Lo que falta, por

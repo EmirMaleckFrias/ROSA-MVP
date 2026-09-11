@@ -11,7 +11,7 @@ analisis que se mencionan son pruebas del sistema.
   Server-Sent Events con un latido cada 15 segundos, y modificado solo por
   acciones nombradas (`POST /api/acciones/{nombre}`, 63 acciones) o por el
   bucle de investigacion. Cada cambio sube un numero de version; la tabla de
-  acciones es un registro solo de anadir que sirve de auditoria.
+  acciones es un registro solo de a�adir que sirve de auditoria.
 - **Interfaz** en React y TypeScript: once pantallas (inicio, nueva
   investigacion, corrida en vivo, cola de hipotesis, ranking, panorama,
   modelo de mundo, artefactos, calidad, objetivo y datos, ajustes). Los
@@ -49,7 +49,7 @@ analisis que se mencionan son pruebas del sistema.
   fraccion de descartes auditados, tiempo y memoria del sandbox, presupuestos
   por defecto). Ningun agente ni pantalla los edita; cambiarlos es un commit,
   y el commit queda en el arnes.
-- **Tamano**: unas 9.000 lineas de Python y 15.000 de TypeScript; 34 pruebas
+- **tama�o**: unas 9.000 lineas de Python y 15.000 de TypeScript; 34 pruebas
   automaticas del servidor y 135 de la interfaz, todas pasando; la interfaz
   compila sin errores de tipos.
 
@@ -106,7 +106,7 @@ convierte en una medida.
 
 Los fragmentos recuperados entran a los modelos delimitados como datos, no
 como instrucciones, y un fragmento que contenga texto que parezca una orden
-para un modelo se marca y se ensena, sin bloquearse.
+para un modelo se marca y se ense�a, sin bloquearse.
 
 ### 2.4 Verificacion
 
@@ -131,7 +131,7 @@ antes y lo que dicen ahora; los informes anteriores no se tocan.
 ### 2.6 Hipotesis, tarjeta y versiones
 
 Cada hipotesis lleva titulo, enunciado falsable, mecanismo, comprobacion
-(biomarcador, cohorte, diseno), las afirmaciones sostenidas que la motivan,
+(biomarcador, cohorte, dise�o), las afirmaciones sostenidas que la motivan,
 sus supuestos descompuestos y evaluados (respaldado, plausible, sin
 evidencia, contradicho), la comprobacion de novedad (Open Targets, ensayos
 registrados, precedente en la literatura) y la **tarjeta**: diana o proceso,
@@ -244,7 +244,7 @@ automatica para las hipotesis que el Killer dejo avanzar:
    distintos: no ejecutado, error tecnico, tiempo agotado, completado.
 4. **Interpretacion** por el juez contra el umbral del plan: efecto
    detectado, sin efecto detectable, no evaluable. Un p-valor grande con n
-   pequeno no es "sin efecto"; un control negativo con senal hace el
+   pequeno no es "sin efecto"; un control negativo con se�al hace el
    analisis no evaluable.
 5. **Auditoria independiente**: comprobaciones deterministas (semilla, fuga
    entre entrenamiento y prueba, coincidencia con el plan, baseline y
@@ -266,14 +266,14 @@ invalido, sin experimento interpretable, descartada en contexto, fuente
 retractada. Uno solo basta para sacarla de las candidatas. Entre las que no
 tienen bloqueos y el Killer dejo avanzar, se eligen hasta tres por Elo sin
 repetir cluster mientras haya otros; cero candidatas es un resultado valido.
-El ranking ensena las candidatas y por que las demas no lo son.
+El ranking ense�a las candidatas y por que las demas no lo son.
 
 El **dossier** para el laboratorio se arma sin ningun modelo, a partir del
 estado, en siete partes: decision de priorizacion con sus bloqueos; la
 hipotesis completa con tarjeta, versiones y ruta terapeutica; la evidencia
 con procedencia, pasajes literales y cohortes distintas; los analisis in
 silico con plan, cifras y auditoria; las decisiones registradas; el
-experimento propuesto (protocolo en pasos, ensayo, controles, tamano
+experimento propuesto (protocolo en pasos, ensayo, controles, tama�o
 muestral, explicacion alternativa y como se distinguiria, criterios de
 confirmacion y refutacion, que decision cambia, coste) y su prerregistro; y
 que se aprende con cada resultado posible. Se guarda como artefacto
@@ -367,9 +367,9 @@ veredicto. Exportacion del expediente de una hipotesis.
   servidor con tablas grandes; y un lector de resultados que truncaba la
   salida del sandbox y aceptaba la primera cifra que encontraba.
 
-## 4. Investigacion que sostiene el diseno
+## 4. Investigacion que sostiene el dise�o
 
-Las decisiones de diseno salen de cuatro informes con fuentes citadas sobre
+Las decisiones de dise�o salen de cuatro informes con fuentes citadas sobre
 revision adversarial de hipotesis en sistemas publicados, libros de
 procedencia y acceso a datos, ejecucion in silico auditable y puertas de
 reproduccion, y priorizacion, dossier y aprendizaje. De ahi vienen, entre

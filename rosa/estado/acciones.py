@@ -851,7 +851,7 @@ def proponer_hipotesis(e: Estado, investigacion_id: str, datos: dict, quien: str
         h["id"] = id_
     h["procedencia"] = P.procedencia_vacia(f"Hipotesis propuesta por {quien}. Rosa la revisara y la metera al torneo en la siguiente iteracion.", ahora)
     h["procedencia"]["mensajes"][0]["de"] = "investigadora"
-    h["procedencia"]["registro"] = [f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} hipotesis humana anadida por {quien}"]
+    h["procedencia"]["registro"] = [f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} hipotesis humana añadida por {quien}"]
     e["hipotesis"].append(h)
     con_evento(e, investigacion_id, "hipotesis_nueva", f"Hipotesis propuesta por {quien}: {h['titulo']}", f"#/investigaciones/{investigacion_id}/hipotesis/{h['id']}", ahora)
     return h["id"]
@@ -902,7 +902,7 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
         "## Como se comprobara",
         f"Biomarcador: {c['biomarcador']}",
         f"Cohorte: {c['cohorte']}",
-        f"Diseno: {c['diseno']}",
+        f"Diseño: {c['diseno']}",
         "",
         "## Protocolo",
         x["protocolo"],
@@ -914,7 +914,7 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
         x["costeEstimado"],
     ]
     if x.get("controles") or x.get("tamanoMuestral") or x.get("alternativa"):
-        lineas += ["", "## Controles, tamano muestral y alternativa", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamano muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Explicacion alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}"]
+        lineas += ["", "## Controles, tamaño muestral y alternativa", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamaño muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Explicacion alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}"]
     if x.get("decisionQueCambia"):
         lineas += ["", "## Que decision cambia con el resultado", x["decisionQueCambia"]]
     if x.get("analisisPedido"):

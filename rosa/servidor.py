@@ -181,6 +181,12 @@ def crear_app(almacen: Almacen) -> FastAPI:
         almacen.aplicar("registrarPreguntaBases", {"investigacion_id": investigacion_id, "pregunta": r})
         return {"ok": r.get("error") is None, "resultado": {k: v for k, v in r.items() if k != "consultas"} | {"consultas": len(r.get("consultas", []))}, "version": almacen.version}
 
+    @app.get("/api/skills")
+    async def skills_actuales() -> list[dict[str, Any]]:
+        from rosa import skills as SK
+
+        return SK.catalogo()
+
     @app.get("/api/conectores")
     async def conectores_actuales() -> list[dict[str, Any]]:
         from rosa.conectores import catalogo

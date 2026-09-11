@@ -88,7 +88,7 @@ Por hipotesis, la **Conclusion de Rosa** (`ConcluirHipotesis` en
    si** (los "indicadores que cambiarian la incertidumbre" de ICD 203).
 6. **Que no pudimos comprobar**: fuentes que no respondieron. Nunca "no hay".
 7. **Cambio respecto a la conclusion anterior**, y hasta cuando se busco.
-8. Cada afirmacion ensena el **pasaje literal** de la fuente (Elicit,
+8. Cada afirmacion ense�a el **pasaje literal** de la fuente (Elicit,
    NotebookLM). La conclusion se rehace al cerrar cada iteracion. El juez
    (Opus 5) la redacta; es un revisor distinto del generador.
 

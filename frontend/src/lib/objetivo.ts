@@ -28,7 +28,7 @@ export function avisosDelObjetivo(objetivo: string, condicionParada: string): Av
   if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningun termino del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan seran genericas.' });
   if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaria un resultado. el investigador clinico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipotesis lo traiga.' });
   if (condicionParada.trim() === '') avisos.push({ tipo: 'sin_parada', texto: 'Sin condicion de parada la corrida no sabe cuando terminar y gasta hasta el tope.' });
-  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con numero, no con letras). Lo demas lo decides tu con el boton Detener; anade una cifra si quieres que pare sin ti.' });
+  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con numero, no con letras). Lo demas lo decides tu con el boton Detener; añade una cifra si quieres que pare sin ti.' });
   return avisos;
 }
 

@@ -49,7 +49,7 @@ como entrada del siguiente debate.
 
 Rosa no toma: la cola de tareas con leases y multiples workers. Un solo
 proceso con asyncio basta para una investigadora y una Mac, y quita una capa
-de fallos. Si hace falta escalar, la cola de Kaimen es el diseno a copiar.
+de fallos. Si hace falta escalar, la cola de Kaimen es el dise�o a copiar.
 
 ### 1.3 PaperQA2 y 3 (FutureHouse)
 
@@ -113,7 +113,7 @@ hecha) para cuando entren analisis de datos.
 
 SciAgents: caminos aleatorizados en un grafo ontologico como semilla de
 hipotesis; siete campos por hipotesis (hipotesis, resultado esperado,
-mecanismo, principios de diseno, propiedades inesperadas, comparacion,
+mecanismo, principios de dise�o, propiedades inesperadas, comparacion,
 novedad). ResearchAgent: cinco criterios por etapa con rubrica Likert,
 refinamiento solo de los criterios con nota baja, tres iteraciones. HypoGeniC:
 banco de hipotesis con recompensa UCB (acierto mas exploracion) y banco de
@@ -123,7 +123,7 @@ casillas, `execute` y `solution` como acciones, recuperacion de herramientas
 por prompt, critico opcional.
 
 Rosa toma: la hipotesis con mecanismo, comprobacion (biomarcador, cohorte,
-diseno) y novedad como campos obligatorios; la lista de control del plan con
+dise�o) y novedad como campos obligatorios; la lista de control del plan con
 pasos hechos, fallidos y omitidos con motivo; los criterios de revision como
 lista editable (Ajustes) que el revisor lee.
 
@@ -203,7 +203,7 @@ Regla que sale de todo esto: distinguir siempre "la fuente no lo tiene" de
   reinicios sin perder un paso. La primera version guarda el estado tras
   cada cambio y, al arrancar, marca como fallidas las pistas que quedaron a
   medias y retoma la iteracion desde el primer paso pendiente. Es suficiente
-  para empezar y no anade un servicio.
+  para empezar y no a�ade un servicio.
 - Sandbox: `dspy.PythonInterpreter` (Deno + Pyodide) no tiene tiempo limite
   propio; hay que envolverlo. Apple `container` (macOS 26) da una VM por
   contenedor sin licencia. Entra cuando Rosa ejecute analisis de datos.

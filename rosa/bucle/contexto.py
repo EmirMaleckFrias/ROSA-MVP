@@ -59,7 +59,7 @@ def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str)
 
 def hipotesis_texto(h: dict[str, Any]) -> str:
     c = h["comprobacion"]
-    return f"Titulo: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobacion: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseno {c['diseno']}\nCluster: {h['cluster']}"
+    return f"Titulo: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobacion: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}\nCluster: {h['cluster']}"
 
 
 def hipotesis_para_torneo(h: dict[str, Any]) -> str:
