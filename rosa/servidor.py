@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sse_starlette.sse import EventSourceResponse
+from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from rosa import config
 from rosa.estado.almacen import ACCIONES, Almacen
@@ -61,7 +61,11 @@ def crear_app(almacen: Almacen) -> FastAPI:
             finally:
                 almacen.desuscribir(cola)
 
-        return EventSourceResponse(generar(), ping=15, headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        # El latido es un evento real (no un comentario) para que el navegador
+        # pueda detectar un flujo muerto: si pasa por un proxy (Vite en
+        # desarrollo) y el servidor se reinicia, el proxy puede dejar la
+        # conexion abierta sin datos y EventSource no se entera solo.
+        return EventSourceResponse(generar(), ping=15, ping_message_factory=lambda: ServerSentEvent(event="latido", data=str(almacen.version)), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.post("/api/acciones/{nombre}")
     async def accion(nombre: str, request: Request) -> dict[str, Any]:

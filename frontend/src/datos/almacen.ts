@@ -96,12 +96,47 @@ function recibirRemoto(remoto: EstadoRosa): void {
 }
 
 let fuenteEventos: EventSource | null = null;
+let ultimaSenal = 0;
+let vigilante: number | null = null;
+
+/** El servidor manda un latido cada 15 s. Si pasan 45 s sin nada (ni estado
+ *  ni latido), el flujo esta muerto aunque el navegador no lo sepa: pasa
+ *  cuando el servidor se reinicia detras del proxy de Vite. Se reabre y se
+ *  vuelve a pedir el estado completo, para no quedarse con uno viejo. */
+function vigilarFlujo(): void {
+  if (vigilante !== null) return;
+  vigilante = window.setInterval(() => {
+    if (modo !== 'servidor') return;
+    if (Date.now() - ultimaSenal > 45_000) {
+      void resincronizar();
+    }
+  }, 15_000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && modo === 'servidor' && Date.now() - ultimaSenal > 20_000) void resincronizar();
+  });
+}
+
+async function resincronizar(): Promise<void> {
+  try {
+    const r = await fetch(`${API}/estado`, { cache: 'no-store' });
+    if (r.ok) recibirRemoto((await r.json()) as EstadoRosa);
+  } catch {
+    if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+  }
+  abrirEventos();
+}
 
 function abrirEventos(): void {
   if (fuenteEventos) fuenteEventos.close();
   const es = new EventSource(`${API}/eventos`);
   fuenteEventos = es;
+  ultimaSenal = Date.now();
+  es.addEventListener('latido', () => {
+    ultimaSenal = Date.now();
+    if (estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
+  });
   es.addEventListener('estado', (ev) => {
+    ultimaSenal = Date.now();
     try {
       recibirRemoto(JSON.parse((ev as MessageEvent).data) as EstadoRosa);
     } catch {
@@ -144,6 +179,7 @@ export async function conectar(): Promise<'muestra' | 'servidor'> {
     }
     recibirRemoto(remoto);
     abrirEventos();
+    vigilarFlujo();
   } catch {
     modo = 'muestra';
     arrancarMuestra();
