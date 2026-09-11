@@ -58,11 +58,20 @@ siguen activos para cuando entren datos controlados.
    evaluable" por una duda del texto del metodo; se corrigio el texto y las
    firmas (NO_EVALUABLE solo por condiciones de los datos). Los registros
    fallidos quedan a la vista.
-2. Leer el panel del Killer en Calidad. Lo que mide: si el juez detecta las
-   cifras alteradas y las predicciones vagas cuando la comprobacion
-   determinista no puede. Si la deteccion del juez es baja en un tipo de
-   fallo, ese es el prompt que hay que tocar (`MatarHipotesis` en
-   `rosa/modulos/firmas.py`) y volver a correr el panel.
+2. Panel del Killer (11 de septiembre, 35 casos, 8 USD): deteccion 16 %,
+   abstencion 0 %, sobre-matanza en gris 80 %. Las cinco hipotesis originales
+   salieron "descartar" por `supuestos`: el juez trataba un supuesto "sin
+   evidencia" como invalidante. Corregido: `supuestos` es ahora por regla
+   (solo un supuesto contradicho tumba), el supuesto invalidante del juez
+   solo cuenta si hay contradiccion real, y cuando juez y regla discrepan en
+   fidelidad, citas o supuestos la hipotesis se suspende en vez de morir.
+   Lo que el juez si detecto: supuesto contradicho (4 de 5), causalidad sin
+   temporalidad (5 de 5), prediccion vaga (2 de 3 sin error). Lo que no
+   detecto: cifra alterada frente al pasaje (0 de 5); se le anadio la
+   instruccion explicita de comparar texto y pasaje. Tres casos fallaron por
+   JSON truncado; el juez pasa a 8000 tokens de salida. Queda un segundo
+   panel reducido para medir el efecto; repetir el panel completo tras cada
+   cambio del prompt del Killer.
 3. SEA-AD procesado: agregar por donante (los ficheros pesan de 1 a 33 GB;
    Rosa admite 200 MB) antes de subirlo.
 4. Alinear con la persona responsable del documento de concepto los nombres
