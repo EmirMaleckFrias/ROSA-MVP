@@ -64,6 +64,7 @@ def _texto_plan(plan: dict[str, Any]) -> str:
             f"No evaluable si: {plan['criterioNoEvaluable']}",
             f"Semilla: {plan['semilla']}",
         ]
+        + (["SALIDA OBLIGATORIA: la cifra comparada con la publicada se imprime como RESULTADO valor_reproducido=<numero>, con ese nombre exacto."] if plan.get("tipo") == "reproduccion" else [])
     )
 
 

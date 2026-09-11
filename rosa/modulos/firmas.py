@@ -768,8 +768,11 @@ class EscribirCodigo(dspy.Signature):
     terminar). Los nombres sin espacios; los valores numericos con hasta 6 cifras
     significativas. Como maximo 30 lineas RESULTADO en total: cifras agregadas
     (estadistico, p, intervalo, n por grupo, numerador y denominador), nunca una linea
-    por gen, fila o elemento. Nada de graficos. El codigo va completo, sin explicaciones
-    fuera de comentarios."""
+    por gen, fila o elemento. Si el plan es de tipo reproduccion, la cifra que se compara
+    con la publicada se imprime OBLIGATORIAMENTE con el nombre exacto
+    `RESULTADO valor_reproducido=<numero>`, ademas de cualquier otro nombre descriptivo:
+    sin esa linea la reproduccion no se puede evaluar. Nada de graficos. El codigo va
+    completo, sin explicaciones fuera de comentarios."""
 
     plan: str = dspy.InputField(desc="El plan congelado, campo por campo")
     esquema_datos: str = dspy.InputField()

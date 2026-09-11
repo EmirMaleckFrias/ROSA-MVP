@@ -29,13 +29,13 @@ siguen activos para cuando entren datos controlados.
 
 ## Inmediato
 
-1. Puerta de reproduccion con datos publicos. GSE1297 (Blalock 2004) esta
-   cargado con su libro de procedencia y Docker construido; tres intentos
-   de reproduccion registrados, los tres fallidos porque el criterio de la
-   lista publicada no esta en el resumen: hay que leer los metodos completos
-   del articulo (PMC357071) y congelar el criterio exacto. Alternativas mas
-   limpias para la puerta: OASIS-1 (volumen cerebral por CDR, un p-valor) y
-   otros GEO del Alzheimer (GSE5281, GSE48350, GSE44770).
+1. Puerta de reproduccion con datos publicos: 1 de 3 superada. GSE1297
+   (Blalock 2004) esta cargado con llamadas de deteccion y libro de
+   procedencia; el algoritmo completo del articulo (leido del PDF) reproduce
+   la cifra publicada (418 frente a 431, tolerancia 20 %). Faltan dos:
+   OASIS-1 (volumen cerebral por CDR, un p-valor; registro gratuito) y otro
+   GEO del Alzheimer (GSE5281, GSE48350, GSE44770). Ver
+   `ESTADO-ROSA-2026-09-11.md`, seccion 6.
 2. SEA-AD procesado: agregar por donante (los ficheros pesan de 1 a 33 GB;
    Rosa admite 50 MB) antes de subirlo.
 3. Asignar responsables en la mision (patrocinador, lider cientifico,
