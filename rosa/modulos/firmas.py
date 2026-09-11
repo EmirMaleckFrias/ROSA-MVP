@@ -733,7 +733,7 @@ class PlanPropuesto(BaseModel):
     control_negativo: str = Field(description="La misma prueba con la variable dependiente barajada (semilla fija): debe dar nada. Si da algo, hay fuga o error")
     correccion_multiplicidad: str = Field(description="Cuantas pruebas se hacen y como se corrige; 'una sola prueba' si es una")
     umbral_efecto: str = Field(description="Que valor del estadistico cuenta como efecto detectado, fijado ahora")
-    criterio_no_evaluable: str = Field(description="Que condicion de los datos (n minimo por grupo, faltantes, columna ausente) hace que el analisis no se pueda evaluar")
+    criterio_no_evaluable: str = Field(description="Que condicion de los DATOS (n minimo por grupo, faltantes, columna ausente, valores fuera de rango) hace que el analisis no se pueda evaluar. Solo condiciones comprobables en el fichero: nunca dudas sobre el metodo o la documentacion. Si el texto del plan no fija un detalle del metodo, se elige la opcion mas fiel a la publicacion, se declara en el plan y se calcula")
 
 
 class PlanificarAnalisis(dspy.Signature):
@@ -767,7 +767,10 @@ class EscribirCodigo(dspy.Signature):
     grupo, tamano de efecto), `BASELINE nombre=valor` para la baseline, `CONTROL
     nombre=valor` para el control negativo con la dependiente barajada, y
     `NO_EVALUABLE motivo` si se cumple el criterio de no evaluable del plan (y entonces
-    terminar). Los nombres sin espacios; los valores numericos con hasta 6 cifras
+    terminar). NO_EVALUABLE es solo para una condicion de los datos (columna ausente,
+    n insuficiente, valores ilegibles), nunca para una duda sobre el metodo o la
+    documentacion: si un detalle no esta fijado, se elige la opcion mas fiel al plan o
+    a la publicacion, se deja escrita en un comentario del codigo y se imprime la cifra. Los nombres sin espacios; los valores numericos con hasta 6 cifras
     significativas. Como maximo 30 lineas RESULTADO en total: cifras agregadas
     (estadistico, p, intervalo, n por grupo, numerador y denominador), nunca una linea
     por gen, fila o elemento. Si el plan es de tipo reproduccion, la cifra que se compara
