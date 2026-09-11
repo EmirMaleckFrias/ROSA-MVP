@@ -149,7 +149,7 @@ def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, 
     rev = pred.revision
     del_juez = [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in rev.comprobaciones]
     comprobaciones = K.fusionar(deterministas, del_juez)
-    if rev.supuesto_invalidante.strip() and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
+    if rev.supuesto_invalidante.strip() and any(s_.get("estado") == "contradicho" for s_ in h.get("supuestos", [])) and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
         comprobaciones = [c for c in comprobaciones if c["comprobacion"] != "supuestos"] + [{"comprobacion": "supuestos", "resultado": "falla", "detalle": f"Supuesto invalidante: {rev.supuesto_invalidante[:200]}"}]
     tiene_prediccion = bool((h.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in (h.get("tarjeta") or {}).get("prediccionFalsable", "").lower()
     decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
@@ -167,7 +167,7 @@ def evaluar_caso(fallo: str, esperado: dict[str, Any], real: str | None, r: dict
     comp_falla = por_nombre.get(comp) == "falla" if comp else None
     juez_falla = juez_por_nombre.get(comp) == "falla" if comp else None
     if fallo == "original":
-        acuerdo = real is None or r["decision"] == real
+        acuerdo = None if real is None else r["decision"] == real
         return {"detectado": None, "acuerdoConReal": acuerdo, "comprobacionFalla": None, "juezFalla": None}
     decision_ok = r["decision"] in esperado["esperadas"]
     detectado = decision_ok and (comp_falla if comp else True)
@@ -216,7 +216,7 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         if not rs:
             continue
         if f == "original":
-            por_fallo[f] = {"casos": len(rs), "acuerdoConReal": sum(1 for r in rs if r["acuerdoConReal"]), "descartadas": sum(1 for r in rs if r["decision"] == "descartar_en_contexto"), "suspendidas": sum(1 for r in rs if r["decision"] == "suspender")}
+            por_fallo[f] = {"casos": len(rs), "acuerdoConReal": sum(1 for r in rs if r["acuerdoConReal"]), "conDecisionReal": sum(1 for r in rs if r.get("decisionReal")), "descartadas": sum(1 for r in rs if r["decision"] == "descartar_en_contexto"), "suspendidas": sum(1 for r in rs if r["decision"] == "suspender")}
         else:
             por_fallo[f] = {"casos": len(rs), "detectados": sum(1 for r in rs if r["detectado"]), "decisionEsperada": sum(1 for r in rs if r.get("decisionEsperada")), "comprobacionFalla": sum(1 for r in rs if r.get("comprobacionFalla")), "juezFalla": sum(1 for r in rs if r.get("juezFalla")), "suspendidas": sum(1 for r in rs if r["decision"] == "suspender"), "descartadas": sum(1 for r in rs if r["decision"] == "descartar_en_contexto"), "errores": sum(1 for r in rs if r["decision"] == "error")}
     plantados = [r for r in resultados if r["fallo"] not in ("original", "gris_parcial")]

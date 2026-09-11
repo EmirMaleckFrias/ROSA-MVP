@@ -628,7 +628,7 @@ class ComprobacionKiller(BaseModel):
 
 class RevisionKiller(BaseModel):
     comprobaciones: list[ComprobacionKiller] = Field(description="Una entrada por cada comprobacion que Rosa no resolvio ya de forma determinista: supuestos, fuente_primaria, direccion_causal, falsabilidad, factibilidad, redundancia, sesgo_evidencia")
-    supuesto_invalidante: str = Field(description="El supuesto concreto que, de ser falso, tumba la hipotesis, si alguno esta contradicho o sin ningun respaldo; vacio si ninguno")
+    supuesto_invalidante: str = Field(description="El supuesto concreto que esta CONTRADICHO por evidencia citada y que tumba la hipotesis; vacio si ninguno esta contradicho. Un supuesto sin evidencia no va aqui: va en que_haria_falta")
     alternativas: list[str] = Field(description="Explicaciones alternativas (causa inversa, confusor comun, artefacto de medida) y que observacion las distinguiria de la hipotesis. Al menos una")
     reformulacion_sugerida: str = Field(description="Si alguna comprobacion reformulable falla: como habria que reescribir la hipotesis para que pase; vacio si no aplica")
     que_haria_falta: str = Field(description="Si algo quedo no_comprobable: que fuente o dato haria falta para evaluarla; vacio si nada")
@@ -640,8 +640,11 @@ class MatarHipotesis(dspy.Signature):
     cada una con su resultado y su evidencia. No se puntua globalmente ni se decide aqui:
     la decision (avanzar, reformular, suspender, descartar en este contexto) la deriva
     Rosa por regla a partir de los resultados. Comprobaciones que hace este revisor:
-    `supuestos` (falla si un supuesto necesario esta contradicho por la evidencia o no
-    tiene ningun respaldo y de el depende la hipotesis), `fuente_primaria` (falla si la
+    `supuestos` (falla SOLO si un supuesto necesario esta contradicho por evidencia
+    concreta que se cita; un supuesto sin evidencia NO es falla: se menciona en
+    que_haria_falta), `fidelidad_evidencia` (falla solo si el texto de una afirmacion
+    dice algo distinto de su Pasaje citado: otra cifra, otra direccion, otra poblacion;
+    hay que nombrar la afirmacion y las dos cifras), `fuente_primaria` (falla si la
     evidencia solo viene de fuentes que citan a otras y ninguna aporta datos propios),
     `direccion_causal` (falla si la hipotesis afirma una causa sin temporalidad ni
     alternativa descartada; el revisor nunca decide la direccion causal por su cuenta),
@@ -651,8 +654,8 @@ class MatarHipotesis(dspy.Signature):
     mundo o coincide con otra hipotesis viva), `sesgo_evidencia` (falla si toda la
     evidencia tiene un riesgo de sesgo serio: preclinica extrapolada, transversal para
     una afirmacion temporal, muestras minimas). Las demas comprobaciones (citas reales,
-    fidelidad a la evidencia, independencia de cohortes, novedad) ya vienen resueltas
-    de forma determinista en la entrada y no se repiten. Un critico que mata ideas
+    independencia de cohortes, novedad) ya vienen resueltas de forma determinista en la
+    entrada y no se repiten. Un critico que mata ideas
     buenas es tan caro como uno que deja pasar malas: 'falla' exige senalar la
     afirmacion o supuesto concreto; la duda es 'no_comprobable', no 'falla'. No se
     tiene en cuenta cuantas citas trae la hipotesis, solo que dicen."""

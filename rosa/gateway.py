@@ -55,7 +55,7 @@ class Modelos:
 def modelos() -> Modelos:
     return Modelos(
         cerebro=lm(CEREBRO),
-        juez=lm(JUEZ),
+        juez=lm(JUEZ, max_tokens=8000),  # el Killer devuelve once comprobaciones con detalle: sin margen se trunca el JSON
         volumen=lm(VOLUMEN),
         reflexion=lm(JUEZ, temperature=1.0, max_tokens=32000),
     )

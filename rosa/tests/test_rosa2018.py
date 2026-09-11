@@ -435,3 +435,25 @@ def test_plantar_fallos_del_panel():
     g = PK.plantar(h, "gris_parcial")
     assert g["afirmaciones"][0]["veredicto"] == "parcial" and g["afirmaciones"][0]["fragmento"].endswith("...")
     assert h["afirmaciones"][0]["veredicto"] == "sostenida"  # el original no se toca
+
+
+# -- Supuestos por regla y discrepancia juez/determinista (panel del 11 de septiembre)
+
+
+def test_supuestos_sin_evidencia_no_descartan_y_contradicho_si():
+    h = {"afirmaciones": [_af()], "procedencia": {"fuentes": []}, "supuestos": [{"texto": "a", "estado": "sin_evidencia", "evidencia": ""}, {"texto": "b", "estado": "plausible", "evidencia": ""}], "novedad": {}}
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas(h, {})}
+    assert c["supuestos"]["resultado"] == "pasa" and "1 sin evidencia" in c["supuestos"]["detalle"]
+    h["supuestos"].append({"texto": "c", "estado": "contradicho", "evidencia": "un ensayo lo niega"})
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas(h, {})}
+    assert c["supuestos"]["resultado"] == "falla" and "contradichos" in c["supuestos"]["detalle"]
+
+
+def test_fusionar_discrepancia_suspende_en_vez_de_matar():
+    det = [{"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": "sostenidas"}, {"comprobacion": "supuestos", "resultado": "pasa", "detalle": ""}]
+    juez = [{"comprobacion": "fidelidad_evidencia", "resultado": "falla", "detalle": "la afirmacion dice 8 pg/mL y el pasaje 0,8 pg/mL"}, {"comprobacion": "supuestos", "resultado": "falla", "detalle": ""}]
+    f = {c["comprobacion"]: c for c in K.fusionar(det, juez)}
+    assert f["fidelidad_evidencia"]["resultado"] == "no_comprobable" and "discrepa" in f["fidelidad_evidencia"]["detalle"]
+    assert f["supuestos"]["resultado"] == "pasa"  # sin detalle, el juez no discrepa de verdad
+    base = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
+    assert K.decidir(base + list(f.values()), True, 1)[0] == "suspender"

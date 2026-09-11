@@ -82,6 +82,20 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones estan sostenidas por su fuente" + (f"; {parciales} solo parcialmente" if parciales else "")})
     else:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": "Sin afirmaciones verificadas"})
+    # 3. Supuestos: falla solo si un supuesto necesario esta CONTRADICHO por la
+    # evidencia. Un supuesto sin evidencia no tumba la hipotesis: se lista como
+    # aviso y como lo que haria falta comprobar. (El panel del 11 de septiembre
+    # de 2026 mostro que dejar esto al juez descartaba el 100 % de las
+    # hipotesis por supuestos "sin respaldo".)
+    sups = h.get("supuestos", []) or []
+    contradichos = [x for x in sups if x.get("estado") == "contradicho"]
+    sin_ev = [x for x in sups if x.get("estado") == "sin_evidencia"]
+    if contradichos:
+        c.append({"comprobacion": "supuestos", "resultado": "falla", "detalle": f"{len(contradichos)} supuestos contradichos por la evidencia: " + "; ".join(f"{x['texto'][:90]} ({x.get('evidencia', '')[:80]})" for x in contradichos[:2])})
+    elif not sups:
+        c.append({"comprobacion": "supuestos", "resultado": "pasa", "detalle": "Sin supuestos declarados"})
+    else:
+        c.append({"comprobacion": "supuestos", "resultado": "pasa", "detalle": f"Ningun supuesto contradicho; {len(sin_ev)} sin evidencia todavia" + (": " + "; ".join(x["texto"][:70] for x in sin_ev[:3]) if sin_ev else "")})
     # 4. Independencia de cohortes: por nombre de cohorte y, cuando no lo hay,
     # por autores compartidos, mismo centro y periodo cercano.
     cohortes = cohortes_de(h)
@@ -118,12 +132,28 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     return c
 
 
+# Comprobaciones en las que el juez puede ver algo que la regla no vio (una cifra
+# distinta del pasaje, un supuesto contradicho en el texto). Si discrepa de la
+# determinista, nadie manda: queda no_comprobable y la hipotesis se suspende
+# hasta que una persona o el verificador lo resuelvan.
+DISCREPABLES = ("fidelidad_evidencia", "citas_reales", "supuestos")
+
+
 def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Las deterministas mandan; el juez solo aporta las que Rosa no resolvio."""
+    """Las deterministas mandan; el juez solo aporta las que Rosa no resolvio.
+    Excepcion: en las comprobaciones DISCREPABLES, si la determinista dice
+    pasa y el juez dice falla con detalle, el resultado es no_comprobable
+    (los dos jueces discrepan: se abstiene, no mata)."""
     hechas = {c["comprobacion"] for c in deterministas if c["resultado"] != "no_comprobable"}
     salida = list(deterministas)
     for c in del_juez:
         nombre = c.get("comprobacion")
+        if nombre in DISCREPABLES and nombre in hechas and c.get("resultado") == "falla" and (c.get("detalle") or "").strip():
+            for d in salida:
+                if d["comprobacion"] == nombre and d["resultado"] == "pasa":
+                    d["resultado"] = "no_comprobable"
+                    d["detalle"] = f"El juez discrepa de la comprobacion por regla: {c['detalle'][:200]}"
+            continue
         if nombre in hechas:
             continue
         # Si Rosa dejo una no_comprobable y el juez la resolvio, se sustituye.

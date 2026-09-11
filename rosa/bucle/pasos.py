@@ -720,8 +720,12 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             pista.error(f"El Killer no respondio para {h['titulo'][:50]}: {str(ex)[:100]}; la hipotesis queda suspendida hasta la siguiente revision")
         del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondio: {str(ex)[:120]}", "", "Repetir la revision cuando el modelo responda", [], ""
     comprobaciones = K.fusionar(deterministas, del_juez)
-    if invalidante and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
+    # El supuesto invalidante del juez solo tumba si algun supuesto esta contradicho
+    # de verdad; si no, es un aviso de lo que haria falta comprobar.
+    if invalidante and any(s_.get("estado") == "contradicho" for s_ in h.get("supuestos", [])) and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
         comprobaciones = [c for c in comprobaciones if c["comprobacion"] != "supuestos"] + [{"comprobacion": "supuestos", "resultado": "falla", "detalle": f"Supuesto invalidante: {invalidante[:200]}"}]
+    elif invalidante and not falta:
+        falta = f"Comprobar el supuesto: {invalidante[:200]}"
     tiene_prediccion = bool((h.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in (h.get("tarjeta") or {}).get("prediccionFalsable", "").lower()
     decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
     if not del_juez and decision == "avanzar":
