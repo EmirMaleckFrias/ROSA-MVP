@@ -263,3 +263,56 @@ def test_e_valores_acumulan_solo_ejecuciones_validas():
     assert abs(agg["eAcumulado"] - round(secuencial.e_valor(0.01) * secuencial.e_valor(0.04), 4)) < 1e-3
     assert agg["rechazaNula"] is True  # 5 * 2.5 = 12.5 >= 10
     assert secuencial.agregar([runs[3]]) is None
+
+
+# -- Misma cohorte sin nombre, direccion y unidades -----------------------------
+
+
+def _fuente(id_, ref, anio, autores, centro=None, cohorte=None, tipo="cohorte"):
+    return {"id": id_, "referencia": ref, "titulo": "", "tipo": "articulo", "doi": None, "pmid": None, "nct": None, "pagina": 1, "fragmento": "", "retraccion": None, "retraccionComprobadaEn": None, "anio": anio, "autores": autores, "centro": centro, "tipoEstudio": tipo, "nivelEvidencia": 3, "textoCompleto": True, "citas": None, "cohorte": cohorte}
+
+
+def test_misma_cohorte_por_autores_y_periodo():
+    f1 = _fuente("f1", "Garcia, 2020", 2020, ["Garcia", "Lopez", "Chen"], "Department of Neurology, Karolinska Institutet, Stockholm")
+    f2 = _fuente("f2", "Lopez, 2022", 2022, ["Lopez", "Garcia", "Kim"], "Karolinska Institutet, Department of Neurobiology")
+    f3 = _fuente("f3", "Smith, 2021", 2021, ["Smith", "Jones"], "Mayo Clinic, Rochester")
+    assert K.posible_misma_cohorte(f1, f2) and "autores" in K.posible_misma_cohorte(f1, f2)
+    assert K.posible_misma_cohorte(f1, f3) == ""
+    grupos, motivos = K.grupos_de_cohorte([f1, f2, f3])
+    assert sorted(map(sorted, grupos)) == [["f1", "f2"], ["f3"]] and len(motivos) == 1
+    # Cohortes nombradas y distintas: independientes aunque compartan autores.
+    assert K.posible_misma_cohorte(dict(f1, cohorte="ADNI"), dict(f2, cohorte="BioFINDER")) == ""
+    # Muy separadas en el tiempo no se unen por autores.
+    assert K.posible_misma_cohorte(f1, dict(f2, anio=2031)) == ""
+
+
+def test_independencia_usa_la_heuristica_cuando_no_hay_nombre(al):
+    inv = _inv(al)
+    h = _hip(al, inv)
+    f1 = _fuente("f1", "Garcia, 2020", 2020, ["Garcia", "Lopez", "Chen"])
+    f2 = _fuente("f2", "Lopez, 2022", 2022, ["Lopez", "Garcia", "Kim"])
+    al.mutar(lambda e: (next(x for x in e["hipotesis"] if x["id"] == h).update(afirmaciones=[_af(), _af()]), next(x for x in e["hipotesis"] if x["id"] == h)["procedencia"].update(fuentes=[f1, f2])) and True)
+    x = next(y for y in al.estado["hipotesis"] if y["id"] == h)
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas(x, al.estado)}
+    assert c["independencia_cohortes"]["resultado"] == "falla" and "misma cohorte" in c["independencia_cohortes"]["detalle"]
+
+
+def test_direccion_invertida_y_unidades_distintas():
+    h = {"titulo": "GFAP sube antes", "enunciado": "GFAP en plasma aumenta en portadores", "comprobacion": {"biomarcador": "GFAP"}, "afirmaciones": [
+        _af(texto="Plasma GFAP was lower in carriers", efecto="diferencia de 20 pg/mL"),
+        _af(texto="GFAP decreased with age in carriers", efecto="0,05 ng/mL"),
+        _af(texto="NfL increased", efecto="3 pg/mL"),  # otro biomarcador, no cuenta
+    ]}
+    c = {d["comprobacion"]: d for d in K.consistencia_medidas(h)}
+    assert c["direccion_evidencia"]["resultado"] == "falla" and "invertida" in c["direccion_evidencia"]["detalle"]
+    assert c["unidades"]["resultado"] == "falla" and "pg/mL" in c["unidades"]["detalle"] and "ng/mL" in c["unidades"]["detalle"]
+    # Direccion invertida reformula (esta en REFORMULAN); unidades solo avisa.
+    base = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
+    assert K.decidir(base + [c["direccion_evidencia"]], True, 1)[0] == "reformular"
+    d, motivo = K.decidir(base + [c["unidades"]], True, 1)
+    assert d == "avanzar" and "unidades" in motivo
+    # Coherente: pasa.
+    h2 = dict(h, afirmaciones=[_af(texto="Plasma GFAP was higher in carriers", efecto="20 pg/mL"), _af(texto="GFAP increased", efecto="")])
+    c2 = {d["comprobacion"]: d for d in K.consistencia_medidas(h2)}
+    assert c2["direccion_evidencia"]["resultado"] == "pasa" and c2["unidades"]["resultado"] == "pasa"
+    assert K.direccion_de("higher but lower") == "" and K.unidad_de("2.3 µg/dL") == "ug/dL"

@@ -194,6 +194,8 @@ def nueva_fuente(**campos: Any) -> dict[str, Any]:
         "retraccion": None,
         "retraccionComprobadaEn": None,
         "anio": None,
+        "autores": [],
+        "centro": None,
         "tipoEstudio": "otro",
         "nivelEvidencia": 2,
         "textoCompleto": False,

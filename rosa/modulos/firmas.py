@@ -608,6 +608,8 @@ NOMBRES_COMPROBACION = Literal[
     "fidelidad_evidencia",
     "supuestos",
     "independencia_cohortes",
+    "direccion_evidencia",
+    "unidades",
     "fuente_primaria",
     "direccion_causal",
     "falsabilidad",

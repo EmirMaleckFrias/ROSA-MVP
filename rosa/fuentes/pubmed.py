@@ -64,12 +64,15 @@ async def detalles(pmids: list[str]) -> list[dict[str, Any]]:
             titulo = _texto(a.find("ArticleTitle"))
             resumen = " ".join(_texto(x) for x in a.findall("Abstract/AbstractText"))
             autores = []
+            centro = ""
             for au in a.findall("AuthorList/Author"):
                 ap = _texto(au.find("LastName"))
                 if ap:
                     autores.append(ap)
                 elif _texto(au.find("CollectiveName")):
                     autores.append(_texto(au.find("CollectiveName")))
+                if not centro:
+                    centro = _texto(au.find("AffiliationInfo/Affiliation"))[:160]
             anio_txt = _texto(a.find("Journal/JournalIssue/PubDate/Year")) or _texto(a.find("Journal/JournalIssue/PubDate/MedlineDate"))[:4]
             anio = int(anio_txt) if anio_txt.isdigit() else None
             revista = _texto(a.find("Journal/ISOAbbreviation")) or _texto(a.find("Journal/Title"))
@@ -87,6 +90,7 @@ async def detalles(pmids: list[str]) -> list[dict[str, Any]]:
                     "pmcid": pmcid,
                     "titulo": titulo,
                     "autores": autores,
+                    "centro": centro,
                     "referencia": referencia_corta(autores, anio),
                     "anio": anio,
                     "revista": revista,

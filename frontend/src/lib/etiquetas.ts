@@ -304,6 +304,8 @@ export const COMPROBACION_KILLER: Record<string, string> = {
   fidelidad_evidencia: 'La fuente dice lo que la afirmacion dice',
   supuestos: 'Ningun supuesto necesario esta contradicho',
   independencia_cohortes: 'Replicacion en cohortes distintas',
+  direccion_evidencia: 'La evidencia va en la direccion del enunciado',
+  unidades: 'Las cifras comparadas estan en la misma unidad',
   fuente_primaria: 'Hay fuentes con datos propios, no solo citas',
   direccion_causal: 'La direccion causal tiene temporalidad y alternativa',
   falsabilidad: 'Hay una observacion medible que la refutaria',

@@ -33,7 +33,7 @@ BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutad
 
 # Que comprobaciones llevan a que decision cuando fallan.
 DESCARTAN = ("citas_reales", "fidelidad_evidencia", "supuestos")
-REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia")
+REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia")
 # Las que, sin poder comprobarse, suspenden.
 CRITICAS = ("citas_reales", "fidelidad_evidencia", "supuestos", "falsabilidad", "novedad")
 
@@ -82,18 +82,24 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones estan sostenidas por su fuente" + (f"; {parciales} solo parcialmente" if parciales else "")})
     else:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": "Sin afirmaciones verificadas"})
-    # 4. Independencia de cohortes.
+    # 4. Independencia de cohortes: por nombre de cohorte y, cuando no lo hay,
+    # por autores compartidos, mismo centro y periodo cercano.
     cohortes = cohortes_de(h)
     fuentes = h.get("procedencia", {}).get("fuentes", [])
     primarias = [f for f in fuentes if f.get("tipoEstudio") not in ("revision_narrativa", "revision_sistematica", "otro")]
+    grupos, pistas_misma = grupos_de_cohorte(fuentes)
     if len(fuentes) <= 1:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "falla" if fuentes else "no_aplica", "detalle": "Una sola fuente: no hay replicacion independiente" if fuentes else "Sin fuentes"})
     elif len(cohortes) >= 2:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "pasa", "detalle": f"{len(cohortes)} cohortes distintas: " + ", ".join(cohortes)})
-    elif len(cohortes) == 1:
+    elif len(cohortes) == 1 and len(grupos) == 1:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "falla", "detalle": f"Todas las fuentes con cohorte identificada salen de la misma ({cohortes[0]}): varias publicaciones no son varias evidencias"})
+    elif len(grupos) == 1 and pistas_misma:
+        c.append({"comprobacion": "independencia_cohortes", "resultado": "falla", "detalle": "Las fuentes parecen la misma cohorte aunque no la nombren: " + "; ".join(pistas_misma[:2])})
     else:
-        c.append({"comprobacion": "independencia_cohortes", "resultado": "no_comprobable", "detalle": f"{len(fuentes)} fuentes sin cohorte identificada; {len(primarias)} parecen primarias"})
+        c.append({"comprobacion": "independencia_cohortes", "resultado": "no_comprobable", "detalle": f"{len(fuentes)} fuentes, {len(cohortes)} con cohorte identificada, {len(primarias)} parecen primarias" + ("; posibles solapes: " + "; ".join(pistas_misma[:2]) if pistas_misma else "")})
+    # 5. Direccion de la evidencia frente al enunciado, y unidades comparables.
+    c.extend(consistencia_medidas(h))
     # 8. Novedad con recuperacion.
     n = h.get("novedad", {})
     prec = n.get("precedente", {})
@@ -185,3 +191,116 @@ def como_dato(texto: str) -> str:
     (spotlighting por delimitadores). Se quitan marcas falsas dentro."""
     limpio = (texto or "").replace(MARCA_INICIO, "").replace(MARCA_FIN, "")
     return f"{MARCA_INICIO}\n{limpio}\n{MARCA_FIN}"
+
+
+# ---------------------------------------------------------------------------
+# Misma cohorte sin nombre: autores, centro y periodo
+# ---------------------------------------------------------------------------
+
+_CENTRO_RUIDO = {"department", "dept", "of", "and", "the", "university", "hospital", "institute", "center", "centre", "school", "medicine", "medical", "faculty", "college", "clinic", "research", "for", "de", "la", "del", "y", "unit", "laboratory", "lab", "neurology", "neuroscience", "usa", "uk", "germany", "sweden", "spain", "netherlands", "italy", "france", "china", "japan"}
+
+
+def _palabras_centro(centro: str | None) -> set[str]:
+    return {w for w in re.findall(r"[a-z]{4,}", (centro or "").lower()) if w not in _CENTRO_RUIDO}
+
+
+def posible_misma_cohorte(f1: dict[str, Any], f2: dict[str, Any]) -> str:
+    """Un motivo si dos fuentes primarias sin cohorte nombrada parecen salir
+    de la misma muestra: dos o mas autores comunes, o el mismo centro, y
+    publicadas con pocos anos de diferencia. Cadena vacia si no hay pista.
+    Es una heuristica: sirve para no contar dos veces, nunca para descartar."""
+    if any((f.get("cohorte") or "") for f in (f1, f2)) and (f1.get("cohorte") or "").lower() != (f2.get("cohorte") or "").lower():
+        return ""  # cohortes nombradas y distintas: son independientes
+    a1 = {a.lower() for a in f1.get("autores") or []}
+    a2 = {a.lower() for a in f2.get("autores") or []}
+    comunes = sorted(a1 & a2)
+    anios = [f.get("anio") for f in (f1, f2)]
+    cerca = all(anios) and abs(anios[0] - anios[1]) <= 4
+    c1, c2 = _palabras_centro(f1.get("centro")), _palabras_centro(f2.get("centro"))
+    mismo_centro = len(c1 & c2) >= 2
+    if len(comunes) >= 2 and cerca:
+        return f"{f1.get('referencia')} y {f2.get('referencia')} comparten autores ({', '.join(x.title() for x in comunes[:3])}) y periodo"
+    if mismo_centro and cerca and comunes:
+        return f"{f1.get('referencia')} y {f2.get('referencia')} salen del mismo centro ({', '.join(sorted(c1 & c2)[:2])}) con un autor comun y periodo cercano"
+    return ""
+
+
+def grupos_de_cohorte(fuentes: list[dict[str, Any]]) -> tuple[list[list[str]], list[str]]:
+    """Agrupa las fuentes primarias que probablemente son la misma cohorte:
+    por nombre de cohorte igual o por la heuristica de autores y centro.
+    Devuelve los grupos (ids) y los motivos de cada union heuristica."""
+    prim = [f for f in fuentes if f.get("tipoEstudio") not in ("revision_narrativa", "revision_sistematica", "otro")] or list(fuentes)
+    padre = {f["id"]: f["id"] for f in prim}
+
+    def raiz(x: str) -> str:
+        while padre[x] != x:
+            x = padre[x]
+        return x
+
+    motivos: list[str] = []
+    for i, f1 in enumerate(prim):
+        for f2 in prim[i + 1 :]:
+            n1, n2 = (f1.get("cohorte") or "").lower(), (f2.get("cohorte") or "").lower()
+            if n1 and n1 == n2:
+                padre[raiz(f1["id"])] = raiz(f2["id"])
+                continue
+            m = posible_misma_cohorte(f1, f2)
+            if m:
+                motivos.append(m)
+                padre[raiz(f1["id"])] = raiz(f2["id"])
+    grupos: dict[str, list[str]] = {}
+    for f in prim:
+        grupos.setdefault(raiz(f["id"]), []).append(f["id"])
+    return list(grupos.values()), motivos
+
+
+# ---------------------------------------------------------------------------
+# Direccion y unidades: lo que se puede comprobar sin modelo
+# ---------------------------------------------------------------------------
+
+_SUBE = re.compile(r"\b(increas|higher|elevat|rise|rising|up-?regulat|greater|aument|mayor(es)?|elevad|sube|suben|incrementa|superior)", re.I)
+_BAJA = re.compile(r"\b(decreas|lower|reduc|declin|down-?regulat|diminish|disminu|menor(es)?|baja|bajan|cae|caida|inferior)", re.I)
+_UNIDADES = re.compile(r"\b(pg|ng|ug|µg|mg|pmol|nmol|umol|µmol|fmol)\s*/\s*(m?L|dL|l)\b", re.I)
+
+
+def direccion_de(texto: str) -> str:
+    """'sube', 'baja' o '' segun las palabras del texto; '' si hay las dos o ninguna."""
+    s, b = bool(_SUBE.search(texto or "")), bool(_BAJA.search(texto or ""))
+    return "sube" if s and not b else "baja" if b and not s else ""
+
+
+def unidad_de(texto: str) -> str:
+    m = _UNIDADES.search(texto or "")
+    if not m:
+        return ""
+    return (m.group(1).replace("µ", "u").lower() + "/" + m.group(2).replace("l", "L").replace("d", "d").replace("m", "m"))
+
+
+def consistencia_medidas(h: dict[str, Any]) -> list[dict[str, str]]:
+    """Dos comprobaciones automaticas sobre el registro de evidencia:
+    direccion_evidencia (la evidencia sostenida va en la direccion que el
+    enunciado dice; si va al reves, la hipotesis se reformula) y unidades
+    (las cifras que se comparan estan en la misma unidad; si no, aviso)."""
+    bio = ((h.get("comprobacion") or {}).get("biomarcador") or h.get("biomarcador") or "").strip().lower()
+    afs = [a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial")]
+    relevantes = [a for a in afs if bio in a.get("texto", "").lower()] if bio else afs
+    salida: list[dict[str, str]] = []
+    dir_enunciado = direccion_de(h.get("enunciado", "") + " " + h.get("titulo", ""))
+    dirs = [direccion_de(a.get("texto", "")) for a in relevantes]
+    dirs = [d for d in dirs if d]
+    if not relevantes or not dirs:
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "no_aplica", "detalle": "Sin afirmaciones sostenidas con direccion sobre el biomarcador" if bio else "Sin biomarcador ni afirmaciones con direccion"})
+    elif "sube" in dirs and "baja" in dirs:
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "falla", "detalle": f"Las fuentes sostenidas van en direcciones opuestas sobre {bio or 'la medida'} ({dirs.count('sube')} suben, {dirs.count('baja')} bajan): hay que decir en que contexto sube y en cual baja"})
+    elif dir_enunciado and all(d != dir_enunciado for d in dirs):
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "falla", "detalle": f"El enunciado dice que {bio or 'la medida'} {dir_enunciado} y todas las afirmaciones sostenidas dicen que {dirs[0]}: direccion invertida"})
+    else:
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "pasa", "detalle": f"{len(dirs)} afirmaciones con direccion {dirs[0]}" + (", igual que el enunciado" if dir_enunciado else "")})
+    unidades = sorted({unidad_de(a.get("efecto", "") or a.get("texto", "")) for a in relevantes} - {""})
+    if len(unidades) >= 2:
+        salida.append({"comprobacion": "unidades", "resultado": "falla", "detalle": "Las cifras sobre " + (bio or "la medida") + " vienen en unidades distintas (" + ", ".join(unidades) + "): comparar solo tras convertir"})
+    elif unidades:
+        salida.append({"comprobacion": "unidades", "resultado": "pasa", "detalle": f"Todas las cifras en {unidades[0]}"})
+    else:
+        salida.append({"comprobacion": "unidades", "resultado": "no_aplica", "detalle": "Sin cifras con unidad"})
+    return salida

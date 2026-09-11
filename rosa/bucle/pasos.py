@@ -175,6 +175,8 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
             retraccion=marca,
             retraccionComprobadaEn=comprobada_en,
             anio=datos.get("anio"),
+            autores=list(datos.get("autores", []))[:12],
+            centro=(datos.get("centro") or None),
             tipoEstudio=tipo_estudio if tipo != "ensayo" else "registro",
             nivelEvidencia=nivel,
             textoCompleto=any(fr["localizador"] != "resumen" for fr in fragmentos),

@@ -634,6 +634,10 @@ export interface Fuente {
   /** Referencia corta: "Cohorte clinica, 2023". */
   referencia: string;
   titulo: string;
+  /** Apellidos de los autores y primera afiliacion, para detectar dos
+   *  articulos de la misma cohorte aunque no la nombren. */
+  autores?: string[];
+  centro?: string | null;
   tipo: TipoFuente;
   doi: string | null;
   pmid: string | null;
