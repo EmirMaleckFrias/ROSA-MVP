@@ -41,19 +41,23 @@ siguen activos para cuando entren datos controlados.
   asignar a campana) y jerarquia programa, areas, campanas, preguntas.
 - Motor causal minimo con aristas tipadas e identificacion por regla.
 - Panel del Killer con fallos plantados y registro de evaluaciones.
-- Puerta: dos reproducciones mas registradas con criterios congelados de los
+- Puerta: dos reproducciones mas, superadas, con criterios congelados de los
   metodos publicados (GSE29378 Miller 2013: NRIP3 CA3 frente a CA1 en
   controles, 2,14 veces, tolerancia 20 %; GSE36980 Hokama 2014: media de
-  diez marcadores neuronales en hipocampo, 64,87 %, tolerancia 15 %). Se
-  ejecutan en el paso de analisis de la corrida en marcha o cuando esta se
-  detiene.
+  diez marcadores neuronales en hipocampo, 64,87 %, tolerancia 15 %).
+- Investigacion de las herramientas de Claude Science
+  (`INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`) con el plan para
+  aplicarlas a Rosa en cuatro bloques.
 
 ## Inmediato
 
-1. Ver el resultado de las dos reproducciones nuevas (Miller 2013, Hokama
-   2014). Si alguna falla, leer el error en Objetivo y datos: el criterio
-   esta congelado y no se cambia; lo que se corrige es el codigo o el
-   preprocesado que Rosa eligio.
+1. Puerta de reproduccion: 3 de 3 superadas con datos publicos (Blalock
+   2004 en GSE1297, 418 frente a 431; Miller 2013 en GSE29378, 2,1391
+   frente a 2,14; Hokama 2014 en GSE36980, 65,11 frente a 64,87). Las dos
+   ultimas fallaron a la primera porque el escritor de codigo declaro "no
+   evaluable" por una duda del texto del metodo; se corrigio el texto y las
+   firmas (NO_EVALUABLE solo por condiciones de los datos). Los registros
+   fallidos quedan a la vista.
 2. Leer el panel del Killer en Calidad. Lo que mide: si el juez detecta las
    cifras alteradas y las predicciones vagas cuando la comprobacion
    determinista no puede. Si la deteccion del juez es baja en un tipo de
