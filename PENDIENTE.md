@@ -21,11 +21,16 @@ prerregistro como artefacto (misma regla en `acciones.ts`); `ProponerPlan` y
 fragil y que las subiria o bajaria; `rosa/version.py` guarda commit, hash de
 firmas y programas optimizados en cada corrida nueva (`arnes`).
 
+4. Cerrar el loop con el verificador duro. Hecho el 11 de septiembre: el
+   fichero se sube por `POST /api/hipotesis/{id}/datos`, `rosa/datos.py` lo
+   resume de forma determinista, la firma `EvaluarResultado` (juez) dicta
+   confirma / refuta / inconcluso / no_evaluable contra los criterios del
+   prerregistro, el veredicto entra como afirmacion de tipo dato y la
+   conclusion se rehace con `resultado_experimental` como evidencia dura.
+   El protocolo se genera en pasos y los criterios van separados.
+
 ## Siguiente MVP
 
-4. Cerrar el loop con el verificador duro: cuando llegan datos del
-   laboratorio (`registrarDatosExperimento`), Rosa actualiza certeza y
-   direccion de la hipotesis con esa evidencia.
 5. Analisis de datos sobre datasets adjuntos, en entorno aislado, con la
    cifra ligada a su trayectoria.
 

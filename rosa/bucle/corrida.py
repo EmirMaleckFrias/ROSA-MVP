@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from datetime import datetime, timezone
 import re
 import traceback
 from typing import Any
@@ -254,9 +255,12 @@ class Supervisor:
                 limites="; ".join(inv["limites"]) if inv and inv["limites"] else "Ninguno declarado",
             )
             x = pred.experimento
+            pasos = [p.strip().lstrip("0123456789.) ").strip() for p in x.protocolo if p.strip()]
             experimento = {
-                "protocolo": x.protocolo.strip(),
-                "ensayo": x.ensayo.strip() + f"\n\nConfirmaria la hipotesis: {x.resultado_que_confirma.strip()}\nLa refutaria: {x.resultado_que_refuta.strip()}",
+                "protocolo": "\n".join(f"{i + 1}. {p}" for i, p in enumerate(pasos)),
+                "ensayo": x.ensayo.strip(),
+                "confirma": x.resultado_que_confirma.strip(),
+                "refuta": x.resultado_que_refuta.strip(),
                 "costeEstimado": x.coste_estimado.strip(),
                 "laboratorio": None,
                 "estado": "propuesto",
@@ -292,6 +296,7 @@ class Supervisor:
                 partidos="\n".join(f"- {p['resultado']} por {p['ejeDecisivo']}: {p['resumenDebate']}" for p in h["partidos"]) or "Sin partidos todavia",
                 novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()),
                 revisiones_humanas=T.revisiones_humanas(h),
+                resultado_experimental=T.resultado_experimental(h),
             )
             c = pred.conclusion
             # La base se cuenta de forma determinista, no la estima el modelo.
@@ -337,12 +342,68 @@ class Supervisor:
 
         self.almacen.mutar(fn, "conclusion")
 
+    async def _evaluar_resultado(self, ctx: Ctx, h: dict[str, Any]) -> None:
+        """Cierra el loop: los datos del laboratorio se comparan con los
+        criterios congelados en el prerregistro, el veredicto entra como
+        afirmacion de tipo dato con su trayectoria, y la conclusion se rehace."""
+        from rosa import datos as D
+
+        x = h["experimento"]
+        ruta = D.ruta_de(h["id"], x.get("ficheroDatos") or "")
+        ahora = P.ahora_ms()
+        if ruta is None or not ruta.exists():
+            resultado = {"veredicto": "no_evaluable", "resultado": "No se encontro el fichero de datos en el servidor.", "motivo": f"Se registro el nombre '{x.get('ficheroDatos')}' pero el fichero no se subio. Sube el fichero desde la ficha.", "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": x.get("ficheroDatos")}
+        else:
+            resumen, muestra = D.resumir(ruta)
+            try:
+                pred = await ctx.llamar(
+                    "juez",
+                    self.programas.evaluar_resultado,
+                    hipotesis=T.hipotesis_texto(h),
+                    prerregistro=f"Protocolo:\n{x['protocolo']}\n\nEnsayo: {x['ensayo']}\n\nCONFIRMA si: {x.get('confirma') or '(no separado; ver ensayo)'}\nREFUTA si: {x.get('refuta') or '(no separado; ver ensayo)'}",
+                    analisis_pedido=x.get("analisisPedido") or "Ninguno en particular: aplicar los criterios prerregistrados.",
+                    resumen_datos=resumen,
+                    muestra_datos=muestra,
+                )
+                r = pred.resultado
+                resultado = {"veredicto": r.veredicto, "resultado": r.resultado.strip(), "motivo": r.motivo.strip(), "limitaciones": r.limitaciones.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in r.cifras][:12], "exploratorio": r.exploratorio.strip(), "fecha": ahora, "fichero": ruta.name}
+            except Exception as ex:  # noqa: BLE001
+                traceback.print_exc()
+                resultado = {"veredicto": "no_evaluable", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
+
+        def fn(e: dict[str, Any]) -> bool:
+            y = next((z for z in e["hipotesis"] if z["id"] == h["id"]), None)
+            if not y or not y.get("experimento"):
+                return False
+            y["experimento"]["resultado"] = resultado
+            y["_resultadoEvaluado"] = True
+            if resultado["veredicto"] in ("confirma", "refuta", "inconcluso"):
+                cita = f"[Datos del laboratorio: {resultado['fichero']}, {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y')}]"
+                y["afirmaciones"].append({"texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']}.", "entidadDistinta": False, "tipo": "dato", "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
+                y["evidenciaEstadistica"] = "fuerte" if resultado["veredicto"] == "confirma" else "moderada"
+            y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']}. {resultado['resultado']}", "creadoEn": ahora})
+            y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']}")
+            y.pop("_conclusionIntentada", None)
+            A.con_evento(e, h["investigacionId"], "revision_automatica", f"Datos del laboratorio evaluados ({resultado['veredicto']}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+            return True
+
+        self.almacen.mutar(fn, "resultado_experimento")
+        y = next((z for z in self.almacen.estado["hipotesis"] if z["id"] == h["id"]), None)
+        if y:
+            await self._concluir_hipotesis(ctx, y)
+
     async def _completar_en_llano(self) -> None:
         """Rellena lo que falte: hipotesis sin version en llano e iteraciones
         cerradas sin resumen en llano (las anteriores a esta funcion). Una
         cosa por tick, para no competir con la corrida."""
         e = self.almacen.estado
         for h in e["hipotesis"]:
+            x = h.get("experimento")
+            if x and x.get("estado") == "datos_recibidos" and not h.get("_resultadoEvaluado"):
+                corrida = A.ultima_corrida_de(e, h["investigacionId"])
+                if corrida:
+                    await self._evaluar_resultado(self._ctx(corrida), h)
+                    return
             if h.get("enLlano") is None and not h.get("_enLlanoIntentado"):
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
                 if corrida:

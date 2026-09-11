@@ -172,3 +172,12 @@ def hipotesis_vivas(hipotesis: list[dict[str, Any]], investigacion_id: str, maxi
             lineas.append(f"    subiria si: {k.get('subiria', '')}")
             lineas.append(f"    bajaria si: {k.get('bajaria', '')}")
     return "\n".join(lineas)
+
+
+def resultado_experimental(h: dict[str, Any]) -> str:
+    x = h.get("experimento") or {}
+    r = x.get("resultado")
+    if not r:
+        return "Ninguno"
+    cifras = "; ".join(f"{c['nombre']}: {c['valor']}" for c in r.get("cifras", []))
+    return f"Veredicto contra el prerregistro: {r['veredicto']}. {r['resultado']} Motivo: {r['motivo']} Limitaciones: {r['limitaciones']} Cifras: {cifras or 'ninguna'}. Exploratorio (no prerregistrado): {r.get('exploratorio') or 'nada'}"

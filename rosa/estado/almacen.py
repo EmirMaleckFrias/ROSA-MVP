@@ -235,6 +235,18 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_fragmentos(estado)
     _migrar_consultas(estado)
     _migrar_conclusiones(estado)
+    _migrar_experimentos(estado)
+
+
+def _migrar_experimentos(estado: dict[str, Any]) -> None:
+    """Los experimentos del primer esquema (protocolo en un parrafo, criterios
+    dentro del ensayo) se regeneran si aun no se asignaron. Los ya
+    prerregistrados no se tocan: el prerregistro es inmutable."""
+    for h in estado.get("hipotesis", []):
+        x = h.get("experimento")
+        if x and "confirma" not in x and x.get("estado") == "propuesto":
+            h["experimento"] = None
+            h.pop("_experimentoIntentado", None)
 
 
 def _migrar_conclusiones(estado: dict[str, Any]) -> None:

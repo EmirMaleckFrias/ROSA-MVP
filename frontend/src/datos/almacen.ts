@@ -268,6 +268,25 @@ export const acciones = {
     aplicar((e) => A.registrarDatosExperimento(e, id, fichero, analisis));
     enviar('registrarDatosExperimento', { hipotesis_id: id, fichero, analisis });
   },
+  /** Sube el fichero de datos del laboratorio. Con servidor, va por multipart
+   *  y Rosa lo evalua contra el prerregistro; en modo muestra solo se registra
+   *  el nombre. Devuelve un mensaje de error o null. */
+  subirDatosExperimento: async (id: string, fichero: File, analisis: string): Promise<string | null> => {
+    if (modo !== 'servidor') {
+      aplicar((e) => A.registrarDatosExperimento(e, id, fichero.name, analisis));
+      return null;
+    }
+    const cuerpo = new FormData();
+    cuerpo.append('fichero', fichero, fichero.name);
+    cuerpo.append('analisis', analisis);
+    try {
+      const r = await fetch(`${API}/hipotesis/${encodeURIComponent(id)}/datos`, { method: 'POST', body: cuerpo });
+      if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
+      return null;
+    } catch {
+      return 'No se pudo subir el fichero: sin conexion con el servidor.';
+    }
+  },
   anadirComentario: (hipotesisId: string, ancla: AnclaComentario, nota: string) => {
     aplicar((e) => A.anadirComentario(e, hipotesisId, ancla, nota, Date.now()));
     enviar('anadirComentario', { hipotesis_id: hipotesisId, ancla, nota });

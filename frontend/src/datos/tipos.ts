@@ -585,10 +585,26 @@ export interface Experimento {
   estado: 'propuesto' | 'asignado' | 'en_curso' | 'datos_recibidos';
   ficheroDatos: string | null;
   analisisPedido: string;
+  /** Criterios fijados de antemano: que resultado la confirmaria y cual la refutaria. */
+  confirma?: string;
+  refuta?: string;
   /** Al asignarlo a un laboratorio se congela un prerregistro (hipotesis,
    *  protocolo, criterios) como artefacto inmutable. */
   prerregistradoEn?: number | null;
   prerregistroArtefactoId?: string | null;
+  /** El veredicto del juez sobre los datos del laboratorio contra el prerregistro. */
+  resultado?: ResultadoExperimento | null;
+}
+
+export interface ResultadoExperimento {
+  veredicto: 'confirma' | 'refuta' | 'inconcluso' | 'no_evaluable';
+  resultado: string;
+  motivo: string;
+  limitaciones: string;
+  cifras: { nombre: string; valor: string }[];
+  exploratorio: string;
+  fecha: number;
+  fichero: string | null;
 }
 
 export interface Hipotesis {

@@ -183,7 +183,9 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
   const [revisionAbierta, setRevisionAbierta] = useState(false);
   const [rev, setRev] = useState({ supuestosCuestionados: '', literaturaQueFalta: '', problemaExperimental: '' });
   const [lab, setLab] = useState('');
-  const [fichero, setFichero] = useState('');
+  const [ficheroDatos, setFicheroDatos] = useState<File | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [errorSubida, setErrorSubida] = useState<string | null>(null);
   const [analisis, setAnalisis] = useState('');
   const [aplicableA, setAplicableA] = useState('');
   const pendientes = estado.comentarios.filter((c) => c.hipotesisId === h.id && c.estado === 'pendiente');
@@ -448,15 +450,70 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       {h.experimento && (
         <Seccion titulo="Experimento propuesto" nota="El traspaso al laboratorio: protocolo, ensayo y criterios de exito y refutacion fijados de antemano. Al asignarlo a un laboratorio queda prerregistrado: la hipotesis y el protocolo se congelan con fecha en un artefacto, antes de que exista ningun dato. Los datos vuelven para que Rosa actualice su conclusion.">
           <div className="tarjeta seccion">
-            <p>
-              <strong style={{ fontSize: 13 }}>Protocolo.</strong> {h.experimento.protocolo}
-            </p>
-            <p>
-              <strong style={{ fontSize: 13 }}>Ensayo.</strong> {h.experimento.ensayo}
-            </p>
-            <p>
-              <strong style={{ fontSize: 13 }}>Coste estimado.</strong> {h.experimento.costeEstimado}
-            </p>
+            <div className="experimento-bloque">
+              <h4>Protocolo</h4>
+              <ol className="protocolo">
+                {h.experimento.protocolo
+                  .split('\n')
+                  .map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim())
+                  .filter((l) => l !== '')
+                  .map((l, i) => (
+                    <li key={i}>{l}</li>
+                  ))}
+              </ol>
+            </div>
+            <div className="experimento-bloque">
+              <h4>Ensayo</h4>
+              <p>{h.experimento.ensayo}</p>
+            </div>
+            {(h.experimento.confirma || h.experimento.refuta) && (
+              <div className="conclusion-columnas">
+                <div className="experimento-bloque criterio-ok">
+                  <h4>La confirmaria</h4>
+                  <p>{h.experimento.confirma}</p>
+                </div>
+                <div className="experimento-bloque criterio-mal">
+                  <h4>La refutaria</h4>
+                  <p>{h.experimento.refuta}</p>
+                </div>
+              </div>
+            )}
+            <div className="experimento-bloque">
+              <h4>Coste estimado</h4>
+              <p>{h.experimento.costeEstimado}</p>
+            </div>
+            {h.experimento.analisisPedido && h.experimento.estado === 'propuesto' && (
+              <div className="experimento-bloque">
+                <h4>Con datos ya existentes</h4>
+                <p>{h.experimento.analisisPedido}</p>
+              </div>
+            )}
+            {h.experimento.resultado && (
+              <div className={`experimento-bloque resultado resultado-${h.experimento.resultado.veredicto}`}>
+                <h4>Resultado contra el prerregistro</h4>
+                <div className="acciones">
+                  <Chip tono={h.experimento.resultado.veredicto === 'confirma' ? 'ok' : h.experimento.resultado.veredicto === 'refuta' ? 'mal' : 'aviso'}>
+                    {h.experimento.resultado.veredicto === 'confirma' ? 'Confirma la hipotesis' : h.experimento.resultado.veredicto === 'refuta' ? 'Refuta la hipotesis' : h.experimento.resultado.veredicto === 'inconcluso' ? 'Inconcluso' : 'No evaluable con estos datos'}
+                  </Chip>
+                  <span className="meta">
+                    {h.experimento.resultado.fichero} · <Momento t={h.experimento.resultado.fecha} ahora={ahora} />
+                  </span>
+                </div>
+                <p>{h.experimento.resultado.resultado}</p>
+                <p className="meta">{h.experimento.resultado.motivo}</p>
+                {h.experimento.resultado.cifras.length > 0 && (
+                  <ul className="cifras">
+                    {h.experimento.resultado.cifras.map((c, i) => (
+                      <li key={i}>
+                        <strong>{c.nombre}:</strong> {c.valor}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {h.experimento.resultado.limitaciones && <p className="meta">Limitaciones: {h.experimento.resultado.limitaciones}</p>}
+                {h.experimento.resultado.exploratorio && <p className="meta">Exploratorio, fuera del prerregistro: {h.experimento.resultado.exploratorio}</p>}
+              </div>
+            )}
             <div className="acciones">
               <Chip tono={h.experimento.estado === 'datos_recibidos' ? 'ok' : h.experimento.estado === 'propuesto' ? 'borde' : 'aviso'}>
                 {h.experimento.estado === 'propuesto' ? 'Propuesto' : h.experimento.estado === 'asignado' ? `Asignado a ${h.experimento.laboratorio}` : h.experimento.estado === 'en_curso' ? 'En curso' : `Datos recibidos: ${h.experimento.ficheroDatos}`}
@@ -475,19 +532,38 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </button>
               </div>
             )}
-            {h.experimento.estado === 'asignado' && (
+            {(h.experimento.estado === 'asignado' || h.experimento.estado === 'datos_recibidos') && (
               <div className="seccion">
+                <p className="meta">
+                  Cuando lleguen los datos del laboratorio, subelos aqui (CSV, TSV, JSON, texto o PDF, hasta 50 MB). Rosa los resume sin ningun modelo, el juez los compara con los criterios congelados en el prerregistro y la conclusion se rehace con esa evidencia.
+                </p>
                 <div className="campo">
-                  <label htmlFor="exp-fichero">Fichero de datos (nombre)</label>
-                  <input id="exp-fichero" className="entrada" value={fichero} placeholder="gfap_nfl_seriado.csv" onChange={(e) => setFichero(e.target.value)} />
+                  <label htmlFor="exp-fichero">Fichero de datos</label>
+                  <input id="exp-fichero" type="file" accept=".csv,.tsv,.txt,.json,.pdf,.md" onChange={(e) => setFicheroDatos(e.target.files?.[0] ?? null)} />
                 </div>
                 <div className="campo">
-                  <label htmlFor="exp-analisis">Que analisis quieres</label>
+                  <label htmlFor="exp-analisis">Que analisis quieres (ademas de los criterios prerregistrados)</label>
                   <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteracion, por grupo genetico" onChange={(e) => setAnalisis(e.target.value)} />
                 </div>
-                <button type="button" className="btn" disabled={fichero.trim() === ''} onClick={() => acciones.registrarDatosExperimento(h.id, fichero, analisis)}>
-                  Registrar datos y pedir el analisis
-                </button>
+                <div className="acciones">
+                  <button
+                    type="button"
+                    className="btn btn-primario"
+                    disabled={ficheroDatos === null || subiendo}
+                    onClick={async () => {
+                      if (!ficheroDatos) return;
+                      setSubiendo(true);
+                      const error = await acciones.subirDatosExperimento(h.id, ficheroDatos, analisis);
+                      setSubiendo(false);
+                      setErrorSubida(error);
+                      if (!error) setFicheroDatos(null);
+                    }}
+                  >
+                    {subiendo ? 'Subiendo...' : 'Subir datos y evaluar contra el prerregistro'}
+                  </button>
+                  {errorSubida && <span className="tono-mal">{errorSubida}</span>}
+                  {h.experimento.estado === 'datos_recibidos' && !h.experimento.resultado && <span className="meta">Datos recibidos; Rosa los esta evaluando.</span>}
+                </div>
               </div>
             )}
           </div>

@@ -13,3 +13,4 @@ rosa.db-shm
 pdfs/
 *.log
 node_modules/
+datos/

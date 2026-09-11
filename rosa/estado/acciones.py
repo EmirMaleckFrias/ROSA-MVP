@@ -495,6 +495,8 @@ def registrar_datos_experimento(e: Estado, hipotesis_id: str, fichero: str, anal
     h["experimento"]["ficheroDatos"] = fichero.strip()
     h["experimento"]["analisisPedido"] = analisis.strip()
     h["experimento"]["estado"] = "datos_recibidos"
+    h["experimento"].pop("resultado", None)
+    h.pop("_resultadoEvaluado", None)  # el bucle evalua los datos contra el prerregistro
     return True
 
 

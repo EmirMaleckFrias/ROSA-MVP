@@ -15,6 +15,7 @@ dependencies = [
   "pymupdf>=1.28",
   "pytest>=8",
   "pytest-asyncio>=0.24",
+  "python-multipart>=0.0.9",
 ]
 
 [tool.uv]

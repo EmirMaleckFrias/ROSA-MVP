@@ -3037,3 +3037,57 @@ mark.fuerte {
   font-weight: 600;
   margin: 0;
 }
+
+.experimento-bloque {
+  margin: 10px 0;
+}
+.experimento-bloque h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.experimento-bloque p {
+  margin: 0;
+  line-height: 1.55;
+}
+.protocolo {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.55;
+}
+.protocolo li + li {
+  margin-top: 6px;
+}
+.criterio-ok,
+.criterio-mal {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+}
+.criterio-ok {
+  border-left-color: var(--green);
+}
+.criterio-mal {
+  border-left-color: var(--red);
+}
+.resultado {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--inset);
+}
+.resultado-confirma {
+  border-color: var(--green);
+}
+.resultado-refuta {
+  border-color: var(--red);
+}
+.cifras {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}

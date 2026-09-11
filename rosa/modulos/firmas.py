@@ -356,7 +356,7 @@ class HipotesisEnLlano(dspy.Signature):
 
 
 class ExperimentoPropuesto(BaseModel):
-    protocolo: str = Field(description="Pasos numerados del experimento o analisis, concretos: poblacion, mediciones, tiempos, comparacion")
+    protocolo: list[str] = Field(description="Los pasos del experimento o analisis, uno por elemento, cada uno de una o dos frases, concretos: poblacion, mediciones, tiempos, comparacion. Entre 4 y 12 pasos")
     ensayo: str = Field(description="Que se mide y con que tecnica (por ejemplo inmunoensayo de GFAP en plasma, PET de amiloide)")
     resultado_que_confirma: str = Field(description="Que valor o patron confirmaria la hipotesis")
     resultado_que_refuta: str = Field(description="Que valor o patron la refutaria")
@@ -413,7 +413,38 @@ class ConcluirHipotesis(dspy.Signature):
     partidos: str = dspy.InputField(desc="Resultado y eje decisivo de cada comparacion en el torneo")
     novedad: str = dspy.InputField()
     revisiones_humanas: str = dspy.InputField()
+    resultado_experimental: str = dspy.InputField(desc="Si llegaron datos del laboratorio: veredicto contra el prerregistro, cifras y limitaciones. Es evidencia directa del sistema biologico y pesa mas que la literatura, aunque siga condicionada al ensayo y su potencia. 'Ninguno' si no hay")
     conclusion: ConclusionHipotesis = dspy.OutputField()
+
+
+class CifraClave(BaseModel):
+    nombre: str
+    valor: str = Field(description="Con unidad y denominador cuando aplique")
+
+
+class ResultadoExperimento(BaseModel):
+    veredicto: Literal["confirma", "refuta", "inconcluso", "no_evaluable"] = Field(description="Segun los criterios congelados en el prerregistro: confirma si se cumple el criterio de confirmacion, refuta si el de refutacion, inconcluso si los datos no bastan para ninguno, no_evaluable si el fichero no contiene lo necesario para aplicar los criterios")
+    resultado: str = Field(description="El hallazgo principal en una o dos frases con las cifras y su denominador")
+    motivo: str = Field(description="Que criterio del prerregistro se aplico y como lo cumplen o no los datos")
+    limitaciones: str = Field(description="Que no permiten concluir los datos: tamano, faltantes, diseno distinto al prerregistrado")
+    cifras: list[CifraClave] = Field(description="Las cifras que sostienen el veredicto, calculadas del resumen de datos, no inventadas")
+    exploratorio: str = Field(description="Cualquier observacion fuera de los criterios prerregistrados, marcada como exploratoria; vacio si nada")
+
+
+class EvaluarResultado(dspy.Signature):
+    """Evaluar los datos que llegaron del laboratorio contra los criterios que se fijaron
+    ANTES en el prerregistro. Solo cuentan los criterios prerregistrados: lo demas se
+    reporta aparte como exploratorio. Las cifras salen del resumen de datos adjunto, no se
+    inventan ni se extrapolan; si el resumen no contiene lo necesario para aplicar un
+    criterio, el veredicto es no_evaluable y se dice que falta. Un resultado nulo es
+    informativo. Lenguaje corriente, con denominadores."""
+
+    hipotesis: str = dspy.InputField()
+    prerregistro: str = dspy.InputField(desc="Protocolo, ensayo, criterio de confirmacion y de refutacion, tal como se congelaron")
+    analisis_pedido: str = dspy.InputField(desc="Lo que la persona pidio analizar al registrar los datos")
+    resumen_datos: str = dspy.InputField(desc="Resumen determinista del fichero: filas, columnas, estadisticos por columna, faltantes")
+    muestra_datos: str = dspy.InputField(desc="Las primeras filas del fichero o el texto, tal cual")
+    resultado: ResultadoExperimento = dspy.OutputField()
 
 
 class Programas:
@@ -439,6 +470,7 @@ class Programas:
         self.hipotesis_en_llano = dspy.Predict(HipotesisEnLlano)
         self.experimento = dspy.ChainOfThought(ProponerExperimento)
         self.concluir = dspy.ChainOfThought(ConcluirHipotesis)
+        self.evaluar_resultado = dspy.ChainOfThought(EvaluarResultado)
 
     def cargar_optimizados(self, directorio) -> list[str]:
         """Carga los programas optimizados por GEPA que existan en el directorio

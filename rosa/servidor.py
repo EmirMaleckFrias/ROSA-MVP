@@ -19,7 +19,7 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -89,6 +89,24 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if datos is None:
             raise HTTPException(404, "Corrida desconocida")
         return JSONResponse(content=datos, headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/hipotesis/{hipotesis_id}/datos")
+    async def subir_datos(hipotesis_id: str, fichero: UploadFile = File(...), analisis: str = Form("")) -> dict[str, Any]:
+        """Los datos del laboratorio para una hipotesis con experimento
+        asignado: se guardan en `datos/<hipotesis>/` y se registra el fichero;
+        el bucle los evalua contra el prerregistro y rehace la conclusion."""
+        from rosa import datos as D
+
+        h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
+        if not h or not h.get("experimento"):
+            raise HTTPException(404, "Hipotesis sin experimento propuesto")
+        contenido = await fichero.read()
+        try:
+            ruta = D.guardar(hipotesis_id, fichero.filename or "datos", contenido)
+        except ValueError as ex:
+            raise HTTPException(413, str(ex))
+        resultado = almacen.aplicar("registrarDatosExperimento", {"hipotesis_id": hipotesis_id, "fichero": ruta.name, "analisis": analisis})
+        return {"ok": resultado is not False, "fichero": ruta.name, "bytes": len(contenido), "version": almacen.version}
 
     @app.get("/api/salud")
     async def salud() -> dict[str, Any]:
