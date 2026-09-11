@@ -60,6 +60,15 @@ class Conector:
 
 REGISTRO: dict[str, Conector] = {}
 
+# Permiso por conector (como en Claude Science: una vez, esta conversacion,
+# este proyecto, siempre; aqui reducido a tres niveles utiles para un bucle
+# autonomo): "permitir" (el bucle y las personas lo usan), "solo_persona"
+# (solo cuando una persona pregunta desde la interfaz) y "bloquear". Los
+# conectores publicos sin clave van en "permitir" por defecto, como los
+# destacados de Claude Science. Lo carga el almacen desde el estado.
+NIVELES_PERMISO = ("permitir", "solo_persona", "bloquear")
+PERMISOS: dict[str, str] = {}
+
 
 def conector(nombre: str, fuente: str, descripcion: str, aporta: str, esquema: dict[str, Any], licencia: str, limite: str, url_doc: str, clave: str = "no", grupo: str = "otros"):
     """Decorador que registra la funcion en el catalogo."""
@@ -86,7 +95,7 @@ def nueva_consulta(herramienta: str, argumentos: dict[str, Any]) -> dict[str, An
     return {"id": P.nuevo_id("con"), "herramienta": herramienta, "fuente": REGISTRO[herramienta].fuente if herramienta in REGISTRO else "", "argumentos": argumentos, "fecha": P.ahora_ms(), "n": None, "ids": [], "version": None, "invariante": None, "error": None, "ms": 0, "resumen": ""}
 
 
-async def consultar(herramienta: str, /, resumen: str = "", **argumentos: Any) -> tuple[dict[str, Any], Any]:
+async def consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle", **argumentos: Any) -> tuple[dict[str, Any], Any]:
     """Ejecuta un conector y devuelve (registro de consulta, datos). Nunca
     lanza por fallo de la fuente: el registro lleva `error` y datos es None.
     El nombre de la herramienta va posicional para no chocar con argumentos
@@ -96,6 +105,10 @@ async def consultar(herramienta: str, /, resumen: str = "", **argumentos: Any) -
     reg = nueva_consulta(nombre, argumentos)
     if c.estado != "disponible":
         reg.update(error=f"Conector no disponible ({c.estado}): {c.motivo}", resumen=resumen or nombre)
+        return reg, None
+    nivel = PERMISOS.get(nombre, "permitir")
+    if nivel == "bloquear" or (nivel == "solo_persona" and origen != "persona"):
+        reg.update(error=f"Conector sin permiso para el {origen} ({nivel}); se cambia en Ajustes", resumen=resumen or nombre)
         return reg, None
     t0 = time.monotonic()
     c.usos += 1
@@ -116,4 +129,4 @@ async def consultar(herramienta: str, /, resumen: str = "", **argumentos: Any) -
 
 def catalogo() -> list[dict[str, Any]]:
     """El catalogo tal como lo ve la interfaz: sin la funcion."""
-    return [{"nombre": c.nombre, "fuente": c.fuente, "grupo": c.grupo, "descripcion": c.descripcion, "aporta": c.aporta, "argumentos": list(c.esquema.get("properties", {}).keys()), "licencia": c.licencia, "limite": c.limite, "urlDoc": c.url_doc, "clave": c.clave, "estado": c.estado, "motivo": c.motivo, "usos": c.usos, "errores": c.errores, "ultimoUso": c.ultimo_uso} for c in REGISTRO.values()]
+    return [{"nombre": c.nombre, "fuente": c.fuente, "grupo": c.grupo, "descripcion": c.descripcion, "aporta": c.aporta, "argumentos": list(c.esquema.get("properties", {}).keys()), "licencia": c.licencia, "limite": c.limite, "urlDoc": c.url_doc, "clave": c.clave, "estado": c.estado, "motivo": c.motivo, "permiso": PERMISOS.get(c.nombre, "permitir"), "usos": c.usos, "errores": c.errores, "ultimoUso": c.ultimo_uso} for c in REGISTRO.values()]

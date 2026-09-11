@@ -252,8 +252,15 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
         estado["relaciones"] = relaciones_iniciales()
     # El catalogo de conectores vive en el codigo, como las politicas.
     from rosa.conectores import catalogo
+    from rosa.conectores.base import PERMISOS
 
+    estado.setdefault("permisosConectores", {})
+    PERMISOS.clear()
+    PERMISOS.update(estado["permisosConectores"])
     estado["conectores"] = catalogo()
+    for inv in estado.get("investigaciones", []):
+        inv.setdefault("memoria", [])
+        inv.setdefault("preguntasABases", [])
     for a in estado.get("artefactos", []):
         for v in a.get("versiones", []):
             v.setdefault("procedencia", A.procedencia_artefacto())
@@ -434,6 +441,10 @@ _TABLA: dict[str, Callable] = {
     "registrarProtocoloReal": A.registrar_protocolo_real,
     "cambiarEstadoArea": A.cambiar_estado_area,
     "registrarEvaluacion": A.registrar_evaluacion,
+    "fijarPermisoConector": A.fijar_permiso_conector,
+    "anadirMemoria": A.anadir_memoria,
+    "quitarMemoria": A.quitar_memoria,
+    "registrarPreguntaBases": A.registrar_pregunta_bases,
 }
 
 ACCIONES: dict[str, tuple[Callable, bool]] = {n: (f, _con_ahora(f)) for n, f in _TABLA.items()}

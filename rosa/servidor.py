@@ -157,6 +157,30 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         return politicas.resumen()
 
+    @app.post("/api/investigaciones/{investigacion_id}/preguntar")
+    async def preguntar_con_herramientas(investigacion_id: str, cuerpo: dict[str, Any]) -> dict[str, Any]:
+        """Una pregunta con herramientas (conectores, busqueda en el proyecto,
+        modelo de mundo) hecha por una persona desde la interfaz. Corre un
+        ReAct acotado con el cerebro y guarda la respuesta con sus consultas."""
+        from rosa import herramientas as H
+        from rosa.bucle.pasos import _texto_mision
+        from rosa.gateway import modelos as cargar_modelos
+
+        inv = next((i for i in almacen.estado["investigaciones"] if i["id"] == investigacion_id), None)
+        pregunta = str(cuerpo.get("pregunta", "")).strip()
+        if not inv or not pregunta:
+            raise HTTPException(400, "Falta la pregunta o la investigacion")
+        quien = str(cuerpo.get("quien", "persona"))
+        modelos_ = getattr(app.state, "modelos", None) or cargar_modelos()
+        app.state.modelos = modelos_
+        try:
+            r = await H.preguntar(modelos_.cerebro, almacen.estado, investigacion_id, pregunta, f"Objetivo: {inv['objetivo']}. {_texto_mision(inv)}")
+            r["pregunta"], r["quien"], r["error"] = pregunta, quien, None
+        except Exception as ex:  # noqa: BLE001
+            r = {"pregunta": pregunta, "quien": quien, "respuesta": "", "limites": "", "herramientas": [], "consultas": [], "iteraciones": 0, "error": f"La pregunta con herramientas fallo: {str(ex)[:300]}"}
+        almacen.aplicar("registrarPreguntaBases", {"investigacion_id": investigacion_id, "pregunta": r})
+        return {"ok": r.get("error") is None, "resultado": {k: v for k, v in r.items() if k != "consultas"} | {"consultas": len(r.get("consultas", []))}, "version": almacen.version}
+
     @app.get("/api/conectores")
     async def conectores_actuales() -> list[dict[str, Any]]:
         from rosa.conectores import catalogo

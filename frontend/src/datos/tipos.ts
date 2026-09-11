@@ -221,6 +221,11 @@ export interface Investigacion {
   vigilarLiteraturaHasta: number | null;
   /** La mision estructurada. Falta en investigaciones anteriores a septiembre de 2026. */
   mision?: Mision | null;
+  /** Memoria del proyecto: hechos cortos y estables fijados por personas que
+   *  Rosa lee en cada mision (preferencias, restricciones, decisiones). */
+  memoria?: MemoriaProyecto[];
+  /** Preguntas con herramientas hechas desde la interfaz, con sus consultas. */
+  preguntasABases?: PreguntaABases[];
   puertaReproduccion?: PuertaReproduccion;
 }
 
@@ -1447,6 +1452,8 @@ export interface EstadoRosa {
   evaluaciones?: RegistroEvaluacion[];
   /** El catalogo de conectores a bases publicas, tal como esta en el codigo. */
   conectores?: ConectorCatalogo[];
+  /** Permiso por conector: permitir, solo cuando pregunta una persona, o bloquear. */
+  permisosConectores?: Record<string, NivelPermisoConector>;
   artefactos: Artefacto[];
   casos: CasoControl[];
   metricas: MetricasJuez[];
@@ -1559,7 +1566,30 @@ export interface ConectorCatalogo {
   clave: string;
   estado: EstadoConector;
   motivo: string;
+  permiso?: NivelPermisoConector;
   usos: number;
   errores: number;
   ultimoUso: number | null;
+}
+
+export type NivelPermisoConector = 'permitir' | 'solo_persona' | 'bloquear';
+
+export interface MemoriaProyecto {
+  id: string;
+  texto: string;
+  quien: string;
+  fecha: number;
+}
+
+export interface PreguntaABases {
+  id: string;
+  fecha: number;
+  pregunta: string;
+  respuesta: string;
+  limites: string;
+  herramientas: string[];
+  consultas: ConsultaBase[];
+  iteraciones: number;
+  quien: string;
+  error: string | null;
 }

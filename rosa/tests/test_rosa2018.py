@@ -555,3 +555,44 @@ def test_artefacto_versiona_y_lleva_procedencia(al):
     assert [v["n"] for v in art["versiones"]] == [1, 2]
     assert art["versiones"][0]["procedencia"]["revision"]["resumen"] == "limpia" and art["versiones"][1]["procedencia"]["codigo"] is None
     assert set(art["versiones"][1]["procedencia"]) == {"mensajes", "codigo", "registroEjecucion", "entorno", "revision"}
+
+
+# -- Permisos por conector, memoria del proyecto y busqueda en el proyecto ------
+
+
+def test_permiso_conector_memoria_y_busqueda(al):
+    import asyncio
+
+    from rosa import conectores as CON
+    from rosa import herramientas as H
+    from rosa.conectores.base import PERMISOS
+
+    inv = _inv(al)
+    assert al.aplicar("fijarPermisoConector", {"nombre": "mygene_gen", "nivel": "bloquear", "quien": "persona"}) is True
+    assert al.aplicar("fijarPermisoConector", {"nombre": "mygene_gen", "nivel": "raro", "quien": "persona"}) is False
+    assert PERMISOS["mygene_gen"] == "bloquear" and al.estado["permisosConectores"]["mygene_gen"] == "bloquear"
+    reg, datos = asyncio.run(CON.consultar("mygene_gen", simbolo="APOE"))
+    assert datos is None and "sin permiso" in reg["error"]
+    assert al.aplicar("fijarPermisoConector", {"nombre": "mygene_gen", "nivel": "solo_persona", "quien": "persona"}) is True
+    reg2, _ = asyncio.run(CON.consultar("mygene_gen", simbolo="APOE"))  # el bucle no puede
+    assert "sin permiso" in reg2["error"]
+    assert any(a["nivel"] == 3 and "Conector" in a["descripcion"] for a in al.estado["aprendizaje"])
+    al.aplicar("fijarPermisoConector", {"nombre": "mygene_gen", "nivel": "permitir", "quien": "persona"})
+    # Memoria del proyecto: entra al texto de la mision.
+    from rosa.bucle.pasos import _texto_mision
+
+    assert al.aplicar("anadirMemoria", {"investigacion_id": inv, "texto": "Solo datos publicos por ahora", "quien": "persona"}) is True
+    assert al.aplicar("anadirMemoria", {"investigacion_id": inv, "texto": "   ", "quien": "persona"}) is False
+    i = al.estado["investigaciones"][0]
+    assert "Solo datos publicos" in _texto_mision(i)
+    assert al.aplicar("quitarMemoria", {"investigacion_id": inv, "memoria_id": i["memoria"][0]["id"]}) is True and i["memoria"] == []
+    # Busqueda en el proyecto: hipotesis, decisiones de persona frente a propuestas.
+    h = _hip(al, inv)
+    assert al.aplicar("revisarHipotesis", {"hipotesis_id": h, "accion": "aceptar", "nota": "me convence GFAP", "quien": "persona"}) is True
+    hits = H.buscar_proyecto(al.estado, inv, "GFAP")
+    assert any(x["tipo"] == "hipotesis" and x["id"] == h for x in hits)
+    assert any(x["tipo"] == "decision" and x.get("es_de_persona") for x in hits)
+    assert H.buscar_proyecto(al.estado, inv, "a") == []
+    # La respuesta de una pregunta con herramientas se registra con sus consultas.
+    assert al.aplicar("registrarPreguntaBases", {"investigacion_id": inv, "pregunta": {"pregunta": "q", "respuesta": "r", "limites": "", "herramientas": ["mygene_gen"], "consultas": [], "iteraciones": 1, "quien": "persona", "error": None}}) is True
+    assert al.estado["investigaciones"][0]["preguntasABases"][0]["herramientas"] == ["mygene_gen"]

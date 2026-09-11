@@ -45,7 +45,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea } from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -582,6 +582,32 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
     siguiente = conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Experimento prerregistrado y asignado a ${lab}: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/artefactos/${r.id}`, ahora);
   }
   return siguiente;
+}
+
+export const NIVELES_PERMISO_CONECTOR: NivelPermisoConector[] = ['permitir', 'solo_persona', 'bloquear'];
+
+/** Misma regla que `fijar_permiso_conector`: cambia el permiso y deja un cambio de politica. */
+export function fijarPermisoConector(estado: EstadoRosa, nombre: string, nivel: NivelPermisoConector, quien: string, ahora: number): EstadoRosa {
+  const c = (estado.conectores ?? []).find((x) => x.nombre === nombre);
+  if (!c || !NIVELES_PERMISO_CONECTOR.includes(nivel)) return estado;
+  const anterior = estado.permisosConectores?.[nombre] ?? 'permitir';
+  if (anterior === nivel) return estado;
+  return {
+    ...estado,
+    permisosConectores: { ...(estado.permisosConectores ?? {}), [nombre]: nivel },
+    conectores: (estado.conectores ?? []).map((x) => (x.nombre === nombre ? { ...x, permiso: nivel } : x)),
+    aprendizaje: [...(estado.aprendizaje ?? []), { id: nuevoId('apr'), investigacionId: null, nivel: 3, tipo: 'politica', descripcion: `Conector ${c.fuente}: de ${anterior} a ${nivel}`, origen: `conector:${nombre}`, estado: 'promovido', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien }],
+  };
+}
+
+export function anadirMemoria(estado: EstadoRosa, investigacionId: string, texto: string, quien: string, ahora: number): EstadoRosa {
+  const limpio = texto.trim();
+  if (limpio === '' || limpio.length > 400 || !estado.investigaciones.some((i) => i.id === investigacionId)) return estado;
+  return { ...estado, investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, memoria: [...(i.memoria ?? []), { id: nuevoId('mem'), texto: limpio, quien: quien.trim() || 'persona', fecha: ahora }] } : i)) };
+}
+
+export function quitarMemoria(estado: EstadoRosa, investigacionId: string, memoriaId: string): EstadoRosa {
+  return { ...estado, investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, memoria: (i.memoria ?? []).filter((m) => m.id !== memoriaId) } : i)) };
 }
 
 export const ESTADOS_AREA: EstadoArea[] = ['propuesta', 'elegida', 'pausada', 'sin_explorar'];

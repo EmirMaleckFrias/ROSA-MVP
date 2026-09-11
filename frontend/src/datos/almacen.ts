@@ -32,7 +32,7 @@ import type {
   PreguntaCampana,
   ProcedenciaDataset,
   RevisionHumana,
-  TipoArtefacto, CampoEnmendable, EstadoArea } from './tipos';
+  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -521,6 +521,32 @@ export const acciones = {
   actualizarPregunta: (corridaId: string, pregunta: Partial<PreguntaCampana>) => {
     aplicar((e) => A.actualizarPregunta(e, corridaId, pregunta, Date.now()));
     enviar('actualizarPregunta', { corrida_id: corridaId, pregunta, quien: QUIEN });
+  },
+  fijarPermisoConector: (nombre: string, nivel: NivelPermisoConector) => {
+    aplicar((e) => A.fijarPermisoConector(e, nombre, nivel, QUIEN, Date.now()));
+    enviar('fijarPermisoConector', { nombre, nivel, quien: QUIEN });
+  },
+  anadirMemoria: (investigacionId: string, texto: string) => {
+    aplicar((e) => A.anadirMemoria(e, investigacionId, texto, QUIEN, Date.now()));
+    enviar('anadirMemoria', { investigacion_id: investigacionId, texto, quien: QUIEN });
+  },
+  quitarMemoria: (investigacionId: string, memoriaId: string) => {
+    aplicar((e) => A.quitarMemoria(e, investigacionId, memoriaId));
+    enviar('quitarMemoria', { investigacion_id: investigacionId, memoria_id: memoriaId });
+  },
+  /** Una pregunta con herramientas (conectores, busqueda en el proyecto, modelo
+   *  de mundo): la corre el servidor con el cerebro y la respuesta llega al
+   *  estado por SSE con sus consultas. Devuelve un error legible o null. */
+  preguntarALasBases: async (investigacionId: string, pregunta: string): Promise<string | null> => {
+    if (modo !== 'servidor') return 'Preguntar a las bases requiere el servidor de Rosa.';
+    try {
+      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/preguntar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pregunta, quien: QUIEN }) });
+      if (!r.ok) return `El servidor no pudo responder (${r.status}).`;
+      const d = (await r.json()) as { ok: boolean; resultado?: { error?: string | null } };
+      return d.ok ? null : d.resultado?.error ?? 'La pregunta fallo.';
+    } catch {
+      return 'Sin conexion con el servidor.';
+    }
   },
   cambiarEstadoArea: (investigacionId: string, areaId: string, estado: EstadoArea | null, condicionReapertura = '', corridaId: string | null | undefined = undefined, motivo = '') => {
     aplicar((e) => A.cambiarEstadoArea(e, investigacionId, areaId, estado, QUIEN, Date.now(), condicionReapertura, corridaId, motivo));

@@ -10,7 +10,7 @@ import { preguntarAlModeloDeMundo } from '../datos/acciones';
 import type { EstadoRosa, HechoMundo, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Momento, Seccion } from '../componentes/piezas';
 import { IconChevronDown } from '../componentes/icons';
-import { RelacionesCausales } from '../componentes/Rosa2018';
+import { PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
 import { COBERTURA_MINIMA, faltanParaCobertura } from '../lib/cobertura';
 import { CLASIFICACION_CITA, ESTADO_HECHO, TIPO_HECHO } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
@@ -173,6 +173,8 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       )}
 
       <RelacionesCausales estado={estado} inv={inv} />
+
+      <PreguntarALasBases inv={inv} ahora={ahora} />
 
       <Seccion titulo="Preguntar al modelo de mundo" nota="Responde solo con lo que hay dentro, citando los nodos. Si no hay nada, lo dice y no lo inventa.">
         <div className="dirigir">

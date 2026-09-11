@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -1673,6 +1673,13 @@ export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | un
                       <td className="meta">
                         {c.usos}
                         {c.errores ? ` (${c.errores} sin respuesta)` : ''}
+                        {c.estado === 'disponible' && (
+                          <select className="entrada" value={c.permiso ?? 'permitir'} onChange={(e) => acciones.fijarPermisoConector(c.nombre, e.target.value as NivelPermisoConector)} aria-label={`Permiso de ${c.fuente}`} title="Permitir: el bucle y las personas lo usan. Solo persona: solo cuando alguien pregunta desde aqui. Bloquear: nadie.">
+                            <option value="permitir">Permitir</option>
+                            <option value="solo_persona">Solo si pregunta una persona</option>
+                            <option value="bloquear">Bloquear</option>
+                          </select>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1688,8 +1695,48 @@ export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | un
 /** Las consultas a bases que esta hipotesis provoco, con lo que Claude
  *  Science exige registrar: herramienta, argumentos, fecha, numero de
  *  resultados, identificadores retenidos e invariante comprobada. */
+export function TablaConsultas({ consultas, ahora }: { consultas: ConsultaBase[]; ahora: number }) {
+  const cs = [...consultas].sort((a, b) => b.fecha - a.fecha);
+  return (
+    <table className="tabla">
+      <thead>
+        <tr>
+          <th>Base</th>
+          <th>Argumentos</th>
+          <th>Resultados</th>
+          <th>Invariante</th>
+          <th>Cuando</th>
+        </tr>
+      </thead>
+      <tbody>
+        {cs.slice(0, 40).map((c) => (
+          <tr key={c.id}>
+            <td>
+              <strong style={{ fontSize: 13 }}>{c.fuente || c.herramienta}</strong>
+              <p className="meta">{c.herramienta}</p>
+            </td>
+            <td className="meta">
+              {Object.entries(c.argumentos)
+                .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
+                .join(', ')}
+            </td>
+            <td className="meta">
+              {c.error ? <span className="tono-aviso">{c.error}</span> : `${c.n ?? '?'} resultados${c.ids.length ? `; ids: ${c.ids.slice(0, 4).join(', ')}${c.ids.length > 4 ? '...' : ''}` : ''}${c.version ? `; version ${c.version}` : ''}`}
+            </td>
+            <td>{c.invariante ? <Chip tono={c.invariante.ok ? 'ok' : 'aviso'}>{c.invariante.detalle.slice(0, 80)}</Chip> : <span className="meta">sin invariante</span>}</td>
+            <td className="meta">
+              <Momento t={c.fecha} ahora={ahora} /> ({c.ms} ms)
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Las consultas a bases que esta hipotesis provoco. */
 export function ConsultasABases({ h, ahora }: { h: Hipotesis; ahora: number }) {
-  const cs = [...(h.consultas ?? [])].sort((a, b) => b.fecha - a.fecha);
+  const cs = h.consultas ?? [];
   if (cs.length === 0) return null;
   const fallidas = cs.filter((c) => c.error).length;
   return (
@@ -1698,39 +1745,96 @@ export function ConsultasABases({ h, ahora }: { h: Hipotesis; ahora: number }) {
         {cs.length} {cs.length === 1 ? 'consulta' : 'consultas'}
         {fallidas ? `, ${fallidas} sin respuesta` : ''}
       </p>
-      <table className="tabla">
-        <thead>
-          <tr>
-            <th>Base</th>
-            <th>Argumentos</th>
-            <th>Resultados</th>
-            <th>Invariante</th>
-            <th>Cuando</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cs.slice(0, 40).map((c) => (
-            <tr key={c.id}>
-              <td>
-                <strong style={{ fontSize: 13 }}>{c.fuente || c.herramienta}</strong>
-                <p className="meta">{c.herramienta}</p>
-              </td>
-              <td className="meta">
-                {Object.entries(c.argumentos)
-                  .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
-                  .join(', ')}
-              </td>
-              <td className="meta">
-                {c.error ? <span className="tono-aviso">{c.error}</span> : `${c.n ?? '?'} resultados${c.ids.length ? `; ids: ${c.ids.slice(0, 4).join(', ')}${c.ids.length > 4 ? '...' : ''}` : ''}${c.version ? `; version ${c.version}` : ''}`}
-              </td>
-              <td>{c.invariante ? <Chip tono={c.invariante.ok ? 'ok' : 'aviso'}>{c.invariante.detalle.slice(0, 80)}</Chip> : <span className="meta">sin invariante</span>}</td>
-              <td className="meta">
-                <Momento t={c.fecha} ahora={ahora} /> ({c.ms} ms)
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <TablaConsultas consultas={cs} ahora={ahora} />
+    </Seccion>
+  );
+}
+
+/** Memoria del proyecto: hechos cortos que Rosa lee en cada mision. Los
+ *  escribe y borra una persona. */
+export function MemoriaDelProyecto({ inv }: { inv: Investigacion }) {
+  const [texto, setTexto] = useState('');
+  const memoria = inv.memoria ?? [];
+  return (
+    <Seccion titulo="Memoria del proyecto" nota="Hechos cortos y estables que Rosa lee en cada mision, plan y revision: una preferencia ('solo datos publicos'), una restriccion ('no proponer ensayos con farmacos retirados'), una decision confirmada. No es para resultados ni para copiar literatura: para eso estan los hechos y los artefactos.">
+      {memoria.length === 0 ? <p className="meta">Sin memoria todavia.</p> : null}
+      <ul className="lista-plana">
+        {memoria.map((m) => (
+          <li key={m.id} className="acciones">
+            <span style={{ fontSize: 13 }}>{m.texto}</span>
+            <span className="meta">
+              {m.quien}, {new Date(m.fecha).toLocaleDateString('es')}
+            </span>
+            <button type="button" className="btn btn-pequeno" onClick={() => acciones.quitarMemoria(inv.id, m.id)}>
+              Quitar
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="dirigir">
+        <input className="entrada" value={texto} maxLength={400} placeholder="Un hecho estable que Rosa deba recordar" onChange={(e) => setTexto(e.target.value)} aria-label="Nuevo hecho de memoria" />
+        <button
+          type="button"
+          className="btn"
+          disabled={texto.trim() === ''}
+          onClick={() => {
+            acciones.anadirMemoria(inv.id, texto);
+            setTexto('');
+          }}
+        >
+          Recordar
+        </button>
+      </div>
+    </Seccion>
+  );
+}
+
+/** Preguntar a las bases con herramientas: Rosa elige que conectores llamar,
+ *  responde en llano y deja cada consulta registrada. */
+export function PreguntarALasBases({ inv, ahora }: { inv: Investigacion; ahora: number }) {
+  const [pregunta, setPregunta] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const preguntas = [...(inv.preguntasABases ?? [])].sort((a, b) => b.fecha - a.fecha);
+  return (
+    <Seccion titulo="Preguntar a las bases" nota="Rosa responde consultando las bases publicas del catalogo, el propio proyecto y el modelo de mundo, con un bucle acotado de herramientas (elige una, lee el resultado, repite hasta seis veces). Cada dato lleva detras la herramienta y el identificador; lo que ninguna base devolvio no se afirma. Cuesta llamadas al cerebro.">
+      <div className="dirigir">
+        <input className="entrada" value={pregunta} placeholder="Que farmacos aprobados tocan TREM2 y en que tejidos se expresa" onChange={(e) => setPregunta(e.target.value)} aria-label="Pregunta a las bases" />
+        <button
+          type="button"
+          className="btn btn-primario"
+          disabled={pregunta.trim() === '' || enviando}
+          onClick={async () => {
+            setEnviando(true);
+            setError(null);
+            const err = await acciones.preguntarALasBases(inv.id, pregunta);
+            setEnviando(false);
+            setError(err);
+            if (!err) setPregunta('');
+          }}
+        >
+          {enviando ? 'Consultando bases...' : 'Preguntar con herramientas'}
+        </button>
+        {error && <span className="tono-mal">{error}</span>}
+      </div>
+      {preguntas.slice(0, 5).map((q) => (
+        <div key={q.id} className="tarjeta" style={{ marginTop: 8 }}>
+          <p>
+            <strong style={{ fontSize: 13 }}>{q.pregunta}</strong>{' '}
+            <span className="meta">
+              {q.quien}, <Momento t={q.fecha} ahora={ahora} />, {q.iteraciones} {q.iteraciones === 1 ? 'paso' : 'pasos'}, {q.herramientas.length} {q.herramientas.length === 1 ? 'herramienta' : 'herramientas'}
+            </span>
+          </p>
+          {q.error ? <p className="tono-mal">{q.error}</p> : <p style={{ whiteSpace: 'pre-wrap' }}>{q.respuesta}</p>}
+          {q.limites && <p className="meta">Limites: {q.limites}</p>}
+          {q.consultas.length > 0 && (
+            <details className="versiones">
+              <summary>{q.consultas.length} consultas registradas</summary>
+              <TablaConsultas consultas={q.consultas} ahora={ahora} />
+            </details>
+          )}
+        </div>
+      ))}
     </Seccion>
   );
 }

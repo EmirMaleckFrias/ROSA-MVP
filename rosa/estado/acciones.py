@@ -493,6 +493,60 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
     return True
 
 
+def fijar_permiso_conector(e: Estado, nombre: str, nivel: str, quien: str, ahora: int) -> bool:
+    """Permiso por conector: permitir, solo cuando una persona pregunta, o
+    bloquear. Queda en el estado y en el proceso (la capa de conectores lo
+    lee en cada llamada). Es una decision de politica: va al aprendizaje."""
+    from rosa.conectores import REGISTRO
+    from rosa.conectores.base import NIVELES_PERMISO, PERMISOS
+
+    if nombre not in REGISTRO or nivel not in NIVELES_PERMISO:
+        return False
+    anterior = e.setdefault("permisosConectores", {}).get(nombre, "permitir")
+    if anterior == nivel:
+        return False
+    e["permisosConectores"][nombre] = nivel
+    PERMISOS[nombre] = nivel
+    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 3, "politica", f"Conector {REGISTRO[nombre].fuente}: de {anterior} a {nivel}", f"conector:{nombre}", "promovido", quien, ahora))
+    for c in e.get("conectores", []):
+        if c["nombre"] == nombre:
+            c["permiso"] = nivel
+    return True
+
+
+def anadir_memoria(e: Estado, investigacion_id: str, texto: str, quien: str, ahora: int) -> bool:
+    """Memoria del proyecto (como la memoria de Claude Science): hechos
+    cortos y estables que Rosa lee en cada mision (preferencias, restricciones,
+    decisiones confirmadas). Los escribe y borra una persona; nunca resultados
+    ni copias de literatura."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    limpio = texto.strip()
+    if not inv or not limpio or len(limpio) > 400:
+        return False
+    inv.setdefault("memoria", []).append({"id": P.nuevo_id("mem"), "texto": limpio, "quien": quien.strip() or "persona", "fecha": ahora})
+    return True
+
+
+def quitar_memoria(e: Estado, investigacion_id: str, memoria_id: str) -> bool:
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv:
+        return False
+    antes = len(inv.get("memoria", []) or [])
+    inv["memoria"] = [m for m in inv.get("memoria", []) or [] if m["id"] != memoria_id]
+    return len(inv["memoria"]) != antes
+
+
+def registrar_pregunta_bases(e: Estado, investigacion_id: str, pregunta: dict, ahora: int) -> bool:
+    """La respuesta de una pregunta con herramientas entra a la investigacion
+    con sus consultas, para que se vea de donde salio cada dato."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv or not isinstance(pregunta, dict) or not pregunta.get("pregunta"):
+        return False
+    inv.setdefault("preguntasABases", []).append({"id": P.nuevo_id("pb"), "fecha": ahora, **{k: pregunta.get(k) for k in ("pregunta", "respuesta", "limites", "herramientas", "consultas", "iteraciones", "quien", "error")}})
+    inv["preguntasABases"] = inv["preguntasABases"][-30:]
+    return True
+
+
 def registrar_evaluacion(e: Estado, evaluacion: dict, quien: str, ahora: int) -> bool:
     """Un panel de evaluacion del sistema (por ahora, el panel del Killer con
     fallos plantados) entra al estado como registro con fecha: resumen,

@@ -654,9 +654,11 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
 
 def _texto_mision(inv: dict[str, Any]) -> str:
     m = inv.get("mision") or {}
+    memoria = inv.get("memoria") or []
+    texto_mem = (" Memoria del proyecto (hechos fijados por las personas): " + " | ".join(x["texto"] for x in memoria[:12])) if memoria else ""
     if not m:
-        return "Sin mision estructurada todavia"
-    return f"Poblacion: {m.get('poblacion') or 'sin fijar'}. Etapa: {m.get('etapa') or 'sin fijar'}. Celula o tejido: {m.get('celulaTejido') or 'sin fijar'}. Mecanismo: {m.get('mecanismo') or 'sin fijar'}. Tipo de intervencion: {m.get('tipoIntervencion') or 'sin fijar'}. Capacidades del laboratorio: {'; '.join(m.get('capacidadesLaboratorio', [])) or 'sin declarar'}."
+        return "Sin mision estructurada todavia." + texto_mem
+    return f"Poblacion: {m.get('poblacion') or 'sin fijar'}. Etapa: {m.get('etapa') or 'sin fijar'}. Celula o tejido: {m.get('celulaTejido') or 'sin fijar'}. Mecanismo: {m.get('mecanismo') or 'sin fijar'}. Tipo de intervencion: {m.get('tipoIntervencion') or 'sin fijar'}. Capacidades del laboratorio: {'; '.join(m.get('capacidadesLaboratorio', [])) or 'sin declarar'}." + texto_mem
 
 
 async def _completar_tarjeta(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
