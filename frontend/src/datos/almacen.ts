@@ -168,6 +168,28 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
     });
 }
 
+/** Como `enviar`, pero devuelve si el servidor aplico la accion (ok), la
+ *  rechazo (false) o no se pudo saber (null). */
+async function enviarYComprobar(nombre: string, args: Record<string, unknown>): Promise<boolean | null> {
+  if (modo !== 'servidor') return null;
+  try {
+    const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+    if (!r.ok) return null;
+    const cuerpo = (await r.json()) as { ok: boolean };
+    return cuerpo.ok;
+  } catch {
+    return null;
+  }
+}
+
+/** Ultimo aviso de conflicto para la pantalla; se consume al leerlo. */
+let avisoConflicto: string | null = null;
+export function tomarAvisoConflicto(): string | null {
+  const a = avisoConflicto;
+  avisoConflicto = null;
+  return a;
+}
+
 /** Intenta el servidor; si no esta, arranca la muestra. Idempotente. */
 export async function conectar(): Promise<'muestra' | 'servidor'> {
   try {
@@ -273,9 +295,17 @@ export const acciones = {
     aplicar((e) => A.fijarAutonomia(e, clase, nivel));
     enviar('fijarAutonomia', { clase, nivel });
   },
-  revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null) => {
-    aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana));
-    enviar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana });
+  /** Decidir sobre una hipotesis. Va con la version que la persona veia y los
+   *  segundos que tardo en decidir; si el servidor la rechaza (la hipotesis
+   *  cambio entre medias), se resincroniza el estado y se avisa. */
+  revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null) => {
+    aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada));
+    void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
+      if (ok === false) {
+        avisoConflicto = 'La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.';
+        void resincronizar();
+      }
+    });
   },
   votarRelevancia: (id: string, voto: 'alta' | 'media' | 'baja') => {
     aplicar((e) => A.votarRelevancia(e, id, voto));

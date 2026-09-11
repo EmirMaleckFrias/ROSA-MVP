@@ -918,6 +918,8 @@ export interface Decision {
   quien: string;
   fecha: number;
   auditoria: { quien: string; acuerdo: boolean; motivo: string; fecha: number } | null;
+  /** Segundos entre abrir la ficha y decidir, si la decision fue de una persona: la carga de revision. */
+  segundosRevision?: number;
 }
 
 /** Bloqueos no compensables de la priorizacion (ROSA2018, etapa 8): uno

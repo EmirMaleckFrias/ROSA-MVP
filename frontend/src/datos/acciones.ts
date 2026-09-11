@@ -384,9 +384,12 @@ export function revisarHipotesis(
   ahora: number,
   aCiegas = false,
   revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null,
+  versionEsperada: number | null = null,
 ): EstadoRosa {
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
   if (!h) return estado;
+  // La decision se tomo mirando una version; si la hipotesis cambio, no se aplica.
+  if (versionEsperada !== null && versionEsperada !== (h.version ?? 1)) return estado;
   const notaLimpia = nota.trim();
   // Descartar y "no puedo juzgar" exigen motivo: es lo que queda para que
   // nadie vuelva a proponer lo mismo, o lo que Rosa tiene que aclarar.

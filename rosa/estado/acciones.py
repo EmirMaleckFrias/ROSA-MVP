@@ -360,9 +360,14 @@ ESTADO_TRAS_ACCION = {"aceptar": "aceptada", "descartar": "descartada", "refinar
 ACCION_REVISION = {"aceptar": "aceptada", "descartar": "descartada", "refinar": "refinar", "reabrir": "reabierta", "no_puedo_juzgar": "no_puedo_juzgar"}
 
 
-def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quien: str, ahora: int, a_ciegas: bool = False, revision_humana: dict | None = None, etapa: str = "persona") -> bool:
+def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quien: str, ahora: int, a_ciegas: bool = False, revision_humana: dict | None = None, etapa: str = "persona", version_esperada: int | None = None, segundos_revision: float | None = None) -> bool:
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h or accion not in ESTADO_TRAS_ACCION:
+        return False
+    # Concurrencia: la decision se tomo mirando una version concreta. Si la
+    # hipotesis cambio entre medias (Rosa la reformulo), no se aplica sobre la
+    # nueva; la interfaz se resincroniza y la persona vuelve a mirar.
+    if version_esperada is not None and int(version_esperada) != h.get("version", 1):
         return False
     nota_limpia = (nota or "").strip()
     if accion in ("descartar", "no_puedo_juzgar") and not nota_limpia:
@@ -403,7 +408,9 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
     con_evento(e, h["investigacionId"], "hipotesis_decidida", textos[accion], f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     # Toda decision humana queda en el registro de decisiones (DecisionRecord).
     if accion in ("aceptar", "descartar", "refinar", "reabrir") and etapa == "persona":
-        registrar_decision(e, h, "persona", {"aceptar": "aceptada", "descartar": "descartada", "refinar": "refinar", "reabrir": "reabierta"}[accion], nota_limpia or textos[accion], quien, ahora)
+        d = registrar_decision(e, h, "persona", {"aceptar": "aceptada", "descartar": "descartada", "refinar": "refinar", "reabrir": "reabierta"}[accion], nota_limpia or textos[accion], quien, ahora)
+        if segundos_revision is not None:
+            d["segundosRevision"] = round(float(segundos_revision), 1)  # carga de revision: la metrica que pide el plan
     if accion == "refinar" and etapa == "persona":
         h["_reformularPedida"] = nota_limpia or "La persona pidio refinarla"  # el bucle la reformula como version nueva
     if accion == "reabrir":
@@ -468,6 +475,11 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
         "aprobadaEn": ahora,
         "aprobadaPor": quien,
     }
+    if isinstance(mision.get("metaAmplia"), str):
+        nueva["metaAmplia"] = mision["metaAmplia"].strip()
+    if isinstance(mision.get("responsables"), dict):
+        base_r = base.get("responsables") or P.mision_vacia()["responsables"]
+        nueva["responsables"] = {k: str(mision["responsables"].get(k, base_r.get(k, ""))).strip() for k in base_r}
     if nueva["presupuesto"]["llamadas"] <= 0 or nueva["presupuesto"]["usd"] <= 0 or nueva["presupuesto"]["horas"] <= 0:
         return False
     nueva["presupuesto"]["llamadas"] = int(nueva["presupuesto"]["llamadas"])

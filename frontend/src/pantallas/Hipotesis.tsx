@@ -208,8 +208,10 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
   const cobertura = corrida?.coberturas.find((c) => c.tema.toLowerCase() === h.cluster.toLowerCase() || h.cluster.toLowerCase().includes(c.tema.toLowerCase())) ?? null;
   const retractadas = dependeDeRetractada(h);
   const revisionHumana = revisionAbierta && (rev.supuestosCuestionados || rev.literaturaQueFalta || rev.problemaExperimental) ? rev : null;
+  const abiertoEn = useRef(Date.now());
+  const segundosRevision = () => Math.round((Date.now() - abiertoEn.current) / 1000);
   const decidir = (accion: 'aceptar' | 'refinar' | 'no_puedo_juzgar' | 'reabrir', n: string) => {
-    acciones.revisarHipotesis(h.id, accion, n, aCiegas, revisionHumana);
+    acciones.revisarHipotesis(h.id, accion, n, aCiegas, revisionHumana, h.version ?? 1, segundosRevision());
     setNota('');
     setRev({ supuestosCuestionados: '', literaturaQueFalta: '', problemaExperimental: '' });
   };
@@ -718,7 +720,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 pregunta="El motivo queda en el modelo de mundo para que Rosa no vuelva a proponer lo mismo."
                 pedirTexto={{ etiqueta: 'Motivo', marcador: 'Se apoya en un articulo retractado' }}
                 onConfirmar={(m) => {
-                  acciones.revisarHipotesis(h.id, 'descartar', m, aCiegas, revisionHumana);
+                  acciones.revisarHipotesis(h.id, 'descartar', m, aCiegas, revisionHumana, h.version ?? 1, segundosRevision());
                   setNota('');
                 }}
               />

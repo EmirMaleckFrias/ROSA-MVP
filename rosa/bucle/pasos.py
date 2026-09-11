@@ -726,11 +726,19 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     ahora = P.ahora_ms()
     quien = ctx.modelos.juez.model
     fallidas = [c for c in comprobaciones if c["resultado"] in ("falla", "no_comprobable")]
+    version_juzgada = h.get("version", 1)
 
     def aplicar(e2: dict[str, Any]) -> dict[str, Any] | bool:
         x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
         if not x:
             return False
+        if x.get("version", 1) != version_juzgada:
+            # Escritura tardia: la hipotesis cambio mientras el juez pensaba. La
+            # decision queda registrada sobre la version que juzgo y no toca la actual.
+            d = A.registrar_decision(e2, x, "killer_1", decision, f"[Sobre la version {version_juzgada}; la hipotesis ya esta en la {x.get('version', 1)} y se volvera a juzgar] {motivo}", quien, ahora, comprobaciones, falta)
+            d["version"] = version_juzgada
+            x["_revisionPedida"] = True
+            return d
         d = A.registrar_decision(e2, x, "killer_1", decision, motivo, quien, ahora, comprobaciones, falta)
         d["_alternativas"] = alternativas
         x["decisionKiller"] = decision
@@ -754,6 +762,11 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         return d
 
     d = ctx.mutar(aplicar, "killer")
+    actual = next((y for y in ctx.e["hipotesis"] if y["id"] == h["id"]), h)
+    if actual.get("version", 1) != version_juzgada:
+        if pista:
+            pista.nota(f"La hipotesis cambio a la version {actual.get('version', 1)} mientras se juzgaba la {version_juzgada}: la decision queda registrada sobre la {version_juzgada} y la nueva se juzga aparte")
+        return decision
     if pista:
         pista.resultado(f"Killer sobre '{h['titulo'][:50]}' (v{h.get('version', 1)}): {decision.replace('_', ' ')}. " + "; ".join(f"{c['comprobacion']} {c['resultado']}" for c in fallidas)[:200])
     # Auditoria de una muestra de descartes y reformulaciones, con otro metodo (debate) y otra familia (cerebro).

@@ -145,6 +145,18 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         </div>
       </Seccion>
 
+      {(() => {
+        const propias = (estado.decisiones ?? []).filter((d) => d.etapa === 'persona' && typeof d.segundosRevision === 'number' && estado.hipotesis.some((h) => h.id === d.hipotesisId && h.investigacionId === inv.id));
+        const media = propias.length ? propias.reduce((a, d) => a + (d.segundosRevision ?? 0), 0) / propias.length : null;
+        return (
+          <Seccion titulo="Carga de revision" nota="Segundos entre abrir la ficha de una hipotesis y decidir sobre ella. Es la cifra con la que se compara Rosa contra investigar sin ella: si revisar cuesta mas que hacerlo a mano, pierde.">
+            <p className="meta">
+              {media === null ? 'Sin decisiones humanas con tiempo medido todavia.' : `${propias.length} ${propias.length === 1 ? 'decision' : 'decisiones'} medidas; media ${Math.round(media)} s por decision (${(media / 60).toFixed(1)} min).`}
+            </p>
+          </Seccion>
+        );
+      })()}
+
       <Seccion titulo="Calibracion del revisor frente a las personas" nota="Que recomendaba el revisor (bloquear o pasar) frente a lo que decidio una persona. Los desacuerdos son el conjunto de entrenamiento de GEPA para el juez.">
         <div className="rejilla-2">
           <table className="tabla matriz">

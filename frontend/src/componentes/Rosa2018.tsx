@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -54,6 +54,16 @@ export function FormularioMision({ inv, compacto = false }: { inv: Investigacion
     usd: String(m?.presupuesto.usd ?? 60),
     horas: String(m?.presupuesto.horas ?? 72),
   }));
+  const [resp, setResp] = useState<Responsables>(() => ({ patrocinador: '', liderCientifico: '', metodos: '', datos: '', ingenieria: '', laboratorio: '', evaluacion: '', ...(m?.responsables ?? {}) }));
+  const ROLES: { k: keyof Responsables; label: string; nota: string }[] = [
+    { k: 'patrocinador', label: 'Patrocinador', nota: 'Fija prioridades y autoriza recursos' },
+    { k: 'liderCientifico', label: 'Lider cientifico', nota: 'Aprueba criterios cientificos e interpretaciones mayores' },
+    { k: 'metodos', label: 'Metodos', nota: 'Valida los metodos causales y estadisticos' },
+    { k: 'datos', label: 'Datos', nota: 'Bioinformatica y libro de procedencia' },
+    { k: 'ingenieria', label: 'Ingenieria', nota: 'Ejecucion e integridad de los registros' },
+    { k: 'laboratorio', label: 'Laboratorio', nota: 'Protocolos fisicos y calidad' },
+    { k: 'evaluacion', label: 'Evaluacion', nota: 'Conjuntos reservados y comparaciones; no es quien escribe la conclusion' },
+  ];
   const campo = (k: keyof typeof d, label: string, marcador: string, filas = 1) => (
     <div className="campo" key={k}>
       <label htmlFor={`mis-${k}`}>{label}</label>
@@ -69,6 +79,7 @@ export function FormularioMision({ inv, compacto = false }: { inv: Investigacion
       tipoIntervencion: d.tipoIntervencion,
       capacidadesLaboratorio: d.capacidades.split('\n'),
       presupuesto: { llamadas: Number(d.llamadas), usd: Number(d.usd), horas: Number(d.horas) },
+      responsables: resp,
     });
     setEditando(false);
   };
@@ -114,6 +125,14 @@ export function FormularioMision({ inv, compacto = false }: { inv: Investigacion
           <dt>Presupuesto</dt>
           <dd>
             {m.presupuesto.llamadas} llamadas · {m.presupuesto.usd.toFixed(0)} USD estimados · {m.presupuesto.horas} h
+          </dd>
+          <dt>Responsables</dt>
+          <dd>
+            {m.responsables && Object.values(m.responsables).some((v) => v) ? (
+              ROLES.filter((r) => m.responsables?.[r.k]).map((r) => `${r.label}: ${m.responsables?.[r.k]}`).join(' · ')
+            ) : (
+              <span className="tono-aviso">sin asignar: quien escribe una conclusion no puede ser su unico evaluador</span>
+            )}
           </dd>
         </dl>
         {(m.areas?.length ?? 0) > 0 && !compacto && (
@@ -172,6 +191,17 @@ export function FormularioMision({ inv, compacto = false }: { inv: Investigacion
         {campo('llamadas', 'Presupuesto en llamadas al modelo', '1500')}
         {campo('usd', 'Presupuesto en dolares (estimado por tokens)', '60')}
         {campo('horas', 'Presupuesto en horas de reloj', '72')}
+      </div>
+      <p className="campo-etiqueta">Responsables (se pueden combinar, pero quien escribe una conclusion no es su unico evaluador)</p>
+      <div className="rejilla-3">
+        {ROLES.map((r) => (
+          <div className="campo" key={r.k}>
+            <label htmlFor={`resp-${r.k}`} title={r.nota}>
+              {r.label}
+            </label>
+            <input id={`resp-${r.k}`} value={resp[r.k]} placeholder={r.nota} onChange={(e) => setResp({ ...resp, [r.k]: e.target.value })} />
+          </div>
+        ))}
       </div>
       <div className="acciones">
         <button type="button" className="btn btn-primario" onClick={guardar}>
