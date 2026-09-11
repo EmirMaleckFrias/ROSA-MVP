@@ -28,6 +28,7 @@ import traceback
 from typing import Any
 
 from rosa import config, politicas, priorizacion as PR, torneo
+from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
 from rosa.bucle import pasos as PASOS
 from rosa.bucle.pasos import Ctx
@@ -1072,6 +1073,27 @@ class Supervisor:
             traceback.print_exc()
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "fallido", motivo=f"{type(ex).__name__}: {str(ex)[:200]}"), "paso")
 
+    async def _revisar_registro(self, ctx: Ctx, inv: dict[str, Any], it: dict[str, Any], c: dict[str, Any], resumen: str, llano: dict[str, Any] | None) -> dict[str, Any]:
+        e = self.almacen.estado
+        texto = resumen + ("\n\n" + " ".join(str(v) for v in (llano or {}).values() if isinstance(v, str)) if llano else "")
+        corpus = RR.corpus_del_registro(e, inv["id"], it, c)
+        runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("investigacionId") == inv["id"])
+        regla = RR.comprobaciones_deterministas(texto, corpus, it, runs_ok)
+        hallazgos = list(regla)
+        juez = None
+        try:
+            pred = await ctx.llamar("juez", self.programas.revisar_registro, texto=texto[:6000], registro=RR.texto_registro(e, inv["id"], it, c), hallazgos_por_regla="\n".join(f"- {h['clase']}: {h['detalle']}" for h in regla) or "Ninguno")
+            juez = ctx.modelos.juez.model
+            for hz in pred.revision.hallazgos:
+                hallazgos.append({"clase": hz.clase, "gravedad": hz.gravedad, "detalle": hz.detalle.strip()[:400], "origen": "juez"})
+            resumen_j = pred.revision.resumen.strip()
+        except Exception as ex:  # noqa: BLE001
+            resumen_j = f"El juez no respondio: {str(ex)[:120]}; solo comprobaciones por regla"
+        for i, hz in enumerate(hallazgos):
+            hz["id"] = f"rr-{it['id']}-{i}"
+            hz["estado"] = "abierto"
+        return {"hallazgos": hallazgos, "porRegla": len(regla), "juez": juez, "resumen": resumen_j, "fecha": P.ahora_ms(), "estado": "con_hallazgos" if hallazgos else "limpia"}
+
     async def _cerrar_iteracion(self, c: dict[str, Any], it: dict[str, Any]) -> None:
         e = self.almacen.estado
         inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
@@ -1101,6 +1123,9 @@ class Supervisor:
         ahora = P.ahora_ms()
         bloqueadas = [a for a in afs if a["veredicto"] in ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")]
         informe = _informe(inv, it, resumen, hechos_nuevos, hip_nuevas, afs, bloqueadas)
+        # Revisor de registro: lo que el resumen y el resumen en llano dicen, contra
+        # lo que el registro prueba. Por regla y despues con el juez.
+        revision = await self._revisar_registro(ctx, inv, it, c, resumen, llano)
         terminar = _condicion_de_parada(inv["condicionParada"], it["numero"], c, mision=inv.get("mision"))
 
         def fn(e2: dict[str, Any]) -> bool:
@@ -1109,6 +1134,9 @@ class Supervisor:
             it2["resumen"] = resumen
             if llano:
                 it2["resumenLlano"] = llano
+            it2["revisionRegistro"] = revision
+            if revision["hallazgos"]:
+                A.con_evento(e2, inv["id"], "revision_registro", f"El revisor de registro encontro {len(revision['hallazgos'])} hallazgos en la iteracion {it['numero']}: " + RR.resumen_revision(revision["hallazgos"])[:140], f"#/investigaciones/{inv['id']}/corrida", ahora)
             # Bradley-Terry con intervalos sobre los partidos del torneo: es lo que
             # ordena a las candidatas; el Elo se queda como vista.
             bt = torneo.bradley_terry([x for x in e2["hipotesis"] if x["investigacionId"] == inv["id"]], semilla=it["numero"])
@@ -1120,7 +1148,17 @@ class Supervisor:
             if ids:
                 titulos = [next(x["titulo"][:50] for x in e2["hipotesis"] if x["id"] == i) for i in ids]
                 A.con_evento(e2, inv["id"], "ranking_cambio", f"Candidatas al laboratorio tras la iteracion {it['numero']}: " + "; ".join(titulos), f"#/investigaciones/{inv['id']}/ranking", ahora)
-            A.guardar_artefacto(e2, inv["id"], f"Informe de la iteracion {it['numero']}", "informe", informe, resumen[:140], it["numero"], ahora)
+            runs_it = [r for r in e2.get("ejecuciones", []) if r.get("investigacionId") == inv["id"] and r.get("inicio", 0) >= it["empezadaEn"]]
+            A.guardar_artefacto(
+                e2, inv["id"], f"Informe de la iteracion {it['numero']}", "informe", informe, resumen[:140], it["numero"], ahora,
+                procedencia={
+                    "mensajes": {"plan": [{"titulo": p["titulo"], "estado": p["estado"]} for p in it2["plan"]], "pistas": [{"id": p["id"], "titulo": p["titulo"], "estado": p["estado"]} for p in it2.get("pistas", [])[:40]], "decisiones": [d["id"] for d in e2.get("decisiones", []) if d.get("investigacionId") == inv["id"] and d.get("fecha", 0) >= it["empezadaEn"]][:40]},
+                    "codigo": None,
+                    "registroEjecucion": [{"id": r["id"], "estado": r.get("estado"), "auditoria": (r.get("auditoria") or {}).get("veredicto"), "resultados": r.get("resultados")} for r in runs_it[:20]] or None,
+                    "entorno": {"cerebro": self.modelos.cerebro.model, "juez": self.modelos.juez.model, "volumen": self.modelos.volumen.model, "arnes": c.get("arnes"), "sandbox": [x for r in runs_it[:1] for x in (r.get("entorno") or [])]},
+                    "revision": revision,
+                },
+            )
             A.con_evento(e2, inv["id"], "iteracion_terminada", f"Iteracion {it['numero']} terminada: {resumen[:160]}", f"#/investigaciones/{inv['id']}/corrida", ahora)
             c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
             if terminar:

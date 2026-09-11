@@ -879,6 +879,39 @@ class DerivarPorContexto(dspy.Signature):
     derivada: HipotesisDerivada = dspy.OutputField()
 
 
+class HallazgoRegistro(BaseModel):
+    clase: Literal["calculo_no_ejecutado", "contradiccion_con_registro", "cita_sin_soporte", "identificador_no_coincide", "paso_incompleto", "conclusion_no_sigue"]
+    gravedad: Literal["alta", "media", "baja"]
+    detalle: str = Field(description="Que frase del texto y que parte del registro discrepan; con la cifra o la cita concreta")
+
+
+class RevisionRegistro(BaseModel):
+    hallazgos: list[HallazgoRegistro] = Field(description="Vacio si todo lo que el texto afirma esta en el registro")
+    resumen: str = Field(description="Una frase: que se comprobo y que se encontro")
+
+
+class RevisarRegistro(dspy.Signature):
+    """Revisor de registro. Comparar lo que Rosa afirma en un resumen o una
+    conclusion con el registro de lo que de verdad hizo: plan con estados, pistas,
+    afirmaciones con veredicto, ejecuciones con cifras, reproducciones, consultas a
+    bases y fuentes. No se reejecuta nada ni se juzga si el metodo era el mejor: solo
+    si cada afirmacion tiene detras un registro que la sostiene. Un hallazgo exige
+    senalar la frase y el registro que discrepan; la duda no es hallazgo. Clases:
+    calculo_no_ejecutado (se afirma un resultado sin ejecucion completada),
+    contradiccion_con_registro (una cifra o hecho contradice una ejecucion, afirmacion
+    verificada o fichero), cita_sin_soporte (se cita una fuente que no esta o no dice
+    eso), identificador_no_coincide (DOI, PMID, NCT o GSE que no esta en el registro),
+    paso_incompleto (pasos sin terminar que el texto da por hechos), conclusion_no_sigue
+    (la conclusion afirma causalidad, replicacion o certeza que el metodo no permite).
+    Las comprobaciones por regla que ya se hicieron vienen en la entrada: no repetirlas,
+    solo anadir lo que la regla no ve."""
+
+    texto: str = dspy.InputField(desc="El resumen o la conclusion que se revisa")
+    registro: str = dspy.InputField(desc="Plan, pistas, afirmaciones, ejecuciones, reproducciones, consultas y fuentes")
+    hallazgos_por_regla: str = dspy.InputField(desc="Lo que la regla ya encontro")
+    revision: RevisionRegistro = dspy.OutputField()
+
+
 class Programas:
     """Los modulos ya instanciados. `dspy.Predict` para extraccion y parseo;
     `dspy.ChainOfThought` donde el razonamiento intermedio ayuda al juicio."""
@@ -890,6 +923,7 @@ class Programas:
         self.pregunta = dspy.ChainOfThought(FormularPregunta)
         self.tarjeta = dspy.Predict(CompletarTarjeta)
         self.killer = dspy.ChainOfThought(MatarHipotesis)
+        self.revisar_registro = dspy.ChainOfThought(RevisarRegistro)
         self.reformular = dspy.ChainOfThought(ReformularHipotesis)
         self.auditar_descarte = dspy.ChainOfThought(AuditarDescarte)
         self.planificar = dspy.ChainOfThought(PlanificarAnalisis)

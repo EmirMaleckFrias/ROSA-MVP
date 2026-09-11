@@ -715,7 +715,15 @@ def generar_dossier(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> str
     corrida = ultima_corrida_de(e, h["investigacionId"])
     recalcular_bloqueos(e, h)
     contenido = texto_dossier(e, h, inv, corrida, ahora)
-    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Version {h.get('version', 1)} de la hipotesis; {len(h.get('bloqueos', []))} bloqueos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora)
+    # Revisor de registro por regla sobre el dossier: cifras e identificadores
+    # que no esten en el registro de esta hipotesis quedan escritos al final.
+    from rosa import revisor_registro as RR
+
+    corpus = RR.corpus_del_registro(e, h["investigacionId"], None, corrida, hipotesis=h)
+    runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("hipotesisId") == h["id"])
+    hallazgos = RR.comprobaciones_deterministas(contenido, corpus, None, runs_ok if RR._EJECUCION.search(contenido) else 1)
+    contenido += "\n\n## Revision del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipotesis.")
+    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Version {h.get('version', 1)} de la hipotesis; {len(h.get('bloqueos', []))} bloqueos; revision del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
     h["dossierArtefactoId"] = art_id
     h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} dossier generado por {quien}")
     con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Dossier para el laboratorio generado: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)
@@ -812,7 +820,7 @@ def asignar_experimento(e: Estado, hipotesis_id: str, laboratorio: str, ahora: i
     if not x.get("prerregistradoEn"):
         corrida = ultima_corrida_de(e, h["investigacionId"])
         contenido = texto_prerregistro(h, lab, ahora, corrida.get("arnes") if corrida else None)
-        art_id = guardar_artefacto(e, h["investigacionId"], f"Prerregistro: {h['titulo'][:80]}", "informe", contenido, f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')} al asignarlo a {lab}", corrida["iteracionActual"] if corrida else h["iteracion"], ahora)
+        art_id = guardar_artefacto(e, h["investigacionId"], f"Prerregistro: {h['titulo'][:80]}", "informe", contenido, f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')} al asignarlo a {lab}", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1), "decisiones": [d["id"] for d in e.get("decisiones", []) if d.get("hipotesisId") == h["id"]][:30]}, "entorno": {"arnes": corrida.get("arnes") if corrida else None}})
         x["prerregistradoEn"] = ahora
         x["prerregistroArtefactoId"] = art_id
         x["versionPrerregistrada"] = h.get("version", 1)  # el resultado probara esta version
@@ -1216,13 +1224,29 @@ def destacar_artefacto(e: Estado, artefacto_id: str) -> bool:
     return True
 
 
-def guardar_artefacto(e: Estado, investigacion_id: str, nombre: str, tipo: str, contenido: str, resumen: str, iteracion: int, ahora: int, id_: str | None = None) -> str:
+def procedencia_artefacto(**partes: Any) -> dict[str, Any]:
+    """Las cinco pestanas de procedencia de una version (como en Claude
+    Science): mensajes (de donde salio: pistas, decisiones, eventos), codigo
+    (el script que la produjo), registroEjecucion (lo que de verdad corrio:
+    ejecuciones con estado y cifras), entorno (imagen y versiones de
+    paquetes, modelos usados) y revision (los hallazgos del revisor). Lo que
+    no aplica queda None, no se inventa."""
+    base = {"mensajes": None, "codigo": None, "registroEjecucion": None, "entorno": None, "revision": None}
+    base.update({k: v for k, v in partes.items() if k in base})
+    return base
+
+
+def guardar_artefacto(e: Estado, investigacion_id: str, nombre: str, tipo: str, contenido: str, resumen: str, iteracion: int, ahora: int, id_: str | None = None, procedencia: dict | None = None) -> str:
+    """Mismo nombre en la misma investigacion = version nueva (no se
+    sobrescribe). Cada version lleva su procedencia en cinco pestanas."""
+    version = {"n": 1, "creadaEn": ahora, "resumen": resumen, "contenido": contenido, "iteracion": iteracion, "procedencia": procedencia_artefacto(**(procedencia or {}))}
     existente = next((a for a in e["artefactos"] if a["investigacionId"] == investigacion_id and a["nombre"] == nombre), None)
     if existente:
-        existente["versiones"].append({"n": len(existente["versiones"]) + 1, "creadaEn": ahora, "resumen": resumen, "contenido": contenido, "iteracion": iteracion})
+        version["n"] = len(existente["versiones"]) + 1
+        existente["versiones"].append(version)
         return existente["id"]
     nuevo = id_ or P.nuevo_id("art")
-    e["artefactos"].append({"id": nuevo, "investigacionId": investigacion_id, "nombre": nombre, "tipo": tipo, "destacado": False, "versiones": [{"n": 1, "creadaEn": ahora, "resumen": resumen, "contenido": contenido, "iteracion": iteracion}]})
+    e["artefactos"].append({"id": nuevo, "investigacionId": investigacion_id, "nombre": nombre, "tipo": tipo, "destacado": False, "versiones": [version]})
     return nuevo
 
 

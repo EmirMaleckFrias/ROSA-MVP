@@ -10,6 +10,7 @@ import { IconStar } from '../componentes/icons';
 import { AvisoMuestra, Chip, Momento, Vacio, descargar } from '../componentes/piezas';
 import { diferenciarLineas, resumenDiff } from '../lib/diff';
 import { TIPO_ARTEFACTO } from '../lib/etiquetas';
+import { ProcedenciaDeArtefacto } from '../componentes/Rosa2018';
 import { aBibtex, aCsv, aRis } from '../lib/exportar';
 import { rutaDe } from '../lib/ruta';
 
@@ -93,6 +94,10 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
       ) : (
         <pre className="contenido-artefacto">{version.contenido}</pre>
       )}
+      <details className="versiones">
+        <summary>Procedencia de la version {version.n}: mensajes, codigo, registro de ejecucion, entorno y revision</summary>
+        <ProcedenciaDeArtefacto p={version.procedencia} />
+      </details>
     </div>
   );
 }

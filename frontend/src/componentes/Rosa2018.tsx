@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -31,7 +31,7 @@ import {
   TIPO_APRENDIZAJE,
   TIPO_METODO,
   USO_IA,
-  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR } from '../lib/etiquetas';
+  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR, CLASE_HALLAZGO_REGISTRO } from '../lib/etiquetas';
 import { EXPLICACION_BLOQUEO } from '../lib/priorizacion';
 import { rutaDe } from '../lib/ruta';
 import { Chip, Confirmar, Momento, Seccion } from './piezas';
@@ -1761,6 +1761,72 @@ export function ContextoDeBases({ h }: { h: Hipotesis }) {
       {c.expresionCerebro && <p className="meta">Expresion (Human Protein Atlas): {c.expresionCerebro}</p>}
       {c.interactores.length > 0 && <p className="meta">Interactores (STRING): {c.interactores.map((i) => `${i.simbolo} (${i.puntuacion})`).join(', ')}</p>}
       {c.rutas.length > 0 && <p className="meta">Rutas (Reactome): {c.rutas.map((r) => r.nombre).join('; ')}</p>}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Revisor de registro y procedencia de artefactos
+// ---------------------------------------------------------------------------
+
+/** Los hallazgos del revisor de registro como tarjetas, igual que Claude
+ *  Science los ensena bajo el mensaje revisado. */
+export function RevisionDeRegistro({ r, compacto = false }: { r: RevisionRegistro | null | undefined; compacto?: boolean }) {
+  if (!r) return null;
+  if (r.hallazgos.length === 0) {
+    return (
+      <div className="acciones">
+        <Chip tono="ok">Revisor de registro: sin discrepancias</Chip>
+        {!compacto && <span className="meta">{r.resumen}</span>}
+      </div>
+    );
+  }
+  return (
+    <div className="revision-registro">
+      <div className="acciones">
+        <Chip tono={r.hallazgos.some((h) => h.gravedad === 'alta') ? 'mal' : 'aviso'}>
+          Revisor de registro: {r.hallazgos.length} {r.hallazgos.length === 1 ? 'hallazgo' : 'hallazgos'}
+        </Chip>
+        <span className="meta">
+          {r.porRegla} por regla{r.juez ? `, ${r.hallazgos.length - r.porRegla} del juez` : ', sin juez'}
+        </span>
+      </div>
+      <ul className="lista-plana">
+        {r.hallazgos.slice(0, compacto ? 3 : 20).map((h, i) => (
+          <li key={h.id ?? i} className={`tarjeta hallazgo-registro gravedad-${h.gravedad}`}>
+            <strong style={{ fontSize: 13 }}>{CLASE_HALLAZGO_REGISTRO[h.clase] ?? h.clase}</strong> <Chip tono={h.gravedad === 'alta' ? 'mal' : h.gravedad === 'media' ? 'aviso' : 'borde'}>{h.gravedad}</Chip> <span className="meta">({h.origen})</span>
+            <p className="meta">{h.detalle}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Las cinco pestanas de procedencia de una version de artefacto. */
+export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefined }) {
+  const [pestana, setPestana] = useState<'mensajes' | 'codigo' | 'registroEjecucion' | 'entorno' | 'revision'>('mensajes');
+  if (!p) return <p className="meta">Esta version no tiene procedencia registrada (anterior al 11 de septiembre de 2026).</p>;
+  const etiquetas: Record<string, string> = { mensajes: 'Mensajes', codigo: 'Codigo', registroEjecucion: 'Registro de ejecucion', entorno: 'Entorno', revision: 'Revision' };
+  const vacio = (k: keyof ProcedenciaArtefacto) => p[k] === null || p[k] === undefined || (Array.isArray(p[k]) && (p[k] as unknown[]).length === 0);
+  return (
+    <div className="procedencia-artefacto">
+      <div className="pestanas">
+        {(Object.keys(etiquetas) as (keyof ProcedenciaArtefacto)[]).map((k) => (
+          <button key={k} type="button" className={`pestana ${pestana === k ? 'activa' : ''}`} onClick={() => setPestana(k)} disabled={vacio(k)} title={vacio(k) ? 'No aplica a esta version' : ''}>
+            {etiquetas[k]}
+          </button>
+        ))}
+      </div>
+      {pestana === 'revision' ? (
+        <RevisionDeRegistro r={p.revision} />
+      ) : pestana === 'codigo' ? (
+        <pre className="contenido-artefacto">{p.codigo ?? ''}</pre>
+      ) : (
+        <pre className="contenido-artefacto">{JSON.stringify(p[pestana], null, 1)}</pre>
+      )}
+      <p className="meta">El registro de ejecucion manda sobre el codigo: si discrepan, lo que corrio es lo que vale.</p>
     </div>
   );
 }

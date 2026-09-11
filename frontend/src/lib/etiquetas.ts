@@ -558,3 +558,12 @@ export const ESTADO_CONECTOR: Record<string, { etiqueta: string; tono: 'ok' | 'a
   licencia: { etiqueta: 'Licencia', tono: 'mal' },
   fichero_local: { etiqueta: 'Fichero local', tono: 'neutro' },
 };
+
+export const CLASE_HALLAZGO_REGISTRO: Record<string, string> = {
+  calculo_no_ejecutado: 'Calculo que no se ejecuto',
+  contradiccion_con_registro: 'Contradice el registro',
+  cita_sin_soporte: 'Cita sin soporte',
+  identificador_no_coincide: 'Identificador que no coincide',
+  paso_incompleto: 'Paso del plan incompleto',
+  conclusion_no_sigue: 'La conclusion no se sigue del metodo',
+};

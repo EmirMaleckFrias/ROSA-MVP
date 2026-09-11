@@ -3143,3 +3143,38 @@ mark.fuerte {
   padding: 4px 8px;
   font-size: 12px;
 }
+
+/* 14. Revisor de registro y procedencia de artefactos */
+.hallazgo-registro {
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-left: 3px solid var(--borde);
+}
+.hallazgo-registro.gravedad-alta {
+  border-left-color: var(--red);
+}
+.hallazgo-registro.gravedad-media {
+  border-left-color: var(--amber);
+}
+.pestanas {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.pestana {
+  border: 1px solid var(--borde);
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pestana.activa {
+  background: var(--borde);
+  font-weight: 600;
+}
+.pestana:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

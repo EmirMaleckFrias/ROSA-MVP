@@ -444,6 +444,8 @@ export interface Iteracion {
   /** El mismo cierre contado para quien no es cientifico. Lo escribe Rosa al
    *  cerrar; falta en iteraciones abiertas o si el modelo no respondio. */
   resumenLlano?: ResumenLlano | null;
+  /** El revisor de registro al cerrar la iteracion. */
+  revisionRegistro?: RevisionRegistro | null;
 }
 
 /** Un termino tecnico con su explicacion en una frase. */
@@ -1262,6 +1264,40 @@ export interface VersionArtefacto {
   resumen: string;
   contenido: string;
   iteracion: number;
+  /** Las cinco pestanas de procedencia (como en Claude Science): de donde
+   *  salio, el codigo, lo que corrio, el entorno y la revision. */
+  procedencia?: ProcedenciaArtefacto;
+}
+
+export interface ProcedenciaArtefacto {
+  mensajes: Record<string, unknown> | null;
+  codigo: string | null;
+  registroEjecucion: { id: string; estado: string; auditoria: string | null; resultados: Record<string, string> | null }[] | null;
+  entorno: Record<string, unknown> | null;
+  revision: RevisionRegistro | null;
+}
+
+/** El revisor de registro: hallazgos de seis clases al comparar lo que Rosa
+ *  dijo con lo que el registro prueba. */
+export type ClaseHallazgoRegistro = 'calculo_no_ejecutado' | 'contradiccion_con_registro' | 'cita_sin_soporte' | 'identificador_no_coincide' | 'paso_incompleto' | 'conclusion_no_sigue';
+
+export interface HallazgoRegistro {
+  id?: string;
+  clase: ClaseHallazgoRegistro;
+  gravedad: 'alta' | 'media' | 'baja';
+  detalle: string;
+  origen: 'regla' | 'juez';
+  estado?: 'abierto' | 'atendido' | 'descartado';
+  respuesta?: string;
+}
+
+export interface RevisionRegistro {
+  hallazgos: HallazgoRegistro[];
+  porRegla: number;
+  juez: string | null;
+  resumen: string;
+  fecha?: number;
+  estado?: 'limpia' | 'con_hallazgos';
 }
 
 export interface Artefacto {

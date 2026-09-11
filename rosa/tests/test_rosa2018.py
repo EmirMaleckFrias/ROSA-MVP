@@ -516,3 +516,42 @@ def test_identificadores_resuelven_por_regla():
     # Es un aviso: no descarta ni reformula por si sola.
     ok = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
     assert K.decidir(ok + [c["identificadores_resuelven"]], True, 1)[0] == "avanzar"
+
+
+# -- Revisor de registro y procedencia de artefactos -----------------------------
+
+
+def test_revisor_de_registro_por_regla(al):
+    from rosa import revisor_registro as RR
+
+    inv = _inv(al)
+    h = _hip(al, inv)
+    al.mutar(lambda e: next(x for x in e["hipotesis"] if x["id"] == h).update(afirmaciones=[_af(texto="GFAP was 164 pg/mL higher (n = 33)", fragmento="GFAP 164 pg/mL")]) or True)
+    e = al.estado
+    c = al.estado["corridas"][0]
+    it = P.nueva_iteracion(c["id"], 1, P.ahora_ms(), [P.nuevo_paso("Buscar", "", 5), P.nuevo_paso("Extraer", "", 5)])
+    it["plan"][0]["estado"] = "hecho"
+    corpus = RR.corpus_del_registro(e, inv, it, c)
+    assert "164" in corpus["numeros"] and "33" in corpus["numeros"]
+    # Un resumen fiel: sin hallazgos salvo el paso incompleto no declarado.
+    h1 = RR.comprobaciones_deterministas("GFAP sube 164 pg/mL en 33 portadores.", corpus, it, 0)
+    assert [x["clase"] for x in h1] == ["paso_incompleto"]
+    # Cifra inventada, DOI que no esta, ejecucion que no corrio, y el paso incompleto declarado.
+    h2 = RR.comprobaciones_deterministas("Se ejecuto el analisis y GFAP sube 999 pg/mL (doi 10.1000/xyz123). El paso de extraccion quedo pendiente.", corpus, it, 0)
+    clases = sorted(x["clase"] for x in h2)
+    assert clases == ["calculo_no_ejecutado", "contradiccion_con_registro", "identificador_no_coincide"]
+    assert "999" in next(x for x in h2 if x["clase"] == "contradiccion_con_registro")["detalle"]
+    assert "no encontro discrepancias" in RR.resumen_revision([]).lower() and "3 hallazgos" in RR.resumen_revision(h2)
+    assert "PLAN:" in RR.texto_registro(e, inv, it, c) and "AFIRMACIONES:" in RR.texto_registro(e, inv, it, c)
+
+
+def test_artefacto_versiona_y_lleva_procedencia(al):
+    inv = _inv(al)
+    e = al.estado
+    a1 = A.guardar_artefacto(e, inv, "Informe X", "informe", "v1", "r", 1, 1, procedencia={"revision": {"hallazgos": [], "porRegla": 0, "juez": None, "resumen": "limpia"}})
+    a2 = A.guardar_artefacto(e, inv, "Informe X", "informe", "v2", "r", 2, 2)
+    assert a1 == a2
+    art = next(x for x in e["artefactos"] if x["id"] == a1)
+    assert [v["n"] for v in art["versiones"]] == [1, 2]
+    assert art["versiones"][0]["procedencia"]["revision"]["resumen"] == "limpia" and art["versiones"][1]["procedencia"]["codigo"] is None
+    assert set(art["versiones"][1]["procedencia"]) == {"mensajes", "codigo", "registroEjecucion", "entorno", "revision"}

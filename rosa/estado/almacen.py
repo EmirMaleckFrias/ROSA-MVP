@@ -254,6 +254,11 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
     from rosa.conectores import catalogo
 
     estado["conectores"] = catalogo()
+    for a in estado.get("artefactos", []):
+        for v in a.get("versiones", []):
+            v.setdefault("procedencia", A.procedencia_artefacto())
+    for it in estado.get("iteraciones", []):
+        it.setdefault("revisionRegistro", None)
     for h in estado.get("hipotesis", []):
         h.setdefault("consultas", [])
         h.setdefault("contextoBases", None)

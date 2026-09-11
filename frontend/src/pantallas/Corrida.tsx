@@ -11,7 +11,7 @@ import { acciones } from '../datos/almacen';
 import { iteracionActualDe } from '../datos/acciones';
 import type { AlcancePermiso, EstadoRosa, Investigacion } from '../datos/tipos';
 import { PlanEnVivo } from '../componentes/PlanEnVivo';
-import { FormularioMision, PreguntaDeCampana } from '../componentes/Rosa2018';
+import { FormularioMision, PreguntaDeCampana, RevisionDeRegistro } from '../componentes/Rosa2018';
 import { Presupuesto } from '../componentes/Presupuesto';
 import { TarjetaIncidencia } from '../componentes/TarjetaIncidencia';
 import { TarjetaPermiso } from '../componentes/TarjetaPermiso';
@@ -132,7 +132,12 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       {(() => {
         // La ultima iteracion cerrada con resumen: lo primero que se lee.
         const cerrada = [iteracion, ...anteriores].filter((i): i is NonNullable<typeof i> => i !== null && i.terminadaEn !== null && i.resumen !== '').sort((a, b) => b.numero - a.numero)[0];
-        return cerrada ? <ResumenEnLlano resumen={cerrada.resumenLlano} numero={cerrada.numero} /> : null;
+        return cerrada ? (
+          <>
+            <ResumenEnLlano resumen={cerrada.resumenLlano} numero={cerrada.numero} />
+            <RevisionDeRegistro r={cerrada.revisionRegistro} />
+          </>
+        ) : null;
       })()}
 
       {incidenciasPendientes.length > 0 && (
@@ -404,6 +409,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                 <strong>#{it.numero}</strong>
                 <div>
                   <span>{it.resumen || 'Sin resumen'}</span>
+                  <RevisionDeRegistro r={it.revisionRegistro} compacto />
                   {it.plan.some((p) => p.estado === 'fallido') && (
                     <>
                       {' '}
