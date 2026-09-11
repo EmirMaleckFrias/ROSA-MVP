@@ -247,12 +247,15 @@ peticiones, construido sobre `rosa/fuentes/base.py`. Cada llamada deja un
 API la da, fecha, numero de resultados, identificadores retenidos, y una
 **invariante validada** (por ejemplo, que un simbolo de gen resuelve a un
 unico Ensembl ID, o que el n de una serie GEO coincide con el de la matriz).
-Fuentes nuevas por valor para el Alzheimer, con su API publica y sin clave:
-MyGene.info, Ensembl (con VEP), UniProt, GWAS Catalog, gnomAD, ClinVar, GTEx,
-Human Protein Atlas, STRING, Reactome, OLS (MONDO, HPO, EFO), GEO por
-E-utilities (series, muestras, plataformas, matrices), PubChem, ChEMBL, y el
-servidor MCP oficial de Open Targets en lugar de la consulta GraphQL fija.
-Ver la seccion 4 para endpoints, limites y licencias.
+Fuentes nuevas, en el orden de la seccion 4.3: ChEMBL, STRING (MCP oficial),
+Reactome, GWAS Catalog, Synapse y Agora (niveles abiertos), CELLxGENE
+Census, UniProt, MyGene y MyVariant, bioRxiv y medRxiv, Semantic Scholar,
+Human Protein Atlas, AlphaFold y PDB; mas OLS4 y Ensembl como
+infraestructura, GEO por E-utilities para el libro de procedencia, y el MCP
+oficial de Open Targets en lugar de la consulta GraphQL fija. Cada una con
+su limite de peticiones y su licencia escritos en el registro (seccion 4.1),
+porque la licencia viaja al artefacto: CC BY-SA de ChEMBL obliga a citar
+version, CC BY-NC de ARCHS4 y SEA-AD procesado limita el uso comercial.
 
 Los pasos del bucle que ganan con esto: **novedad** (Open Targets, GWAS
 Catalog, ClinVar dicen si una asociacion ya esta establecida),
@@ -312,6 +315,91 @@ autonomo con un contrato de salida; instalar paquetes a demanda rompe la
 reproducibilidad que la puerta exige. Benchling, 10x Cloud, Medidata y Owkin
 son plataformas de pago sin uso en el programa actual. BioRender tiene servidor
 MCP, pero es cerrado y propio de su plataforma.
+
+## 4. Cada fuente con su API, sus limites y su licencia
+
+Del segundo informe (estrellas y ultimo commit leidos de GitHub el 11 de
+septiembre de 2026). Un dato que cambia el plan: EMBL-EBI no publica un MCP
+oficial de ChEMBL; los conectores de ChEMBL, bioRxiv y Clinical Trials de
+Anthropic son cerrados. Los MCP oficiales de primera parte que si existen
+son Open Targets, STRING y OLS4 (y 10x, comercial). La mayoria de los MCP
+comunitarios son envoltorios finos de una API publica sin commits en 2026:
+para Rosa, que ya tiene `rosa/fuentes/base.py` con cliente, reintentos y
+regla de "no pude comprobar", tiene mas sentido llamar a la API directa o al
+cliente Python mantenido, y usar MCP solo donde es oficial.
+
+### 4.1 Tabla de acceso
+
+| Fuente | Acceso | Clave | Limite | Licencia de los datos | Cliente mantenido |
+| --- | --- | --- | --- | --- | --- |
+| ChEMBL | REST `ebi.ac.uk/chembl/api/data/` (molecule, target, activity, mechanism, drug_indication, similarity, substructure) | No | Sin cifra publicada; paginas de 20 | CC BY-SA 3.0 con atribucion de URL y version | `chembl_webresource_client` (oficial) |
+| Open Targets | GraphQL `api.platform.opentargets.org/api/v4/graphql`; MCP oficial `mcp.platform.opentargets.org/mcp` | No | No publicado; para consultas masivas, descargas | CC0 | MCP oficial (Apache-2.0); `gget opentargets` |
+| STRING | REST `version-12-0.string-db.org/api/` (network, interaction_partners, enrichment, ppi_enrichment); MCP oficial `mcp.string-db.org` | No; `caller_identity` obligatorio | 1 s entre llamadas, sin paralelo | CC BY 4.0 | MCP oficial `meringlab/string-mcp` (MIT) |
+| Reactome | ContentService y AnalysisService REST | No | No publicado; token de analisis 7 dias | CC0 | `reactome2py` |
+| KEGG | REST `rest.kegg.jp` | No | 3 por segundo o bloqueo de IP | Solo uso academico; una empresa necesita licencia | Descartado para Rosa |
+| GWAS Catalog v2 y sumstats | REST `ebi.ac.uk/gwas/rest/api/v2/` (studies, associations, efo-traits, genes); `gwas/summary-statistics/api/` | No | 15 por segundo | CC0 / terminos EMBL-EBI | Cuaderno oficial EBISPOT |
+| UniProt y EBI Proteins API | `rest.uniprot.org/uniprotkb/search`, `/idmapping/run`; `ebi.ac.uk/proteins/api/variation/{acc}` | No | Sin limite estricto; Proteins API 200 por segundo | CC BY 4.0 | `bioservices`, `gget` |
+| MyGene.info y MyVariant.info | `mygene.info/v3/query`, `myvariant.info/v1/variant/{hgvs}` (ClinVar, gnomAD, dbSNP, CADD en una llamada) | Opcional gratuita | MyVariant 1000 peticiones por IP y dia sin clave | Software Apache-2.0; datos heredan la fuente | `biothings_client` (oficial) |
+| gnomAD directo | GraphQL `gnomad.broadinstitute.org/api` | No | 10 peticiones por IP por minuto | Ficheros publicos | Mejor via MyVariant |
+| ClinVar y dbSNP | E-utilities `db=clinvar`, `db=snp` | Clave NCBI opcional (Rosa ya la envia) | 3 por segundo, 10 con clave | Dominio publico | Biopython Entrez |
+| Ensembl REST | `rest.ensembl.org` (lookup, xrefs, vep, variation, phenotype) | No | 15 por segundo, cabeceras X-RateLimit | Sin restricciones | `pyEnsemblRest`, `gget` |
+| OLS4 | `ebi.ac.uk/ols4/api/v2/ontologies/{id}/classes`, `/api/search?q=` (MONDO_0004975 para Alzheimer; comprobado: MONDO 2026-09-01, 63.460 clases) | No | No publicado | MONDO y HPO CC BY 4.0; EFO Apache-2.0 | Servidor `EBISPOT/ols4` con MCP propio |
+| GTEx v10 | REST `gtexportal.org/api/v2/` (medianGeneExpression, singleTissueEqtl) | No | No publicado | Terminos GTEx | Ninguno necesario |
+| Human Protein Atlas | `proteinatlas.org/{ENSG}.json`; `api/search_download.php` | No | No publicado | CC BY 4.0 con cita de version | Ninguno necesario |
+| RCSB PDB y AlphaFold DB | `search.rcsb.org/rcsbsearch/v2/query`, `data.rcsb.org/rest/v1/core/entry/{id}`; `alphafold.ebi.ac.uk/api/prediction/{uniprot}` | No | PDB: pocas por segundo, 1000 ids por lote | CC0 (PDB), CC BY 4.0 (AlphaFold) | `rcsb-api` (oficial), Biopython |
+| PubChem | PUG REST y PUG View | No | 5 por segundo, 400 por minuto | Dominio publico | `pubchempy` |
+| DGIdb 5 | GraphQL `dgidb.org/api/graphql` | No | No publicado | Por fuente | `dgipy` |
+| DrugBank | Descarga con aprobacion humana; API de pago | Si | No aplica | CC BY-NC; descargas academicas pausadas desde mayo de 2026 | Descartado; DrugCentral (CC BY-SA) y ChEMBL cubren |
+| GEO | E-utilities `db=gds`; matrices y anotaciones por FTP (lo que Rosa ya hace a mano) | Clave NCBI opcional | 3 por segundo, 10 con clave | Dominio publico | `GEOparse` (sin mantenimiento desde 2024) |
+| ARCHS4 | `archs4py` sobre H5 de mas de 30 GB | No | No publicado | CC BY 4.0 con restriccion no comercial | `archs4py` (oficial) |
+| Expression Atlas | `ebi.ac.uk/gxa/json/experiments/{acc}` | No | No publicado | Terminos EMBL-EBI | ToolUniverse `gxa_tool` |
+| CELLxGENE Census y Discover | `cellxgene_census.open_soma()`; `api.cellxgene.cziscience.com/curation/v1/collections` | No | No publicado | CC BY 4.0 | `cellxgene-census` (oficial, MIT) |
+| SEA-AD y Allen Brain Cell Atlas | S3 publico `allen-brain-cell-atlas`, `sea-ad-*` sin firma | No | No aplica | CC BY-NC 4.0 (procesados) | `abc_atlas_access` (oficial) |
+| Synapse y AD Knowledge Portal | REST y `synapseclient`; MCP oficial `mcp.synapse.org` | Cuenta gratuita y token; datos individuales con certificado de uso | No publicado | Por nivel; los individuales no se redistribuyen | `synapseclient` (oficial) |
+| Agora | Sin API publica; los JSON viven en Synapse (Agora Live Data) | Token Synapse | No aplica | Terminos del portal | `agora-data-tools` |
+| NIAGADS Open Access | REST `api.niagads.org` (sumstats de AD, variantes ADSP, FILER) | No indicada | En vista previa, sin cifra | Sin licencia clara | `niagads-pylib`; vigilar |
+| ClinicalTrials.gov v2 | `clinicaltrials.gov/api/v2/studies` (Rosa ya lo usa) | No | Unas 50 por minuto observadas | Dominio publico | Propio |
+| bioRxiv y medRxiv | `api.biorxiv.org/details/{servidor}/{doi}`, `/pubs/` | No | 30 por pagina; bloquean agentes "bot" | Por preprint (CC BY a ninguna); prohibido cachear texto completo | Propio |
+| Europe PMC y Annotations API | REST (Rosa ya lo usa); `annotations_api/annotationsByArticleIds` (genes, enfermedades, quimicos anotados) | No | 10 por segundo, 500 por minuto | Por articulo | Propio |
+| Semantic Scholar | `api.semanticscholar.org/graph/v1/` (citations, references, recommendations) | Clave gratuita | 1 por segundo con clave | Licencia propia de la API | `semanticscholar` |
+| OpenAlex | `api.openalex.org` | Clave obligatoria desde febrero de 2026 (Rosa ya la envia) | 100.000 creditos por dia | CC0 | `pyalex` |
+| Crossref | `api.crossref.org/works` (Rosa ya lo usa) | `mailto` para el pool cortes | 5 por segundo registro unico, 1 por segundo listas (desde diciembre de 2025) | Metadatos como hechos | Propio |
+| Unpaywall | `api.unpaywall.org/v2/{doi}` (Rosa ya lo usa) | `email` obligatorio | 100.000 por dia | Terminos Unpaywall | Propio |
+| AlzForum | Solo web; exportacion por correo | No aplica | No aplica | Todos los derechos reservados | Descartado |
+| Benchling, BioRender, 10x Cloud | Plataformas comerciales | Cuenta de pago | Por tenant | Contrato | Fuera de alcance |
+
+### 4.2 Agregadores que ahorran clientes
+
+| Proyecto | Que cubre | Estado |
+| --- | --- | --- |
+| BioMCP (GenomOncology) | Unos 30 backends (PubMed, PubTator3, Europe PMC, ClinVar, gnomAD, MyGene, MyVariant, UniProt, Reactome, STRING, HPA, ClinicalTrials.gov, ChEMBL, Open Targets, OpenFDA, MONDO) con gramatica `search`, `get`, `enrich`; binario unico CLI y MCP | 630 estrellas, commit del 11 de septiembre de 2026, MIT; el mas maduro |
+| ToolUniverse (Harvard MIMS) | Mas de 1000 herramientas con servidor MCP; es el conector "ToolUniverse" de Claude | 1680 estrellas, Apache-2.0, activo |
+| BioContextAI knowledgebase-mcp | Un servidor con UniProt, Open Targets, Reactome, STRING, HPA, AlphaFold, OLS, Ensembl, Europe PMC, bioRxiv, ClinicalTrials.gov; registro comunitario de MCP biomedicos (Nature Biotechnology) | 28 estrellas, Apache-2.0 |
+| Augmented-Nature, JackKuo666, bio-mcp | Un servidor por base, JavaScript o Python | Sin commits en 2026; no apoyarse en ellos |
+
+### 4.3 Las doce fuentes que mas valor anaden a Rosa, por orden
+
+Rosa ya tiene PubMed, Europe PMC, OpenAlex, Crossref, Unpaywall,
+ClinicalTrials.gov y Open Targets (una consulta fija). Lo que falta, por
+valor para generar y matar hipotesis sobre el Alzheimer con datos publicos:
+
+1. **ChEMBL**: bioactividades cuantitativas y mecanismos por compuesto; hipotesis de reposicionamiento y plausibilidad farmacologica.
+2. **STRING**: vecindad de interaccion y enriquecimiento funcional con p-valores, MCP oficial.
+3. **Reactome**: rutas curadas y enriquecimiento, CC0; sustituye a KEGG.
+4. **GWAS Catalog v2 y sumstats**: la evidencia genetica primaria por rasgo; colocalizacion.
+5. **Agora y AD Knowledge Portal via synapseclient**: lo unico especifico del Alzheimer con mas de 900 dianas nominadas y multiomica AMP-AD; solo los niveles abiertos, coherente con la decision de datos publicos.
+6. **CELLxGENE Census**: SEA-AD y las colecciones AD con resolucion de tipo celular, sin cuenta; "este gen se expresa en microglia de corteza AD" comprobado con datos.
+7. **UniProt y EBI Proteins API**: funcion, dominios y variantes de cada proteina de la tarjeta.
+8. **MyGene.info y MyVariant.info**: normalizacion de identificadores y anotacion de variantes en una llamada.
+9. **bioRxiv y medRxiv**: las hipotesis nuevas aparecen antes como preprint.
+10. **Semantic Scholar**: quien cito y quien replico.
+11. **Human Protein Atlas**: expresion por region cerebral y tipo celular, util para el resumen en llano.
+12. **AlphaFold DB y RCSB PDB**: estructura cuando la hipotesis toca una interaccion o un sitio de union.
+
+Infraestructura: **OLS4** para resolver enfermedad y fenotipo a MONDO y EFO
+antes de consultar Open Targets y GWAS Catalog, y **Ensembl REST** para
+coordenadas y VEP. Fuera: KEGG, DrugBank, gnomAD directo, AlzForum, NIAGADS
+(hasta que salga de vista previa), Benchling, BioRender y 10x.
 
 ## 5. Lo que hacen los demas AI scientists con herramientas, y lo especifico del Alzheimer
 
