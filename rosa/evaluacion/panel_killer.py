@@ -178,7 +178,9 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
     async with httpx.AsyncClient(timeout=60) as cli:
         e = (await cli.get(f"{URL}/api/estado")).json()
     candidatas = [h for h in e["hipotesis"] if h["estado"] != "descartada" and len([a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial")]) >= 2 and h.get("tarjeta") and (h.get("tarjeta") or {}).get("prediccionFalsable")]
-    candidatas.sort(key=lambda h: -len(h.get("afirmaciones", [])))
+    # Primero las que el Killer real dejo avanzar: en una hipotesis que ya se
+    # descarta por otro motivo, un fallo plantado no se puede medir.
+    candidatas.sort(key=lambda h: (0 if h.get("decisionKiller") == "avanzar" else 1 if h.get("decisionKiller") in (None, "suspender") else 2, -len(h.get("afirmaciones", []))))
     elegidas = candidatas[:n_hipotesis]
     if not elegidas:
         raise SystemExit("No hay hipotesis con tarjeta y afirmaciones sostenidas en el estado; el panel necesita hipotesis reales")
