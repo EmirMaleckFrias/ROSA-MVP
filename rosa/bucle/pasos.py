@@ -26,6 +26,7 @@ from typing import Any
 import dspy
 
 from rosa import config, politicas
+from rosa import causal as CAUSAL
 from rosa import killer as K
 from rosa import verificador as V
 from rosa import torneo
@@ -744,6 +745,11 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         d = A.registrar_decision(e2, x, "killer_1", decision, motivo, quien, ahora, comprobaciones, falta)
         d["_alternativas"] = alternativas
         x["decisionKiller"] = decision
+        # Motor causal minimo: grafo local tipado e identificacion por regla, con
+        # las alternativas del Killer como nodos. Entra al modelo de mundo como arista.
+        indep = next((c["resultado"] for c in comprobaciones if c["comprobacion"] == "independencia_cohortes"), None)
+        x["grafoCausal"] = CAUSAL.grafo_local(x, alternativas, True if indep == "pasa" else False if indep == "falla" else None, ahora)
+        CAUSAL.registrar_relacion(e2, x, x["grafoCausal"], ahora)
         for r in x["revisionesAutomaticas"]:
             if r["tipo"] == "completa":
                 r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"Killer: {decision}. {resumen}", fecha=ahora)

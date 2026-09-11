@@ -246,6 +246,10 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
     estado["politicas"] = P._politicas()
     if not estado.get("metodos"):
         estado["metodos"] = P.metodos_iniciales()
+    if not estado.get("relaciones"):
+        from rosa.causal import relaciones_iniciales
+
+        estado["relaciones"] = relaciones_iniciales()
     for inv in estado.get("investigaciones", []):
         inv.setdefault("mision", None)
         inv.setdefault("puertaReproduccion", P.puerta_reproduccion())

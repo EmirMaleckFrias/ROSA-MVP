@@ -31,8 +31,7 @@ import {
   TIPO_APRENDIZAJE,
   TIPO_METODO,
   USO_IA,
-  VEREDICTO_AUDITORIA,
-} from '../lib/etiquetas';
+  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA } from '../lib/etiquetas';
 import { EXPLICACION_BLOQUEO } from '../lib/priorizacion';
 import { rutaDe } from '../lib/ruta';
 import { Chip, Confirmar, Momento, Seccion } from './piezas';
@@ -1458,6 +1457,94 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
           </ul>
         </li>
       </ul>
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Motor causal minimo: grafo local e identificacion
+// ---------------------------------------------------------------------------
+
+export function GrafoCausalDeHipotesis({ h }: { h: Hipotesis }) {
+  const g = h.grafoCausal;
+  if (!g) return null;
+  const etiqueta = (id: string) => g.nodos.find((n) => n.id === id)?.etiqueta ?? id;
+  const tono = g.identificacion === 'identificable' ? 'ok' : g.identificacion === 'acotado' ? 'aviso' : 'mal';
+  return (
+    <Seccion titulo="Grafo causal y supuestos" nota="Lo minimo para no confundir asociacion con causa: la exposicion X, el desenlace Y, las alternativas que planteo el Killer y las relaciones de consenso del campo, cada arista con su tipo. La identificacion sale por regla: un ensayo aleatorizado la cierra; sin el, hacen falta temporalidad, ajuste por confusores y replicacion independiente. Lo que falta es lo que un experimento tendria que aportar.">
+      <div className="acciones">
+        <Chip tono={tono}>{IDENTIFICACION_CAUSAL[g.identificacion] ?? g.identificacion}</Chip>
+        <span className="meta">{g.resumen}</span>
+      </div>
+      {g.supuestosFaltantes.length > 0 && (
+        <ul className="lista-limpia">
+          {g.supuestosFaltantes.map((s, i) => (
+            <li key={i} className="tono-aviso">
+              Falta: {s}
+            </li>
+          ))}
+        </ul>
+      )}
+      {g.supuestosCumplidos.length > 0 && (
+        <ul className="lista-limpia">
+          {g.supuestosCumplidos.map((s, i) => (
+            <li key={i} className="meta">
+              Cumplido: {s}
+            </li>
+          ))}
+        </ul>
+      )}
+      <details className="versiones">
+        <summary>
+          {g.nodos.length} nodos y {g.aristas.length} aristas tipadas
+        </summary>
+        <ul className="lista-plana">
+          {g.aristas.map((a, i) => (
+            <li key={i}>
+              <strong style={{ fontSize: 13 }}>{etiqueta(a.de)}</strong> causa <strong style={{ fontSize: 13 }}>{etiqueta(a.a)}</strong> <Chip tono={a.tipo === 'inferencia_con_evidencia' ? 'ok' : 'borde'}>{TIPO_ARISTA[a.tipo] ?? a.tipo}</Chip>
+              <p className="meta">{a.contexto}</p>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </Seccion>
+  );
+}
+
+/** Las aristas tipadas del modelo de mundo de una investigacion: la base
+ *  curada y lo que cada hipotesis juzgada afirma, con su tipo. */
+export function RelacionesCausales({ estado, inv }: { estado: EstadoRosa; inv: Investigacion }) {
+  const rels = (estado.relaciones ?? []).filter((r) => r.investigacionId === null || r.investigacionId === inv.id);
+  if (rels.length === 0) return null;
+  const propias = rels.filter((r) => r.hipotesisId);
+  const base = rels.filter((r) => !r.hipotesisId);
+  return (
+    <Seccion titulo="Relaciones causales tipadas" nota="Cada arista dice de donde sale. Las de las hipotesis entran cuando el Killer las juzga, como supuesto o como inferencia con evidencia, y se actualizan con cada version. La base curada es consenso del campo escrito a mano en el codigo (rosa/causal.py): se puede discutir y cambiar ahi.">
+      {propias.length === 0 ? <p className="meta">Ninguna hipotesis juzgada todavia: solo la base curada.</p> : null}
+      <ul className="lista-plana">
+        {propias.map((r) => (
+          <li key={r.id}>
+            <strong style={{ fontSize: 13 }}>{r.de}</strong> causa <strong style={{ fontSize: 13 }}>{r.a}</strong> <Chip tono={r.tipo === 'inferencia_con_evidencia' ? 'ok' : 'borde'}>{TIPO_ARISTA[r.tipo] ?? r.tipo}</Chip>{' '}
+            {r.hipotesisId && (
+              <a className="enlace" href={rutaDe(inv.id, 'hipotesis', r.hipotesisId)}>
+                abrir hipotesis
+              </a>
+            )}
+            <p className="meta">{r.contexto}</p>
+          </li>
+        ))}
+      </ul>
+      <details className="versiones">
+        <summary>Base curada ({base.length} relaciones de consenso)</summary>
+        <ul className="lista-plana">
+          {base.map((r) => (
+            <li key={r.id} className="meta">
+              {r.de} causa {r.a}: {r.contexto}
+            </li>
+          ))}
+        </ul>
+      </details>
     </Seccion>
   );
 }

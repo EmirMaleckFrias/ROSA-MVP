@@ -373,3 +373,39 @@ def test_areas_pausar_con_condicion_reabrir_y_asignar_campana(al):
     assert al.estado["investigaciones"][0]["mision"]["areas"][0]["corridaId"] is None
     # Sin cambio real no hay evento.
     assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "elegida", "quien": "persona"}) is False
+
+
+# -- Motor causal minimo ---------------------------------------------------------
+
+
+def test_grafo_causal_identifica_por_regla():
+    from rosa import causal
+
+    h = {"id": "h1", "investigacionId": "inv", "titulo": "GFAP sube antes que NfL en APOE4", "enunciado": "En portadores de APOE4 el GFAP en plasma sube antes que el NfL", "version": 1, "tarjeta": {"diana": "GFAP", "intervencion": "", "direccion": "sin_intervencion", "prediccionFalsable": "x"}, "comprobacion": {"biomarcador": "NfL"}, "afirmaciones": []}
+    # Sin afirmaciones sostenidas: la exposicion es genetica (APOE4 en el enunciado) y nada mas.
+    g = causal.grafo_local(h, ["El NfL podria subir por la edad, causa comun", "Podria ser artefacto de la plataforma de medida"], None, 1)
+    assert g["identificacion"] == "acotado"
+    assert any("genetica" in c for c in g["supuestosCumplidos"])
+    assert any(f.startswith("Confusion") and "edad" in f for f in g["supuestosFaltantes"]) and any(f.startswith("Replicacion") for f in g["supuestosFaltantes"])
+    roles = {n["rol"] for n in g["nodos"]}
+    assert "alternativa_confusor" in roles and "alternativa_artefacto" in roles and "base" in roles
+    tipos = {a["tipo"] for a in g["aristas"]}
+    assert tipos == {"supuesto", "base_curada"}
+    # Con evidencia longitudinal ajustada y replicada: identificable, y la arista X->Y pasa a inferencia con evidencia.
+    h2 = dict(h, afirmaciones=[{"texto": "GFAP rose before NfL in longitudinal follow-up, adjusted for age and eGFR", "fragmento": "", "veredicto": "sostenida"}])
+    g2 = causal.grafo_local(h2, [], True, 2)
+    assert g2["identificacion"] == "identificable" and g2["supuestosFaltantes"] == []
+    assert next(a for a in g2["aristas"] if a["de"] == "X" and a["a"] == "Y")["tipo"] == "inferencia_con_evidencia"
+    # Sin tarjeta ni biomarcador: sin resolver, y lo dice.
+    g3 = causal.grafo_local({"id": "h3", "investigacionId": "inv", "titulo": "", "enunciado": "", "afirmaciones": []}, [], None, 3)
+    assert g3["identificacion"] == "sin_resolver" and "sin X y Y" in g3["supuestosFaltantes"][0]
+    # Registro en el modelo de mundo: una arista por hipotesis, actualizable, mas la base curada.
+    e = {"relaciones": causal.relaciones_iniciales()}
+    n0 = len(e["relaciones"])
+    causal.registrar_relacion(e, h, g, 1)
+    causal.registrar_relacion(e, h2, g2, 2)
+    assert len(e["relaciones"]) == n0 + 1 and e["relaciones"][-1]["tipo"] == "inferencia_con_evidencia" and e["relaciones"][-1]["de"] == "GFAP"
+
+
+def test_estado_arranca_con_la_base_curada(al):
+    assert any(r["tipo"] == "base_curada" and r["de"] == "amiloide" and r["a"] == "tau" for r in al.estado["relaciones"])

@@ -512,3 +512,15 @@ export const DIMENSION_RESULTADO: Record<keyof Omit<DimensionesResultado, 'nota'
   efectoInesperado: 'Efecto inesperado',
   toxicidad: 'Toxicidad',
 };
+
+export const IDENTIFICACION_CAUSAL: Record<string, string> = {
+  identificable: 'Identificable',
+  acotado: 'Acotado: faltan supuestos',
+  sin_resolver: 'Sin resolver',
+};
+
+export const TIPO_ARISTA: Record<string, string> = {
+  supuesto: 'supuesto',
+  inferencia_con_evidencia: 'inferencia con evidencia',
+  base_curada: 'base curada',
+};

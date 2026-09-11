@@ -1018,6 +1018,9 @@ export interface Hipotesis {
   dossierArtefactoId?: Id | null;
   /** Ids de las ejecuciones in silico sobre esta hipotesis. */
   ejecuciones?: Id[];
+  /** Grafo causal local con aristas tipadas y la identificacion por regla
+   *  (identificable, acotado, sin resolver) con los supuestos que faltan. */
+  grafoCausal?: GrafoCausal | null;
   /** Fuerza de Bradley-Terry en escala Elo con intervalo del 95 % por bootstrap
    *  de los partidos. Es lo que ordena a las candidatas; el Elo es la vista. */
   bt?: { fuerza: number; ic95: [number, number]; partidos: number };
@@ -1390,6 +1393,9 @@ export interface EstadoRosa {
   hipotesis: Hipotesis[];
   comentarios: Comentario[];
   hechos: HechoMundo[];
+  /** Aristas tipadas del modelo de mundo: base curada del campo y la
+   *  relacion X causa Y de cada hipotesis juzgada, con su tipo. */
+  relaciones?: RelacionCausal[];
   artefactos: Artefacto[];
   casos: CasoControl[];
   metricas: MetricasJuez[];
@@ -1414,4 +1420,31 @@ export interface EstadoRosa {
   metodos?: MetodoRegistrado[];
   /** Las politicas tal como estan en el codigo del servidor (solo lectura). */
   politicas?: Record<string, number>;
+}
+
+/** Motor causal minimo. Una arista "de causa a" lleva el tipo que dice de
+ *  donde sale: supuesto (lo afirma alguien, sin dato), inferencia con
+ *  evidencia (afirmaciones sostenidas lo respaldan) o base curada (consenso
+ *  del campo, escrito a mano en el codigo). */
+export type TipoArista = 'supuesto' | 'inferencia_con_evidencia' | 'base_curada';
+
+export interface GrafoCausal {
+  nodos: { id: string; etiqueta: string; rol: string }[];
+  aristas: { de: string; a: string; tipo: TipoArista; contexto: string }[];
+  identificacion: 'identificable' | 'acotado' | 'sin_resolver';
+  supuestosCumplidos: string[];
+  supuestosFaltantes: string[];
+  resumen: string;
+  calculadoEn: number;
+}
+
+export interface RelacionCausal {
+  id: string;
+  investigacionId: Id | null;
+  de: string;
+  a: string;
+  tipo: TipoArista;
+  contexto: string;
+  hipotesisId: Id | null;
+  actualizadoEn: number;
 }

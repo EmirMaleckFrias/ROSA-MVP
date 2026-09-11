@@ -17,7 +17,7 @@ import { Revisor } from '../componentes/Revisor';
 import { Verificacion } from '../componentes/Verificacion';
 import { ConclusionDeRosa, HipotesisEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion, Vacio, descargar } from '../componentes/piezas';
-import { Bloqueos, DecisionesKiller, Dimensiones, EjecucionesInSilico, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
+import { Bloqueos, DecisionesKiller, Dimensiones, EjecucionesInSilico, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
 import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
@@ -284,6 +284,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <ConclusionDeRosa conclusion={h.conclusion} ahora={ahora} />
 
       <TarjetaDeHipotesis h={h} />
+        <GrafoCausalDeHipotesis h={h} />
 
       <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} />
 
