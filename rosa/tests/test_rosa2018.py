@@ -345,3 +345,31 @@ def test_enmienda_fechada_y_protocolo_real(al):
     assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "refuta", "despues": "otra", "motivo": "m", "quien": "persona"}) is False
     assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "corregido"}, "quien": "persona"}) is True
     assert next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"].get("resultado") is None
+
+
+# -- Gobierno de areas ------------------------------------------------------------
+
+
+def test_areas_pausar_con_condicion_reabrir_y_asignar_campana(al):
+    inv = _inv(al)
+    area = P.nueva_area(titulo="Neuroinflamacion", estado="propuesta")
+    al.mutar(lambda e: e["investigaciones"][0].update(mision={**P.mision_vacia(), "areas": [area]}) or True)
+    c = al.estado["corridas"][0]["id"]
+    # Pausar sin condicion no vale; con condicion queda escrita y en el historial.
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "pausada", "quien": "persona"}) is False
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "pausada", "quien": "persona", "condicion_reapertura": "que aparezca un dataset con TREM2 en plasma"}) is True
+    a = al.estado["investigaciones"][0]["mision"]["areas"][0]
+    assert a["estado"] == "pausada" and "TREM2" in a["condicionReapertura"] and a["historial"][0]["de"] == "propuesta" and a["historial"][0]["a"] == "pausada"
+    # Reabrir limpia la condicion. Estado desconocido, no.
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "abierta", "quien": "persona"}) is False
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "elegida", "quien": "persona", "motivo": "dataset disponible"}) is True
+    a = al.estado["investigaciones"][0]["mision"]["areas"][0]
+    assert a["estado"] == "elegida" and a["condicionReapertura"] == ""
+    # Asignar a una campana de otra investigacion no vale; a la propia si, y desasignar con cadena vacia.
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": None, "quien": "persona", "corrida_id": "c-ajena"}) is False
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": None, "quien": "persona", "corrida_id": c}) is True
+    assert al.estado["investigaciones"][0]["mision"]["areas"][0]["corridaId"] == c
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": None, "quien": "persona", "corrida_id": ""}) is True
+    assert al.estado["investigaciones"][0]["mision"]["areas"][0]["corridaId"] is None
+    # Sin cambio real no hay evento.
+    assert al.aplicar("cambiarEstadoArea", {"investigacion_id": inv, "area_id": area["id"], "estado": "elegida", "quien": "persona"}) is False

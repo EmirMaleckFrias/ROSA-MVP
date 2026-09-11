@@ -493,6 +493,48 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
     return True
 
 
+ESTADOS_AREA = ("propuesta", "elegida", "pausada", "sin_explorar")
+
+
+def cambiar_estado_area(e: Estado, investigacion_id: str, area_id: str, estado: str | None, quien: str, ahora: int, condicion_reapertura: str = "", corrida_id: str | None = None, motivo: str = "") -> bool:
+    """Las areas del programa las gobierna una persona: elegir, pausar con la
+    condicion que la reabriria, reabrir, dejar sin explorar, o asignarla a una
+    campana (corrida) concreta. Cada cambio queda con fecha, autor y motivo en
+    el historial del area, porque decidir que NO se investiga es una decision
+    tan auditable como la contraria (plan completo, etapa B)."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv or not inv.get("mision"):
+        return False
+    a = _buscar(inv["mision"].get("areas", []), area_id)
+    if not a:
+        return False
+    cambio = False
+    if estado is not None:
+        if estado not in ESTADOS_AREA:
+            return False
+        if estado == "pausada" and not condicion_reapertura.strip():
+            return False  # pausar sin decir que la reabriria es abandonar sin registro
+        if estado != a["estado"]:
+            a.setdefault("historial", []).append({"fecha": ahora, "de": a["estado"], "a": estado, "quien": quien.strip() or "persona", "motivo": (motivo or condicion_reapertura).strip()[:300]})
+            a["estado"] = estado
+            cambio = True
+        if estado == "pausada":
+            a["condicionReapertura"] = condicion_reapertura.strip()[:300]
+        elif estado == "elegida" and a.get("condicionReapertura"):
+            a["condicionReapertura"] = ""  # reabierta: la condicion se cumplio o se levanto
+    if corrida_id is not None:
+        c = _buscar(e["corridas"], corrida_id) if corrida_id else None
+        if corrida_id and (not c or c["investigacionId"] != investigacion_id):
+            return False
+        if (corrida_id or None) != a.get("corridaId"):
+            a["corridaId"] = corrida_id or None
+            a.setdefault("historial", []).append({"fecha": ahora, "de": a["estado"], "a": a["estado"], "quien": quien.strip() or "persona", "motivo": (f"asignada a la campana {c['numero']}" if c else "desasignada de su campana")})
+            cambio = True
+    if cambio:
+        con_evento(e, investigacion_id, "mision", f"Area '{a['titulo'][:60]}': {a['estado'].replace('_', ' ')}" + (f" (campana {c['numero']})" if corrida_id and c else ""), f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+    return cambio
+
+
 def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str, motivo: str, ahora: int) -> bool:
     """Una version nueva de la hipotesis. La anterior se guarda entera en
     `versiones`; la nueva vuelve a la cola como propuesta y el Killer la

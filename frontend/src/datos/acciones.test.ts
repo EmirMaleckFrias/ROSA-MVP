@@ -4,6 +4,7 @@ import {
   ampliarPresupuesto,
   anadirComentario,
   asignarExperimento,
+  cambiarEstadoArea,
   enmendarExperimento,
   registrarProtocoloReal,
   aprobarPlan,
@@ -352,5 +353,38 @@ describe('protocolo real y enmiendas fechadas', () => {
     expect(enmendarExperimento(evaluado, id, 'refuta', 'otra', 'm', 'persona', T)).toBe(evaluado);
     const reevalua = registrarProtocoloReal(evaluado, id, { texto: 'corregido', desviaciones: '', identidadMuestras: '' }, 'persona', T + 9);
     expect(reevalua.hipotesis.find((h) => h.id === id)!.experimento!.resultado).toBeNull();
+  });
+});
+
+describe('gobierno de areas', () => {
+  const conArea = () => {
+    const e = estadoDeMuestra();
+    const inv = e.investigaciones[0]!;
+    const area = { id: 'area-1', titulo: 'Neuroinflamacion', familiaMecanismo: 'inmune', relevancia: '', valorIntervencion: '', incertidumbre: '', comprobabilidad: '', coste: '', demora: '', dependeDe: '', estado: 'propuesta' as const, condicionReapertura: '' };
+    const conMision = { ...e, investigaciones: e.investigaciones.map((i) => (i.id === inv.id ? { ...i, mision: { ...(i.mision ?? ({} as never)), areas: [area] } } : i)) } as typeof e;
+    return { e: conMision, invId: inv.id, corrida: e.corridas.find((c) => c.investigacionId === inv.id)! };
+  };
+  it('pausar exige condicion; reabrir la limpia; el historial guarda cada paso', () => {
+    const { e, invId } = conArea();
+    expect(cambiarEstadoArea(e, invId, 'area-1', 'pausada', 'persona', T)).toBe(e);
+    const pausada = cambiarEstadoArea(e, invId, 'area-1', 'pausada', 'persona', T, 'dataset con TREM2');
+    const a1 = pausada.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!;
+    expect(a1.estado).toBe('pausada');
+    expect(a1.condicionReapertura).toBe('dataset con TREM2');
+    expect(a1.historial).toHaveLength(1);
+    const reabierta = cambiarEstadoArea(pausada, invId, 'area-1', 'elegida', 'persona', T + 1, '', undefined, 'reabierta');
+    const a2 = reabierta.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!;
+    expect(a2.estado).toBe('elegida');
+    expect(a2.condicionReapertura).toBe('');
+    expect(a2.historial?.[1]?.motivo).toBe('reabierta');
+    expect(cambiarEstadoArea(reabierta, invId, 'area-1', 'elegida', 'persona', T + 2)).toBe(reabierta);
+  });
+  it('asignar a una campana solo de la misma investigacion; cadena vacia desasigna', () => {
+    const { e, invId, corrida } = conArea();
+    expect(cambiarEstadoArea(e, invId, 'area-1', null, 'persona', T, '', 'c-ajena')).toBe(e);
+    const asignada = cambiarEstadoArea(e, invId, 'area-1', null, 'persona', T, '', corrida.id);
+    expect(asignada.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!.corridaId).toBe(corrida.id);
+    const suelta = cambiarEstadoArea(asignada, invId, 'area-1', null, 'persona', T + 1, '', '');
+    expect(suelta.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!.corridaId).toBeNull();
   });
 });

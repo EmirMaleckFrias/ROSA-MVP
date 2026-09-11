@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -41,7 +41,7 @@ import { Chip, Confirmar, Momento, Seccion } from './piezas';
    Mision
    --------------------------------------------------------------------- */
 
-export function FormularioMision({ inv, compacto = false }: { inv: Investigacion; compacto?: boolean }) {
+export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv: Investigacion; compacto?: boolean; corridas?: Corrida[] }) {
   const m = inv.mision;
   const [editando, setEditando] = useState(m === null || m === undefined);
   const [d, setD] = useState(() => ({
@@ -149,26 +149,12 @@ export function FormularioMision({ inv, compacto = false }: { inv: Investigacion
                   <th>Comprobabilidad</th>
                   <th>Coste y demora</th>
                   <th>Estado</th>
+                  <th>Gobierno</th>
                 </tr>
               </thead>
               <tbody>
                 {m.areas!.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <strong style={{ fontSize: 13 }}>{a.titulo}</strong>
-                      <p className="meta">{a.valorIntervencion}</p>
-                    </td>
-                    <td>{a.familiaMecanismo}</td>
-                    <td className="meta">{a.relevancia}</td>
-                    <td className="meta">{a.comprobabilidad}</td>
-                    <td className="meta">
-                      {a.coste}; {a.demora}
-                      {a.dependeDe ? `; depende de ${a.dependeDe}` : ''}
-                    </td>
-                    <td>
-                      <Chip tono={a.estado === 'elegida' ? 'ok' : a.estado === 'sin_explorar' ? 'aviso' : 'borde'}>{a.estado.replace('_', ' ')}</Chip>
-                    </td>
-                  </tr>
+                  <FilaArea key={a.id} inv={inv} a={a} corridas={corridas} />
                 ))}
               </tbody>
             </table>
@@ -1325,5 +1311,153 @@ export function ProtocoloYEnmiendas({ h, ahora }: { h: Hipotesis; ahora: number 
         {x.resultado && <span className="meta">Si lo registras ahora, Rosa vuelve a evaluar los datos con esta informacion.</span>}
       </div>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Gobierno de las areas y jerarquia programa / areas / campanas / preguntas
+// ---------------------------------------------------------------------------
+
+function FilaArea({ inv, a, corridas }: { inv: Investigacion; a: AreaInvestigacion; corridas: Corrida[] }) {
+  const [condicion, setCondicion] = useState(a.condicionReapertura ?? '');
+  const campana = corridas.find((c) => c.id === a.corridaId);
+  return (
+    <tr>
+      <td>
+        <strong style={{ fontSize: 13 }}>{a.titulo}</strong>
+        <p className="meta">{a.valorIntervencion}</p>
+        {a.estado === 'pausada' && a.condicionReapertura && <p className="meta">Se reabre si: {a.condicionReapertura}</p>}
+        {(a.historial?.length ?? 0) > 0 && (
+          <details className="versiones">
+            <summary>Historial ({a.historial!.length})</summary>
+            <ul className="lista-plana">
+              {a.historial!.map((hi, i) => (
+                <li key={i} className="meta">
+                  {new Date(hi.fecha).toLocaleDateString('es')} {hi.quien}: {hi.de === hi.a ? hi.motivo : `${hi.de.replace('_', ' ')} a ${hi.a.replace('_', ' ')}${hi.motivo ? ` (${hi.motivo})` : ''}`}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </td>
+      <td>{a.familiaMecanismo}</td>
+      <td className="meta">{a.relevancia}</td>
+      <td className="meta">{a.comprobabilidad}</td>
+      <td className="meta">
+        {a.coste}; {a.demora}
+        {a.dependeDe ? `; depende de ${a.dependeDe}` : ''}
+      </td>
+      <td>
+        <Chip tono={a.estado === 'elegida' ? 'ok' : a.estado === 'sin_explorar' ? 'aviso' : 'borde'}>{a.estado.replace('_', ' ')}</Chip>
+        {campana && <p className="meta">Campana {campana.numero}</p>}
+      </td>
+      <td>
+        <div className="acciones" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+          {a.estado !== 'elegida' && (
+            <button type="button" className="btn btn-pequeno" onClick={() => acciones.cambiarEstadoArea(inv.id, a.id, 'elegida', '', undefined, a.estado === 'pausada' ? 'reabierta' : 'elegida')}>
+              {a.estado === 'pausada' ? 'Reabrir' : 'Elegir'}
+            </button>
+          )}
+          {a.estado !== 'pausada' && (
+            <>
+              <input className="entrada" value={condicion} placeholder="Condicion para reabrirla" onChange={(e) => setCondicion(e.target.value)} aria-label={`Condicion de reapertura de ${a.titulo}`} />
+              <button type="button" className="btn btn-pequeno" disabled={condicion.trim() === ''} onClick={() => acciones.cambiarEstadoArea(inv.id, a.id, 'pausada', condicion)}>
+                Pausar con condicion
+              </button>
+            </>
+          )}
+          {a.estado !== 'sin_explorar' && (
+            <button type="button" className="btn btn-pequeno" onClick={() => acciones.cambiarEstadoArea(inv.id, a.id, 'sin_explorar', '', undefined, 'se deja sin explorar')}>
+              Dejar sin explorar
+            </button>
+          )}
+          {corridas.length > 0 && (
+            <select className="entrada" value={a.corridaId ?? ''} onChange={(e) => acciones.cambiarEstadoArea(inv.id, a.id, null, '', e.target.value)} aria-label={`Campana de ${a.titulo}`}>
+              <option value="">Sin campana</option>
+              {corridas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Campana {c.numero} ({c.estado.replace('_', ' ')})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/** El programa en cuatro niveles (plan completo, etapas A a D): la meta amplia,
+ *  las areas que se compararon y su estado, las campanas (corridas) que
+ *  trabajan cada area, y la pregunta concreta de cada campana. Lo que no tiene
+ *  campana o pregunta se ve como hueco, no se rellena. */
+export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Corrida[] }) {
+  const m = inv.mision;
+  if (!m) return null;
+  const areas = m.areas ?? [];
+  const sinArea = corridas.filter((c) => !areas.some((a) => a.corridaId === c.id));
+  const pregunta = (c: Corrida) => {
+    const q = c.pregunta;
+    if (!q) return <span className="meta">sin pregunta de campana todavia</span>;
+    return (
+      <span>
+        {q.intervencion || 'la intervencion'} frente a {q.comparador || 'el comparador'} sobre {q.desenlace || 'el desenlace'} en {q.contexto || 'el contexto'}
+        {q.umbralResuelto ? '' : ' (umbral de efecto sin resolver)'}
+      </span>
+    );
+  };
+  return (
+    <Seccion titulo="Programa, areas, campanas y preguntas" nota="La jerarquia del plan completo: una meta amplia se reparte en areas comparables; cada area se trabaja en campanas (corridas) con una pregunta concreta y comprobable. Aqui se ve que area tiene campana, cual esta pausada y con que condicion, y que campana todavia no tiene pregunta.">
+      <ul className="arbol">
+        <li>
+          <strong>Programa:</strong> {m.metaAmplia || inv.objetivo}
+          <ul>
+            {areas.length === 0 && <li className="meta">Sin areas comparadas todavia.</li>}
+            {areas.map((a) => {
+              const cs = corridas.filter((c) => c.id === a.corridaId);
+              return (
+                <li key={a.id}>
+                  <Chip tono={a.estado === 'elegida' ? 'ok' : a.estado === 'pausada' ? 'aviso' : 'borde'}>{a.estado.replace('_', ' ')}</Chip> <strong>{a.titulo}</strong>
+                  {a.estado === 'pausada' && a.condicionReapertura ? <span className="meta"> (se reabre si: {a.condicionReapertura})</span> : null}
+                  <ul>
+                    {cs.length === 0 && <li className="meta">{a.estado === 'elegida' ? 'Elegida sin campana asignada.' : 'Sin campana.'}</li>}
+                    {cs.map((c) => (
+                      <li key={c.id}>
+                        <a className="enlace" href={rutaDe(inv.id, 'corrida', c.id)}>
+                          Campana {c.numero}
+                        </a>{' '}
+                        <span className="meta">({c.estado.replace('_', ' ')})</span>
+                        <ul>
+                          <li>{pregunta(c)}</li>
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+            {sinArea.length > 0 && (
+              <li>
+                <span className="meta">Campanas sin area asignada:</span>
+                <ul>
+                  {sinArea.map((c) => (
+                    <li key={c.id}>
+                      <a className="enlace" href={rutaDe(inv.id, 'corrida', c.id)}>
+                        Campana {c.numero}
+                      </a>{' '}
+                      <span className="meta">({c.estado.replace('_', ' ')})</span>
+                      <ul>
+                        <li>{pregunta(c)}</li>
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            )}
+          </ul>
+        </li>
+      </ul>
+    </Seccion>
   );
 }

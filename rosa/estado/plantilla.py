@@ -336,7 +336,7 @@ def mision_vacia() -> dict[str, Any]:
 
 
 def nueva_area(**campos: Any) -> dict[str, Any]:
-    a = {"id": nuevo_id("area"), "titulo": "", "familiaMecanismo": "", "relevancia": "", "valorIntervencion": "", "incertidumbre": "", "comprobabilidad": "", "coste": "", "demora": "", "dependeDe": "", "estado": "propuesta", "condicionReapertura": ""}
+    a = {"id": nuevo_id("area"), "titulo": "", "familiaMecanismo": "", "relevancia": "", "valorIntervencion": "", "incertidumbre": "", "comprobabilidad": "", "coste": "", "demora": "", "dependeDe": "", "estado": "propuesta", "condicionReapertura": "", "corridaId": None, "historial": []}
     a.update(campos)
     return a
 

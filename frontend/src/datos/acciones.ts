@@ -45,7 +45,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal } from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -582,6 +582,43 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
     siguiente = conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Experimento prerregistrado y asignado a ${lab}: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/artefactos/${r.id}`, ahora);
   }
   return siguiente;
+}
+
+export const ESTADOS_AREA: EstadoArea[] = ['propuesta', 'elegida', 'pausada', 'sin_explorar'];
+
+/** Misma regla que `cambiar_estado_area` en el servidor: pausar exige la
+ *  condicion de reapertura; asignar a una campana exige que sea de esta
+ *  investigacion; todo cambio queda en el historial del area. */
+export function cambiarEstadoArea(estado: EstadoRosa, investigacionId: string, areaId: string, nuevoEstado: EstadoArea | null, quien: string, ahora: number, condicionReapertura = '', corridaId: string | null | undefined = undefined, motivo = ''): EstadoRosa {
+  const inv = estado.investigaciones.find((i) => i.id === investigacionId);
+  const area = inv?.mision?.areas?.find((a) => a.id === areaId);
+  if (!inv || !inv.mision || !area) return estado;
+  let a: AreaInvestigacion = { ...area, historial: [...(area.historial ?? [])] };
+  let cambio = false;
+  let campana: Corrida | undefined;
+  if (nuevoEstado !== null) {
+    if (!ESTADOS_AREA.includes(nuevoEstado)) return estado;
+    if (nuevoEstado === 'pausada' && condicionReapertura.trim() === '') return estado;
+    if (nuevoEstado !== a.estado) {
+      a.historial!.push({ fecha: ahora, de: a.estado, a: nuevoEstado, quien: quien.trim() || 'persona', motivo: (motivo || condicionReapertura).trim().slice(0, 300) });
+      a = { ...a, estado: nuevoEstado };
+      cambio = true;
+    }
+    if (nuevoEstado === 'pausada') a = { ...a, condicionReapertura: condicionReapertura.trim().slice(0, 300) };
+    else if (nuevoEstado === 'elegida' && a.condicionReapertura) a = { ...a, condicionReapertura: '' };
+  }
+  if (corridaId !== undefined) {
+    campana = corridaId ? estado.corridas.find((c) => c.id === corridaId) : undefined;
+    if (corridaId && (!campana || campana.investigacionId !== investigacionId)) return estado;
+    if ((corridaId || null) !== (a.corridaId ?? null)) {
+      a.historial!.push({ fecha: ahora, de: a.estado, a: a.estado, quien: quien.trim() || 'persona', motivo: campana ? `asignada a la campana ${campana.numero}` : 'desasignada de su campana' });
+      a = { ...a, corridaId: corridaId || null };
+      cambio = true;
+    }
+  }
+  if (!cambio) return estado;
+  const siguiente: EstadoRosa = { ...estado, investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, mision: { ...i.mision!, areas: (i.mision!.areas ?? []).map((x) => (x.id === areaId ? a : x)) } } : i)) };
+  return conEvento(siguiente, investigacionId, 'mision', `Area '${a.titulo.slice(0, 60)}': ${a.estado.replace('_', ' ')}${corridaId && campana ? ` (campana ${campana.numero})` : ''}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
 }
 
 export const CAMPOS_ENMENDABLES: CampoEnmendable[] = ['protocolo', 'ensayo', 'controles', 'tamanoMuestral', 'confirma', 'refuta', 'analisisPedido'];

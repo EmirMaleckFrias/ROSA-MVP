@@ -32,7 +32,7 @@ import type {
   PreguntaCampana,
   ProcedenciaDataset,
   RevisionHumana,
-  TipoArtefacto, CampoEnmendable } from './tipos';
+  TipoArtefacto, CampoEnmendable, EstadoArea } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -521,6 +521,10 @@ export const acciones = {
   actualizarPregunta: (corridaId: string, pregunta: Partial<PreguntaCampana>) => {
     aplicar((e) => A.actualizarPregunta(e, corridaId, pregunta, Date.now()));
     enviar('actualizarPregunta', { corrida_id: corridaId, pregunta, quien: QUIEN });
+  },
+  cambiarEstadoArea: (investigacionId: string, areaId: string, estado: EstadoArea | null, condicionReapertura = '', corridaId: string | null | undefined = undefined, motivo = '') => {
+    aplicar((e) => A.cambiarEstadoArea(e, investigacionId, areaId, estado, QUIEN, Date.now(), condicionReapertura, corridaId, motivo));
+    enviar('cambiarEstadoArea', { investigacion_id: investigacionId, area_id: areaId, estado, quien: QUIEN, condicion_reapertura: condicionReapertura, corrida_id: corridaId === undefined ? null : corridaId || '', motivo });
   },
   enmendarExperimento: (hipotesisId: string, campo: CampoEnmendable, despues: string, motivo: string) => {
     aplicar((e) => A.enmendarExperimento(e, hipotesisId, campo, despues, motivo, QUIEN, Date.now()));

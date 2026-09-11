@@ -118,7 +118,13 @@ export interface AreaInvestigacion {
   estado: 'propuesta' | 'elegida' | 'pausada' | 'sin_explorar';
   /** Si se pauso, con que condicion se reabre. */
   condicionReapertura: string;
+  /** La campana (corrida) que trabaja esta area, si se asigno. */
+  corridaId?: Id | null;
+  /** Cada cambio de estado o de campana, con fecha, autor y motivo. */
+  historial?: { fecha: number; de: EstadoArea; a: EstadoArea; quien: string; motivo: string }[];
 }
+
+export type EstadoArea = AreaInvestigacion['estado'];
 
 /** La pregunta concreta de una campana (corrida), con la plantilla del plan
  *  completo: en el contexto C y la etapa S, la intervencion A cambia el
