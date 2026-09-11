@@ -51,6 +51,17 @@ describe('candidatos con diversidad', () => {
     expect(c.map((h) => h.cluster)).toEqual(['Mismo', 'Otro']);
   });
 
+  it('ordena por Bradley-Terry cuando existe y por Elo si no', () => {
+    const base = limpias[0]!;
+    const hs = [
+      conKiller(base, { id: 'bt-a', cluster: 'A', elo: 1700, estado: 'propuesta', bt: { fuerza: 1520, ic95: [1480, 1560] as [number, number], partidos: 4 } }),
+      conKiller(base, { id: 'bt-b', cluster: 'B', elo: 1500, estado: 'propuesta', bt: { fuerza: 1610, ic95: [1550, 1670] as [number, number], partidos: 4 } }),
+      conKiller(base, { id: 'bt-c', cluster: 'C', elo: 1580, estado: 'propuesta' }),
+    ];
+    // b tiene menos Elo pero mas fuerza BT; c no tiene BT y usa su Elo.
+    expect(candidatos({ ...estado, hipotesis: hs }, inv, 3).map((h) => h.id)).toEqual(['bt-b', 'bt-c', 'bt-a']);
+  });
+
   it('sin decision del Killer no hay candidatas: cero es un resultado valido', () => {
     const hs = [0, 1].map((i) => ({ ...conKiller(limpias[0]!, { id: `x-${i}` }), decisionKiller: null }));
     expect(candidatos({ ...estado, hipotesis: hs }, inv)).toEqual([]);
