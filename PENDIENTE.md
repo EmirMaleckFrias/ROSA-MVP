@@ -46,8 +46,12 @@ siguen activos para cuando entren datos controlados.
   controles, 2,14 veces, tolerancia 20 %; GSE36980 Hokama 2014: media de
   diez marcadores neuronales en hipocampo, 64,87 %, tolerancia 15 %).
 - Investigacion de las herramientas de Claude Science
-  (`INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`) con el plan para
-  aplicarlas a Rosa en cuatro bloques.
+  (`INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`) y su aplicacion: 80
+  conectores con registro de consultas, novedad por genetica, farmacos y
+  datos publicos, contexto de la diana, preguntar a las bases (ReAct),
+  permisos por conector, memoria del proyecto, revisor de registro,
+  artefactos con cinco pestanas de procedencia, siete skills, imagen de
+  celula unica. Ver README, seccion "Lo que Rosa tomo de Claude Science".
 
 ## Inmediato
 
@@ -77,6 +81,21 @@ siguen activos para cuando entren datos controlados.
 4. Alinear con la persona responsable del documento de concepto los nombres
    de los registros (ver `PLAN-ROSA2018.md`, introduccion) y los responsables
    de la mision.
+
+## De Claude Science, lo que queda
+
+- Probar la imagen `rosa-sandbox-celula:1` (construida, 1,28 GB) con un h5ad real
+  (SEA-AD por CELLxGENE) y una reproduccion de celula unica en la puerta.
+- Lector de ficheros del eQTL Catalogue (la API REST se retiro) y de ARCHS4
+  (H5 de 30 GB), si se decide descargarlos al servidor.
+- Un segundo panel del Killer completo (35 casos) tras las correcciones,
+  con hipotesis cuyo veredicto real sea avanzar, y un panel del revisor de
+  registro con resumenes con errores plantados.
+- El bucle de herramientas dentro de los pasos de novedad y factibilidad
+  (hoy la novedad usa una secuencia fija de conectores; el ReAct solo
+  responde a preguntas de personas).
+- Kernels persistentes, R, notebooks y trabajos remotos: no se copian;
+  revisar si el laboratorio los pide.
 
 ## Codigo (lo que queda del plan, seccion 4)
 

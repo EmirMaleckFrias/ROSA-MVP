@@ -454,3 +454,25 @@ informes: BioRender si tiene servidor MCP (`render-figure`,
 fuera igual. Y para las skills de Rosa hay dos fuentes abiertas de las que
 partir en vez de escribirlas desde cero: las de `anthropics/life-sciences`
 (Apache-2.0) y las de K-Dense (MIT).
+
+
+## 6. Estado de la aplicacion en Rosa (11 de septiembre de 2026, tarde)
+
+| Pieza de Claude Science | En Rosa | Donde |
+| --- | --- | --- |
+| Connector (mas de 60 bases) | 80 conectores, 57 activos, 23 inertes con motivo; registro de consulta con invariante; catalogo con licencia, limite y permiso | `rosa/conectores/`, Ajustes |
+| Consultas como pasos visibles | Cada consulta en la pista del paso y en "Consultas a bases" de la hipotesis | `rosa/bucle/pasos.py` |
+| Skill | Siete SKILL.md con cargador, activacion por palabras, modulos importables en el sandbox; catalogo en Ajustes | `rosa/skills/` |
+| RequestReview | Revisor de registro: seis clases, por regla y con el juez, al cerrar iteracion y en el dossier; tarjetas en la corrida | `rosa/revisor_registro.py` |
+| Artifact con procedencia | Cinco pestanas por version (mensajes, codigo, registro de ejecucion, entorno, revision); versiones por nombre | `acciones.guardar_artefacto`, Artefactos |
+| ProjectSearch | `buscar_en_proyecto` como herramienta del ReAct (hipotesis, hechos, artefactos, decisiones, datasets, memoria; distingue decisiones de personas) | `rosa/herramientas.py` |
+| Agent y bucle de herramientas | ReAct acotado a seis pasos para "Preguntar a las bases"; los pasos del bucle usan una secuencia fija de conectores | `rosa/herramientas.py`, `/api/investigaciones/{id}/preguntar` |
+| Permisos por herramienta | Permitir, solo si pregunta una persona, bloquear; por conector; cambio de politica en el aprendizaje | `fijarPermisoConector` |
+| Memory | Memoria del proyecto: hechos cortos fijados por personas, en el texto de la mision | `anadirMemoria`, Objetivo y datos |
+| Environment | Dos entornos declarados (tabular, celula unica) con imagen y versiones registradas por ejecucion; sin instalacion libre a proposito | `rosa/ejecucion.py`, `rosa/sandbox/` |
+| Python | Sandbox sin red (ya existia); ahora con modulos de skills copiados al directorio de trabajo | `rosa/ejecucion.py` |
+| Reglas del prompt (seccion 1.4) | 1 y 7: revisor de registro; 2 y 3: fila de evidencia y `cifras_fuera_del_pasaje`; 5: registro de consulta con invariante; 6: skill fila-de-evidencia; 8: permisos y licencia por conector | varios |
+| Panel de evaluacion | Panel del Killer con fallos plantados, dos corridas registradas | `rosa/evaluacion/panel_killer.py`, Calidad |
+| R, notebooks, RemoteJob, Environment libre | No se copian, por diseno (ver README) | |
+| Benchling, BioRender, 10x, Owkin, Medidata, Wiley, Consensus, Cortellis, AdisInsight | Inertes en el catalogo: requieren cuenta de pago | `rosa/conectores/bases2.py` |
+| KEGG, DrugBank, AlzForum, ADNI, UK Biobank, ARCHS4, MSigDB, OpenGWAS, LINCS, eQTL Catalogue, BioBank Japan | Inertes con motivo (licencia, sin API, acceso controlado, fichero local, API retirada) | `rosa/conectores/bases2.py` |

@@ -113,6 +113,66 @@ nada de esto se opera desde la terminal.
   uv run python -m rosa.evaluacion.panel_killer --hipotesis 5
   ```
 
+## Lo que Rosa tomo de Claude Science (11 de septiembre de 2026)
+
+La investigacion completa esta en `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`.
+Lo aplicado:
+
+- **Conectores a bases publicas** (`rosa/conectores/`): 80 conectores en 21
+  grupos, 57 activos sin clave (OLS, MyGene, MyVariant, Ensembl, UniProt,
+  GTEx, Human Protein Atlas, STRING, Reactome, GWAS Catalog, ClinVar,
+  ClinGen, CIViC, Open Targets por GraphQL, ChEMBL, PubChem, BindingDB,
+  DGIdb, openFDA, GEO, ArrayExpress, PRIDE, MetaboLights, Expression Atlas,
+  CELLxGENE, Synapse, PDB, AlphaFold, EMDB, IntAct, Complex Portal, InterPro,
+  QuickGO, ENCODE, JASPAR, UniBind, cBioPortal, UCSC, Enrichr, g:Profiler,
+  NIAGADS, bioRxiv, Semantic Scholar, Europe PMC Annotations, arXiv,
+  Grants.gov, Antibody Registry, CellGuide, FinnGen) y 23 inertes con su
+  motivo (Benchling, BioRender, 10x, Owkin, Medidata, Wiley, Consensus,
+  KEGG por licencia, DrugBank, AlzForum sin API, ADNI y UK Biobank por acceso
+  controlado, ARCHS4 por fichero de 30 GB). Cada llamada deja un registro de
+  consulta (herramienta, argumentos, fecha, resultados, identificadores,
+  invariante comprobada) en la hipotesis; el catalogo con licencias, limites
+  y permisos esta en Ajustes.
+- **Novedad ampliada**: ademas de Open Targets, ClinicalTrials.gov y el
+  precedente en la literatura, cada hipotesis comprueba la genetica humana
+  (GWAS Catalog, ClinVar), los farmacos contra la diana (ChEMBL, DGIdb) y si
+  hay datos publicos para comprobarla (GEO, CELLxGENE).
+- **La diana en las bases**: identificadores estables (MyGene), funcion
+  (UniProt), expresion en cerebro (Human Protein Atlas), interactores
+  (STRING) y rutas (Reactome) debajo de la tarjeta; el Killer comprueba
+  `identificadores_resuelven`.
+- **Preguntar a las bases** (en Modelo de mundo): un bucle acotado de
+  herramientas (ReAct, hasta seis pasos) con los conectores, la busqueda en el
+  proyecto y el modelo de mundo; la respuesta llega con sus consultas.
+- **Permisos por conector** (permitir, solo si pregunta una persona,
+  bloquear) y **memoria del proyecto** (hechos cortos que Rosa lee en cada
+  mision), en Ajustes y en Objetivo y datos.
+- **Revisor de registro**: al cerrar cada iteracion y en el dossier, lo que
+  Rosa dice se compara con lo que el registro prueba (seis clases de
+  hallazgo, por regla y con el juez); los hallazgos se ven como tarjetas en
+  la corrida.
+- **Artefactos con cinco pestanas de procedencia** (mensajes, codigo,
+  registro de ejecucion, entorno, revision) y versiones por nombre.
+- **Skills de metodo** (`rosa/skills/`): expresion GEO, tamano muestral (con
+  modulo importable en el sandbox), control de calidad de celula unica,
+  fila de evidencia, eleccion de problema, reproduccion publicada, revision
+  de literatura. El planificador, el escritor de codigo y el proponente de
+  areas las cargan por palabras de activacion.
+- **Dos entornos de sandbox**: `rosa-sandbox:1` (tabular) y
+  `rosa-sandbox-celula:1` (scanpy, anndata); el plan declara el entorno y la
+  ejecucion registra la imagen y las versiones de paquetes.
+- **Panel del Killer** en Calidad, con dos corridas registradas (deteccion
+  del 16 % al 67 % tras hacer `supuestos` una regla y suspender cuando juez y
+  regla discrepan).
+
+Lo que Claude Science tiene y Rosa no copia, y por que: kernels persistentes
+de Python y R, notebooks y entornos con instalacion libre (Rosa es un
+investigador autonomo con contrato de salida y reproducibilidad exigida;
+instalar a demanda la rompe), trabajos remotos en Slurm o Modal (sin
+infraestructura ni necesidad hoy), y las plataformas de pago sin datos
+publicos. scvi-tools no entra en la imagen de celula unica porque arrastra
+PyTorch y no hay GPU.
+
 Los datasets admiten hasta 200 MB (una matriz de expresion de GEO en formato
 largo ronda los 100 MB). Arrancar Docker Desktop antes de una demostracion con
 datos reales: sin runtime de aislamiento, los analisis quedan en "no ejecutado"

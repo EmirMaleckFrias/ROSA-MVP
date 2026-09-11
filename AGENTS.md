@@ -52,7 +52,14 @@ sin aprobar por un humano.
   curada), `rosa/torneo.py` (Elo y Bradley-Terry), `rosa/secuencial.py`
   (e-valores), `rosa/priorizacion.py`, `rosa/politicas.py`, y
   `rosa/evaluacion/panel_killer.py` (panel con fallos plantados; cuesta
-  llamadas al juez, no correrlo sin motivo).
+  llamadas al juez, no correrlo sin motivo). Lo tomado de Claude Science:
+  `rosa/conectores/` (80 conectores a bases publicas con registro de
+  consulta e invariante; los inertes llevan motivo), `rosa/herramientas.py`
+  (ReAct acotado con conectores, busqueda en el proyecto y modelo de mundo),
+  `rosa/revisor_registro.py` (seis clases de hallazgo al cerrar iteracion y
+  dossier), `rosa/skills/` (SKILL.md por metodo, cargadas por palabras de
+  activacion) y `rosa/sandbox/Dockerfile.celula` (segundo entorno). Ver
+  `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`.
 - `frontend/`: la interfaz web de Rosa (React, Vite, TypeScript). Ver su
   `README.md`. `frontend/src/datos/almacen.ts` prueba el servidor al arrancar
   y, si no responde, cae a los datos de muestra con la corrida simulada.
