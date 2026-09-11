@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -31,7 +31,7 @@ import {
   TIPO_APRENDIZAJE,
   TIPO_METODO,
   USO_IA,
-  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA } from '../lib/etiquetas';
+  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR } from '../lib/etiquetas';
 import { EXPLICACION_BLOQUEO } from '../lib/priorizacion';
 import { rutaDe } from '../lib/ruta';
 import { Chip, Confirmar, Momento, Seccion } from './piezas';
@@ -1610,5 +1610,157 @@ export function PanelKiller({ estado }: { estado: EstadoRosa }) {
         ))
       )}
     </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Conectores: catalogo y registro de consultas
+// ---------------------------------------------------------------------------
+
+/** El catalogo de conectores tal como esta en el codigo (rosa/conectores/):
+ *  que base, que aporta, limite, licencia, si necesita clave y si esta
+ *  disponible. Lo que no esta disponible se lista con su motivo, para que se
+ *  vea que existe en Claude Science y por que Rosa no lo usa. */
+export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | undefined }) {
+  const lista = conectores ?? [];
+  const grupos = Array.from(new Set(lista.map((c) => c.grupo)));
+  const disponibles = lista.filter((c) => c.estado === 'disponible').length;
+  return (
+    <Seccion titulo="Conectores a bases publicas" nota={`Cada conector envuelve una API publica con su limite de peticiones y su licencia. Cada llamada deja un registro de consulta (herramienta, argumentos, fecha, resultados, identificadores, invariante comprobada) en la hipotesis que la pidio. ${disponibles} de ${lista.length} disponibles; el resto se lista con el motivo. Una fuente que no responde es "no pude comprobar", nunca "no hay".`}>
+      {lista.length === 0 ? (
+        <p className="meta">El catalogo llega del servidor al arrancar.</p>
+      ) : (
+        grupos.map((g) => (
+          <details key={g} className="versiones" open={g === 'alzheimer' || g === 'directorio'}>
+            <summary>
+              {GRUPO_CONECTOR[g] ?? g} ({lista.filter((c) => c.grupo === g).length})
+            </summary>
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Fuente</th>
+                  <th>Que aporta</th>
+                  <th>Limite y licencia</th>
+                  <th>Estado</th>
+                  <th>Usos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lista
+                  .filter((c) => c.grupo === g)
+                  .map((c) => (
+                    <tr key={c.nombre}>
+                      <td>
+                        <strong style={{ fontSize: 13 }}>{c.fuente}</strong>
+                        <p className="meta">
+                          {c.descripcion}{' '}
+                          <a className="enlace" href={c.urlDoc} target="_blank" rel="noopener noreferrer">
+                            doc
+                          </a>
+                        </p>
+                      </td>
+                      <td className="meta">{c.aporta}</td>
+                      <td className="meta">
+                        {c.limite}
+                        {c.licencia ? `. ${c.licencia}` : ''}
+                        {c.clave !== 'no' ? `. Clave: ${c.clave}` : ''}
+                      </td>
+                      <td>
+                        <Chip tono={ESTADO_CONECTOR[c.estado]?.tono ?? 'neutro'}>{ESTADO_CONECTOR[c.estado]?.etiqueta ?? c.estado}</Chip>
+                        {c.motivo && <p className="meta">{c.motivo}</p>}
+                      </td>
+                      <td className="meta">
+                        {c.usos}
+                        {c.errores ? ` (${c.errores} sin respuesta)` : ''}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </details>
+        ))
+      )}
+    </Seccion>
+  );
+}
+
+/** Las consultas a bases que esta hipotesis provoco, con lo que Claude
+ *  Science exige registrar: herramienta, argumentos, fecha, numero de
+ *  resultados, identificadores retenidos e invariante comprobada. */
+export function ConsultasABases({ h, ahora }: { h: Hipotesis; ahora: number }) {
+  const cs = [...(h.consultas ?? [])].sort((a, b) => b.fecha - a.fecha);
+  if (cs.length === 0) return null;
+  const fallidas = cs.filter((c) => c.error).length;
+  return (
+    <Seccion titulo="Consultas a bases" nota="Cada fila es una llamada a una base publica hecha para esta hipotesis. La invariante es una comprobacion independiente de que la respuesta es la que se esperaba (un simbolo resuelve a un unico gen, el accession coincide). Sin respuesta significa que no se pudo comprobar, no que no exista.">
+      <p className="meta">
+        {cs.length} {cs.length === 1 ? 'consulta' : 'consultas'}
+        {fallidas ? `, ${fallidas} sin respuesta` : ''}
+      </p>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Base</th>
+            <th>Argumentos</th>
+            <th>Resultados</th>
+            <th>Invariante</th>
+            <th>Cuando</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cs.slice(0, 40).map((c) => (
+            <tr key={c.id}>
+              <td>
+                <strong style={{ fontSize: 13 }}>{c.fuente || c.herramienta}</strong>
+                <p className="meta">{c.herramienta}</p>
+              </td>
+              <td className="meta">
+                {Object.entries(c.argumentos)
+                  .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`)
+                  .join(', ')}
+              </td>
+              <td className="meta">
+                {c.error ? <span className="tono-aviso">{c.error}</span> : `${c.n ?? '?'} resultados${c.ids.length ? `; ids: ${c.ids.slice(0, 4).join(', ')}${c.ids.length > 4 ? '...' : ''}` : ''}${c.version ? `; version ${c.version}` : ''}`}
+              </td>
+              <td>{c.invariante ? <Chip tono={c.invariante.ok ? 'ok' : 'aviso'}>{c.invariante.detalle.slice(0, 80)}</Chip> : <span className="meta">sin invariante</span>}</td>
+              <td className="meta">
+                <Momento t={c.fecha} ahora={ahora} /> ({c.ms} ms)
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Seccion>
+  );
+}
+
+/** El contexto de la diana desde las bases, debajo de la tarjeta. */
+export function ContextoDeBases({ h }: { h: Hipotesis }) {
+  const c = h.contextoBases;
+  if (!c) return null;
+  const ids = c.identificadores ?? {};
+  return (
+    <div className="tarjeta" style={{ marginTop: 8 }}>
+      <div className="acciones">
+        <strong style={{ fontSize: 13 }}>La diana en las bases</strong>
+        {ids.ensembl ? (
+          <>
+            <Chip tono="ok">{ids.simbolo ?? c.diana}</Chip>
+            <span className="meta">
+              Ensembl {ids.ensembl}
+              {ids.uniprot ? ` · UniProt ${ids.uniprot}` : ' · sin entrada UniProt revisada'}
+              {ids.entrez ? ` · Entrez ${ids.entrez}` : ''}
+            </span>
+          </>
+        ) : (
+          <Chip tono="aviso">"{c.diana}" no resuelve a un gen humano en MyGene</Chip>
+        )}
+      </div>
+      {c.funcion && <p className="meta">Funcion (UniProt): {c.funcion}</p>}
+      {c.expresionCerebro && <p className="meta">Expresion (Human Protein Atlas): {c.expresionCerebro}</p>}
+      {c.interactores.length > 0 && <p className="meta">Interactores (STRING): {c.interactores.map((i) => `${i.simbolo} (${i.puntuacion})`).join(', ')}</p>}
+      {c.rutas.length > 0 && <p className="meta">Rutas (Reactome): {c.rutas.map((r) => r.nombre).join('; ')}</p>}
+    </div>
   );
 }

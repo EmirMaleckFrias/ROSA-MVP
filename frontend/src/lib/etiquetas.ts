@@ -305,6 +305,7 @@ export const COMPROBACION_KILLER: Record<string, string> = {
   supuestos: 'Ningun supuesto necesario esta contradicho',
   independencia_cohortes: 'Replicacion en cohortes distintas',
   direccion_evidencia: 'La evidencia va en la direccion del enunciado',
+  identificadores_resuelven: 'La diana resuelve a identificadores estables (Ensembl, UniProt)',
   unidades: 'Las cifras comparadas estan en la misma unidad',
   fuente_primaria: 'Hay fuentes con datos propios, no solo citas',
   direccion_causal: 'La direccion causal tiene temporalidad y alternativa',
@@ -523,4 +524,37 @@ export const TIPO_ARISTA: Record<string, string> = {
   supuesto: 'supuesto',
   inferencia_con_evidencia: 'inferencia con evidencia',
   base_curada: 'base curada',
+};
+
+export const GRUPO_CONECTOR: Record<string, string> = {
+  genomas: 'Genomas',
+  genes_ontologias: 'Genes y ontologias',
+  variantes: 'Variantes',
+  genetica_humana: 'Genetica humana',
+  genomica_clinica: 'Genomica clinica',
+  expresion: 'Expresion',
+  regulacion: 'Regulacion',
+  proteinas: 'Anotacion de proteinas',
+  estructuras: 'Estructuras e interacciones',
+  rna: 'RNA',
+  omicas: 'Archivos omicos',
+  cancer: 'Modelos de cancer',
+  quimica: 'Quimica',
+  regulatorio: 'Regulacion de farmacos',
+  farmacos: 'Farmacos y dianas',
+  enriquecimiento: 'Enriquecimiento de conjuntos de genes',
+  literatura: 'Literatura',
+  recursos: 'Recursos de investigacion',
+  directorio: 'Conectores del directorio',
+  socios: 'Socios y plataformas',
+  alzheimer: 'Especificos del Alzheimer',
+  otros: 'Otros',
+};
+
+export const ESTADO_CONECTOR: Record<string, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'neutro' }> = {
+  disponible: { etiqueta: 'Disponible', tono: 'ok' },
+  requiere_cuenta: { etiqueta: 'Requiere cuenta', tono: 'aviso' },
+  sin_api: { etiqueta: 'Sin API', tono: 'neutro' },
+  licencia: { etiqueta: 'Licencia', tono: 'mal' },
+  fichero_local: { etiqueta: 'Fichero local', tono: 'neutro' },
 };

@@ -232,6 +232,10 @@ def novedad_pendiente() -> dict[str, Any]:
     return {
         "openTargets": {"estado": "sin_evidencia", "detalle": "No comprobado todavia"},
         "ensayos": {"estado": "sin_ensayo", "detalle": "No comprobado todavia", "nct": None},
+        # Conectores (11 de septiembre de 2026): genetica humana, farmacos y datos publicos.
+        "genetica": {"estado": "no_comprobado", "detalle": "No comprobado todavia"},
+        "farmacos": {"estado": "no_comprobado", "detalle": "No comprobado todavia"},
+        "datosPublicos": {"estado": "no_comprobado", "detalle": "No comprobado todavia", "series": []},
         "agora": {"estado": "no_nominada", "detalle": "No comprobado: Agora no tiene API publica estable. No se afirma ausencia."},
         "precedente": {"estado": "sin_precedente", "detalle": "No comprobado todavia"},
     }
@@ -283,6 +287,9 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "candidata": False,
         "dossierArtefactoId": None,
         "ejecuciones": [],
+        # Conectores: registro de consultas a bases y contexto de la diana.
+        "consultas": [],
+        "contextoBases": None,
     }
     h.update(campos)
     return h

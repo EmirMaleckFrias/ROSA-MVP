@@ -767,6 +767,12 @@ export interface RevisionHumana {
 export interface Novedad {
   openTargets: { estado: 'sin_evidencia' | 'evidencia_previa'; detalle: string };
   ensayos: { estado: 'sin_ensayo' | 'ensayo_existente'; detalle: string; nct: string | null };
+  /** Conectores: si la genetica humana ya vincula el gen (GWAS Catalog, ClinVar),
+   *  si ya hay farmacos contra la diana (ChEMBL, DGIdb) y si hay datos publicos
+   *  para comprobarla (GEO, CELLxGENE). */
+  genetica?: { estado: 'no_comprobado' | 'vinculo_conocido' | 'sin_vinculo'; detalle: string };
+  farmacos?: { estado: 'no_comprobado' | 'farmacos_existentes' | 'sin_farmacos'; detalle: string };
+  datosPublicos?: { estado: 'no_comprobado' | 'hay_datos' | 'sin_datos'; detalle: string; series: { accession: string; titulo: string; n?: number | string | null; plataforma?: string | null }[] };
   agora: { estado: 'no_nominada' | 'nominada'; detalle: string };
   /** Si alguien ya lo propuso en la literatura (comprobacion tipo Owl). */
   precedente: { estado: 'sin_precedente' | 'parcial' | 'ya_publicado'; detalle: string };
@@ -1018,6 +1024,11 @@ export interface Hipotesis {
   dossierArtefactoId?: Id | null;
   /** Ids de las ejecuciones in silico sobre esta hipotesis. */
   ejecuciones?: Id[];
+  /** Registro de consultas a bases publicas: herramienta, argumentos, fecha,
+   *  numero de resultados, identificadores retenidos e invariante comprobada. */
+  consultas?: ConsultaBase[];
+  /** El contexto de la diana desde las bases (MyGene, UniProt, HPA, STRING, Reactome). */
+  contextoBases?: ContextoBases | null;
   /** Grafo causal local con aristas tipadas y la identificacion por regla
    *  (identificable, acotado, sin resolver) con los supuestos que faltan. */
   grafoCausal?: GrafoCausal | null;
@@ -1398,6 +1409,8 @@ export interface EstadoRosa {
   relaciones?: RelacionCausal[];
   /** Paneles de evaluacion del sistema con fallos plantados (panel del Killer). */
   evaluaciones?: RegistroEvaluacion[];
+  /** El catalogo de conectores a bases publicas, tal como esta en el codigo. */
+  conectores?: ConectorCatalogo[];
   artefactos: Artefacto[];
   casos: CasoControl[];
   metricas: MetricasJuez[];
@@ -1465,4 +1478,52 @@ export interface RegistroEvaluacion {
   porFallo: Record<string, { casos: number; detectados?: number; decisionEsperada?: number; comprobacionFalla?: number; juezFalla?: number; suspendidas?: number; descartadas?: number; errores?: number; acuerdoConReal?: number }>;
   fallos: Record<string, string>;
   casos: { hipotesisId: string; titulo: string; fallo: string; plantado?: string; decisionReal?: string | null; detectado?: boolean | null; juezFalla?: boolean | null; decision: string; comprobacionesFallidas: string[]; juezFallidas: string[]; usd: number }[];
+}
+
+/** Una consulta a una base publica a traves de un conector (lo que Claude
+ *  Science exige registrar de cada recuperacion material). */
+export interface ConsultaBase {
+  id: string;
+  herramienta: string;
+  fuente: string;
+  argumentos: Record<string, string>;
+  fecha: number;
+  n: number | null;
+  ids: string[];
+  version: string | null;
+  invariante: { ok: boolean; detalle: string } | null;
+  error: string | null;
+  ms: number;
+  resumen: string;
+}
+
+export interface ContextoBases {
+  diana: string;
+  identificadores: { simbolo?: string | null; nombre?: string | null; ensembl?: string | null; uniprot?: string | null; entrez?: string | null };
+  funcion: string;
+  expresionCerebro: string;
+  interactores: { simbolo: string; puntuacion: number }[];
+  rutas: { id: string; nombre: string }[];
+  version: number;
+  consultadoEn: number;
+}
+
+export type EstadoConector = 'disponible' | 'requiere_cuenta' | 'sin_api' | 'licencia' | 'fichero_local';
+
+export interface ConectorCatalogo {
+  nombre: string;
+  fuente: string;
+  grupo: string;
+  descripcion: string;
+  aporta: string;
+  argumentos: string[];
+  licencia: string;
+  limite: string;
+  urlDoc: string;
+  clave: string;
+  estado: EstadoConector;
+  motivo: string;
+  usos: number;
+  errores: number;
+  ultimoUso: number | null;
 }

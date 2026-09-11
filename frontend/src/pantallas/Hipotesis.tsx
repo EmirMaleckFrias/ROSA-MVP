@@ -17,7 +17,7 @@ import { Revisor } from '../componentes/Revisor';
 import { Verificacion } from '../componentes/Verificacion';
 import { ConclusionDeRosa, HipotesisEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion, Vacio, descargar } from '../componentes/piezas';
-import { Bloqueos, DecisionesKiller, Dimensiones, EjecucionesInSilico, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
+import { Bloqueos, ConsultasABases, ContextoDeBases, DecisionesKiller, Dimensiones, EjecucionesInSilico, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
 import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
@@ -284,7 +284,9 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <ConclusionDeRosa conclusion={h.conclusion} ahora={ahora} />
 
       <TarjetaDeHipotesis h={h} />
+        <ContextoDeBases h={h} />
         <GrafoCausalDeHipotesis h={h} />
+        <ConsultasABases h={h} ahora={ahora} />
 
       <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} />
 
@@ -333,7 +335,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
-      <Seccion titulo="Novedad" nota="Cuatro consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora y si alguien ya lo propuso en la literatura.">
+      <Seccion titulo="Novedad" nota="Consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora, la genetica humana (GWAS Catalog, ClinVar), los farmacos contra la diana (ChEMBL, DGIdb), los datos publicos para comprobarla (GEO, CELLxGENE) y si alguien ya lo propuso en la literatura.">
         <div className="novedad novedad-4">
           <div className="novedad-item">
             <strong>Open Targets</strong>
@@ -360,6 +362,39 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             <Chip tono={h.novedad.agora.estado === 'no_nominada' ? 'ok' : 'aviso'}>{h.novedad.agora.estado === 'no_nominada' ? 'No nominada' : 'Diana nominada'}</Chip>
             <p>{h.novedad.agora.detalle}</p>
           </div>
+          {h.novedad.genetica && (
+            <div className="novedad-item">
+              <strong>Genetica humana (GWAS Catalog, ClinVar)</strong>
+              <Chip tono={h.novedad.genetica.estado === 'sin_vinculo' ? 'ok' : h.novedad.genetica.estado === 'vinculo_conocido' ? 'aviso' : 'borde'}>{h.novedad.genetica.estado === 'sin_vinculo' ? 'Sin vinculo genetico' : h.novedad.genetica.estado === 'vinculo_conocido' ? 'Vinculo conocido' : 'No comprobado'}</Chip>
+              <p>{h.novedad.genetica.detalle}</p>
+            </div>
+          )}
+          {h.novedad.farmacos && (
+            <div className="novedad-item">
+              <strong>Farmacos (ChEMBL, DGIdb)</strong>
+              <Chip tono={h.novedad.farmacos.estado === 'farmacos_existentes' ? 'aviso' : h.novedad.farmacos.estado === 'sin_farmacos' ? 'ok' : 'borde'}>{h.novedad.farmacos.estado === 'farmacos_existentes' ? 'Diana abordable' : h.novedad.farmacos.estado === 'sin_farmacos' ? 'Sin farmacos' : 'No comprobado'}</Chip>
+              <p>{h.novedad.farmacos.detalle}</p>
+            </div>
+          )}
+          {h.novedad.datosPublicos && (
+            <div className="novedad-item">
+              <strong>Datos publicos (GEO, CELLxGENE)</strong>
+              <Chip tono={h.novedad.datosPublicos.estado === 'hay_datos' ? 'ok' : h.novedad.datosPublicos.estado === 'sin_datos' ? 'aviso' : 'borde'}>{h.novedad.datosPublicos.estado === 'hay_datos' ? 'Hay datos' : h.novedad.datosPublicos.estado === 'sin_datos' ? 'Sin datos publicos' : 'No comprobado'}</Chip>
+              <p>{h.novedad.datosPublicos.detalle}</p>
+              {h.novedad.datosPublicos.series.length > 0 && (
+                <ul className="lista-limpia">
+                  {h.novedad.datosPublicos.series.map((s) => (
+                    <li key={s.accession} className="meta">
+                      <a className="enlace" href={`https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=${s.accession}`} target="_blank" rel="noopener noreferrer">
+                        {s.accession}
+                      </a>{' '}
+                      {s.titulo} {s.n ? `(${s.n} muestras${s.plataforma ? `, ${s.plataforma}` : ''})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <div className="novedad-item">
             <strong>Precedente en la literatura</strong>
             <Chip tono={h.novedad.precedente.estado === 'sin_precedente' ? 'ok' : h.novedad.precedente.estado === 'parcial' ? 'aviso' : 'mal'}>

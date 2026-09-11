@@ -1,0 +1,393 @@
+{
+ "tipo": "panel_killer",
+ "fecha": 1789158565709,
+ "resumen": {
+  "casos": 15,
+  "hipotesis": 3,
+  "tasaDeteccion": 0.667,
+  "tasaJuezDetecta": 0.667,
+  "abstencion": 0.0,
+  "sobreMatanzaGris": 0.0,
+  "usd": 8.417,
+  "segundos": 1672.8,
+  "juez": "openai/anthropic/claude-opus-5"
+ },
+ "porFallo": {
+  "original": {
+   "casos": 3,
+   "acuerdoConReal": 0,
+   "conDecisionReal": 0,
+   "descartadas": 0,
+   "suspendidas": 0
+  },
+  "cifra_alterada": {
+   "casos": 3,
+   "detectados": 0,
+   "decisionEsperada": 0,
+   "comprobacionFalla": 0,
+   "juezFalla": 0,
+   "suspendidas": 0,
+   "descartadas": 0,
+   "errores": 2
+  },
+  "supuesto_contradicho": {
+   "casos": 3,
+   "detectados": 3,
+   "decisionEsperada": 3,
+   "comprobacionFalla": 3,
+   "juezFalla": 3,
+   "suspendidas": 0,
+   "descartadas": 3,
+   "errores": 0
+  },
+  "causal_sin_temporalidad": {
+   "casos": 3,
+   "detectados": 3,
+   "decisionEsperada": 3,
+   "comprobacionFalla": 3,
+   "juezFalla": 3,
+   "suspendidas": 0,
+   "descartadas": 0,
+   "errores": 0
+  },
+  "gris_parcial": {
+   "casos": 3,
+   "detectados": 3,
+   "decisionEsperada": 3,
+   "comprobacionFalla": 0,
+   "juezFalla": 0,
+   "suspendidas": 0,
+   "descartadas": 0,
+   "errores": 0
+  }
+ },
+ "fallos": {
+  "original": "La hipotesis tal como esta: se compara con la decision real que tomo el Killer",
+  "cifra_alterada": "Una cifra de una afirmacion multiplicada por 10 (o la direccion invertida) sin tocar el pasaje citado",
+  "causal_sin_temporalidad": "El enunciado afirma causalidad directa con evidencia solo transversal",
+  "supuesto_contradicho": "Un supuesto necesario marcado como contradicho por la evidencia",
+  "gris_parcial": "Un pasaje recortado que solo sostiene a medias la afirmacion (veredicto parcial): no debe descartar"
+ },
+ "casos": [
+  {
+   "hipotesisId": "hip-mtvulxbg-140",
+   "titulo": "Precedencia de la anormalidad plasmática de GFAP sobre NfL en APOE ε4 con amiloide positivo basal",
+   "fallo": "supuesto_contradicho",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "descartar_en_contexto",
+   "motivo": "La evidencia no sostiene la hipotesis: supuestos: 1 supuestos contradichos por la evidencia: GFAP y NfL plasmáticos seriados; genotipo APOE; amiloide-PET basal para elegi",
+   "comprobacionesFallidas": [
+    "supuestos"
+   ],
+   "juezFallidas": [
+    "supuestos"
+   ],
+   "segundos": 177.4,
+   "usd": 0.6512
+  },
+  {
+   "hipotesisId": "hip-mtvulxbg-140",
+   "titulo": "Precedencia de la anormalidad plasmática de GFAP sobre NfL en APOE ε4 con amiloide positivo basal",
+   "fallo": "cifra_alterada",
+   "plantado": "cifra 12 pasa a 120",
+   "decisionReal": null,
+   "detectado": false,
+   "decisionEsperada": false,
+   "comprobacionFalla": false,
+   "juezFalla": false,
+   "acuerdoConReal": null,
+   "decision": "error",
+   "motivo": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\"comprobacion\": \"supuestos\", \"resultado\": \"pasa\", \"detalle\": \"Ningún supuesto necesario está contradicho: dos están respaldados por Xie et al., 2026 (existencia de un instante de primera anormalidad por marcador y dinámicas separab",
+   "comprobacionesFallidas": [],
+   "juezFallidas": [],
+   "segundos": 0,
+   "usd": 0
+  },
+  {
+   "hipotesisId": "hip-mtvulxbg-140",
+   "titulo": "Precedencia de la anormalidad plasmática de GFAP sobre NfL en APOE ε4 con amiloide positivo basal",
+   "fallo": "original",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": null,
+   "acuerdoConReal": null,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "decision": "error",
+   "motivo": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\n  \"comprobaciones\": [\n    {\n      \"comprobacion\": \"supuestos\",\n      \"resultado\": \"pasa\",\n      \"detalle\": \"Ningún supuesto necesario está contradicho por evidencia citada. Cuatro están sin evidencia (transportabilidad de los lími",
+   "comprobacionesFallidas": [],
+   "juezFallidas": [],
+   "segundos": 0,
+   "usd": 0
+  },
+  {
+   "hipotesisId": "hip-mtvulxbg-140",
+   "titulo": "Precedencia de la anormalidad plasmática de GFAP sobre NfL en APOE ε4 con amiloide positivo basal",
+   "fallo": "causal_sin_temporalidad",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "reformular",
+   "motivo": "Arreglable reescribiendo: direccion_causal: El titulo y el enunciado afirman que la anormalidad primaria de GFAP 'es la causa directa del deterioro' y que 'no es un",
+   "comprobacionesFallidas": [
+    "direccion_causal"
+   ],
+   "juezFallidas": [
+    "fidelidad_evidencia",
+    "direccion_causal"
+   ],
+   "segundos": 104.2,
+   "usd": 0.826
+  },
+  {
+   "hipotesisId": "hip-mtvulxbg-140",
+   "titulo": "Precedencia de la anormalidad plasmática de GFAP sobre NfL en APOE ε4 con amiloide positivo basal",
+   "fallo": "gris_parcial",
+   "plantado": "pasaje recortado, veredicto parcial",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "acuerdoConReal": null,
+   "decision": "avanzar",
+   "motivo": "Pasa todas las comprobaciones criticas y tiene prediccion falsable",
+   "comprobacionesFallidas": [],
+   "juezFallidas": [],
+   "segundos": 90.9,
+   "usd": 0.7584
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1z-46",
+   "titulo": "La definición del hito temporal modifica el orden aparente de p-tau181 y GFAP en Alzheimer autosómic",
+   "fallo": "original",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": null,
+   "acuerdoConReal": null,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "decision": "avanzar",
+   "motivo": "Avanza con avisos: sesgo_evidencia: Toda la evidencia procede de dos cohortes unicas, pequenas y no replicadas: Johansson et al., 2023 c",
+   "comprobacionesFallidas": [
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "sesgo_evidencia"
+   ],
+   "segundos": 93.8,
+   "usd": 0.7819
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1z-46",
+   "titulo": "La definición del hito temporal modifica el orden aparente de p-tau181 y GFAP en Alzheimer autosómic",
+   "fallo": "cifra_alterada",
+   "plantado": "cifra 164 pasa a 1640",
+   "decisionReal": null,
+   "detectado": false,
+   "decisionEsperada": false,
+   "comprobacionFalla": false,
+   "juezFalla": false,
+   "acuerdoConReal": null,
+   "decision": "avanzar",
+   "motivo": "Pasa todas las comprobaciones criticas y tiene prediccion falsable",
+   "comprobacionesFallidas": [],
+   "juezFallidas": [],
+   "segundos": 190.0,
+   "usd": 0.7273
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1z-46",
+   "titulo": "La definición del hito temporal modifica el orden aparente de p-tau181 y GFAP en Alzheimer autosómic",
+   "fallo": "causal_sin_temporalidad",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "reformular",
+   "motivo": "Arreglable reescribiendo: direccion_causal: El título y el enunciado afirman que los tiempos de alteración de p-tau181 y GFAP 'son la causa directa' y 'causan direc; redundancia: El modelo de mundo ya contiene la hipótesis aceptada 'La definición del hito temporal modifica el orden aparente de p-ta",
+   "comprobacionesFallidas": [
+    "direccion_causal",
+    "redundancia",
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "direccion_causal",
+    "redundancia",
+    "sesgo_evidencia"
+   ],
+   "segundos": 150.3,
+   "usd": 0.5837
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1z-46",
+   "titulo": "La definición del hito temporal modifica el orden aparente de p-tau181 y GFAP en Alzheimer autosómic",
+   "fallo": "supuesto_contradicho",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "descartar_en_contexto",
+   "motivo": "La evidencia no sostiene la hipotesis: supuestos: 1 supuestos contradichos por la evidencia: Tiempos publicados de alteración de p-tau181 y GFAP plasmáticos. Contraste pr",
+   "comprobacionesFallidas": [
+    "supuestos",
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "supuestos",
+    "sesgo_evidencia"
+   ],
+   "segundos": 173.7,
+   "usd": 0.6919
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1i-37",
+   "titulo": "BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzheimer autosómico dominante",
+   "fallo": "original",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": null,
+   "acuerdoConReal": null,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "decision": "avanzar",
+   "motivo": "Avanza con avisos: sesgo_evidencia: Toda la evidencia sobre BACE1 procede de una única cohorte pequeña sin replicación (73 portadores, B",
+   "comprobacionesFallidas": [
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "sesgo_evidencia"
+   ],
+   "segundos": 98.0,
+   "usd": 0.7703
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1z-46",
+   "titulo": "La definición del hito temporal modifica el orden aparente de p-tau181 y GFAP en Alzheimer autosómic",
+   "fallo": "gris_parcial",
+   "plantado": "pasaje recortado, veredicto parcial",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "acuerdoConReal": null,
+   "decision": "avanzar",
+   "motivo": "Avanza con avisos: sesgo_evidencia: Toda la evidencia procede de dos cohortes únicas y muy pequeñas de Alzheimer autosómico dominante (3",
+   "comprobacionesFallidas": [
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "sesgo_evidencia"
+   ],
+   "segundos": 174.1,
+   "usd": 0.6488
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1i-37",
+   "titulo": "BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzheimer autosómico dominante",
+   "fallo": "supuesto_contradicho",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "descartar_en_contexto",
+   "motivo": "La evidencia no sostiene la hipotesis: supuestos: 1 supuestos contradichos por la evidencia: BACE1 plasmática basal como predictor principal; GFAP y NfL plasmáticos como ",
+   "comprobacionesFallidas": [
+    "supuestos",
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "supuestos",
+    "sesgo_evidencia"
+   ],
+   "segundos": 168.6,
+   "usd": 0.6077
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1i-37",
+   "titulo": "BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzheimer autosómico dominante",
+   "fallo": "causal_sin_temporalidad",
+   "plantado": "",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": true,
+   "juezFalla": true,
+   "acuerdoConReal": null,
+   "decision": "reformular",
+   "motivo": "Arreglable reescribiendo: direccion_causal: El título y el enunciado afirman que BACE1 'es la causa directa del deterioro' y 'no es un marcador sino el mecanismo', ; redundancia: El modelo de mundo ya contiene la hipótesis aceptada 'BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzh",
+   "comprobacionesFallidas": [
+    "direccion_causal",
+    "redundancia",
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "direccion_causal",
+    "redundancia",
+    "sesgo_evidencia"
+   ],
+   "segundos": 153.5,
+   "usd": 0.5886
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1i-37",
+   "titulo": "BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzheimer autosómico dominante",
+   "fallo": "cifra_alterada",
+   "plantado": "cifra 113 pasa a 1130",
+   "decisionReal": null,
+   "detectado": false,
+   "decisionEsperada": false,
+   "comprobacionFalla": false,
+   "juezFalla": false,
+   "acuerdoConReal": null,
+   "decision": "error",
+   "motivo": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\n      \"comprobacion\": \"supuestos\",\n      \"resultado\": \"pasa\",\n      \"detalle\": \"Ningún supuesto necesario está contradicho por evidencia citada: el supuesto de existencia de la cohorte está respaldado (Belder et al., 2026: 113 ind",
+   "comprobacionesFallidas": [],
+   "juezFallidas": [],
+   "segundos": 0,
+   "usd": 0
+  },
+  {
+   "hipotesisId": "hip-mtvwqw1i-37",
+   "titulo": "BACE1 aporta información pronóstica adicional a GFAP y NfL en Alzheimer autosómico dominante",
+   "fallo": "gris_parcial",
+   "plantado": "pasaje recortado, veredicto parcial",
+   "decisionReal": null,
+   "detectado": true,
+   "decisionEsperada": true,
+   "comprobacionFalla": null,
+   "juezFalla": null,
+   "acuerdoConReal": null,
+   "decision": "avanzar",
+   "motivo": "Avanza con avisos: sesgo_evidencia: Toda la evidencia que sostiene la hipótesis es una sola cohorte sin replicación (Belder et al., 2026",
+   "comprobacionesFallidas": [
+    "sesgo_evidencia"
+   ],
+   "juezFallidas": [
+    "sesgo_evidencia"
+   ],
+   "segundos": 98.3,
+   "usd": 0.7815
+  }
+ ]
+}

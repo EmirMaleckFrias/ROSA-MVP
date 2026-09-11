@@ -79,7 +79,14 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(sin_ver)} afirmaciones sin verificar todavia (el juez no dictamino)"})
     elif sostenidas:
         parciales = sum(1 for a in sostenidas if a["veredicto"] == "parcial")
-        c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones estan sostenidas por su fuente" + (f"; {parciales} solo parcialmente" if parciales else "")})
+        # Cifras del texto que no aparecen en el pasaje citado: el verificador pudo
+        # dar por sostenida una afirmacion cuya cifra se copio mal. No mata: deja la
+        # comprobacion en no_comprobable (suspender) para que alguien la mire.
+        desviadas = [(a["texto"][:70], falt) for a in sostenidas for falt in [cifras_fuera_del_pasaje(a.get("texto", ""), a.get("fragmento", ""))] if falt]
+        if desviadas:
+            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(desviadas)} afirmaciones con cifras que no estan en su pasaje: " + "; ".join(f"'{t}' ({', '.join(f)})" for t, f in desviadas[:3])})
+        else:
+            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones estan sostenidas por su fuente y sus cifras aparecen en el pasaje" + (f"; {parciales} solo parcialmente" if parciales else "")})
     else:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": "Sin afirmaciones verificadas"})
     # 3. Supuestos: falla solo si un supuesto necesario esta CONTRADICHO por la
@@ -114,6 +121,18 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "independencia_cohortes", "resultado": "no_comprobable", "detalle": f"{len(fuentes)} fuentes, {len(cohortes)} con cohorte identificada, {len(primarias)} parecen primarias" + ("; posibles solapes: " + "; ".join(pistas_misma[:2]) if pistas_misma else "")})
     # 5. Direccion de la evidencia frente al enunciado, y unidades comparables.
     c.extend(consistencia_medidas(h))
+    # 6. La diana de la tarjeta resuelve a identificadores estables (MyGene, UniProt).
+    diana = ((h.get("tarjeta") or {}).get("diana") or "").strip()
+    ctxb = h.get("contextoBases") or {}
+    ids = ctxb.get("identificadores") or {}
+    if not diana:
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "no_aplica", "detalle": "La tarjeta no nombra una diana"})
+    elif ids.get("ensembl"):
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "pasa", "detalle": f"{ids.get('simbolo') or diana}: Ensembl {ids.get('ensembl')}, UniProt {ids.get('uniprot') or 'sin entrada revisada'}"})
+    elif ctxb.get("consultadoEn") and not ids.get("ensembl"):
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "falla", "detalle": f"'{diana}' no resuelve a un gen humano en MyGene: la diana es un proceso, un texto libre o un simbolo mal escrito; hay que nombrarla con identificador"})
+    else:
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "no_comprobable", "detalle": "Las bases no se han consultado todavia para esta diana"})
     # 8. Novedad con recuperacion.
     n = h.get("novedad", {})
     prec = n.get("precedente", {})
@@ -334,3 +353,49 @@ def consistencia_medidas(h: dict[str, Any]) -> list[dict[str, str]]:
     else:
         salida.append({"comprobacion": "unidades", "resultado": "no_aplica", "detalle": "Sin cifras con unidad"})
     return salida
+
+
+_NUMERO = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)(?![\w])")
+
+
+def _normaliza_num(t: str) -> str:
+    t = t.replace(",", ".")
+    try:
+        v = float(t)
+    except ValueError:
+        return t
+    return f"{v:g}"
+
+
+def cifras_fuera_del_pasaje(texto: str, pasaje: str) -> list[str]:
+    """Las cifras del texto de una afirmacion que no aparecen en su pasaje
+    citado. Solo se comprueba cuando el pasaje existe y trae alguna cifra;
+    los anios (1900 a 2099) y los numeros de una cifra se ignoran porque
+    aparecen en cualquier frase. Devuelve [] si no hay nada que objetar."""
+    if not pasaje or not texto:
+        return []
+    en_pasaje = {_normaliza_num(m) for m in _NUMERO.findall(pasaje)}
+    if not en_pasaje:
+        return []
+    faltan = []
+    for m in _NUMERO.findall(texto):
+        n = _normaliza_num(m)
+        try:
+            v = float(n)
+        except ValueError:
+            continue
+        if v < 10 and "." not in n and not re.search(re.escape(m) + r"\s*(pg|ng|mg|ug|µg|%|mmol|pmol|nmol|fold|veces|x\b|mL|ml|HR|OR|SD|IC|CI)", texto, re.I):
+            continue  # un digito suelto sin unidad: "3 cohortes", "dos grupos"
+        if 1900 <= v <= 2099 and "." not in n:
+            continue  # anio
+        if n not in en_pasaje and not any(abs(v - float(x)) < 1e-9 for x in en_pasaje if _es_num(x)):
+            faltan.append(m)
+    return faltan
+
+
+def _es_num(x: str) -> bool:
+    try:
+        float(x)
+        return True
+    except ValueError:
+        return False

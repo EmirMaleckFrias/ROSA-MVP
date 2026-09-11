@@ -157,6 +157,12 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         return politicas.resumen()
 
+    @app.get("/api/conectores")
+    async def conectores_actuales() -> list[dict[str, Any]]:
+        from rosa.conectores import catalogo
+
+        return catalogo()
+
     @app.get("/api/salud")
     async def salud() -> dict[str, Any]:
         return {"ok": True, "version": almacen.version}

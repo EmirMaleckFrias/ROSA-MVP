@@ -250,6 +250,15 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
         from rosa.causal import relaciones_iniciales
 
         estado["relaciones"] = relaciones_iniciales()
+    # El catalogo de conectores vive en el codigo, como las politicas.
+    from rosa.conectores import catalogo
+
+    estado["conectores"] = catalogo()
+    for h in estado.get("hipotesis", []):
+        h.setdefault("consultas", [])
+        h.setdefault("contextoBases", None)
+        for k, v in P.novedad_pendiente().items():
+            h.setdefault("novedad", {}).setdefault(k, v)
     for inv in estado.get("investigaciones", []):
         inv.setdefault("mision", None)
         inv.setdefault("puertaReproduccion", P.puerta_reproduccion())

@@ -27,6 +27,7 @@ import dspy
 
 from rosa import config, politicas
 from rosa import causal as CAUSAL
+from rosa import conectores as CON
 from rosa import killer as K
 from rosa import verificador as V
 from rosa import torneo
@@ -695,6 +696,12 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     if h.get("tarjeta") is None and not h.get("_tarjetaIntentada"):
         await _completar_tarjeta(ctx, h, pista)
         h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
+    try:
+        await contexto_de_bases(ctx, h, pista)
+    except Exception as ex:  # noqa: BLE001
+        if pista:
+            pista.nota(f"Las bases no respondieron para la diana: {str(ex)[:100]}")
+    h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
     deterministas = K.comprobaciones_deterministas(h, e)
     afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
     try:
@@ -1047,6 +1054,126 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def _novedad_por_conectores(ctx: Ctx, h: dict[str, Any], genes: list[str], novedad: dict[str, Any], pista: Pista) -> list[dict[str, Any]]:
+    """Las tres comprobaciones de novedad que anaden los conectores: si la
+    genetica humana ya vincula el gen con el Alzheimer (GWAS Catalog, ClinVar),
+    si ya hay farmacos contra la diana (ChEMBL, DGIdb) y si existe un dataset
+    publico para comprobar la hipotesis (GEO, CELLxGENE). Cada llamada deja su
+    registro de consulta con la invariante comprobada. Una fuente que no
+    responde queda como "no comprobado", nunca como "no hay"."""
+    regs: list[dict[str, Any]] = []
+    novedad.setdefault("genetica", {"estado": "no_comprobado", "detalle": "No comprobado todavia"})
+    novedad.setdefault("farmacos", {"estado": "no_comprobado", "detalle": "No comprobado todavia"})
+    novedad.setdefault("datosPublicos", {"estado": "no_comprobado", "detalle": "No comprobado todavia", "series": []})
+    gen = genes[0] if genes else None
+    if gen:
+        reg_g, gwas = await CON.consultar("gwas_asociaciones_gen", resumen=f"GWAS Catalog: {gen}", simbolo=gen)
+        reg_c, clin = await CON.consultar("clinvar_gen", resumen=f"ClinVar: {gen}", simbolo=gen)
+        regs += [reg_g, reg_c]
+        pista.accion(f"GWAS Catalog y ClinVar: {gen}", {"base": "GWAS Catalog v2, ClinVar", "parametros": f"gene_name={gen}", "resultados": f"{(gwas or {}).get('n_alzheimer', '?')} asociaciones AD; {(clin or {}).get('con_enfermedad', '?')} variantes ClinVar con Alzheimer"})
+        if gwas is None and clin is None:
+            novedad["genetica"] = {"estado": "no_comprobado", "detalle": "No comprobado: GWAS Catalog y ClinVar no respondieron"}
+        else:
+            n_ad = (gwas or {}).get("n_alzheimer", 0)
+            n_cv = (clin or {}).get("con_enfermedad", 0)
+            if n_ad or n_cv:
+                mejor = min(((a.get("p") or 1.0) for a in (gwas or {}).get("alzheimer", [])), default=None)
+                novedad["genetica"] = {"estado": "vinculo_conocido", "detalle": f"{gen}: {n_ad} asociaciones GWAS con Alzheimer" + (f" (mejor p {mejor:.1e})" if mejor else "") + f"; {n_cv} variantes en ClinVar con Alzheimer. La genetica humana ya vincula el gen: la novedad tiene que estar en el mecanismo o el contexto, no en el vinculo"}
+            else:
+                novedad["genetica"] = {"estado": "sin_vinculo", "detalle": f"{gen}: sin asociaciones GWAS con Alzheimer entre {(gwas or {}).get('total_asociaciones', 0)} registradas y sin variantes ClinVar con la enfermedad. Si la hipotesis afirma un vinculo genetico, es nuevo y hay que decir por que la genetica no lo vio"}
+        reg_m, ids = await CON.consultar("mygene_gen", resumen=f"MyGene: {gen}", simbolo=gen)
+        regs.append(reg_m)
+        chembl = None
+        if ids and ids.get("uniprot"):
+            reg_ch, chembl = await CON.consultar("chembl_diana", resumen=f"ChEMBL: {ids['uniprot']}", uniprot=ids["uniprot"])
+            regs.append(reg_ch)
+        reg_d, dg = await CON.consultar("dgidb_gen", resumen=f"DGIdb: {gen}", simbolo=gen)
+        regs.append(reg_d)
+        pista.accion(f"ChEMBL y DGIdb: {gen}", {"base": "ChEMBL, DGIdb", "parametros": f"uniprot={(ids or {}).get('uniprot')}", "resultados": f"{len((chembl or {}).get('mecanismos', []))} mecanismos; {(dg or {}).get('total', '?')} interacciones"})
+        if chembl is None and dg is None:
+            novedad["farmacos"] = {"estado": "no_comprobado", "detalle": "No comprobado: ChEMBL y DGIdb no respondieron"}
+        else:
+            mecs = (chembl or {}).get("mecanismos", [])
+            aprob = [x for x in (dg or {}).get("interacciones", []) if x.get("aprobado")]
+            fases = [m.get("fase_maxima") for m in mecs if m.get("fase_maxima") is not None]
+            if mecs or aprob:
+                novedad["farmacos"] = {"estado": "farmacos_existentes", "detalle": f"{gen}: {len(mecs)} mecanismos de accion en ChEMBL" + (f" (fase maxima {max(fases)})" if fases else "") + f"; {len(aprob)} farmacos aprobados con interaccion en DGIdb" + (": " + ", ".join(str(x.get('farmaco')) for x in aprob[:4]) if aprob else "") + ". La diana es abordable; una hipotesis de intervencion puede reposicionar"}
+            else:
+                novedad["farmacos"] = {"estado": "sin_farmacos", "detalle": f"{gen}: sin mecanismos en ChEMBL ni farmacos con interaccion en DGIdb. Si la hipotesis propone intervenir, no hay herramienta farmacologica lista"}
+    bio = ((h.get("comprobacion") or {}).get("biomarcador") or (h.get("tarjeta") or {}).get("diana") or gen or "").strip()
+    if bio:
+        reg_geo, geo = await CON.consultar("geo_series", resumen=f"GEO: Alzheimer {bio}", terminos=f"Alzheimer {bio}")
+        reg_cx, cx = await CON.consultar("cellxgene_colecciones", resumen="CELLxGENE: Alzheimer", termino="Alzheimer")
+        regs += [reg_geo, reg_cx]
+        pista.accion(f"GEO y CELLxGENE: {bio}", {"base": "GEO gds, CELLxGENE Discover", "parametros": f"Alzheimer {bio}", "resultados": f"{(geo or {}).get('total', '?')} series GEO; {reg_cx.get('n') if cx is not None else '?'} colecciones"})
+        if geo is None and cx is None:
+            novedad["datosPublicos"] = {"estado": "no_comprobado", "detalle": "No comprobado: GEO y CELLxGENE no respondieron", "series": []}
+        else:
+            series = [{"accession": s_["accession"], "titulo": s_["titulo"], "n": s_.get("n_muestras"), "plataforma": s_.get("plataforma")} for s_ in (geo or {}).get("series", [])[:5]]
+            n_geo = (geo or {}).get("total", 0)
+            n_cx = reg_cx.get("n") or 0
+            if n_geo or n_cx:
+                novedad["datosPublicos"] = {"estado": "hay_datos", "detalle": f"{n_geo} series GEO humanas con 'Alzheimer {bio}' y {n_cx} colecciones de celula unica con Alzheimer en CELLxGENE: la hipotesis se puede empezar a comprobar in silico sin pedir datos", "series": series}
+            else:
+                novedad["datosPublicos"] = {"estado": "sin_datos", "detalle": f"Ninguna serie GEO humana con 'Alzheimer {bio}' ni coleccion CELLxGENE: comprobarla exige datos propios o del laboratorio", "series": []}
+    return regs
+
+
+async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
+    """El contexto de la diana desde las bases: identificadores (MyGene),
+    funcion (UniProt), expresion en cerebro (Human Protein Atlas), interactores
+    (STRING) y rutas (Reactome). Se calcula una vez por hipotesis y version, y
+    se ensena en la tarjeta. El Killer usa los identificadores en la
+    comprobacion `identificadores_resuelven`."""
+    diana = ((h.get("tarjeta") or {}).get("diana") or "").strip()
+    if not diana or (h.get("contextoBases") or {}).get("version") == h.get("version", 1):
+        return
+    simbolo = diana.split()[0].strip(",;()") if diana else ""
+    regs: list[dict[str, Any]] = []
+    ctxb: dict[str, Any] = {"diana": diana, "identificadores": {}, "funcion": "", "expresionCerebro": "", "interactores": [], "rutas": [], "version": h.get("version", 1), "consultadoEn": P.ahora_ms()}
+    if CON.bases.parece_simbolo(simbolo):
+        reg, ids = await CON.consultar("mygene_gen", resumen=f"MyGene: {simbolo}", simbolo=simbolo)
+        regs.append(reg)
+        if ids:
+            ctxb["identificadores"] = {k: ids.get(k) for k in ("simbolo", "nombre", "ensembl", "uniprot", "entrez")}
+            if ids.get("uniprot"):
+                reg_u, uni = await CON.consultar("uniprot_proteina", resumen=f"UniProt: {simbolo}", simbolo=simbolo)
+                reg_r, rutas = await CON.consultar("reactome_rutas", resumen=f"Reactome: {ids['uniprot']}", uniprot=ids["uniprot"])
+                regs += [reg_u, reg_r]
+                ctxb["funcion"] = (uni or {}).get("funcion", "")[:500]
+                ctxb["rutas"] = [{"id": r_["id"], "nombre": r_["nombre"]} for r_ in (rutas or [])[:8]]
+            if ids.get("ensembl"):
+                reg_h, hpa = await CON.consultar("hpa_expresion", resumen=f"HPA: {ids['ensembl']}", ensembl=ids["ensembl"])
+                regs.append(reg_h)
+                if hpa:
+                    partes = []
+                    for k in ("RNA tissue specificity", "RNA brain regional specificity", "RNA single cell type specificity"):
+                        if hpa.get(k):
+                            partes.append(f"{k.replace('RNA ', '').lower()}: {hpa[k]}")
+                    ntpm = hpa.get("RNA brain regional specific nTPM") or hpa.get("RNA single cell type specific nTPM")
+                    if isinstance(ntpm, dict) and ntpm:
+                        top = sorted(ntpm.items(), key=lambda kv: -float(kv[1] or 0))[:4]
+                        partes.append("mayor nTPM en " + ", ".join(f"{k} ({v})" for k, v in top))
+                    ctxb["expresionCerebro"] = "; ".join(partes)[:400]
+            reg_s, inter = await CON.consultar("string_interactores", resumen=f"STRING: {simbolo}", simbolo=simbolo)
+            regs.append(reg_s)
+            ctxb["interactores"] = [{"simbolo": i_["interactor"], "puntuacion": i_["puntuacion"]} for i_ in (inter or [])[:8]]
+        if pista:
+            pista.accion(f"Bases para {simbolo}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": simbolo, "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'no resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
+
+    def aplicar(e: dict[str, Any]) -> bool:
+        x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return False
+        x["contextoBases"] = ctxb
+        x.setdefault("consultas", []).extend(regs)
+        return True
+
+    ctx.mutar(aplicar, "contexto_bases")
+    h["contextoBases"] = ctxb
+    h.setdefault("consultas", []).extend(regs)
+
+
 async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
     pendientes = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h["estado"] not in ("descartada",) and h["novedad"]["precedente"]["detalle"].startswith("No comprobado")]
     if not pendientes:
@@ -1115,12 +1242,16 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
         except FuenteNoDisponible as ex:
             novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"No comprobado: OpenAlex no respondio ({str(ex)[:60]})"}
 
-        def aplicar(e: dict[str, Any], h=h, novedad=novedad) -> bool:
+        # Conectores: genetica humana, farmacos y datos publicos para la misma diana.
+        consultas = await _novedad_por_conectores(ctx, h, genes[:1], novedad, pista)
+
+        def aplicar(e: dict[str, Any], h=h, novedad=novedad, consultas=consultas) -> bool:
             x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
             if not x:
                 return False
             x["novedad"] = novedad
-            x["procedencia"]["registro"].append(f"iteracion {ctx.numero}: novedad -> Open Targets {novedad['openTargets']['estado']}, ensayos {novedad['ensayos']['estado']}, precedente {novedad['precedente']['estado']}")
+            x.setdefault("consultas", []).extend(consultas)
+            x["procedencia"]["registro"].append(f"iteracion {ctx.numero}: novedad -> Open Targets {novedad['openTargets']['estado']}, ensayos {novedad['ensayos']['estado']}, precedente {novedad['precedente']['estado']}, genetica {novedad.get('genetica', {}).get('estado')}, farmacos {novedad.get('farmacos', {}).get('estado')}, datos publicos {novedad.get('datosPublicos', {}).get('estado')}")
             return True
 
         ctx.mutar(aplicar, "novedad")

@@ -128,15 +128,35 @@ def _mision_texto(inv: dict[str, Any]) -> str:
     return _texto_mision(inv)
 
 
-def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, Any]) -> dict[str, Any]:
+def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, Any], volumen: dspy.LM | None = None) -> dict[str, Any]:
     """Una pasada del Killer sobre una hipotesis (copia local del estado):
     comprobaciones deterministas, el juez, fusion y decision por regla. Es el
     mismo camino que `pasos._killer`, sin escribir en el estado."""
     inv = next(i for i in e["investigaciones"] if i["id"] == h["investigacionId"])
     deterministas = K.comprobaciones_deterministas(h, e)
     t0 = time.time()
-    with dspy.context(lm=juez):
-        pred = programas.killer(
+    pred = None
+    ultimo: Exception | None = None
+    # Mismo camino que Ctx.llamar: si el JSON largo del juez llega mal formado, se
+    # reintenta una vez con el juez y despues con el modelo de volumen.
+    for lm in (juez, juez, volumen or juez):
+        try:
+            with dspy.context(lm=lm):
+                pred = _llamar_killer(programas, e, h, inv, deterministas)
+            break
+        except Exception as ex:  # noqa: BLE001
+            ultimo = ex
+            if not any(s_ in str(ex).lower() for s_ in ("parse", "json", "empty", "content")):
+                raise
+    if pred is None:
+        raise RuntimeError(str(ultimo))
+    rev = pred.revision
+    return _resultado(rev, deterministas, h, juez, t0)
+
+
+def _llamar_killer(programas: Programas, e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any], deterministas: list[dict[str, str]]):
+    if True:
+        return programas.killer(
             objetivo=inv["objetivo"],
             mision=_mision_texto(inv),
             hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
@@ -146,7 +166,9 @@ def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, 
             comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
             criterios_revision="\n".join(e["criteriosRevision"]),
         )
-    rev = pred.revision
+
+
+def _resultado(rev, deterministas: list[dict[str, str]], h: dict[str, Any], juez: dspy.LM, t0: float) -> dict[str, Any]:
     del_juez = [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in rev.comprobaciones]
     comprobaciones = K.fusionar(deterministas, del_juez)
     if rev.supuesto_invalidante.strip() and any(s_.get("estado") == "contradicho" for s_ in h.get("supuestos", [])) and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
@@ -200,7 +222,7 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
     async def uno(h: dict[str, Any], f: dict[str, Any], v: dict[str, Any], fallo: str) -> None:
         async with sem:
             try:
-                r = await asyncio.to_thread(juzgar, programas, modelos.juez, e, v)
+                r = await asyncio.to_thread(juzgar, programas, modelos.juez, e, v, modelos.volumen)
             except Exception as ex:  # noqa: BLE001
                 r = {"decision": "error", "motivo": str(ex)[:300], "comprobaciones": [], "delJuez": [], "deterministas": [], "segundos": 0, "usd": 0, "resumenJuez": ""}
             ev = evaluar_caso(fallo, FALLOS[fallo], h.get("decisionKiller"), r)
@@ -249,7 +271,7 @@ def main() -> None:
     ap.add_argument("--hipotesis", type=int, default=5)
     ap.add_argument("--fallos", default=",".join(FALLOS))
     ap.add_argument("--paralelo", type=int, default=4)
-    ap.add_argument("--salida", default=str(config.RAIZ / "rosa" / "evaluacion" / "resultados" / f"panel_killer-{time.strftime('%Y-%m-%d')}.json"))
+    ap.add_argument("--salida", default=str(config.RAIZ / "rosa" / "evaluacion" / "resultados" / f"panel_killer-{time.strftime('%Y-%m-%d-%H%M')}.json"))
     ap.add_argument("--sin-registrar", action="store_true")
     a = ap.parse_args()
     out = asyncio.run(correr(a.hipotesis, [f for f in a.fallos.split(",") if f in FALLOS], a.paralelo, Path(a.salida), not a.sin_registrar))

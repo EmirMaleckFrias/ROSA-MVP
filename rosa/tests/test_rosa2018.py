@@ -457,3 +457,62 @@ def test_fusionar_discrepancia_suspende_en_vez_de_matar():
     assert f["supuestos"]["resultado"] == "pasa"  # sin detalle, el juez no discrepa de verdad
     base = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
     assert K.decidir(base + list(f.values()), True, 1)[0] == "suspender"
+
+
+# -- Cifras fuera del pasaje ------------------------------------------------------
+
+
+def test_cifra_alterada_deja_fidelidad_en_no_comprobable():
+    assert K.cifras_fuera_del_pasaje("GFAP was 8 pg/mL higher in 2021 across 3 cohorts", "GFAP was 0.8 pg/mL higher in carriers (n = 164)") == ["8"]
+    assert K.cifras_fuera_del_pasaje("GFAP was 0.8 pg/mL higher", "GFAP was 0,8 pg/mL higher") == []
+    assert K.cifras_fuera_del_pasaje("164 portadores", "") == []  # sin pasaje no se objeta
+    assert K.cifras_fuera_del_pasaje("HR 1.6", "hazard ratio of 1.6 (95 % CI 1.2 to 2.1)") == []
+    h = {"afirmaciones": [_af(texto="GFAP was 1640 pg/mL in carriers", fragmento="GFAP was 164 pg/mL in carriers versus 120 in controls")], "procedencia": {"fuentes": []}, "supuestos": [], "novedad": {}}
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas(h, {})}
+    assert c["fidelidad_evidencia"]["resultado"] == "no_comprobable" and "1640" in c["fidelidad_evidencia"]["detalle"]
+
+
+# -- Conectores -------------------------------------------------------------------
+
+
+def test_catalogo_de_conectores_y_registro_de_consulta():
+    import asyncio
+
+    from rosa import conectores as CON
+    from rosa.conectores.base import Resultado, conector
+    from rosa.fuentes.base import FuenteNoDisponible
+
+    cat = CON.catalogo()
+    assert len(cat) >= 75 and sum(1 for c in cat if c["estado"] == "disponible") >= 50
+    assert all(c["motivo"] for c in cat if c["estado"] != "disponible")  # lo inerte explica por que
+    assert all(c["licencia"] or c["estado"] != "disponible" for c in cat)  # lo disponible declara licencia
+
+    @conector("prueba_ok", "Prueba", "d", "a", {"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]}, "CC0", "n/a", "http://x", grupo="otros")
+    async def prueba_ok(x: str) -> Resultado:
+        return Resultado({"x": x}, 1, ["id1"], "v1", (True, "ok"))
+
+    @conector("prueba_caida", "Prueba", "d", "a", {"type": "object", "properties": {}}, "CC0", "n/a", "http://x", grupo="otros")
+    async def prueba_caida() -> Resultado:
+        raise FuenteNoDisponible("timeout")
+
+    reg, datos = asyncio.run(CON.consultar("prueba_ok", resumen="r", x="hola"))
+    assert datos == {"x": "hola"} and reg["n"] == 1 and reg["ids"] == ["id1"] and reg["invariante"]["ok"] and reg["error"] is None and reg["fuente"] == "Prueba"
+    reg2, datos2 = asyncio.run(CON.consultar("prueba_caida"))
+    assert datos2 is None and reg2["error"].startswith("No pude comprobar") and reg2["n"] is None
+    reg3, _ = asyncio.run(CON.consultar("kegg"))
+    assert "licencia" in reg3["error"]
+    for n in ("prueba_ok", "prueba_caida"):
+        CON.REGISTRO.pop(n)
+
+
+def test_identificadores_resuelven_por_regla():
+    base = {"afirmaciones": [_af()], "procedencia": {"fuentes": []}, "supuestos": [], "novedad": {}}
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "TREM2"}}, {})}
+    assert c["identificadores_resuelven"]["resultado"] == "no_comprobable"
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "TREM2"}, "contextoBases": {"identificadores": {"simbolo": "TREM2", "ensembl": "ENSG00000095970", "uniprot": "Q9NZC2"}, "consultadoEn": 1}}, {})}
+    assert c["identificadores_resuelven"]["resultado"] == "pasa" and "ENSG00000095970" in c["identificadores_resuelven"]["detalle"]
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "inflamacion glial"}, "contextoBases": {"identificadores": {}, "consultadoEn": 1}}, {})}
+    assert c["identificadores_resuelven"]["resultado"] == "falla"
+    # Es un aviso: no descarta ni reformula por si sola.
+    ok = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
+    assert K.decidir(ok + [c["identificadores_resuelven"]], True, 1)[0] == "avanzar"
