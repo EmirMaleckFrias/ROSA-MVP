@@ -1,28 +1,10 @@
 # Rosa: estado del sistema a 11 de septiembre de 2026
 
 Documento informativo. Describe lo que Rosa tiene construido y probado a la
-fecha, como funciona cada pieza y que queda pendiente. No reporta resultados
-cientificos: los analisis que se mencionan son pruebas del sistema.
+fecha y como funciona cada pieza. No reporta resultados cientificos: los
+analisis que se mencionan son pruebas del sistema.
 
-## 1. Que es Rosa
-
-Rosa es un sistema de investigacion asistida por inteligencia artificial para
-la enfermedad de Alzheimer. Trabaja en ciclos: busca literatura, extrae
-afirmaciones con su cita a la pagina exacta, las verifica contra la fuente,
-mantiene un modelo de mundo (lo que se sabe, lo que esta abierto y lo que se
-descarto), propone hipotesis, las somete a una revision adversarial y a un
-torneo, escribe una conclusion calibrada por hipotesis, propone el
-experimento que la comprobaria y, cuando llegan datos (de un analisis propio
-o de un laboratorio), los evalua contra lo que se prerregistro y actualiza
-lo que cree. Una persona decide en cada punto que importa: aprueba la mision
-y el plan de cada iteracion, acepta o descarta hipotesis, aprueba los
-contratos de datos y promueve o revierte lo que Rosa aprende.
-
-Dos principios rectores: la calidad de las decisiones vale mas que la
-cantidad de hipotesis, y abstenerse es un resultado legitimo. Una fuente que
-no responde es "no pude comprobar", nunca "no hay".
-
-## 2. Arquitectura
+## 1. Arquitectura
 
 - **Servidor** en Python (FastAPI, DSPy, SQLite): un unico estado canonico en
   una base SQLite, servido por `GET /api/estado`, empujado al navegador por
@@ -71,9 +53,9 @@ no responde es "no pude comprobar", nunca "no hay".
   automaticas del servidor y 135 de la interfaz, todas pasando; la interfaz
   compila sin errores de tipos.
 
-## 3. El ciclo de investigacion, etapa por etapa
+## 2. El ciclo de investigacion, etapa por etapa
 
-### 3.1 Mision y pregunta de campana
+### 2.1 Mision y pregunta de campana
 
 Al crear una investigacion se escriben el objetivo (puede ser amplio), que
 cuenta como relevante, los limites y la condicion de parada. Al arrancar la
@@ -95,7 +77,7 @@ si no hay un valor defendible), mas el paso de la ruta terapeutica al que
 sirve. Mision y pregunta se aprueban con el primer plan o se corrigen a
 mano.
 
-### 3.2 Plan de la iteracion
+### 2.2 Plan de la iteracion
 
 Rosa propone entre cuatro y siete pasos, cada uno con su herramienta, su
 coste en llamadas (medido en corridas reales, no estimado por el modelo) y
@@ -107,7 +89,7 @@ autoaprobacion por tiempo. La condicion de parada se comprueba antes de cada
 paso: iteraciones, minutos u horas de corrida, llamadas, y el presupuesto de
 la mision en dolares y horas.
 
-### 3.3 Literatura, ensayos y extraccion
+### 2.3 Literatura, ensayos y extraccion
 
 Consultas booleanas por base, cribado de relevancia articulo a articulo,
 texto completo por pagina cuando hay PDF en acceso abierto, y extraccion de
@@ -126,7 +108,7 @@ Los fragmentos recuperados entran a los modelos delimitados como datos, no
 como instrucciones, y un fragmento que contenga texto que parezca una orden
 para un modelo se marca y se ensena, sin bloquearse.
 
-### 3.4 Verificacion
+### 2.4 Verificacion
 
 Comprobaciones deterministas primero (la cita resuelve a una fuente y a un
 pasaje que existe en la pagina indicada, los identificadores citados estan
@@ -136,7 +118,7 @@ sin cita, ausencia refutada, sin verificar. Un dato real pero de otra entidad
 (otro farmaco, otra cohorte) es "no sostenida" con marca de entidad distinta.
 Al modelo de mundo solo entran afirmaciones sostenidas o parciales.
 
-### 3.5 Modelo de mundo
+### 2.5 Modelo de mundo
 
 Hechos sabidos, preguntas abiertas y descartes, cada uno con su procedencia
 a fuente y pagina, su prioridad y su historial. Lo que dice la fuente es un
@@ -146,7 +128,7 @@ artefacto en cada iteracion. Cuando el estado editorial de una fuente cambia
 ella se recalculan y se produce un informe de diferencias con lo que decian
 antes y lo que dicen ahora; los informes anteriores no se tocan.
 
-### 3.6 Hipotesis, tarjeta y versiones
+### 2.6 Hipotesis, tarjeta y versiones
 
 Cada hipotesis lleva titulo, enunciado falsable, mecanismo, comprobacion
 (biomarcador, cohorte, diseno), las afirmaciones sostenidas que la motivan,
@@ -164,7 +146,7 @@ cambio y sube el numero de version. La politica permite dos reformulaciones;
 a la tercera la hipotesis se descarta en este contexto. Las hipotesis
 descartadas siguen recuperables.
 
-### 3.7 Hypothesis Killer
+### 2.7 Hypothesis Killer
 
 La revision adversarial de cada hipotesis es una lista fija de once
 comprobaciones, cada una con su resultado (pasa, falla, no aplica, no se
@@ -196,7 +178,7 @@ no revierte nada, lo manda a una persona con las dos posturas. Toda decision
 en un registro con version juzgada, motivo, comprobaciones y quien la tomo.
 Segun el dial de autonomia, el descarte se aplica o se propone.
 
-### 3.8 Torneo y conclusion
+### 2.8 Torneo y conclusion
 
 Las hipotesis compiten por pares con un juez que las compara en los dos
 ordenes (para anular el sesgo de posicion); si discrepa, hay tablas. Elo
@@ -217,7 +199,7 @@ que propone, que falta, que le toca a la persona, glosario), un informe como
 artefacto y la meta-revision (debilidades recurrentes y panorama de
 direcciones).
 
-### 3.9 Datos con libro de procedencia
+### 2.9 Datos con libro de procedencia
 
 Un dataset se sube como fichero tabular. El servidor calcula su hash
 sha256, cuenta filas y columnas, detecta valores centinela y nombres
@@ -231,7 +213,7 @@ campo nace en falso: por defecto el modelo solo ve el diccionario y
 estadisticos agregados, nunca filas. Sin origen, licencia y uso con IA
 autorizado el contrato de datos no se puede aprobar.
 
-### 3.10 Puerta de reproduccion
+### 2.10 Puerta de reproduccion
 
 Antes de que Rosa pueda descubrir algo con datos, tiene que reproducir tres
 analisis ya publicados sobre sus datos originales, dentro de una tolerancia
@@ -243,7 +225,7 @@ analisis que no arranca es un error tecnico, no un fallo cientifico. El
 registro de metodos marca como "probado en contexto" los metodos de analisis
 cuando una reproduccion se supera.
 
-### 3.11 Analisis in silico
+### 2.11 Analisis in silico
 
 Desde la ficha de una hipotesis, con un dataset aprobado, o de forma
 automatica para las hipotesis que el Killer dejo avanzar:
@@ -276,7 +258,7 @@ en la hipotesis, con su trayectoria al codigo, y la conclusion se rehace.
 Cada ejecucion guarda codigo, entorno, semilla, hash de los datos y del
 plan, salida, error, estado, runtime y auditoria.
 
-### 3.12 Priorizacion y dossier
+### 2.12 Priorizacion y dossier
 
 Antes de mirar el Elo, cada hipotesis pasa por seis **bloqueos no
 compensables**: trazabilidad insuficiente, datos no autorizados, analisis
@@ -297,7 +279,7 @@ confirmacion y refutacion, que decision cambia, coste) y su prerregistro; y
 que se aprende con cada resultado posible. Se guarda como artefacto
 versionado.
 
-### 3.13 Experimento, prerregistro y retorno
+### 2.13 Experimento, prerregistro y retorno
 
 Cada hipotesis viva tiene un experimento propuesto. Al asignarlo a un
 laboratorio se congela un **prerregistro** inmutable (hipotesis, version,
@@ -316,7 +298,7 @@ correccion de contexto crea una hipotesis derivada que entra a la cola como
 propuesta. El resultado anota que version de la hipotesis probo y avisa si
 la hipotesis cambio despues.
 
-### 3.14 Aprendizaje en tres niveles y registro de metodos
+### 2.14 Aprendizaje en tres niveles y registro de metodos
 
 - **Nivel 1, creencias**: cada cambio de certeza o direccion de una
   hipotesis, y cada resultado de laboratorio, queda registrado. Automatico.
@@ -336,7 +318,7 @@ salidas, validacion, fallos conocidos, version, coste, responsable y estado
 popularidad no hace apto a un metodo; la validacion si. Un predictor no
 confirma sus propios datos de entrenamiento.
 
-### 3.15 Gobierno y control humano
+### 2.15 Gobierno y control humano
 
 Dial de autonomia por clase de accion (buscar literatura, correr analisis,
 gastar mas que la iteracion, escribir en el modelo de mundo, descartar
@@ -348,7 +330,7 @@ global de la corrida con alertas y pausa, nunca muerte silenciosa.
 Trazabilidad completa de cada consulta a cada fuente, cada afirmacion y cada
 veredicto. Exportacion del expediente de una hipotesis.
 
-## 4. Que se ha probado
+## 3. Que se ha probado
 
 - Investigaciones completas con literatura real, varias iteraciones y
   cientos de llamadas a modelos, con hipotesis que llegaron a conclusion,
@@ -378,14 +360,14 @@ veredicto. Exportacion del expediente de una hipotesis.
   frente a 431 publicados, 524 frente a 609 en el conjunto intermedio, con
   control barajado. Los intentos fallidos quedaron registrados con su plan,
   su codigo y su motivo, que es lo que la puerta debe hacer. El resultado
-  final de esa reproduccion se recoge en la seccion 6.
+  final de esa reproduccion se recoge en la seccion 5.
 - Tres errores del sistema aparecieron con datos reales y estan corregidos:
   un detector de valores centinela que contaba ocho valores de casi 660.000
   como centinelas; un resumen estadistico con remuestreo que bloqueaba el
   servidor con tablas grandes; y un lector de resultados que truncaba la
   salida del sandbox y aceptaba la primera cifra que encontraba.
 
-## 5. Investigacion que sostiene el diseno
+## 4. Investigacion que sostiene el diseno
 
 Las decisiones de diseno salen de cuatro informes con fuentes citadas sobre
 revision adversarial de hipotesis en sistemas publicados, libros de
@@ -397,7 +379,7 @@ articulos, ocultar el volumen de citas al juez, la regla de no enviar filas
 individuales a modelos de terceros, las definiciones operativas de un
 negativo interpretable y la estructura del dossier.
 
-## 6. Resultado de la puerta de reproduccion
+## 5. Resultado de la puerta de reproduccion
 
 La primera reproduccion con datos publicos reales se **supero** el 11 de
 septiembre de 2026, con el criterio congelado antes de ejecutar (cifra
@@ -439,27 +421,3 @@ grupos y correlacion con permutacion) como "probados en contexto", con la
 referencia de esta reproduccion. Los cuatro intentos anteriores, fallidos por
 un criterio deducido del resumen en vez de los metodos completos, quedan
 registrados con su plan, su codigo, su cifra y su motivo.
-
-## 7. Lo que queda pendiente
-
-- Abrir la puerta con tres reproducciones con datos publicos (una en
-  marcha; candidatas: un estudio de volumen cerebral por estadio clinico y
-  otros conjuntos publicos de expresion). Agregar por donante los conjuntos
-  de celula unica abiertos antes de subirlos.
-- Panel de prueba del Killer: hipotesis buenas, con fallo plantado y grises
-  con veredicto humano; medir deteccion por tipo de fallo y abstencion.
-- Deteccion de misma cohorte por autores, centro y periodo; comprobaciones
-  automaticas de unidades y direccion invertida.
-- Ranking por Bradley-Terry con intervalos en vez de Elo; valor esperado de
-  la informacion como desempate.
-- Jerarquia explicita de programa, areas, campanas y preguntas en la
-  interfaz; reasignacion entre areas y reapertura con condicion.
-- Motor causal minimo: aristas del modelo de mundo tipadas como supuesto o
-  inferencia con evidencia, con contexto; consultas que devuelven cantidad,
-  supuestos, evidencia, metodo, incertidumbre y limites, o "sin resolver".
-- Importacion del protocolo real ejecutado y sus desviaciones; identidad de
-  muestras; enmiendas fechadas.
-- Evaluacion independiente con las cuatro condiciones de comparacion y los
-  cinco niveles de prueba, incluyendo casos que exigen abstenerse.
-- Repeticiones con semillas distintas en el sandbox; agregacion de pruebas
-  por hipotesis con e-valores.
