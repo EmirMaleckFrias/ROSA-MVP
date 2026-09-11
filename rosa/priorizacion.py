@@ -60,7 +60,8 @@ def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = No
     Killer dejo avanzar, sin bloqueos, con diversidad por cluster."""
     maximo = maximo if maximo is not None else politicas.MAX_CANDIDATOS_LABORATORIO
     vivas = [h for h in e["hipotesis"] if h["investigacionId"] == investigacion_id and h["estado"] not in ("descartada",) and h.get("decisionKiller") == "avanzar" and not bloqueos_de(e, h)]
-    vivas.sort(key=lambda h: (-h["elo"], h["creadaEn"]))
+    # Orden por Bradley-Terry cuando hay partidos suficientes; si no, por Elo.
+    vivas.sort(key=lambda h: (-((h.get("bt") or {}).get("fuerza") or h["elo"]), h["creadaEn"]))
     elegidas: list[dict[str, Any]] = []
     clusters_usados: set[str] = set()
     pendientes = list(vivas)

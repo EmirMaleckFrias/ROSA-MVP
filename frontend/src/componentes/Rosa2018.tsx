@@ -575,6 +575,14 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
   return (
     <Seccion titulo="Analisis in silico" nota="Rosa congela un plan de analisis (sin ver las filas), escribe el codigo, lo ejecuta en un sandbox sin red con los datos en solo lectura, interpreta las cifras contra el umbral del plan y un auditor independiente (Killer II) dice si el analisis vale. Solo un analisis valido entra como evidencia.">
       {runs.length === 0 && <p className="meta">Sin analisis con datos todavia.</p>}
+      {h.evidenciaSecuencial && (
+        <div className="acciones">
+          <Chip tono={h.evidenciaSecuencial.rechazaNula ? 'ok' : 'borde'} title="Producto de los e-valores (kappa p^(kappa-1)) de los analisis validos. Controla el error de tipo I aunque se sigan anadiendo pruebas (Popper, 2025).">
+            Evidencia acumulada e = {h.evidenciaSecuencial.eAcumulado} sobre {h.evidenciaSecuencial.pruebas.length} {h.evidenciaSecuencial.pruebas.length === 1 ? 'prueba' : 'pruebas'}
+          </Chip>
+          <span className="meta">{h.evidenciaSecuencial.rechazaNula ? `Alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: rechaza la hipotesis nula al ${Math.round(h.evidenciaSecuencial.alfa * 100)} %.` : `No alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: la evidencia acumulada aun no rechaza la nula.`}</span>
+        </div>
+      )}
       {runs.map((run) => (
         <FichaEjecucion key={run.id} run={run} plan={planes.get(run.planId)} ahora={ahora} />
       ))}
@@ -662,6 +670,11 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
         </details>
       )}
       {run.interpretacion && <p style={{ fontSize: 13.5 }}>{run.interpretacion.resumen}</p>}
+      {run.repeticiones && run.repeticiones.length > 0 && (
+        <p className="meta">
+          Repeticiones con otras semillas: {run.repeticiones.map((r) => `semilla ${r.semilla}: ${Object.entries(r.resultados).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(', ') || 'sin cifras'}`).join(' | ')}
+        </p>
+      )}
       <div className="conclusion-columnas">
         <Cifras titulo="Resultados" cifras={run.resultados} />
         <Cifras titulo="Baseline" cifras={run.baseline} />

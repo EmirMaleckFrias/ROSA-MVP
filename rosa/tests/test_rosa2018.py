@@ -227,3 +227,39 @@ def test_comprobaciones_deterministas_del_auditor():
     assert c["semilla"] == "pasa" and c["coincide_con_plan"] == "pasa" and c["baseline_y_control"] == "pasa" and c["tamano_muestral"] == "falla" and c["multiplicidad"] == "pasa"
     c2 = {x["comprobacion"]: x["resultado"] for x in X.comprobaciones_deterministas("m.fit(X)\ntrain_test_split(X)\n", {"variables": ["zeta"], "correccionMultiplicidad": ""}, X.Resultado(estado="completado", runtime="docker"))}
     assert c2["fuga_de_datos"] == "falla" and c2["coincide_con_plan"] == "falla" and c2["semilla"] == "falla"
+
+
+# -- Bradley-Terry y e-valores ---------------------------------------------------
+
+
+def test_bradley_terry_ordena_como_los_partidos_y_da_intervalos():
+    from rosa import torneo
+
+    def h(i, partidos):
+        return {"id": i, "estado": "propuesta", "elo": 1500, "partidos": partidos}
+
+    # A gana a B y a C dos veces cada uno; B gana a C dos veces. Orden esperado A > B > C.
+    a = h("a", [{"rivalId": "b", "resultado": "gano"}] * 2 + [{"rivalId": "c", "resultado": "gano"}] * 2)
+    b = h("b", [{"rivalId": "a", "resultado": "perdio"}] * 2 + [{"rivalId": "c", "resultado": "gano"}] * 2)
+    c = h("c", [{"rivalId": "a", "resultado": "perdio"}] * 2 + [{"rivalId": "b", "resultado": "perdio"}] * 2)
+    bt = torneo.bradley_terry([a, b, c], remuestras=50)
+    assert bt["a"]["fuerza"] > bt["b"]["fuerza"] > bt["c"]["fuerza"]
+    assert bt["a"]["ic95"][0] <= bt["a"]["fuerza"] <= bt["a"]["ic95"][1] and bt["a"]["partidos"] == 4
+    assert torneo.bradley_terry([a], remuestras=10) == {}  # sin rivales no hay estimacion
+
+
+def test_e_valores_acumulan_solo_ejecuciones_validas():
+    from rosa import secuencial
+
+    assert secuencial.e_valor(0.01) > secuencial.e_valor(0.5) > 0
+    runs = [
+        {"id": "r1", "estado": "completado", "auditoria": {"veredicto": "valido"}, "resultados": {"p_valor": "0.01", "n": "30"}},
+        {"id": "r2", "estado": "completado", "auditoria": {"veredicto": "no_valido"}, "resultados": {"p_valor": "0.001"}},
+        {"id": "r3", "estado": "completado", "auditoria": {"veredicto": "valido"}, "resultados": {"p_bilateral": "0.04"}},
+        {"id": "r4", "estado": "completado", "auditoria": {"veredicto": "valido"}, "resultados": {"media": "3.2"}},
+    ]
+    agg = secuencial.agregar(runs)
+    assert [p["ejecucionId"] for p in agg["pruebas"]] == ["r1", "r3"]
+    assert abs(agg["eAcumulado"] - round(secuencial.e_valor(0.01) * secuencial.e_valor(0.04), 4)) < 1e-3
+    assert agg["rechazaNula"] is True  # 5 * 2.5 = 12.5 >= 10
+    assert secuencial.agregar([runs[3]]) is None

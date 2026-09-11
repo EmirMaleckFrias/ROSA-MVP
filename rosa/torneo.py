@@ -76,3 +76,81 @@ def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None,
                 r["estado"] = "hecha" if r["estado"] == "pendiente" else "rehecha"
                 r["resumen"] = f"Partido en la iteracion {iteracion} contra {rival['titulo'][:60]}: {'gano' if gano else ('tablas' if gano is None else 'perdio')}."
                 r["fecha"] = None
+
+
+# ---------------------------------------------------------------------------
+# Bradley-Terry con intervalos por bootstrap (plan completo, ranking)
+# ---------------------------------------------------------------------------
+
+
+def _partidos_unicos(hipotesis: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """(ganador, perdedor) por cada partido decidido. Cada partido se guarda en
+    las dos hipotesis (gano en una, perdio en la otra), asi que basta con los
+    'gano'. Las tablas no cuentan."""
+    ids = {h["id"] for h in hipotesis}
+    pares = []
+    for h in hipotesis:
+        for p in h.get("partidos", []):
+            if p["resultado"] == "gano" and p["rivalId"] in ids:
+                pares.append((h["id"], p["rivalId"]))
+    return pares
+
+
+def _ajustar_bt(ids: list[str], pares: list[tuple[str, str]], iteraciones: int = 200) -> dict[str, float]:
+    """Algoritmo de minorizacion y maximizacion de Hunter (2004) para las
+    fuerzas de Bradley-Terry, con un suavizado minimo para que una hipotesis
+    invicta o sin victorias no se vaya a infinito o a cero."""
+    import math
+
+    idx = {i: k for k, i in enumerate(ids)}
+    n = len(ids)
+    if n == 0:
+        return {}
+    victorias = [0.5] * n  # suavizado: media victoria a cada uno
+    enfrentamientos = [[0.0] * n for _ in range(n)]
+    for g, p in pares:
+        victorias[idx[g]] += 1
+        enfrentamientos[idx[g]][idx[p]] += 1
+        enfrentamientos[idx[p]][idx[g]] += 1
+    for k in range(n):
+        for j in range(n):
+            if j != k:
+                enfrentamientos[k][j] += 1.0 / n  # un enfrentamiento virtual repartido
+    fuerza = [1.0] * n
+    for _ in range(iteraciones):
+        nueva = []
+        for k in range(n):
+            denominador = sum(enfrentamientos[k][j] / (fuerza[k] + fuerza[j]) for j in range(n) if j != k)
+            nueva.append(victorias[k] / denominador if denominador > 0 else fuerza[k])
+        media_geom = math.exp(sum(math.log(x) for x in nueva) / n)
+        fuerza = [x / media_geom for x in nueva]
+    return {ids[k]: fuerza[k] for k in range(n)}
+
+
+def bradley_terry(hipotesis: list[dict[str, Any]], remuestras: int = 200, semilla: int = 0) -> dict[str, dict[str, Any]]:
+    """Fuerza de cada hipotesis en escala Elo (1500 + 400 log10 p) con un
+    intervalo del 95 % por bootstrap de los partidos. Con menos de dos
+    partidos decididos no hay estimacion. El Elo se conserva como vista; esto
+    es lo que ordena a las candidatas."""
+    import math
+
+    vivas = [h for h in hipotesis if h["estado"] != "descartada"]
+    ids = [h["id"] for h in vivas]
+    pares = _partidos_unicos(vivas)
+    if len(pares) < 2 or len(ids) < 2:
+        return {}
+    escala = lambda p: round(1500 + 400 * math.log10(p))  # noqa: E731
+    central = _ajustar_bt(ids, pares)
+    rng = random.Random(semilla)
+    muestras: dict[str, list[float]] = {i: [] for i in ids}
+    for _ in range(remuestras):
+        re = [pares[rng.randrange(len(pares))] for _ in pares]
+        f = _ajustar_bt(ids, re, iteraciones=60)
+        for i in ids:
+            muestras[i].append(f[i])
+    salida = {}
+    for h in vivas:
+        m = sorted(muestras[h["id"]])
+        lo, hi = m[int(0.025 * len(m))], m[max(0, int(0.975 * len(m)) - 1)]
+        salida[h["id"]] = {"fuerza": escala(central[h["id"]]), "ic95": [escala(lo), escala(hi)], "partidos": sum(1 for g, p in pares if h["id"] in (g, p))}
+    return salida

@@ -27,7 +27,7 @@ import re
 import traceback
 from typing import Any
 
-from rosa import config, politicas, priorizacion as PR
+from rosa import config, politicas, priorizacion as PR, torneo
 from rosa.bucle import contexto as T
 from rosa.bucle import pasos as PASOS
 from rosa.bucle.pasos import Ctx
@@ -1109,6 +1109,12 @@ class Supervisor:
             it2["resumen"] = resumen
             if llano:
                 it2["resumenLlano"] = llano
+            # Bradley-Terry con intervalos sobre los partidos del torneo: es lo que
+            # ordena a las candidatas; el Elo se queda como vista.
+            bt = torneo.bradley_terry([x for x in e2["hipotesis"] if x["investigacionId"] == inv["id"]], semilla=it["numero"])
+            for x in e2["hipotesis"]:
+                if x["id"] in bt:
+                    x["bt"] = bt[x["id"]]
             # Priorizacion: bloqueos no compensables y candidatas con diversidad.
             ids = PR.marcar_candidatas(e2, inv["id"])
             if ids:

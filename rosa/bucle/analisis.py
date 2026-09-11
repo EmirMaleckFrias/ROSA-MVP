@@ -125,13 +125,28 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
                 pista.error(f"No se pudo reparar: {str(ex)[:120]}")
                 break
     assert res is not None
+    # Repeticiones con otras semillas si el plan tiene aleatoriedad (permutacion,
+    # bootstrap, barajado): tres corridas, como pide CORE-Bench, para ver si la
+    # cifra se mueve. Se cambia la semilla en el codigo y en el entorno.
+    repeticiones: list[dict[str, Any]] = []
+    aleatorio = bool(re.search(r"permut|bootstrap|remuestr|aleator|baraj|shuffle", (plan.get("prueba", "") + " " + plan.get("baseline", "") + " " + plan.get("controlNegativo", "")).lower()))
+    if res.estado == "completado" and not res.no_evaluable and aleatorio:
+        for extra in (1, 2):
+            semilla2 = plan["semilla"] + extra
+            codigo2 = re.sub(r"\b" + str(plan["semilla"]) + r"\b", str(semilla2), codigo)
+            pista.accion(f"Repeticion con semilla {semilla2}")
+            r2 = await asyncio.to_thread(X.ejecutar, codigo2, ruta, semilla2, sintetico, run["id"] + f"-s{extra}")
+            repeticiones.append({"semilla": semilla2, "estado": r2.estado, "resultados": r2.resultados if r2.estado == "completado" else {}})
     interpretacion = None
     if res.estado == "completado":
         if res.no_evaluable:
             interpretacion = {"estado": "no_evaluable", "resumen": f"El analisis no se pudo evaluar con estos datos: {res.no_evaluable}"}
         else:
+            texto_rep = ""
+            if repeticiones:
+                texto_rep = "\n\nRepeticiones con otras semillas (mismo plan y codigo):\n" + "\n".join(f"- semilla {r['semilla']} ({r['estado']}): " + ("; ".join(f"{k}={v}" for k, v in r["resultados"].items()) or "sin cifras") for r in repeticiones)
             try:
-                pi = await ctx.llamar("juez", ctx.programas.interpretar, plan=_texto_plan(plan), resultados="\n".join(f"{k}={v}" for k, v in res.resultados.items()) or "ninguna", baseline="\n".join(f"{k}={v}" for k, v in res.baseline.items()) or "ninguna", control_negativo="\n".join(f"{k}={v}" for k, v in res.control.items()) or "ninguna")
+                pi = await ctx.llamar("juez", ctx.programas.interpretar, plan=_texto_plan(plan), resultados=("\n".join(f"{k}={v}" for k, v in res.resultados.items()) or "ninguna") + texto_rep, baseline="\n".join(f"{k}={v}" for k, v in res.baseline.items()) or "ninguna", control_negativo="\n".join(f"{k}={v}" for k, v in res.control.items()) or "ninguna")
                 interpretacion = {"estado": pi.interpretacion.estado, "resumen": pi.interpretacion.resumen.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in pi.interpretacion.cifras_clave][:10]}
             except PresupuestoAgotado:
                 raise
@@ -185,6 +200,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
             interpretacion=interpretacion,
             auditoria=auditoria,
             plausibilidadVerificada=run_plausible,
+            repeticiones=repeticiones,
             fin=ahora,
         )
         x["entorno"]["paquetes"] = res.paquetes
@@ -292,7 +308,10 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
         y["coste"]["analisis"] = round(y["coste"]["analisis"] + 1.5, 2)
         y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} analisis in silico {run['id']}: {run['estado']}" + (f", {run['interpretacion']['estado']}" if run.get("interpretacion") else "") + (f", auditoria {run['auditoria']['veredicto']}" if run.get("auditoria") else ""))
         if valido:
+            from rosa import secuencial
+
             cifras = "; ".join(f"{k}={v}" for k, v in run["resultados"].items())
+            y["evidenciaSecuencial"] = secuencial.agregar([r for r in e2.get("ejecuciones", []) if r.get("hipotesisId") == y["id"]] + ([run] if run["id"] not in {r["id"] for r in e2.get("ejecuciones", [])} else []))
             y["afirmaciones"].append(
                 {
                     "texto": run["interpretacion"]["resumen"],

@@ -63,7 +63,7 @@ export function bloqueosDe(estado: Estado, h: Hipotesis): Bloqueo[] {
 export function candidatos(estado: Estado, investigacionId: string, maximo = MAX_CANDIDATOS): Hipotesis[] {
   const vivas = estado.hipotesis
     .filter((h) => h.investigacionId === investigacionId && h.estado !== 'descartada' && h.decisionKiller === 'avanzar' && bloqueosDe(estado, h).length === 0)
-    .sort((a, b) => b.elo - a.elo || a.creadaEn - b.creadaEn);
+    .sort((a, b) => (b.bt?.fuerza ?? b.elo) - (a.bt?.fuerza ?? a.elo) || a.creadaEn - b.creadaEn);
   const elegidas: Hipotesis[] = [];
   const clusters = new Set<string>();
   const pendientes = [...vivas];

@@ -64,6 +64,11 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
       <div className="hip-elo">
         <strong>{h.elo}</strong>
         <span className={d > 0 ? 'subida' : d < 0 ? 'bajada' : 'meta'}>{d > 0 ? `+${d}` : d}</span>
+        {h.bt && (
+          <span className="meta" title="Fuerza de Bradley-Terry sobre los partidos, con intervalo del 95 % por bootstrap. Es lo que ordena a las candidatas.">
+            BT {h.bt.fuerza} ({h.bt.ic95[0]} a {h.bt.ic95[1]})
+          </span>
+        )}
       </div>
     </a>
   );

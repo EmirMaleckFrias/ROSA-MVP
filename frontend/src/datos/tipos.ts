@@ -983,6 +983,12 @@ export interface Hipotesis {
   dossierArtefactoId?: Id | null;
   /** Ids de las ejecuciones in silico sobre esta hipotesis. */
   ejecuciones?: Id[];
+  /** Fuerza de Bradley-Terry en escala Elo con intervalo del 95 % por bootstrap
+   *  de los partidos. Es lo que ordena a las candidatas; el Elo es la vista. */
+  bt?: { fuerza: number; ic95: [number, number]; partidos: number };
+  /** Evidencia acumulada de los analisis validos con e-valores (producto de
+   *  kappa p^(kappa-1)); rechaza la nula al nivel alfa si llega a 1/alfa. */
+  evidenciaSecuencial?: { eAcumulado: number; pruebas: { ejecucionId: Id; p: number; e: number }[]; alfa: number; kappa: number; rechazaNula: boolean } | null;
 }
 
 /* ---------------------------------------------------------------------
