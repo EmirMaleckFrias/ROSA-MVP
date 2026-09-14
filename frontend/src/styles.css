@@ -3886,3 +3886,16 @@ mark.fuerte {
     height: 60vw;
   }
 }
+
+/* Fuentes citadas por la respuesta del modelo de mundo, con PMID y DOI. */
+.citas-comprobables {
+  list-style: none;
+  padding: 10px 0 0;
+  margin: 10px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  white-space: normal;
+}

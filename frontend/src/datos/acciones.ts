@@ -46,7 +46,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado, ConocimientoOperativo } from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado, ConocimientoOperativo, Fuente } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -868,11 +868,23 @@ function normalizar(s: string): string {
 
 /** Responder con lo que hay dentro del modelo de mundo, citando nodos. Sin
  *  modelo de lenguaje: busca por palabras y devuelve los nodos que casan. */
-export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: string, pregunta: string): { respuesta: string; nodos: HechoMundo[] } {
+export interface CitaComprobable {
+  fuenteId: string;
+  referencia: string;
+  doi: string | null;
+  pmid: string | null;
+  titulo: string;
+}
+
+/** Responde con lo que hay en el modelo de mundo, citando cada hecho una sola
+ *  vez por fuente. `fuentes` (por id) permite devolver el PMID y el DOI de
+ *  cada cita para que se pueda comprobar fuera de Rosa: una referencia de
+ *  2026 sin identificador parece inventada aunque venga de PubMed. */
+export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: string, pregunta: string, fuentes: Map<string, Pick<Fuente, 'id' | 'referencia' | 'doi' | 'pmid' | 'titulo'>> = new Map()): { respuesta: string; nodos: HechoMundo[]; citas: CitaComprobable[] } {
   const palabras = normalizar(pregunta)
     .split(/[^a-z0-9]+/)
     .filter((p) => p.length > 3);
-  if (palabras.length === 0) return { respuesta: 'Escribe una pregunta con alguna palabra del dominio.', nodos: [] };
+  if (palabras.length === 0) return { respuesta: 'Escribe una pregunta con alguna palabra del dominio.', nodos: [], citas: [] };
   const puntuados = hechos
     .filter((h) => h.investigacionId === investigacionId)
     .map((h) => {
@@ -883,15 +895,35 @@ export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: 
     .filter((x) => x.aciertos > 0)
     .sort((a, b) => b.aciertos - a.aciertos)
     .slice(0, 5);
-  if (puntuados.length === 0) return { respuesta: 'El modelo de mundo no tiene nada sobre eso. No lo invento: queda como pregunta abierta si quieres anadirla.', nodos: [] };
+  if (puntuados.length === 0) return { respuesta: 'El modelo de mundo no tiene nada sobre eso. No lo invento: queda como pregunta abierta si quieres anadirla.', nodos: [], citas: [] };
   const sabidos = puntuados.filter((x) => x.h.estado === 'sabido');
   const abiertos = puntuados.filter((x) => x.h.estado === 'abierto');
   const descartados = puntuados.filter((x) => x.h.estado === 'descartado');
+  // Una cita por fuente y hecho (las paginas se agrupan), con PMID si se conoce.
+  const citas = new Map<string, CitaComprobable>();
+  const citar = (h: HechoMundo): string => {
+    const porFuente = new Map<string, number[]>();
+    for (const p of h.procedencia) {
+      const lista = porFuente.get(p.fuenteId) ?? [];
+      if (p.pagina !== null && !lista.includes(p.pagina)) lista.push(p.pagina);
+      porFuente.set(p.fuenteId, lista);
+    }
+    return (
+      [...porFuente.entries()]
+        .map(([fid, paginas]) => {
+          const ref = h.procedencia.find((p) => p.fuenteId === fid)!.referencia;
+          const f = fuentes.get(fid);
+          if (!citas.has(fid)) citas.set(fid, { fuenteId: fid, referencia: ref, doi: f?.doi ?? null, pmid: f?.pmid ?? null, titulo: f?.titulo ?? '' });
+          return `${ref}${paginas.length ? `, pag. ${paginas.sort((a, b) => a - b).join(', ')}` : ''}${f?.pmid ? `, PMID ${f.pmid}` : ''}`;
+        })
+        .join('; ') || 'inferencia de Rosa'
+    );
+  };
   const partes: string[] = [];
-  if (sabidos.length > 0) partes.push(`Se sabe: ${sabidos.map((x) => `${x.h.enunciado} [${x.h.procedencia.map((p) => `${p.referencia}${p.pagina !== null ? `, pag. ${p.pagina}` : ''}`).join('; ') || 'inferencia de Rosa'}]`).join(' ')}`);
+  if (sabidos.length > 0) partes.push(`Se sabe: ${sabidos.map((x) => `${x.h.enunciado} [${citar(x.h)}]`).join(' ')}`);
   if (abiertos.length > 0) partes.push(`Esta abierto: ${abiertos.map((x) => x.h.enunciado).join(' ')}`);
   if (descartados.length > 0) partes.push(`Se descarto: ${descartados.map((x) => `${x.h.enunciado} (${x.h.motivoDescarte ?? 'sin motivo registrado'})`).join(' ')}`);
-  return { respuesta: partes.join('\n'), nodos: puntuados.map((x) => x.h) };
+  return { respuesta: partes.join('\n'), nodos: puntuados.map((x) => x.h), citas: [...citas.values()] };
 }
 
 /* ---------------------------------------------------------------------

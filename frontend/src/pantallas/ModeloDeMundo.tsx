@@ -6,8 +6,8 @@
 
 import { useMemo, useState } from 'react';
 import { acciones } from '../datos/almacen';
-import { preguntarAlModeloDeMundo } from '../datos/acciones';
-import type { EstadoRosa, HechoMundo, Investigacion } from '../datos/tipos';
+import { preguntarAlModeloDeMundo, type CitaComprobable } from '../datos/acciones';
+import type { EstadoRosa, Fuente, HechoMundo, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Momento, Seccion } from '../componentes/piezas';
 import { IconChevronDown } from '../componentes/icons';
 import { Entidades, PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
@@ -47,7 +47,7 @@ function CitasDelHecho({ h }: { h: HechoMundo }) {
   );
 }
 
-function TarjetaHecho({ h, ahora }: { h: HechoMundo; ahora: number }) {
+function TarjetaHecho({ h, ahora, fuentes }: { h: HechoMundo; ahora: number; fuentes?: Map<string, Fuente> }) {
   return (
     <div className="hecho">
       <div className="hecho-cabecera">
@@ -61,12 +61,20 @@ function TarjetaHecho({ h, ahora }: { h: HechoMundo; ahora: number }) {
       <Entidades entidades={h.entidades} maximo={6} />
       {h.procedencia.length > 0 && (
         <div className="hecho-procedencia">
-          {h.procedencia.map((p, i) => (
-            <code key={i}>
-              [{p.referencia}
-              {p.pagina !== null ? `, pag. ${p.pagina}` : ''}]
-            </code>
-          ))}
+          {h.procedencia.map((p, i) => {
+            const f = fuentes?.get(p.fuenteId);
+            const texto = `[${p.referencia}${p.pagina !== null ? `, pag. ${p.pagina}` : ''}]`;
+            const href = f?.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${f.pmid}/` : f?.doi ? `https://doi.org/${f.doi}` : null;
+            return href ? (
+              <a key={i} className="enlace" href={href} target="_blank" rel="noreferrer" title={`${f?.titulo ?? ''}${f?.pmid ? ` · PMID ${f.pmid}` : ''}${f?.doi ? ` · doi:${f.doi}` : ''}. Se abre en PubMed o en el DOI: comprobable fuera de Rosa.`}>
+                <code>{texto}</code>
+              </a>
+            ) : (
+              <code key={i} title="Fuente sin identificador registrado">
+                {texto}
+              </code>
+            );
+          })}
         </div>
       )}
       <CitasDelHecho h={h} />
@@ -84,7 +92,13 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
   const [tema, setTema] = useState<string>('todos');
   const [vista, setVista] = useState<'columnas' | 'cambios'>('columnas');
   const [pregunta, setPregunta] = useState('');
-  const [respuesta, setRespuesta] = useState<{ respuesta: string; nodos: HechoMundo[] } | null>(null);
+  const [respuesta, setRespuesta] = useState<{ respuesta: string; nodos: HechoMundo[]; citas: CitaComprobable[] } | null>(null);
+  // Las fuentes con su PMID y DOI, por id, para que cada cita se pueda comprobar fuera de Rosa.
+  const fuentesPorId = useMemo(() => {
+    const m = new Map<string, Fuente>();
+    for (const h of estado.hipotesis) if (h.investigacionId === inv.id) for (const f of h.procedencia.fuentes) if (!m.has(f.id)) m.set(f.id, f);
+    return m;
+  }, [estado.hipotesis, inv.id]);
   const propios = useMemo(() => estado.hechos.filter((h) => h.investigacionId === inv.id), [estado.hechos, inv.id]);
   const temas = useMemo(() => [...new Set(propios.map((h) => h.tema))].sort(), [propios]);
   const q = busqueda.trim().toLowerCase();
@@ -188,11 +202,11 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
             placeholder="Que se sabe del cociente p-tau217/Abeta42"
             onChange={(e) => setPregunta(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') setRespuesta(preguntarAlModeloDeMundo(estado.hechos, inv.id, pregunta));
+              if (e.key === 'Enter') setRespuesta(preguntarAlModeloDeMundo(estado.hechos, inv.id, pregunta, fuentesPorId));
             }}
             aria-label="Pregunta al modelo de mundo"
           />
-          <button type="button" className="btn" disabled={pregunta.trim() === ''} onClick={() => setRespuesta(preguntarAlModeloDeMundo(estado.hechos, inv.id, pregunta))}>
+          <button type="button" className="btn" disabled={pregunta.trim() === ''} onClick={() => setRespuesta(preguntarAlModeloDeMundo(estado.hechos, inv.id, pregunta, fuentesPorId))}>
             Preguntar
           </button>
         </div>
@@ -203,6 +217,27 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
               <span>{respuesta.nodos.length} {respuesta.nodos.length === 1 ? 'nodo' : 'nodos'}</span>
             </header>
             {respuesta.respuesta}
+            {respuesta.citas.length > 0 && (
+              <ul className="citas-comprobables" aria-label="Fuentes citadas">
+                {respuesta.citas.map((c) => (
+                  <li key={c.fuenteId}>
+                    <strong>{c.referencia}</strong>
+                    {c.titulo && <span className="meta"> {c.titulo.length > 110 ? `${c.titulo.slice(0, 108)}...` : c.titulo}</span>}{' '}
+                    {c.pmid && (
+                      <a className="enlace" href={`https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/`} target="_blank" rel="noreferrer">
+                        PubMed {c.pmid}
+                      </a>
+                    )}{' '}
+                    {c.doi && (
+                      <a className="enlace" href={`https://doi.org/${c.doi}`} target="_blank" rel="noreferrer">
+                        doi:{c.doi}
+                      </a>
+                    )}
+                    {!c.pmid && !c.doi && <span className="meta">sin identificador registrado</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </Seccion>
@@ -248,7 +283,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                   <ListaAnimada className="mundo-columna" como="ul">
                     {lista.map((h) => (
                       <ElementoAnimado key={h.id} como="li">
-                        <TarjetaHecho h={h} ahora={ahora} />
+                        <TarjetaHecho h={h} ahora={ahora} fuentes={fuentesPorId} />
                       </ElementoAnimado>
                     ))}
                   </ListaAnimada>
