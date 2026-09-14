@@ -65,4 +65,29 @@ describe('acceso corporativo', () => {
     expect(nodo.textContent).toContain('Confirmar e iniciar sesión');
     expect(window.location.hash).toBe('');
   });
+  it('tras solicitar el enlace muestra el estado "Revisa tu correo" con el mensaje en tono de éxito', async () => {
+    const fetch = vi.fn(async (url: string) => {
+      if (String(url).endsWith('/solicitar')) return { ok: true, json: async () => ({ mensaje: 'Enlace enviado. Caduca en 15 minutos.' }) };
+      return { ok: true, json: async () => ({ ...estado, correoConfigurado: true }) };
+    });
+    vi.stubGlobal('fetch', fetch);
+    await montar();
+    const campo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(campo, 'ana@alzheimerproject.com');
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      nodo.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(nodo.textContent).toContain('Revisa tu correo');
+    expect(nodo.textContent).toContain('ana@alzheimerproject.com');
+    expect(nodo.querySelector('.acceso-mensaje-ok')?.textContent).toContain('Enlace enviado');
+    expect(nodo.querySelector('.acceso-mensaje-error')).toBeNull();
+    const otro = [...nodo.querySelectorAll('button')].find((b) => b.textContent === 'Usar otro correo')!;
+    await act(async () => otro.click());
+    expect(nodo.textContent).toContain('Continúa tu investigación');
+  });
 });

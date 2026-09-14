@@ -230,3 +230,28 @@ un desplazamiento acotado no puede disparar nada, y actúa también casi en
 reposo (más despacio, para que un árbol denso sin sitio no tiemble).
 `lib/arbol.solapes.test.ts` cuenta los pares de etiquetas solapadas en el
 árbol de muestra desplegado del todo: de 7 a 0.
+
+## La puerta: acceso por correo corporativo
+
+`componentes/Acceso.tsx` envuelve la aplicación (ver `main.tsx`): sin sesión
+verificada no se carga ningún estado de investigación. La lógica (estado de
+sesión, solicitar enlace, confirmar, salir, configurar el correo de la
+instalación) es la de Codex, descrita en `CORREO-Y-ACCESO.md`. La
+presentación se rehízo el 14 de septiembre de 2026 a petición de Emir ("está
+súper feo y genérico"): a la izquierda, sobre el fondo de la marca, el árbol
+vivo (`componentes/ArbolVivo.tsx`), un árbol de conocimiento en SVG que se
+balancea y se ilumina etapa a etapa (objetivo, literatura, verificación,
+modelo de mundo, hipótesis y Killer, laboratorio) con una frase por etapa,
+para que quien llega vea qué hace Rosa antes de entrar; a la derecha, la
+tarjeta con un solo campo y tres estados: formulario (iniciar sesión o
+registrarse, con un control deslizante), enlace enviado ("Revisa tu correo",
+con la dirección y la caducidad de 15 minutos) y confirmación del enlace. El
+tono del mensaje (éxito o error) lo decide quien lo escribe, no una
+expresión sobre el texto. Con movimiento reducido no hay balanceo ni cambio
+de etapa. `auditoria/captura-acceso.mjs` (fuera de git) captura los estados
+con la API de acceso simulada, sin enviar correos.
+
+La auditoría visual entra por la puerta sin sesión real: manda la cabecera
+`x-rosa-interno` con el token de `datos/_token_interno` (solo legible en la
+máquina del servidor) y simula `/api/acceso/estado` con una sesión de
+auditoría; así las pantallas se auditan igual que antes.

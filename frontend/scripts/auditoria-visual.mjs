@@ -148,11 +148,25 @@ const AUDITAR = () => {
   return problemas;
 };
 
+// La puerta de Rosa: sin sesión no se carga nada. La auditoría entra con la
+// credencial interna del servidor (datos/_token_interno, solo legible en la
+// máquina donde corre Rosa) y simula el estado de sesión que la puerta pide.
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+let tokenInterno = '';
+try {
+  tokenInterno = readFileSync(resolve(process.cwd(), '..', 'datos', '_token_interno'), 'utf8').trim();
+} catch {
+  console.warn('Sin datos/_token_interno: si Rosa exige sesión, todas las pantallas serán la puerta.');
+}
+const SESION_AUDITORIA = { correo: 'auditoria@alzheimerproject.com', administrador: false, correoConfigurado: true, instalacionLocal: false };
+
 const navegador = await chromium.launch();
 const informe = [];
 for (const modo of MODOS) {
   for (const ancho of ANCHOS) {
-    const contexto = await navegador.newContext({ viewport: { width: ancho, height: 1000 }, colorScheme: 'dark' });
+    const contexto = await navegador.newContext({ viewport: { width: ancho, height: 1000 }, colorScheme: 'dark', extraHTTPHeaders: tokenInterno ? { 'x-rosa-interno': tokenInterno } : {} });
+    await contexto.route('**/api/acceso/estado', (r) => r.fulfill({ json: SESION_AUDITORIA }));
     await contexto.addInitScript((m) => {
       localStorage.setItem('rosa.recorrido.v1', '1');
       localStorage.setItem('rosa.modo', m);
