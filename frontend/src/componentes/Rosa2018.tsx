@@ -7,10 +7,10 @@
 // aprendizaje en tres niveles. Cada pieza dice que es y por que esta, para
 // que quien no vivio el documento la entienda igual.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo } from '../datos/tipos';
+import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -2000,6 +2000,54 @@ export function Skills({ skills }: { skills: SkillCatalogo[] | undefined }) {
             ))}
           </tbody>
         </table>
+      )}
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Espejo del estado en Convex
+// ---------------------------------------------------------------------------
+
+export function EspejoConvex({ ahora }: { ahora: number }) {
+  const [esp, setEsp] = useState<EstadoEspejo | null | undefined>(undefined);
+  useEffect(() => {
+    let vivo = true;
+    const cargar = async () => {
+      const e = await acciones.estadoEspejo();
+      if (vivo) setEsp(e);
+    };
+    void cargar();
+    const t = setInterval(cargar, 15000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, []);
+  return (
+    <Seccion titulo="Espejo del estado en Convex" nota="Una copia en la nube de cada entidad publica del estado (hipotesis, hechos, iteraciones, artefactos, decisiones), actualizada pocos segundos despues de cada cambio. SQLite en el servidor de Rosa sigue siendo la fuente de verdad y el unico que escribe; el espejo sirve para leer desde cualquier sitio y para que varias personas vean lo mismo. La clave vive solo en el .env del servidor.">
+      {esp === undefined ? (
+        <p className="meta">Consultando el servidor...</p>
+      ) : esp === null ? (
+        <p className="meta">Sin servidor: el espejo solo existe con el servidor de Rosa encendido.</p>
+      ) : !esp.activo ? (
+        <p className="meta">Apagado: no hay clave de Convex en el .env del servidor.</p>
+      ) : (
+        <div className="acciones">
+          <Chip tono={esp.error ? 'mal' : esp.pendiente ? 'aviso' : 'ok'}>{esp.error ? 'Con error' : esp.pendiente ? 'Sincronizando' : 'Al dia'}</Chip>
+          <span className="meta">
+            {esp.url} · {esp.entidades} entidades · version {esp.ultimaVersion ?? '?'}
+            {esp.sincronizadoEn ? (
+              <>
+                {' '}
+                · <Momento t={esp.sincronizadoEn} ahora={ahora} />
+              </>
+            ) : null}{' '}
+            · {esp.envios} envios · ultimo en {esp.ms} ms
+          </span>
+          {esp.error && <p className="tono-mal">{esp.error}</p>}
+        </div>
       )}
     </Seccion>
   );

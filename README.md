@@ -173,6 +173,19 @@ infraestructura ni necesidad hoy), y las plataformas de pago sin datos
 publicos. scvi-tools no entra en la imagen de celula unica porque arrastra
 PyTorch y no hay GPU.
 
+## Espejo del estado en Convex
+
+Con `CONVEX_URL` y `CONVEX_DEPLOY_KEY` en el `.env` del servidor, Rosa copia
+cada entidad publica del estado a una tabla de Convex (`frontend/convex/`:
+esquema y funciones `espejo:sincronizar`, `espejo:meta`, `espejo:coleccion`,
+`espejo:entidad`, `espejo:hashes`), actualizando solo lo que cambio pocos
+segundos despues de cada mutacion. SQLite sigue siendo la fuente de verdad y
+el unico que escribe; el espejo sirve para leer el estado desde cualquier
+sitio y para que varias personas lo vean a la vez. Estado en Ajustes y en
+`GET /api/espejo`. Despliegue de las funciones: `cd frontend && npx convex
+deploy` con la clave en el entorno. La clave nunca va al estado, al
+navegador ni al repositorio.
+
 Los datasets admiten hasta 200 MB (una matriz de expresion de GEO en formato
 largo ronda los 100 MB). Arrancar Docker Desktop antes de una demostracion con
 datos reales: sin runtime de aislamiento, los analisis quedan en "no ejecutado"

@@ -54,6 +54,15 @@ async def principal() -> None:
 
     bucle = asyncio.get_running_loop()
     almacen.enganchar_bucle(bucle)
+    # Espejo del estado en Convex, si hay clave en .env. Solo lectura remota;
+    # SQLite sigue siendo la fuente de verdad.
+    from rosa.espejo_convex import Espejo
+
+    espejo = Espejo(almacen)
+    app.state.espejo = espejo
+    espejo.arrancar()
+    if espejo.estado["activo"]:
+        print(f"Espejo en Convex activo: {config.CONVEX_URL}")
 
     def parar(*_: object) -> None:
         supervisor.parar()

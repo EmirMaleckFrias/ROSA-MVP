@@ -33,6 +33,9 @@ USER_AGENT = f"Rosa/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
 CLAVE_NCBI = os.environ.get("ROSA_NCBI_KEY", "")
 CLAVE_OPENALEX = os.environ.get("ROSA_OPENALEX_KEY", "")
 CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
+# Espejo del estado en Convex (opcional): URL del deployment y clave de despliegue. Solo en .env.
+CONVEX_URL = os.environ.get("CONVEX_URL", "").rstrip("/")
+CONVEX_DEPLOY_KEY = os.environ.get("CONVEX_DEPLOY_KEY", "")
 
 # Directorio donde se guardan los PDF descargados (texto completo por pagina).
 DIR_PDFS = Path(os.environ.get("ROSA_PDFS", RAIZ / "pdfs"))

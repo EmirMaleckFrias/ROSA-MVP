@@ -32,7 +32,7 @@ import type {
   PreguntaCampana,
   ProcedenciaDataset,
   RevisionHumana,
-  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector } from './tipos';
+  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector, EstadoEspejo } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -525,6 +525,16 @@ export const acciones = {
   resolverHallazgoRegistro: (iteracionId: string, hallazgoId: string, estado: 'atendido' | 'descartado' | 'abierto', respuesta: string) => {
     aplicar((e) => A.resolverHallazgoRegistro(e, iteracionId, hallazgoId, estado, respuesta, QUIEN, Date.now()));
     enviar('resolverHallazgoRegistro', { iteracion_id: iteracionId, hallazgo_id: hallazgoId, estado, respuesta, quien: QUIEN });
+  },
+  /** Estado del espejo del estado en Convex (solo lectura). */
+  estadoEspejo: async (): Promise<EstadoEspejo | null> => {
+    if (modo !== 'servidor') return null;
+    try {
+      const r = await fetch(`${API}/espejo`, { cache: 'no-store' });
+      return r.ok ? ((await r.json()) as EstadoEspejo) : null;
+    } catch {
+      return null;
+    }
   },
   fijarPermisoConector: (nombre: string, nivel: NivelPermisoConector) => {
     aplicar((e) => A.fijarPermisoConector(e, nombre, nivel, QUIEN, Date.now()));

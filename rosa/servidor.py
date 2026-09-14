@@ -181,6 +181,16 @@ def crear_app(almacen: Almacen) -> FastAPI:
         almacen.aplicar("registrarPreguntaBases", {"investigacion_id": investigacion_id, "pregunta": r})
         return {"ok": r.get("error") is None, "resultado": {k: v for k, v in r.items() if k != "consultas"} | {"consultas": len(r.get("consultas", []))}, "version": almacen.version}
 
+    @app.get("/api/espejo")
+    async def espejo_estado() -> dict[str, Any]:
+        """Estado del espejo del estado en Convex (apagado si no hay clave)."""
+        esp = getattr(app.state, "espejo", None)
+        if esp is None:
+            from rosa import espejo_convex
+
+            return {"activo": espejo_convex.activo(), "url": None, "ultimaVersion": None, "sincronizadoEn": None, "entidades": 0, "pendiente": False, "error": None, "envios": 0, "ms": 0}
+        return {k: (v if k != "url" else (v.split("//")[-1] if v else None)) for k, v in esp.estado.items()}
+
     @app.get("/api/skills")
     async def skills_actuales() -> list[dict[str, Any]]:
         from rosa import skills as SK

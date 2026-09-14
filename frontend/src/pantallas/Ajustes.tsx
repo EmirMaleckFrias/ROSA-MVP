@@ -10,7 +10,7 @@ import { sugerenciasDeAutonomia } from '../datos/acciones';
 import type { ClaseAccion, EstadoRosa, NivelAutonomia, PoliticaEsperas } from '../datos/tipos';
 import { IconTrash } from '../componentes/icons';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
-import { Conectores, Politicas, RegistroAprendizaje, RegistroMetodos, Skills } from '../componentes/Rosa2018';
+import { Conectores, EspejoConvex, Politicas, RegistroAprendizaje, RegistroMetodos, Skills } from '../componentes/Rosa2018';
 import { digest, digestComoTexto } from '../lib/digest';
 import { ACCION_ESPERA, ALCANCE, CLASE_ACCION, NIVEL_AUTONOMIA, TIPO_PERMISO } from '../lib/etiquetas';
 import { useTema, type Tema } from '../lib/theme';
@@ -234,6 +234,8 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
       <Conectores conectores={estado.conectores} />
 
       <Skills skills={estado.skills} />
+
+      <EspejoConvex ahora={ahora} />
 
       <Seccion titulo="Avisos" nota="El bucle trabaja cuando nadie mira. Aqui se decide como te enteras, y el resumen diario es el mismo 'mientras no estabas' que ves al entrar.">
         <div className="tarjeta seccion">

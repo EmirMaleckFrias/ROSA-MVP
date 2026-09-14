@@ -118,5 +118,7 @@ siguen activos para cuando entren datos controlados.
 
 - Clasificar las citas de cada hecho del modelo de mundo en apoya, menciona,
   contrasta (campo `citas`, hoy vacio).
-- Rotar el token de Convex que aparecio en el chat.
+- Rotar en el panel de Convex la clave de despliegue que paso por el chat el
+  14 de septiembre (y la anterior), y poner la nueva en `.env`. Despues,
+  decidir si la interfaz lee del espejo cuando el servidor no responde.
 - Las corridas anteriores a septiembre no tienen `arnes` ni `pregunta`.

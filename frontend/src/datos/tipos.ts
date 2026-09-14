@@ -1612,3 +1612,17 @@ export interface SkillCatalogo {
   ruta: string;
   lineas: number;
 }
+
+/** El espejo del estado en Convex: SQLite sigue siendo la fuente de verdad;
+ *  Convex recibe cada entidad publica para leerla desde cualquier sitio. */
+export interface EstadoEspejo {
+  activo: boolean;
+  url: string | null;
+  ultimaVersion: number | null;
+  sincronizadoEn: number | null;
+  entidades: number;
+  pendiente: boolean;
+  error: string | null;
+  envios: number;
+  ms: number;
+}

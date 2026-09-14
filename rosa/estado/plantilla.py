@@ -90,6 +90,7 @@ def estado_inicial() -> dict[str, Any]:
         "evaluaciones": [],
         "permisosConectores": {},
         "skills": [],
+        "conectores": [],
         "relaciones": __import__("rosa.causal", fromlist=["relaciones_iniciales"]).relaciones_iniciales(),
         "artefactos": [],
         "casos": casos_de_control(),

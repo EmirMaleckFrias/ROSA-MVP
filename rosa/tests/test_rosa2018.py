@@ -670,3 +670,26 @@ def test_resolver_hallazgo_del_revisor(al):
 
     t = RR.texto_registro(al.estado, inv, it, al.estado["corridas"][0])
     assert "BUSQUEDAS DE LITERATURA" in t and "HIPOTESIS DE LA INVESTIGACION" in t and "CONSULTAS A BASES ESTRUCTURADAS" in t
+
+
+# -- Espejo en Convex ---------------------------------------------------------------
+
+
+def test_entidades_del_espejo_sin_claves_privadas_y_con_recorte(al):
+    from rosa import espejo_convex as EC
+
+    inv = _inv(al)
+    h = _hip(al, inv)
+    al.mutar(lambda e: next(x for x in e["hipotesis"] if x["id"] == h).update(_secreto="no debe salir", enunciado="x" * 1_000_000) or True)
+    filas = EC.entidades_de(al.estado)
+    cols = {f["coleccion"] for f in filas}
+    assert {"investigaciones", "corridas", "hipotesis", "global", "metodos"} <= cols
+    fh = next(f for f in filas if f["coleccion"] == "hipotesis" and f["id"] == h)
+    assert "_secreto" not in fh["datos"] and fh["truncado"] is True and fh["bytes"] < EC.MAX_BYTES_DOC and "recortado" in fh["datos"]["enunciado"]
+    assert all(f["hash"] and f["id"] for f in filas)
+    fg = next(f for f in filas if f["coleccion"] == "global")
+    assert "politicas" in fg["datos"] and "autonomia" in fg["datos"] and "conectores" in fg["datos"]
+    # Sin clave, el espejo esta apagado y no rompe nada.
+    from rosa import config
+
+    assert isinstance(EC.activo(), bool) and (EC.activo() == bool(config.CONVEX_URL and config.CONVEX_DEPLOY_KEY))
