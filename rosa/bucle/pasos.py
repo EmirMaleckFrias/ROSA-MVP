@@ -28,6 +28,7 @@ import dspy
 
 from rosa import acuerdo_dorado as ACU
 from rosa import politicas
+from rosa import sesgo as SESGO
 from rosa import config, politicas
 from rosa import causal as CAUSAL
 from rosa import conectores as CON
@@ -331,8 +332,24 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         await asyncio.gather(*(puntuar(a) for a in articulos if a.get("titulo")))
         puntuados.sort(key=lambda x: -x[0])
         relevantes = [x for x in puntuados if x[0] >= RELEVANCIA_MINIMA]
+        descartados = [x for x in puntuados if x[0] < RELEVANCIA_MINIMA]
         resultado["cribados"] = len(relevantes)
-        pista.resultado(f"Cribado: {len(relevantes)} de {len(puntuados)} relevantes (puntuacion >= {RELEVANCIA_MINIMA}); descartados: " + ", ".join(f"{a['referencia']} ({p})" for p, a, _ in puntuados if p < RELEVANCIA_MINIMA)[:300])
+        pista.resultado(f"Cribado: {len(relevantes)} de {len(puntuados)} relevantes (puntuacion >= {RELEVANCIA_MINIMA}); descartados: " + ", ".join(f"{a['referencia']} ({p})" for p, a, _ in descartados)[:300])
+
+        def anotar_cribado(e: dict[str, Any]) -> bool:
+            # Cada excluido con su motivo: es el item 16b de PRISMA 2020 y la caja de
+            # exclusiones de la herramienta automatica del diagrama.
+            c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
+            b = c["busqueda"]
+            b["traidos"] = int(b.get("traidos") or 0) + len(puntuados)
+            ex = b.setdefault("excluidos", [])
+            for p_, a_, motivo_ in descartados:
+                ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base})
+            if len(ex) > 600:
+                del ex[: len(ex) - 600]
+            return True
+
+        ctx.mutar(anotar_cribado, "cribado")
 
         for i, (puntuacion, a, motivo) in enumerate(relevantes):
             if pista.detenida():
@@ -723,6 +740,11 @@ def _texto_mision(inv: dict[str, Any]) -> str:
     m = inv.get("mision") or {}
     memoria = inv.get("memoria") or []
     texto_mem = (" Memoria del proyecto (hechos fijados por las personas): " + " | ".join(x["texto"] for x in memoria[:12])) if memoria else ""
+    operativo = inv.get("conocimientoOperativo") or []
+    if operativo:
+        # Lo que el laboratorio sabe y no esta en ningun articulo: protocolos poco
+        # fiables, lotes que fallan, artefactos de medida. Clase de evidencia propia.
+        texto_mem += " Conocimiento operativo del laboratorio (no publicado; clase conocimiento_operativo): " + " | ".join(f"[{x['tipo']}] {x['texto']}" for x in operativo[:12])
     if not m:
         return "Sin mision estructurada todavia." + texto_mem
     return f"Poblacion: {m.get('poblacion') or 'sin fijar'}. Etapa: {m.get('etapa') or 'sin fijar'}. Celula o tejido: {m.get('celulaTejido') or 'sin fijar'}. Mecanismo: {m.get('mecanismo') or 'sin fijar'}. Tipo de intervencion: {m.get('tipoIntervencion') or 'sin fijar'}. Capacidades del laboratorio: {'; '.join(m.get('capacidadesLaboratorio', [])) or 'sin declarar'}." + texto_mem
@@ -755,6 +777,63 @@ async def _completar_tarjeta(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -
     ctx.mutar(fn, "tarjeta")
 
 
+MAX_FUENTES_SESGO = 3
+
+
+def _fuentes_de_hipotesis(ctx: Ctx, h: dict[str, Any]) -> list[dict[str, Any]]:
+    """Las fuentes privadas de la corrida que respaldan la hipotesis."""
+    privadas = ctx.fuentes()
+    ids = [f["id"] for f in (h.get("procedencia") or {}).get("fuentes", [])]
+    return [privadas[i] for i in ids if i in privadas]
+
+
+def _texto_fuente_para_sesgo(f: dict[str, Any]) -> str:
+    partes = [f.get("titulo") or "", f.get("resumen") or f.get("fragmento") or ""]
+    partes += [fr.get("texto", "") for fr in (f.get("fragmentos") or [])[:8]]
+    return "\n".join(x for x in partes if x)[:9000]
+
+
+async def _evaluar_sesgo_fuentes(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
+    """Riesgo de sesgo por instrumento para las fuentes primarias de la
+    hipotesis que aun no lo tienen (hasta MAX_FUENTES_SESGO por pasada, las
+    mas relevantes). Se guarda en la fuente privada y en la copia publica."""
+    pendientes = []
+    for f in _fuentes_de_hipotesis(ctx, h):
+        if f.get("riesgoSesgo") or f.get("retraccion") == "retractado":
+            continue
+        clave = SESGO.instrumento_para(f.get("tipoEstudio"), (f.get("titulo") or "") + " " + (f.get("resumen") or ""))
+        if clave:
+            pendientes.append((f, clave))
+    pendientes.sort(key=lambda x: -x[0].get("relevancia", 0))
+    for f, clave in pendientes[:MAX_FUENTES_SESGO]:
+        try:
+            pred = await ctx.llamar("juez", ctx.programas.senalizacion, instrumento_y_preguntas=SESGO.texto_preguntas(clave), referencia=f.get("referencia", ""), texto=K.como_dato(_texto_fuente_para_sesgo(f)))
+            respuestas = [{"id": r.id, "respuesta": r.respuesta, "cita": r.cita} for r in pred.respuestas]
+        except PresupuestoAgotado:
+            raise
+        except Exception as ex:  # noqa: BLE001
+            if pista:
+                pista.error(f"Riesgo de sesgo de {f.get('referencia', '')[:40]} sin evaluar: {str(ex)[:100]}")
+            continue
+        evaluacion = SESGO.evaluar(clave, respuestas, ctx.modelos.juez.model, P.ahora_ms())
+        compacta = {k: evaluacion[k] for k in ("instrumento", "clave", "version", "global", "resumen", "fecha", "modelo")} | {"dominios": [{"id": d["id"], "nombre": d["nombre"], "juicio": d["juicio"], "motivo": d["motivo"]} for d in evaluacion["dominios"]]}
+        if pista:
+            pista.resultado(f"{f.get('referencia', '')[:50]}: {evaluacion['resumen'][:160]}")
+
+        def fn(e: dict[str, Any], fid=f["id"], ev=evaluacion, comp=compacta) -> bool:
+            c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
+            priv = c.get("_fuentes", {}).get(fid)
+            if priv is not None:
+                priv["riesgoSesgo"] = ev
+            for x in e["hipotesis"]:
+                for fu in (x.get("procedencia") or {}).get("fuentes", []):
+                    if fu.get("id") == fid:
+                        fu["riesgoSesgo"] = comp
+            return True
+
+        ctx.mutar(fn, "riesgo_sesgo")
+
+
 async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: Pista | None, profundidad: int = 0) -> str:
     """El Hypothesis Killer sobre la version actual de la hipotesis. Devuelve
     la decision. Si decide reformular, reformula (version nueva) y vuelve a
@@ -772,6 +851,11 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             pista.nota(f"Las bases no respondieron para la diana: {str(ex)[:100]}")
     h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
     deterministas = K.comprobaciones_deterministas(h, e)
+    # Riesgo de sesgo por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE):
+    # el modelo responde las preguntas de senalizacion de cada fuente primaria y
+    # el veredicto lo pone la regla del instrumento. Sustituye al juicio libre.
+    await _evaluar_sesgo_fuentes(ctx, h, pista)
+    deterministas = [c for c in deterministas if c["comprobacion"] != "sesgo_evidencia"] + [SESGO.comprobacion_sesgo(_fuentes_de_hipotesis(ctx, h))]
     # El comprobador de supuestos causales entra como una comprobacion mas: si
     # la identificacion no cierra, direccion_causal queda "no comprobable" con
     # los supuestos que faltan (el juez o un experimento los resuelven).

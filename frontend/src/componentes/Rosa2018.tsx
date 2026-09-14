@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, CasoDorado, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
+import type { CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -669,6 +669,11 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
         {run.auditoria && (
           <Chip tono={VEREDICTO_AUDITORIA[run.auditoria.veredicto].tono} title={run.auditoria.motivo}>
             Auditor: {VEREDICTO_AUDITORIA[run.auditoria.veredicto].etiqueta}
+          </Chip>
+        )}
+        {run.ensayoSeco && run.ensayoSeco.estado !== 'no_hecho' && (
+          <Chip tono={run.ensayoSeco.estado === 'completado' ? 'ok' : 'aviso'} title={`El codigo se corrio antes sobre ${run.ensayoSeco.filas} filas sinteticas con la forma del dataset (${run.ensayoSeco.intentos} intento${run.ensayoSeco.intentos === 1 ? '' : 's'}). ${run.ensayoSeco.error || 'Sus cifras no cuentan: solo dice si el codigo corre sobre esa forma.'}`}>
+            Ensayo en seco: {run.ensayoSeco.estado === 'completado' ? 'corre' : run.ensayoSeco.estado.replace('_', ' ')}
           </Chip>
         )}
         <span className="meta">
@@ -2147,6 +2152,46 @@ export function IntegridadRegistro() {
           </span>
         </div>
       )}
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Conocimiento operativo del laboratorio (clase de evidencia propia)
+
+const TIPO_OPERATIVO: Record<ConocimientoOperativo['tipo'], string> = { protocolo: 'Protocolo', reactivo: 'Reactivo o lote', medicion: 'Medicion o artefacto', muestra: 'Muestras', otro: 'Otro' };
+
+export function ConocimientoOperativoDelLaboratorio({ inv }: { inv: Investigacion }) {
+  const [texto, setTexto] = useState('');
+  const [tipo, setTipo] = useState<ConocimientoOperativo['tipo']>('protocolo');
+  const lista = inv.conocimientoOperativo ?? [];
+  return (
+    <Seccion titulo="Conocimiento operativo del laboratorio" nota="Lo que el laboratorio sabe y nunca se publica: que protocolo no es fiable, que lote de anticuerpo da fondo, que medicion tiene un artefacto conocido. Entra como evidencia de clase 'conocimiento operativo', con su estatus: Rosa lo lee al proponer experimentos y lo cita en el dossier, pero no lo mezcla con la literatura ni lo cuenta como observacion.">
+      {lista.length === 0 && <p className="meta">Nada registrado todavia.</p>}
+      <ul className="lista-plana">
+        {lista.map((x) => (
+          <li key={x.id}>
+            <Chip tono="borde">{TIPO_OPERATIVO[x.tipo]}</Chip> {x.texto} <span className="meta">({x.quien}, {new Date(x.fecha).toLocaleDateString('es')})</span>{' '}
+            <button type="button" className="btn btn-fantasma btn-s" onClick={() => acciones.quitarConocimientoOperativo(inv.id, x.id)} aria-label="Quitar">
+              Quitar
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="dirigir">
+        <select className="entrada entrada-s" style={{ width: 'auto' }} value={tipo} onChange={(e) => setTipo(e.target.value as ConocimientoOperativo['tipo'])} aria-label="Tipo de conocimiento operativo">
+          {(Object.keys(TIPO_OPERATIVO) as ConocimientoOperativo['tipo'][]).map((t) => (
+            <option key={t} value={t}>
+              {TIPO_OPERATIVO[t]}
+            </option>
+          ))}
+        </select>
+        <input className="entrada" value={texto} placeholder="El lote 2024-B del anticuerpo anti-GFAP da fondo alto en plasma" onChange={(e) => setTexto(e.target.value)} aria-label="Conocimiento operativo" />
+        <button type="button" className="btn" disabled={texto.trim().length < 8} onClick={() => { acciones.anadirConocimientoOperativo(inv.id, texto.trim(), tipo); setTexto(''); }}>
+          Registrar
+        </button>
+      </div>
     </Seccion>
   );
 }

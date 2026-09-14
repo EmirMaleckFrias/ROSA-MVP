@@ -262,6 +262,7 @@ class Almacen:
                         "extraida": bool(f.get("extraida")),
                         "iteracion": f.get("iteracion", 0),
                         "consultas": list(f.get("consultas", [])),
+                        "riesgoSesgo": ({"instrumento": f["riesgoSesgo"].get("instrumento"), "global": f["riesgoSesgo"].get("global"), "dominios": [{"id": d["id"], "nombre": d["nombre"], "juicio": d["juicio"]} for d in f["riesgoSesgo"].get("dominios", [])]} if isinstance(f.get("riesgoSesgo"), dict) else None),
                     }
                 )
             afirmaciones = [
@@ -316,6 +317,16 @@ class Almacen:
 
 
 def _migrar(estado: dict[str, Any]) -> None:
+    for c in estado.get("corridas", []):
+        b = c.setdefault("busqueda", {})
+        b.setdefault("excluidos", [])
+        b.setdefault("traidos", 0)
+    for inv in estado.get("investigaciones", []):
+        inv.setdefault("conocimientoOperativo", [])
+        if "condicionParadaAutomatizada" not in inv:
+            from rosa import parada as PARADA
+
+            inv["condicionParadaAutomatizada"] = PARADA.partes_automatizadas(inv.get("condicionParada", ""))
     _migrar_fragmentos(estado)
     _migrar_consultas(estado)
     _migrar_conclusiones(estado)
@@ -534,6 +545,8 @@ _TABLA: dict[str, Callable] = {
     "registrarEvaluacion": A.registrar_evaluacion,
     "registrarSelloExterno": A.registrar_sello_externo,
     "etiquetarComprobacion": A.etiquetar_comprobacion,
+    "anadirConocimientoOperativo": A.anadir_conocimiento_operativo,
+    "quitarConocimientoOperativo": A.quitar_conocimiento_operativo,
     "fijarPermisoConector": A.fijar_permiso_conector,
     "resolverHallazgoRegistro": A.resolver_hallazgo_registro,
     "anadirMemoria": A.anadir_memoria,

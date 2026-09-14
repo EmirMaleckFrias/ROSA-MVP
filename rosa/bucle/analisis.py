@@ -105,6 +105,57 @@ def _cambiar_semilla(codigo: str, semilla: int, nueva: int) -> str:
     return "\n".join(lineas) + ("\n" if codigo.endswith("\n") else "")
 
 
+def _actualizar_run(e: dict[str, Any], run_id: str, campos: dict[str, Any]) -> bool:
+    r = next((x for x in e.get("ejecuciones", []) if x["id"] == run_id), None)
+    if not r:
+        return False
+    r.update(campos)
+    return True
+
+
+async def _ensayo_en_seco(ctx, plan: dict[str, Any], codigo: str, ruta: Path, esquema: str, run_id: str, entorno: str, ficheros: dict[str, str] | None, pista: Pista) -> tuple[str, dict[str, Any]]:
+    """Corre el codigo sobre datos sinteticos con la forma del dataset; si
+    falla tecnicamente, intenta repararlo ahi (hasta MAX_REPARACIONES) antes
+    de ir a los datos reales. Devuelve (codigo posiblemente reparado, registro)."""
+    import tempfile
+
+    from rosa import sintetico as SINT
+
+    registro: dict[str, Any] = {"estado": "no_hecho", "intentos": 0, "error": "", "filas": 0}
+    try:
+        destino = Path(tempfile.mkdtemp(prefix="sintetico-")) / f"sintetico-{ruta.name}"
+        perfil = await asyncio.to_thread(SINT.generar, ruta, destino, SINT.FILAS_POR_DEFECTO, plan["semilla"])
+        registro["filas"] = perfil["filas"]
+    except Exception as ex:  # noqa: BLE001
+        registro.update(estado="no_hecho", error=f"No se pudo fabricar la tabla sintetica: {str(ex)[:160]}")
+        pista.nota(registro["error"])
+        return codigo, registro
+    for intento in range(MAX_REPARACIONES + 1):
+        registro["intentos"] = intento + 1
+        pista.accion(f"Ensayo en seco sobre {registro['filas']} filas sinteticas, intento {intento + 1}")
+        r = await asyncio.to_thread(X.ejecutar, codigo, destino, plan["semilla"], True, f"{run_id}-seco{intento}", entorno, ficheros)
+        if r.estado == "completado":
+            registro.update(estado="completado", error="")
+            pista.resultado("Ensayo en seco completado: el codigo corre sobre la forma del dataset (las cifras sinteticas no cuentan)")
+            break
+        if r.estado in ("no_ejecutado", "tiempo_agotado"):
+            registro.update(estado=r.estado, error=r.error[-300:])
+            pista.nota(f"Ensayo en seco {r.estado}: {r.error[-160:]}")
+            break
+        registro.update(estado="error_tecnico", error=(r.error or r.salida)[-300:])
+        if intento < MAX_REPARACIONES:
+            pista.error(f"El ensayo en seco fallo: {r.error[-200:]}. Se repara antes de tocar los datos reales")
+            try:
+                p2 = await ctx.llamar("cerebro", ctx.programas.reparar, plan=_texto_plan(plan), codigo=codigo, error=r.error[-1500:] or r.salida[-800:], esquema_datos=esquema)
+                codigo = _limpiar_codigo(p2.codigo_corregido)
+            except PresupuestoAgotado:
+                raise
+            except Exception as ex:  # noqa: BLE001
+                pista.error(f"No se pudo reparar en seco: {str(ex)[:120]}")
+                break
+    return codigo, registro
+
+
 def _verificar_congelado(plan: dict[str, Any], ruta: Path) -> str | None:
     """None si el plan y los datos son los congelados; si no, el motivo."""
     if plan.get("hashPlan") and P.hash_plan(plan) != plan["hashPlan"]:
@@ -147,6 +198,13 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
     if bloqueo:
         pista.error(bloqueo)
         res = X.Resultado(estado="no_ejecutado", runtime=runtime, error=bloqueo)
+    # Ensayo en seco: el mismo codigo sobre una tabla sintetica con la forma del
+    # dataset (columnas, tipos, rangos) antes de tocar los datos reales. Detecta
+    # variables mal nombradas o pruebas inaplicables sin gastar la ejecucion real
+    # ni el presupuesto de reparacion sobre ella. Sus cifras no cuentan.
+    if not bloqueo and not sintetico:
+        codigo, run["ensayoSeco"] = await _ensayo_en_seco(ctx, plan, codigo, ruta, esquema, run["id"], entorno, ficheros, pista)
+        ctx.mutar(lambda e: _actualizar_run(e, run["id"], {"ensayoSeco": run["ensayoSeco"], "codigo": codigo}), "ensayo_seco")
     for intento in range(0 if bloqueo else MAX_REPARACIONES + 1):
         pista.accion(f"Ejecutando en el sandbox ({runtime}), intento {intento + 1}")
         res = await asyncio.to_thread(X.ejecutar, codigo, ruta, plan["semilla"], sintetico, run["id"], entorno, ficheros)

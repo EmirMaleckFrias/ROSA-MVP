@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import type { Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
-import { FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
+import { ConocimientoOperativoDelLaboratorio, FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
 import { CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { partesAutomatizadas, textoAutomatizacion } from '../lib/parada';
@@ -177,6 +177,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       <Jerarquia inv={inv} corridas={corridas} />
 
       <MemoriaDelProyecto inv={inv} />
+      <ConocimientoOperativoDelLaboratorio inv={inv} />
 
       <Seccion
         titulo="Configuración que Rosa lee"

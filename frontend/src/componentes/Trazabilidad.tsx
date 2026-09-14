@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Corrida, TipoAfirmacion } from '../datos/tipos';
-import { TIPO_AFIRMACION, tipoAfirmacion, TIPO_ESTUDIO, TIPO_FUENTE, VEREDICTO } from '../lib/etiquetas';
+import { RIESGO_SESGO, TIPO_AFIRMACION, tipoAfirmacion, TIPO_ESTUDIO, TIPO_FUENTE, VEREDICTO } from '../lib/etiquetas';
 import { construirArbol, enlaceDe, iteracionesDe, type Evidencia, type FiltroVeredicto, type NodoFuente } from '../lib/evidencia';
 import { formatearEntero } from '../lib/formato';
 import { Chip, Seccion } from './piezas';
@@ -194,6 +194,11 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
           <span className="arbol-detalle">{f.titulo}</span>
         </span>
         <span className="arbol-cuentas">
+          {f.riesgoSesgo && f.riesgoSesgo.global !== 'no_aplica' && (
+            <Chip tono={RIESGO_SESGO[f.riesgoSesgo.global]?.tono ?? 'borde'} title={`${f.riesgoSesgo.instrumento}: ${f.riesgoSesgo.dominios.map((d) => `${d.id} ${d.nombre}: ${d.juicio.replace('_', ' ')}`).join('; ')}. Veredicto por regla desde las preguntas de senalizacion.`}>
+              {f.riesgoSesgo.instrumento} {RIESGO_SESGO[f.riesgoSesgo.global]?.etiqueta ?? f.riesgoSesgo.global}
+            </Chip>
+          )}
           {f.retraccion === 'retractado' && <Chip tono="mal">Retractado</Chip>}
           {f.retraccion === 'preocupacion' && <Chip tono="aviso">Expresion de preocupacion</Chip>}
           {f.retraccion === 'erratum' && <Chip tono="aviso">Erratum</Chip>}

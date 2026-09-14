@@ -38,7 +38,7 @@ export type ClasificacionDatos = 'publico' | 'interno' | 'personas';
 /** Clase de evidencia del libro de procedencia (ROSA2018, etapa 1): una
  *  observacion medida, un dato derivado de otro, lo que afirma un articulo,
  *  o una prediccion de un modelo. No se suman entre si. */
-export type ClaseEvidencia = 'observacion_original' | 'derivado' | 'literatura' | 'prediccion';
+export type ClaseEvidencia = 'observacion_original' | 'derivado' | 'literatura' | 'prediccion' | 'conocimiento_operativo';
 
 /** Una columna del diccionario de datos. */
 export interface ColumnaDiccionario {
@@ -227,6 +227,8 @@ export interface Investigacion {
   /** Memoria del proyecto: hechos cortos y estables fijados por personas que
    *  Rosa lee en cada mision (preferencias, restricciones, decisiones). */
   memoria?: MemoriaProyecto[];
+  /** Conocimiento tacito del laboratorio, con clase de evidencia propia. */
+  conocimientoOperativo?: ConocimientoOperativo[];
   /** Preguntas con herramientas hechas desde la interfaz, con sus consultas. */
   preguntasABases?: PreguntaABases[];
   puertaReproduccion?: PuertaReproduccion;
@@ -306,6 +308,46 @@ export interface FlujoBusqueda {
   textoCompleto: number;
   usados: number;
   consultas: ConsultaBusqueda[];
+  /** Registros traidos para cribar (records_screened de PRISMA 2020). */
+  traidos?: number;
+  /** Excluidos en el cribado con su motivo (item 16b de PRISMA 2020). */
+  excluidos?: ExcluidoCribado[];
+}
+
+export interface ExcluidoCribado {
+  referencia: string;
+  titulo?: string;
+  doi?: string | null;
+  pmid?: string | null;
+  relevancia: number;
+  motivo: string;
+  iteracion: number;
+  consulta: string;
+  base?: string;
+}
+
+/** Riesgo de sesgo por instrumento validado (RoB 2, ROBINS-I V2, QUADAS-2,
+ *  ROBIS, SYRCLE): el modelo responde las preguntas de senalizacion y el
+ *  juicio por dominio y global lo pone la regla del instrumento. */
+export interface RiesgoSesgo {
+  instrumento: string;
+  clave?: string;
+  version?: string;
+  global: 'bajo' | 'algunas_dudas' | 'alto' | 'no_aplica';
+  resumen?: string;
+  fecha?: number;
+  modelo?: string;
+  dominios: { id: string; nombre: string; juicio: 'bajo' | 'algunas_dudas' | 'alto' | 'no_aplica'; motivo?: string }[];
+}
+
+/** Lo que el laboratorio sabe y no esta en ningun articulo. */
+export interface ConocimientoOperativo {
+  id: Id;
+  texto: string;
+  tipo: 'protocolo' | 'reactivo' | 'medicion' | 'muestra' | 'otro';
+  quien: string;
+  fecha: number;
+  clase: 'conocimiento_operativo';
 }
 
 /** Estimacion de cobertura por tema (curva de descubrimiento, como Undermind):
@@ -666,6 +708,8 @@ export interface Fuente {
   retraccionComprobadaEn: number | null;
   anio: number | null;
   tipoEstudio: TipoEstudio;
+  /** Riesgo de sesgo por instrumento, cuando el Killer lo evaluo. */
+  riesgoSesgo?: RiesgoSesgo | null;
   /** Nivel potencial de evidencia, 1 (mas bajo) a 5 (mas alto). No es calidad real. */
   nivelEvidencia: 1 | 2 | 3 | 4 | 5;
   /** Se leyo el texto completo o solo el resumen. */
@@ -1193,6 +1237,9 @@ export interface Ejecucion {
   controlNegativo: Record<string, string>;
   /** Corridas repetidas con otras semillas, si el plan tiene aleatoriedad. */
   repeticiones: { semilla: number; resultados: Record<string, string> }[];
+  /** Ensayo en seco: el codigo corrido antes sobre una tabla sintetica con la
+   *  forma del dataset. Sus cifras no cuentan; solo dice si el codigo corre. */
+  ensayoSeco?: { estado: 'no_hecho' | 'completado' | 'error_tecnico' | 'no_ejecutado' | 'tiempo_agotado'; intentos: number; error: string; filas: number };
   interpretacion: { estado: InterpretacionEjecucion; resumen: string } | null;
   /** La llena el auditor: si el numero es plausible (unidades, escala, n). */
   plausibilidadVerificada: boolean | null;

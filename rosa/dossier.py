@@ -178,6 +178,14 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L.append("Capacidades declaradas del laboratorio: " + "; ".join(mision["capacidadesLaboratorio"]))
 
     # 7. Riesgos y aprendizaje
+    evaluadas = [f for f in h["procedencia"]["fuentes"] if isinstance(f.get("riesgoSesgo"), dict)]
+    if evaluadas:
+        L += ["", "### Riesgo de sesgo por instrumento (veredicto por regla desde las preguntas de senalizacion)"]
+        L += [f"- {f.get('referencia', f.get('id'))}: {f['riesgoSesgo'].get('instrumento')} riesgo global {str(f['riesgoSesgo'].get('global', '')).replace('_', ' ')}; " + ", ".join(f"{d['id']} {d['juicio'].replace('_', ' ')}" for d in f['riesgoSesgo'].get('dominios', [])) for f in evaluadas[:12]]
+    operativo = (inv or {}).get("conocimientoOperativo") or []
+    if operativo:
+        L += ["", "### Conocimiento operativo del laboratorio (no publicado; clase conocimiento_operativo)"]
+        L += [f"- [{x['tipo']}] {x['texto']} ({x['quien']}, {_fecha(x['fecha'])})" for x in operativo[:15]]
     L += ["", "## 7. Riesgos, alternativas y que se aprende con cada resultado"]
     if tarjeta.get("riesgos"):
         L += [f"- Riesgo: {r}" for r in tarjeta["riesgos"]]

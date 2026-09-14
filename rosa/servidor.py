@@ -183,6 +183,25 @@ def crear_app(almacen: Almacen) -> FastAPI:
         """Boton "Sellar con un tercero": pide (o repite) el sello del prerregistro."""
         return await _sellar_prerregistro(hipotesis_id)
 
+    @app.get("/api/corridas/{corrida_id}/prisma")
+    async def prisma_de(corrida_id: str) -> dict[str, Any]:
+        """El flujo de busqueda en PRISMA 2020 (variables oficiales del diagrama,
+        items 6, 7, 8, 16a y 16b), la extension viva y la declaracion de la IA,
+        con el Markdown listo para un manuscrito. Sin ningun modelo."""
+        from rosa import prisma as PRISMA
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                c = next((x for x in almacen.estado["corridas"] if x["id"] == corrida_id), None)
+                if not c:
+                    return None
+                return PRISMA.informe(almacen.estado, c, almacen.llamadas_de(corrida_id, 5000), P.ahora_ms())
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Corrida desconocida")
+        return r
+
     @app.get("/api/registro/integridad")
     async def integridad() -> dict[str, Any]:
         """Recorre la cadena de hashes del registro de acciones."""

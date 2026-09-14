@@ -612,6 +612,32 @@ def registrar_sello_externo(e: Estado, hipotesis_id: str, sello: dict, ahora: in
     return True
 
 
+TIPOS_CONOCIMIENTO_OPERATIVO = ("protocolo", "reactivo", "medicion", "muestra", "otro")
+
+
+def anadir_conocimiento_operativo(e: Estado, investigacion_id: str, texto: str, tipo: str, quien: str, ahora: int) -> bool:
+    """Lo que el laboratorio sabe y nunca se escribe (que protocolo no es
+    fiable, que lote de anticuerpo falla, que medicion tiene un artefacto).
+    Entra como evidencia de clase `conocimiento_operativo`, con su propio
+    estatus: Rosa lo lee al planificar experimentos y lo cita en el dossier,
+    pero no lo mezcla con la literatura ni lo cuenta como observacion."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    t = (texto or "").strip()
+    if not inv or len(t) < 8 or tipo not in TIPOS_CONOCIMIENTO_OPERATIVO:
+        return False
+    inv.setdefault("conocimientoOperativo", []).append({"id": P.nuevo_id("op"), "texto": t[:1200], "tipo": tipo, "quien": (quien or "").strip() or "persona", "fecha": ahora, "clase": "conocimiento_operativo"})
+    return True
+
+
+def quitar_conocimiento_operativo(e: Estado, investigacion_id: str, id_: str) -> bool:
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv:
+        return False
+    antes = len(inv.get("conocimientoOperativo") or [])
+    inv["conocimientoOperativo"] = [x for x in inv.get("conocimientoOperativo") or [] if x["id"] != id_]
+    return len(inv["conocimientoOperativo"]) != antes
+
+
 def _modelo_juez() -> str:
     from rosa import gateway
 

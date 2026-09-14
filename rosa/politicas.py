@@ -59,7 +59,7 @@ DECISIONES_KILLER = ("avanzar", "reformular", "suspender", "descartar_en_context
 
 # Clases de evidencia del libro de procedencia. Cada afirmacion y cada dato
 # llevan una; no se mezclan en el mismo recuento.
-CLASES_EVIDENCIA = ("observacion_original", "derivado", "literatura", "prediccion")
+CLASES_EVIDENCIA = ("observacion_original", "derivado", "literatura", "prediccion", "conocimiento_operativo")
 
 # Resultados que puede devolver el laboratorio. Cada uno tiene una accion
 # distinta en el aprendizaje (ver `rosa/bucle/corrida.py`).

@@ -14,6 +14,7 @@
 
 import { useSyncExternalStore } from 'react';
 import * as A from './acciones';
+import { descargar } from '../componentes/piezas';
 import { estadoDeMuestra } from './muestra';
 import { iniciarSimulacion } from './simulacion';
 import type {
@@ -32,7 +33,7 @@ import type {
   PreguntaCampana,
   ProcedenciaDataset,
   RevisionHumana,
-  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector, EstadoEspejo } from './tipos';
+  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector, EstadoEspejo, ConocimientoOperativo } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -686,6 +687,29 @@ export const acciones = {
       if (!r.ok) return false;
       const d = (await r.json()) as { ok?: boolean };
       return Boolean(d.ok);
+    } catch {
+      return false;
+    }
+  },
+  anadirConocimientoOperativo: (investigacionId: string, texto: string, tipo: ConocimientoOperativo['tipo']) => {
+    aplicar((e) => A.anadirConocimientoOperativo(e, investigacionId, texto, tipo, QUIEN, Date.now()));
+    enviar('anadirConocimientoOperativo', { investigacion_id: investigacionId, texto, tipo, quien: QUIEN });
+  },
+  quitarConocimientoOperativo: (investigacionId: string, id: string) => {
+    aplicar((e) => A.quitarConocimientoOperativo(e, investigacionId, id));
+    enviar('quitarConocimientoOperativo', { investigacion_id: investigacionId, id_: id });
+  },
+  /** Descarga el flujo PRISMA 2020 de una corrida (JSON y Markdown). */
+  exportarPrisma: async (corridaId: string): Promise<boolean> => {
+    if (modo !== 'servidor') return false;
+    try {
+      const r = await fetch(`${API}/corridas/${encodeURIComponent(corridaId)}/prisma`, { cache: 'no-store', headers: cabeceras(false) });
+      if (!r.ok) return false;
+      const d = (await r.json()) as { markdown: string };
+      const fecha = new Date().toISOString().slice(0, 10);
+      descargar(`rosa-prisma2020-${corridaId}-${fecha}.md`, d.markdown, 'text/markdown;charset=utf-8');
+      descargar(`rosa-prisma2020-${corridaId}-${fecha}.json`, JSON.stringify({ ...d, markdown: undefined }, null, 1), 'application/json');
+      return true;
     } catch {
       return false;
     }

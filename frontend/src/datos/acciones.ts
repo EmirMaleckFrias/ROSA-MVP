@@ -46,7 +46,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado } from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado, ConocimientoOperativo } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -693,6 +693,19 @@ export function registrarProtocoloReal(estado: EstadoRosa, hipotesisId: string, 
       procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} protocolo real registrado por ${quien}${pr.desviaciones ? '; con desviaciones' : '; sin desviaciones declaradas'}`] },
     })),
   };
+}
+
+export function anadirConocimientoOperativo(estado: EstadoRosa, investigacionId: string, texto: string, tipo: ConocimientoOperativo['tipo'], quien: string, ahora: number): EstadoRosa {
+  const t = texto.trim();
+  if (t.length < 8) return estado;
+  return {
+    ...estado,
+    investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, conocimientoOperativo: [...(i.conocimientoOperativo ?? []), { id: `op-${ahora.toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, texto: t.slice(0, 1200), tipo, quien: quien.trim() || 'persona', fecha: ahora, clase: 'conocimiento_operativo' as const }] } : i)),
+  };
+}
+
+export function quitarConocimientoOperativo(estado: EstadoRosa, investigacionId: string, id: string): EstadoRosa {
+  return { ...estado, investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, conocimientoOperativo: (i.conocimientoOperativo ?? []).filter((x) => x.id !== id) } : i)) };
 }
 
 /** Una persona cualificada etiqueta una comprobacion del Killer (conjunto dorado). Mismo criterio que rosa/estado/acciones.py. */

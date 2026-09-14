@@ -354,9 +354,14 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
         titulo="Busqueda de la corrida"
         nota="El flujo de la busqueda (identificados, cribados, leidos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
         acciones={
-          <button type="button" className="btn btn-fantasma btn-s" onClick={() => setVerBusqueda((v) => !v)}>
-            {verBusqueda ? 'Ocultar' : 'Ver'}
-          </button>
+          <div className="acciones">
+            <button type="button" className="btn btn-s" title="Descarga el flujo en PRISMA 2020 (variables oficiales del diagrama, items 6, 7, 8, 16a y 16b), la extension para revisiones vivas y la declaracion de la IA usada, en JSON y en Markdown. Sin ningun modelo: sale del registro." onClick={() => void acciones.exportarPrisma(corrida.id)}>
+              Exportar PRISMA 2020
+            </button>
+            <button type="button" className="btn btn-fantasma btn-s" onClick={() => setVerBusqueda((v) => !v)}>
+              {verBusqueda ? 'Ocultar' : 'Ver'}
+            </button>
+          </div>
         }
       >
         <div className="prisma">

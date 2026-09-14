@@ -353,6 +353,7 @@ export const CLASE_EVIDENCIA: Record<ClaseEvidencia, { etiqueta: string; nota: s
   derivado: { etiqueta: 'Derivado', nota: 'Calculado a partir de otros datos por codigo auditado.' },
   literatura: { etiqueta: 'Literatura', nota: 'Lo que afirma una fuente publicada.' },
   prediccion: { etiqueta: 'Prediccion', nota: 'Salida de un modelo o dato sintetico. Nunca cuenta como observacion.' },
+  conocimiento_operativo: { etiqueta: 'Conocimiento operativo', nota: 'Lo que el laboratorio sabe y no esta publicado (protocolos, lotes, artefactos). No se mezcla con la literatura ni cuenta como observacion.' },
 };
 
 export const ESTADO_EJECUCION: Record<Ejecucion['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
@@ -572,4 +573,12 @@ export const CLASE_HALLAZGO_REGISTRO: Record<string, string> = {
   identificador_no_coincide: 'Identificador que no coincide',
   paso_incompleto: 'Paso del plan incompleto',
   conclusion_no_sigue: 'La conclusion no se sigue del metodo',
+};
+
+/** Juicios de riesgo de sesgo por instrumento (RoB 2 y familia). */
+export const RIESGO_SESGO: Record<string, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' }> = {
+  bajo: { etiqueta: 'riesgo bajo', tono: 'ok' },
+  algunas_dudas: { etiqueta: 'algunas dudas', tono: 'aviso' },
+  alto: { etiqueta: 'riesgo alto', tono: 'mal' },
+  no_aplica: { etiqueta: 'no aplica', tono: 'borde' },
 };

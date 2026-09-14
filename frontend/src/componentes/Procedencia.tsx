@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Fuente, Hipotesis } from '../datos/tipos';
-import { NIVEL_EVIDENCIA, TIPO_ESTUDIO, TIPO_FUENTE } from '../lib/etiquetas';
+import { NIVEL_EVIDENCIA, TIPO_ESTUDIO, TIPO_FUENTE, RIESGO_SESGO } from '../lib/etiquetas';
 import { aBibtex, aCsv, aRis } from '../lib/exportar';
 import { fechaCorta, tiempoRelativo } from '../lib/formato';
 import { IconExternal, IconX } from './icons';
@@ -50,6 +50,11 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
       <header>
         <span className="fuente-pagina">
           {f.referencia}
+          {f.riesgoSesgo && f.riesgoSesgo.global !== 'no_aplica' && (
+            <Chip tono={RIESGO_SESGO[f.riesgoSesgo.global]?.tono ?? 'borde'} title={`${f.riesgoSesgo.instrumento} ${f.riesgoSesgo.version ?? ''}: ${f.riesgoSesgo.dominios.map((d) => `${d.id} ${d.nombre}: ${d.juicio.replace('_', ' ')}`).join('; ')}`}>
+              {f.riesgoSesgo.instrumento} {RIESGO_SESGO[f.riesgoSesgo.global]?.etiqueta ?? f.riesgoSesgo.global}
+            </Chip>
+          )}
           {f.pagina !== null && ` · pag. ${f.pagina}`}
           {f.retraccion !== null && (
             <>

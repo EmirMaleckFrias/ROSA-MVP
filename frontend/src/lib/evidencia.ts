@@ -34,6 +34,7 @@ export interface FuenteEvidencia {
   iteracion: number;
   /** Cadenas exactas de las consultas que la trajeron (vacio en corridas antiguas). */
   consultas: string[];
+  riesgoSesgo?: { instrumento: string; global: string; dominios: { id: string; nombre: string; juicio: string }[] } | null;
 }
 
 export interface AfirmacionEvidencia {
