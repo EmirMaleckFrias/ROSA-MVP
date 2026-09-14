@@ -673,6 +673,33 @@ export const acciones = {
     aplicar((e) => A.enmendarExperimento(e, hipotesisId, campo, despues, motivo, QUIEN, Date.now()));
     enviar('enmendarExperimento', { hipotesis_id: hipotesisId, campo, despues, motivo, quien: QUIEN });
   },
+  /** Etiqueta humana sobre una comprobacion del Killer (conjunto dorado, calibracion de jueces). */
+  etiquetarComprobacion: (hipotesisId: string, comprobacion: string, veredictoHumano: 'pasa' | 'falla' | 'no_comprobable', nota = '') => {
+    aplicar((e) => A.etiquetarComprobacion(e, hipotesisId, comprobacion, veredictoHumano, QUIEN, Date.now(), nota));
+    enviar('etiquetarComprobacion', { hipotesis_id: hipotesisId, comprobacion, veredicto_humano: veredictoHumano, quien: QUIEN, nota });
+  },
+  /** Pide (o repite) el sello de tiempo de un tercero sobre el prerregistro. El servidor lo registra por SSE. */
+  sellarPrerregistro: async (hipotesisId: string): Promise<boolean> => {
+    if (modo !== 'servidor') return false;
+    try {
+      const r = await fetch(`${API}/hipotesis/${encodeURIComponent(hipotesisId)}/sellar`, { method: 'POST', headers: cabeceras() });
+      if (!r.ok) return false;
+      const d = (await r.json()) as { ok?: boolean };
+      return Boolean(d.ok);
+    } catch {
+      return false;
+    }
+  },
+  /** Integridad del registro de acciones (cadena de hashes). */
+  integridadRegistro: async (): Promise<{ ok: boolean; filas: number; encadenadas: number; sinHash: number; rotaEn: number | null; motivo?: string } | null> => {
+    if (modo !== 'servidor') return null;
+    try {
+      const r = await fetch(`${API}/registro/integridad`, { cache: 'no-store', headers: cabeceras(false) });
+      return r.ok ? ((await r.json()) as { ok: boolean; filas: number; encadenadas: number; sinHash: number; rotaEn: number | null; motivo?: string }) : null;
+    } catch {
+      return null;
+    }
+  },
   registrarProtocoloReal: (hipotesisId: string, protocoloReal: { texto: string; desviaciones: string; identidadMuestras: string }) => {
     aplicar((e) => A.registrarProtocoloReal(e, hipotesisId, protocoloReal, QUIEN, Date.now()));
     enviar('registrarProtocoloReal', { hipotesis_id: hipotesisId, protocolo_real: protocoloReal, quien: QUIEN });

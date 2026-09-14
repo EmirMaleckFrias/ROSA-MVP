@@ -10,6 +10,7 @@ import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
 import { CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
+import { partesAutomatizadas, textoAutomatizacion } from '../lib/parada';
 import { rutaDe } from '../lib/ruta';
 
 /** Catalogo de datos del Alzheimer, como el de Biomni-AD. Acceso abierto o
@@ -156,6 +157,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         <div className="tarjeta seccion">
           <h3 style={{ fontSize: 13, fontWeight: 600 }}>Condicion de parada</h3>
           <p>{inv.condicionParada}</p>
+          <p className="meta">{textoAutomatizacion(inv.condicionParadaAutomatizada ?? partesAutomatizadas(inv.condicionParada))}</p>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Quien revisa</h3>
           <div className="acciones">
             {inv.revisores.map((r) => (

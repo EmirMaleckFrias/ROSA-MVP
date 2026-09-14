@@ -155,17 +155,16 @@ def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, 
 
 
 def _llamar_killer(programas: Programas, e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any], deterministas: list[dict[str, str]]):
-    if True:
-        return programas.killer(
-            objetivo=inv["objetivo"],
-            mision=_mision_texto(inv),
-            hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
-            afirmaciones=_afs_texto(h),
-            supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h.get("supuestos", [])) or "Sin supuestos evaluados",
-            modelo_de_mundo=T.modelo_de_mundo(e["hechos"], inv["id"], maximo=40) + "\n\nOtras hipotesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], inv["id"]),
-            comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
-            criterios_revision="\n".join(e["criteriosRevision"]),
-        )
+    return programas.killer(
+        objetivo=inv["objetivo"],
+        mision=_mision_texto(inv),
+        hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
+        afirmaciones=_afs_texto(h),
+        supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h.get("supuestos", [])) or "Sin supuestos evaluados",
+        modelo_de_mundo=T.modelo_de_mundo(e["hechos"], inv["id"], maximo=40) + "\n\nOtras hipotesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], inv["id"]),
+        comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
+        criterios_revision="\n".join(e["criteriosRevision"]),
+    )
 
 
 def _resultado(rev, deterministas: list[dict[str, str]], h: dict[str, Any], juez: dspy.LM, t0: float) -> dict[str, Any]:
@@ -194,6 +193,39 @@ def evaluar_caso(fallo: str, esperado: dict[str, Any], real: str | None, r: dict
     decision_ok = r["decision"] in esperado["esperadas"]
     detectado = decision_ok and (comp_falla if comp else True)
     return {"detectado": bool(detectado), "decisionEsperada": decision_ok, "comprobacionFalla": comp_falla, "juezFalla": juez_falla, "acuerdoConReal": None}
+
+
+def acuerdo_del_panel(resultados: list[dict[str, Any]]) -> dict[str, Any]:
+    """Kappa por decision y por comprobacion sobre los casos del panel."""
+    from rosa import acuerdo as AC
+
+    esperadas, reales = [], []
+    for r in resultados:
+        if r["decision"] == "error":
+            continue
+        f = FALLOS.get(r["fallo"], {})
+        if r["fallo"] == "original":
+            if r.get("decisionReal"):
+                esperadas.append(r["decisionReal"])
+                reales.append(r["decision"])
+        elif f.get("esperadas"):
+            esperadas.append(r["decision"] if r["decision"] in f["esperadas"] else f["esperadas"][0])
+            reales.append(r["decision"])
+    por_comp: dict[str, Any] = {}
+    for comp in sorted({f["comprobacion"] for f in FALLOS.values() if f.get("comprobacion")}):
+        a, b = [], []
+        for r in resultados:
+            if r["decision"] == "error":
+                continue
+            if r["fallo"] == "original":
+                a.append("pasa")
+                b.append("falla" if comp in r["comprobacionesFallidas"] else "pasa")
+            elif FALLOS.get(r["fallo"], {}).get("comprobacion") == comp:
+                a.append("falla")
+                b.append("falla" if comp in r["comprobacionesFallidas"] else "pasa")
+        if a:
+            por_comp[comp] = AC.acuerdo(a, b, categorias=["pasa", "falla"])
+    return {"decision": AC.acuerdo(esperadas, reales, categorias=["avanzar", "reformular", "suspender", "descartar_en_contexto"]) if esperadas else None, "porComprobacion": por_comp}
 
 
 async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Path | None, registrar: bool) -> dict[str, Any]:
@@ -253,6 +285,10 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         "usd": round(sum(r["usd"] for r in resultados), 3),
         "segundos": round(sum(r["segundos"] for r in resultados), 1),
         "juez": modelos.juez.model,
+        # Acuerdo corregido por azar entre lo esperado y lo que salio: por decision
+        # (cuatro categorias) y por comprobacion (falla esperada en los casos
+        # plantados frente a pasa esperado en los originales).
+        "acuerdo": acuerdo_del_panel(resultados),
     }
     salida_dict = {"tipo": "panel_killer", "fecha": int(time.time() * 1000), "resumen": resumen, "porFallo": por_fallo, "fallos": {k: v["descripcion"] for k, v in FALLOS.items() if k in fallos}, "casos": resultados}
     if salida:

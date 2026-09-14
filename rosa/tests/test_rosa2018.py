@@ -306,11 +306,12 @@ def test_direccion_invertida_y_unidades_distintas():
     c = {d["comprobacion"]: d for d in K.consistencia_medidas(h)}
     assert c["direccion_evidencia"]["resultado"] == "falla" and "invertida" in c["direccion_evidencia"]["detalle"]
     assert c["unidades"]["resultado"] == "falla" and "pg/mL" in c["unidades"]["detalle"] and "ng/mL" in c["unidades"]["detalle"]
-    # Direccion invertida reformula (esta en REFORMULAN); unidades solo avisa.
+    # Direccion invertida y unidades incoherentes reformulan (estan en REFORMULAN):
+    # comparar cifras en unidades distintas es un error de la hipotesis, no un aviso.
     base = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
     assert K.decidir(base + [c["direccion_evidencia"]], True, 1)[0] == "reformular"
     d, motivo = K.decidir(base + [c["unidades"]], True, 1)
-    assert d == "avanzar" and "unidades" in motivo
+    assert d == "reformular" and "unidades" in motivo
     # Coherente: pasa.
     h2 = dict(h, afirmaciones=[_af(texto="Plasma GFAP was higher in carriers", efecto="20 pg/mL"), _af(texto="GFAP increased", efecto="")])
     c2 = {d["comprobacion"]: d for d in K.consistencia_medidas(h2)}
@@ -513,9 +514,10 @@ def test_identificadores_resuelven_por_regla():
     assert c["identificadores_resuelven"]["resultado"] == "pasa" and "ENSG00000095970" in c["identificadores_resuelven"]["detalle"]
     c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "inflamacion glial"}, "contextoBases": {"identificadores": {}, "consultadoEn": 1}}, {})}
     assert c["identificadores_resuelven"]["resultado"] == "falla"
-    # Es un aviso: no descarta ni reformula por si sola.
+    # Una diana que no resuelve en las bases suspende: hace falta mejor evidencia, no un aviso.
     ok = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
-    assert K.decidir(ok + [c["identificadores_resuelven"]], True, 1)[0] == "avanzar"
+    d, motivo = K.decidir(ok + [c["identificadores_resuelven"]], True, 1)
+    assert d == "suspender" and "identificadores_resuelven" in motivo
 
 
 # -- Revisor de registro y procedencia de artefactos -----------------------------

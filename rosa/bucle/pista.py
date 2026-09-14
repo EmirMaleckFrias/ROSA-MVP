@@ -56,17 +56,35 @@ class Pista:
                         return p["estado"] == "detenida"
         return False
 
+    # Cada mutacion reescribe el estado entero en disco: las lineas de traza se
+    # agrupan (hasta LOTE lineas o ESPERA_S segundos) y se persisten juntas.
+    LOTE = 8
+    ESPERA_S = 1.5
+
     def linea(self, tipo: str, texto: str, consulta: dict[str, str] | None = None) -> None:
         entrada: dict[str, Any] = {"t": self._ms(), "tipo": tipo, "texto": texto}
         if consulta:
             entrada["consulta"] = consulta
+        buffer = self.__dict__.setdefault("_buffer", [])
+        buffer.append(entrada)
+        ultimo = self.__dict__.setdefault("_ultimo_volcado", time.monotonic())
+        if len(buffer) >= self.LOTE or time.monotonic() - ultimo >= self.ESPERA_S or tipo == "error":
+            self.volcar()
+
+    def volcar(self) -> None:
+        """Persiste las lineas pendientes en una sola mutacion."""
+        pendientes = list(self.__dict__.get("_buffer", []))
+        if not pendientes:
+            return
+        self._buffer = []
+        self._ultimo_volcado = time.monotonic()
 
         def fn(p: dict[str, Any]) -> None:
             if p["estado"] != "en_curso":
                 return
-            p["transcripcion"].append(entrada)
-            p["resumen"] = texto[:140]
-            p["ms"] = entrada["t"]
+            p["transcripcion"].extend(pendientes)
+            p["resumen"] = pendientes[-1]["texto"][:140]
+            p["ms"] = pendientes[-1]["t"]
 
         self._editar(fn)
 
@@ -83,6 +101,7 @@ class Pista:
         self.linea("error", texto)
 
     def cerrar(self, resumen: str, estado: str = "hecha") -> None:
+        self.volcar()
         ms = self._ms()
 
         def fn(p: dict[str, Any]) -> None:

@@ -24,12 +24,18 @@ from rosa import politicas
 BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")
 
 
+def _bloqueo(nombre: str) -> str:
+    """Solo se emiten bloqueos de la lista canonica de politicas."""
+    assert nombre in politicas.BLOQUEOS, nombre
+    return nombre
+
+
 def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
     b: list[str] = []
     afs = h.get("afirmaciones", [])
     sostenidas = [a for a in afs if a["veredicto"] in ("sostenida", "parcial")]
     if not sostenidas or any(a["veredicto"] in BLOQUEANTES for a in afs):
-        b.append("trazabilidad_insuficiente")
+        b.append(_bloqueo("trazabilidad_insuficiente"))
     inv = next((i for i in e["investigaciones"] if i["id"] == h["investigacionId"]), None)
     datasets = {d["id"]: d for d in (inv or {}).get("datasets", [])}
     planes = {p["id"]: p for p in e.get("planesAnalisis", [])}
@@ -38,20 +44,20 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
         plan = planes.get(x["planId"])
         ds = datasets.get(plan["datasetId"]) if plan else None
         if ds is None or ds["estado"] != "aprobado" or (ds.get("procedencia") or {}).get("usoIAAutorizado") != "si":
-            b.append("datos_no_autorizados")
+            b.append(_bloqueo("datos_no_autorizados"))
             break
     auditadas = [x for x in ejecuciones if x.get("auditoria")]
     if auditadas and auditadas[-1]["auditoria"]["veredicto"] == "no_valido":
-        b.append("analisis_invalido")
+        b.append(_bloqueo("analisis_invalido"))
     x = h.get("experimento")
     # Interpretable: criterios de confirmacion y refutacion separados, o un
     # prerregistro congelado con el esquema anterior (criterios dentro del ensayo).
     if not x or not ((x.get("confirma") or "").strip() and (x.get("refuta") or "").strip()) and not (x.get("prerregistradoEn") and (x.get("ensayo") or "").strip()):
-        b.append("sin_experimento_interpretable")
+        b.append(_bloqueo("sin_experimento_interpretable"))
     if h["estado"] == "descartada" or h.get("decisionKiller") == "descartar_en_contexto":
-        b.append("descartada_por_killer")
+        b.append(_bloqueo("descartada_por_killer"))
     if any(f.get("retraccion") == "retractado" for f in h.get("procedencia", {}).get("fuentes", [])):
-        b.append("fuente_retractada")
+        b.append(_bloqueo("fuente_retractada"))
     return b
 
 

@@ -70,6 +70,24 @@ RESULTADOS_LABORATORIO = ("apoyo_reproducido", "negativo_interpretable", "inconc
 BLOQUEOS = ("trazabilidad_insuficiente", "datos_no_autorizados", "analisis_invalido", "sin_experimento_interpretable", "descartada_por_killer", "fuente_retractada")
 
 
+# Contexto que entra al prompt (politica de contexto, no constantes sueltas).
+MAX_HIPOTESIS_EN_CONTEXTO = 25
+MAX_DESCARTADAS_EN_CONTEXTO = 6
+MAX_HECHOS_EN_CONTEXTO = 60
+# Literatura: cuantas fuentes por consulta, cuantas se leen a fondo, y el
+# umbral de relevancia (0 a 10) para cribar.
+MAX_FUENTES_POR_CONSULTA = 12
+MAX_FUENTES_EXTRAER = 14
+MAX_FRAGMENTOS_POR_FUENTE = 6
+RELEVANCIA_MINIMA = 5
+# Torneo: factor K del Elo y Elo inicial.
+ELO_K = 32
+ELO_INICIAL = 1500
+# Presupuesto de tokens de entrada por rol y llamada (politica de contexto):
+# por encima, el contexto se recorta antes de llamar y queda registrado.
+TOKENS_MAX_POR_ROL = {"cerebro": 120_000, "juez": 90_000, "volumen": 40_000}
+
+
 def puede_reformular(version: int) -> bool:
     """`version` es la version actual de la hipotesis (1 al nacer). Se puede
     reformular mientras la siguiente version no supere el limite."""
@@ -89,4 +107,8 @@ def resumen() -> dict[str, object]:
         "memoriaMaxEjecucionMb": MEMORIA_MAX_EJECUCION_MB,
         "presupuestoUsd": PRESUPUESTO_USD_POR_DEFECTO,
         "presupuestoHoras": PRESUPUESTO_HORAS_POR_DEFECTO,
+        "relevanciaMinima": RELEVANCIA_MINIMA,
+        "maxHipotesisEnContexto": MAX_HIPOTESIS_EN_CONTEXTO,
+        "tokensMaxPorRol": dict(TOKENS_MAX_POR_ROL),
+        "eloK": ELO_K,
     }

@@ -35,7 +35,7 @@ from rosa.estado.almacen import ACCIONES, Almacen
 
 # Acciones que solo aplica el propio servidor (subidas, panel del Killer,
 # preguntas con herramientas): no se aceptan desde el navegador.
-ACCIONES_INTERNAS = {"registrarPreguntaBases", "registrarEvaluacion", "registrarDatosExperimento"}
+ACCIONES_INTERNAS = {"registrarPreguntaBases", "registrarEvaluacion", "registrarDatosExperimento", "registrarSelloExterno"}
 MAX_CUERPO_ACCION = 1_000_000
 HOSTS_LOCALES = ("127.0.0.1", "localhost", "::1")
 
@@ -70,10 +70,6 @@ def token_interno() -> str:
     return ruta.read_text(encoding="utf-8").strip()
 
 
-def _es_local(host: str) -> bool:
-    return host.split(":")[0] in HOSTS_LOCALES
-
-
 def crear_app(almacen: Almacen) -> FastAPI:
     @contextlib.asynccontextmanager
     async def _vida(_app: FastAPI):
@@ -90,7 +86,9 @@ def crear_app(almacen: Almacen) -> FastAPI:
     # Solo se aceptan peticiones dirigidas al nombre con el que se sirve Rosa:
     # frena el "DNS rebinding" (una web ajena que resuelve a 127.0.0.1).
     permitidos = list(HOSTS_LOCALES) + ([config.HOST] if config.HOST not in HOSTS_LOCALES else []) + [f"{h}:{config.PUERTO}" for h in HOSTS_LOCALES]
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=permitidos + ["*"] if config.HOST == "0.0.0.0" else permitidos)
+    # Nunca un comodin: en 0.0.0.0 (el unico caso en que el ataque tiene sentido)
+    # los nombres con los que se sirve Rosa van en ROSA_HOSTS.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=permitidos + list(config.HOSTS_PERMITIDOS))
 
     @app.middleware("http")
     async def _guardias(request: Request, call_next):
@@ -160,7 +158,42 @@ def crear_app(almacen: Almacen) -> FastAPI:
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, IndexError) as ex:
             # El almacen ya deshizo la mutacion a medias; el cliente recibe un 400 con el motivo.
             raise HTTPException(400, f"Argumentos invalidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")
+        if nombre == "asignarExperimento" and resultado is not False and isinstance(args.get("hipotesis_id"), str):
+            # El prerregistro recien congelado se sella con un tercero, fuera de la peticion.
+            asyncio.get_running_loop().create_task(_sellar_prerregistro(args["hipotesis_id"]))
         return {"ok": resultado is not False, "resultado": resultado, "version": almacen.version}
+
+    async def _sellar_prerregistro(hipotesis_id: str) -> dict[str, Any]:
+        """Sella el artefacto de prerregistro (RFC 3161, dos o tres autoridades)
+        y lo registra en la hipotesis. Nunca lanza: el fallo queda en el estado."""
+        from rosa import sello as S
+
+        h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
+        x = (h or {}).get("experimento") or {}
+        art = next((a for a in almacen.estado.get("artefactos", []) if a["id"] == x.get("prerregistroArtefactoId")), None)
+        if not h or not art:
+            return {"ok": False, "error": "sin prerregistro que sellar"}
+        contenido = (art.get("versiones") or [{}])[-1].get("contenido") or ""
+        resultado = await asyncio.to_thread(S.sellar, contenido)
+        almacen.aplicar("registrarSelloExterno", {"hipotesis_id": hipotesis_id, "sello": resultado})
+        return resultado
+
+    @app.post("/api/hipotesis/{hipotesis_id}/sellar")
+    async def sellar(hipotesis_id: str) -> dict[str, Any]:
+        """Boton "Sellar con un tercero": pide (o repite) el sello del prerregistro."""
+        return await _sellar_prerregistro(hipotesis_id)
+
+    @app.get("/api/registro/integridad")
+    async def integridad() -> dict[str, Any]:
+        """Recorre la cadena de hashes del registro de acciones."""
+        return await asyncio.to_thread(almacen.verificar_cadena)
+
+    @app.get("/api/calidad/acuerdo")
+    async def acuerdo_jueces() -> dict[str, Any]:
+        """Acuerdo juez-humano del conjunto dorado, por comprobacion."""
+        from rosa import acuerdo_dorado as ACU
+
+        return ACU.acuerdo_dorado(almacen.instantanea())
 
     @app.get("/api/llamadas/{corrida_id}")
     async def llamadas(corrida_id: str) -> list[dict[str, Any]]:
@@ -183,13 +216,14 @@ def crear_app(almacen: Almacen) -> FastAPI:
         h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
         if not h or not h.get("experimento"):
             raise HTTPException(404, "Hipotesis sin experimento propuesto")
-        contenido = await _leer_acotado(fichero, D.MAX_BYTES_EXPERIMENTO)
+        contenido = await _leer_acotado(fichero, D.MAX_BYTES)
+        tamano = len(contenido)
         try:
             ruta = await asyncio.to_thread(D.guardar, hipotesis_id, fichero.filename or "datos", contenido)
         except ValueError as ex:
             raise HTTPException(413, str(ex))
         resultado = almacen.aplicar("registrarDatosExperimento", {"hipotesis_id": hipotesis_id, "fichero": ruta.name, "analisis": analisis})
-        return {"ok": resultado is not False, "fichero": ruta.name, "bytes": len(contenido), "version": almacen.version}
+        return {"ok": resultado is not False, "fichero": ruta.name, "bytes": tamano, "version": almacen.version}
 
     @app.post("/api/investigaciones/{investigacion_id}/datasets")
     async def subir_dataset(investigacion_id: str, fichero: UploadFile = File(...), nombre: str = Form(""), descripcion: str = Form(""), sintetico: str = Form("no")) -> dict[str, Any]:
@@ -207,6 +241,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if not inv:
             raise HTTPException(404, "Investigacion desconocida")
         contenido = await _leer_acotado(fichero, D.MAX_BYTES)
+        tamano = len(contenido)
         dataset_id = P.nuevo_id("ds")
         try:
             ruta = await asyncio.to_thread(D.guardar_dataset, investigacion_id, dataset_id, fichero.filename or "datos", contenido)
@@ -225,7 +260,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         dataset = {
             "nombre": nombre.strip() or (fichero.filename or "datos"),
             "descripcion": descripcion.strip(),
-            "tamanoMb": round(len(contenido) / (1024 * 1024), 2),
+            "tamanoMb": round(tamano / (1024 * 1024), 2),
             "columnas": len(perfil["columnas"]),
             "columnasSinDiccionario": len(perfil["diccionario"]),
             "valoresCentinela": perfil["valoresCentinela"],
@@ -235,7 +270,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
             "procedencia": procedencia,
         }
         resultado = almacen.aplicar("anadirDataset", {"investigacion_id": investigacion_id, "dataset": dataset, "id_": dataset_id})
-        return {"ok": resultado is not False, "datasetId": dataset_id, "fichero": ruta.name, "bytes": len(contenido), "perfil": {k: perfil[k] for k in ("filas", "valoresCentinela", "nombresDuplicados", "tabular")}, "version": almacen.version}
+        return {"ok": resultado is not False, "datasetId": dataset_id, "fichero": ruta.name, "bytes": tamano, "perfil": {k: perfil[k] for k in ("filas", "valoresCentinela", "nombresDuplicados", "tabular")}, "version": almacen.version}
 
     @app.get("/api/politicas")
     async def politicas_actuales() -> dict[str, Any]:

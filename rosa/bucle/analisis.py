@@ -105,6 +105,20 @@ def _cambiar_semilla(codigo: str, semilla: int, nueva: int) -> str:
     return "\n".join(lineas) + ("\n" if codigo.endswith("\n") else "")
 
 
+def _verificar_congelado(plan: dict[str, Any], ruta: Path) -> str | None:
+    """None si el plan y los datos son los congelados; si no, el motivo."""
+    if plan.get("hashPlan") and P.hash_plan(plan) != plan["hashPlan"]:
+        return f"El plan {plan['id']} no corresponde a su hash congelado ({plan['hashPlan']}): se altero despues de congelarlo. No se ejecuta."
+    if plan.get("hashDatos"):
+        try:
+            actual = X.hash_fichero(ruta)
+        except OSError as ex:
+            return f"No se pudo leer el fichero de datos para comprobar su hash: {ex}"
+        if actual != plan["hashDatos"]:
+            return f"El fichero de datos cambio desde que se congelo el plan (sha256 {actual[:12]} frente a {plan['hashDatos'][:12]}). No se ejecuta."
+    return None
+
+
 async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path, esquema: str, hipotesis_id: str | None, tipo: str, pista: Pista) -> dict[str, Any]:
     """Codigo, ejecucion (con reparaciones), interpretacion y auditoria.
     Devuelve el registro de ejecucion ya guardado en el estado."""
@@ -127,7 +141,13 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
     run["entorno"] = {"python": run.get("entorno", {}).get("python", ""), "paquetes": X.versiones_imagen(runtime, entorno) if runtime in ("docker", "container") else X._paquetes(runtime), "imagen": entorno}
     ctx.mutar(lambda e: e.setdefault("ejecuciones", []).append(run) or True, "ejecucion")
     res = None
-    for intento in range(MAX_REPARACIONES + 1):
+    # El sello de congelacion se comprueba, no se cree: el plan tiene que seguir
+    # correspondiendo a su hash y el fichero de datos al hash con el que se planifico.
+    bloqueo = _verificar_congelado(plan, ruta)
+    if bloqueo:
+        pista.error(bloqueo)
+        res = X.Resultado(estado="no_ejecutado", runtime=runtime, error=bloqueo)
+    for intento in range(0 if bloqueo else MAX_REPARACIONES + 1):
         pista.accion(f"Ejecutando en el sandbox ({runtime}), intento {intento + 1}")
         res = await asyncio.to_thread(X.ejecutar, codigo, ruta, plan["semilla"], sintetico, run["id"], entorno, ficheros)
         if res.estado in ("completado", "no_ejecutado", "tiempo_agotado"):

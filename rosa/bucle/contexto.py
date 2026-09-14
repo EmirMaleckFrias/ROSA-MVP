@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from rosa import politicas
+
 
 def modelo_de_mundo(hechos: list[dict[str, Any]], investigacion_id: str, maximo: int = 60) -> str:
     propios = [h for h in hechos if h["investigacionId"] == investigacion_id]
@@ -40,12 +42,20 @@ def afirmaciones_sostenidas(afirmaciones: list[dict[str, Any]]) -> tuple[str, li
     return ("\n".join(lineas) if lineas else "Ninguna afirmacion sostenida todavia."), validas
 
 
-def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str) -> str:
+def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str, maximo: int | None = None, con_descartadas: int | None = None) -> str:
+    """Las hipotesis vivas de la investigacion, por Elo, con tope; de las
+    descartadas solo las ultimas (su motivo evita repetirlas). Sin tope, el
+    prompt del Killer crecia con cada iteracion."""
+    maximo = politicas.MAX_HIPOTESIS_EN_CONTEXTO if maximo is None else maximo
+    con_descartadas = politicas.MAX_DESCARTADAS_EN_CONTEXTO if con_descartadas is None else con_descartadas
     propias = [h for h in hipotesis if h["investigacionId"] == investigacion_id]
     if not propias:
         return "Ninguna."
+    vivas = sorted([h for h in propias if h["estado"] != "descartada"], key=lambda h: -h.get("elo", 0))[:maximo]
+    descartadas = sorted([h for h in propias if h["estado"] == "descartada"], key=lambda h: -((h.get("revisiones") or [{}])[-1].get("fecha") or 0))[:con_descartadas]
+    omitidas = len(propias) - len(vivas) - len(descartadas)
     lineas = []
-    for h in propias:
+    for h in vivas + descartadas:
         nota = ""
         if h["estado"] == "descartada":
             ult = next((r for r in reversed(h["revisiones"]) if r["accion"] == "descartada"), None)
@@ -54,6 +64,8 @@ def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str)
             ult = next((r for r in reversed(h["revisiones"]) if r["accion"] == "refinar"), None)
             nota = f" pide refinar: {ult['nota']}" if ult else ""
         lineas.append(f"- {h['id']} [{h['estado']}, elo {h['elo']}] {h['titulo']}{nota}")
+    if omitidas > 0:
+        lineas.append(f"- ({omitidas} hipotesis mas no se listan por tope de contexto)")
     return "\n".join(lineas)
 
 

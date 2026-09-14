@@ -26,16 +26,27 @@ query ($id: String!, $enf: [String!]) {
 """
 
 
+def _sin_errores(cuerpo: Any) -> dict[str, Any]:
+    """GraphQL devuelve los errores con HTTP 200 y `data` nulo: eso es "no pude
+    comprobar", no un resultado vacio ni un AttributeError."""
+    if not isinstance(cuerpo, dict):
+        raise FuenteNoDisponible("Open Targets: respuesta sin forma de objeto")
+    if cuerpo.get("errors"):
+        raise FuenteNoDisponible("Open Targets: " + "; ".join(str(e.get("message", e))[:120] for e in cuerpo["errors"][:3]))
+    return cuerpo
+
+
 async def asociacion_alzheimer(simbolo: str) -> dict[str, Any]:
     """{simbolo, ensembl, puntuacion (0 a 1 o None), tipos: {datatype: score}}.
     puntuacion None con `encontrado` True significa "sin asociacion registrada"."""
     r = await pedir("POST", URL, _limitador, json={"query": _BUSCAR, "variables": {"q": simbolo}})
-    hits = (((json_de(r).get("data") or {}).get("search") or {}).get("hits")) or []
+    cuerpo = _sin_errores(json_de(r))
+    hits = (((cuerpo.get("data") or {}).get("search") or {}).get("hits")) or []
     hit = next((h for h in hits if h.get("name", "").upper() == simbolo.upper()), hits[0] if hits else None)
     if not hit:
         return {"simbolo": simbolo, "ensembl": None, "encontrado": False, "puntuacion": None, "tipos": {}}
     r2 = await pedir("POST", URL, _limitador, json={"query": _ASOCIACION, "variables": {"id": hit["id"], "enf": [ALZHEIMER, "EFO_0000249"]}})
-    t = (json_de(r2).get("data") or {}).get("target") or {}
+    t = (_sin_errores(json_de(r2)).get("data") or {}).get("target") or {}
     filas = (t.get("associatedDiseases") or {}).get("rows") or []
     if not filas:
         return {"simbolo": t.get("approvedSymbol", simbolo), "ensembl": hit["id"], "encontrado": True, "puntuacion": None, "tipos": {}}

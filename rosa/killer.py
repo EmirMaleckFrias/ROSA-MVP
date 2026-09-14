@@ -31,11 +31,25 @@ from rosa.priorizacion import cohortes_de
 
 BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")
 
-# Que comprobaciones llevan a que decision cuando fallan.
+# Que hace cada una de las catorce comprobaciones cuando FALLA. Ninguna queda
+# sin consecuencia: una hipotesis ya publicada o sin fuentes primarias no
+# llega a candidata "con aviso".
+#   descartar:  la evidencia no la sostiene (citas, fidelidad, supuestos).
+#   reformular: arreglable reescribiendo (causalidad, falsabilidad, factibilidad,
+#               redundancia, direccion de la evidencia, unidades, novedad: si ya
+#               esta publicada, hay que decir que anade).
+#   suspender:  hace falta mas o mejor evidencia antes de seguir (sin fuente
+#               primaria, riesgo de sesgo serio en toda la evidencia, la diana no
+#               resuelve en las bases): lo decide una persona o una busqueda nueva.
+#   avisar:     avanza con la certeza limitada (una sola cohorte: es un factor
+#               GRADE, no un fallo de la hipotesis).
 DESCARTAN = ("citas_reales", "fidelidad_evidencia", "supuestos")
-REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia")
+REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "novedad")
+SUSPENDEN = ("fuente_primaria", "sesgo_evidencia", "identificadores_resuelven")
+AVISAN = ("independencia_cohortes",)
 # Las que, sin poder comprobarse, suspenden.
 CRITICAS = ("citas_reales", "fidelidad_evidencia", "supuestos", "falsabilidad", "novedad")
+CONSECUENCIA = {**{c: "descartar" for c in DESCARTAN}, **{c: "reformular" for c in REFORMULAN}, **{c: "suspender" for c in SUSPENDEN}, **{c: "avisar" for c in AVISAN}}
 
 # Cohortes del Alzheimer que Rosa reconoce en titulos y resumenes cuando el
 # extractor no la dijo. Comparar por nombre es la regla de Cochrane 7.2.2
@@ -164,9 +178,20 @@ def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]
     pasa y el juez dice falla con detalle, el resultado es no_comprobable
     (los dos jueces discrepan: se abstiene, no mata)."""
     hechas = {c["comprobacion"] for c in deterministas if c["resultado"] != "no_comprobable"}
+    # Una determinista que quedo en no_comprobable CON detalle encontro algo
+    # (una cifra que no esta en el pasaje, un identificador que no resuelve). El
+    # juez puede confirmarlo (falla) pero no borrarlo diciendo "pasa".
+    # Solo en las comprobaciones objetivas (las DISCREPABLES y la de identificadores):
+    # una "novedad" no comprobable porque la base no respondio si la puede resolver el juez.
+    sospechosas = {c["comprobacion"] for c in deterministas if c["resultado"] == "no_comprobable" and (c.get("detalle") or "").strip() and c["comprobacion"] in DISCREPABLES + ("identificadores_resuelven",)}
     salida = list(deterministas)
     for c in del_juez:
         nombre = c.get("comprobacion")
+        if nombre in sospechosas and c.get("resultado") == "pasa":
+            for d in salida:
+                if d["comprobacion"] == nombre:
+                    d["detalle"] = (d.get("detalle") or "")[:220] + f" | El juez dice que pasa, pero la regla no pudo confirmarlo: se mantiene sin comprobar."
+            continue
         if nombre in DISCREPABLES and nombre in hechas and c.get("resultado") == "falla" and (c.get("detalle") or "").strip():
             for d in salida:
                 if d["comprobacion"] == nombre and d["resultado"] == "pasa":
@@ -189,6 +214,7 @@ def decidir(comprobaciones: list[dict[str, str]], tiene_prediccion: bool, versio
     if fallan_descarte:
         return "descartar_en_contexto", "La evidencia no sostiene la hipotesis: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_descarte)
     no_comp = [c for c in comprobaciones if c["resultado"] == "no_comprobable" and c["comprobacion"] in CRITICAS]
+    fallan_suspenden = [c for c in fallan if c["comprobacion"] in SUSPENDEN]
     fallan_reform = [c for c in fallan if c["comprobacion"] in REFORMULAN]
     if not tiene_prediccion and "falsabilidad" not in {c["comprobacion"] for c in fallan_reform}:
         fallan_reform.append({"comprobacion": "falsabilidad", "resultado": "falla", "detalle": "La tarjeta no tiene prediccion falsable"})
@@ -196,9 +222,11 @@ def decidir(comprobaciones: list[dict[str, str]], tiene_prediccion: bool, versio
         if not politicas.puede_reformular(version):
             return "descartar_en_contexto", f"Agoto las {politicas.MAX_REFORMULACIONES} reformulaciones de la politica y sigue fallando: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in fallan_reform)
         return "reformular", "Arreglable reescribiendo: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_reform)
+    if fallan_suspenden:
+        return "suspender", "Hace falta mas o mejor evidencia antes de seguir: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_suspenden)
     if no_comp:
         return "suspender", "No evaluable todavia: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in no_comp)
-    otras = [c for c in fallan if c["comprobacion"] not in DESCARTAN + REFORMULAN]
+    otras = [c for c in fallan if c["comprobacion"] not in DESCARTAN + REFORMULAN + SUSPENDEN]
     nota = ("Avanza con avisos: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in otras)) if otras else "Pasa todas las comprobaciones criticas y tiene prediccion falsable"
     if por_nombre.get("independencia_cohortes", {}).get("resultado") == "falla":
         nota += ". Una sola cohorte: la certeza queda limitada hasta que haya replicacion independiente"

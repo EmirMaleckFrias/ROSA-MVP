@@ -26,6 +26,8 @@ from typing import Any
 
 import dspy
 
+from rosa import acuerdo_dorado as ACU
+from rosa import politicas
 from rosa import config, politicas
 from rosa import causal as CAUSAL
 from rosa import conectores as CON
@@ -43,11 +45,11 @@ from rosa.gateway import Modelos
 from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, presupuesto_ok
 from rosa.modulos.firmas import Programas
 
-MAX_FUENTES_POR_CONSULTA = 12
-MAX_FUENTES_EXTRAER = 14
-MAX_FRAGMENTOS_POR_FUENTE = 6
+MAX_FUENTES_POR_CONSULTA = politicas.MAX_FUENTES_POR_CONSULTA
+MAX_FUENTES_EXTRAER = politicas.MAX_FUENTES_EXTRAER
+MAX_FRAGMENTOS_POR_FUENTE = politicas.MAX_FRAGMENTOS_POR_FUENTE
 MAX_PAGINAS_PDF = 14
-RELEVANCIA_MINIMA = 5
+RELEVANCIA_MINIMA = politicas.RELEVANCIA_MINIMA
 TAU_COBERTURA = 20.0
 
 
@@ -116,8 +118,8 @@ class Ctx:
         lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen}[rol]
         # El corte de presupuesto de verdad: antes de llamar. (El callback de DSPy no
         # puede cortar: DSPy captura lo que lance y sigue.)
-        if not presupuesto_ok(self.almacen, self.corrida_id):
-            raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} agotado")
+        if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
+            raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} (o de su iteracion {self.numero}) agotado")
         token = contexto_actual.set(ContextoLlamada(self.corrida_id, self.numero, rol))
         try:
             try:
@@ -164,16 +166,42 @@ class Ctx:
 # ---------------------------------------------------------------------------
 
 
+def claves_de_fuente(datos: dict[str, Any]) -> set[str]:
+    """Identificadores normalizados con los que se reconoce una fuente ya vista:
+    doi:..., pmid:..., nct:... y titulo:... (sin puntuacion). Nunca la cadena
+    vacia: dos fuentes sin nada en comun no se fusionan."""
+    claves: set[str] = set()
+    doi = (datos.get("doi") or "").strip().lower()
+    doi = re.sub(r"^(https?://(dx\.)?doi\.org/|doi:\s*)", "", doi).rstrip(".")
+    if doi:
+        claves.add(f"doi:{doi}")
+    for campo in ("pmid", "nct"):
+        v = str(datos.get(campo) or "").strip().lower()
+        if v:
+            claves.add(f"{campo}:{v}")
+    titulo = re.sub(r"[^a-z0-9]+", " ", (datos.get("titulo") or "").lower()).strip()
+    if len(titulo) >= 20:
+        claves.add(f"titulo:{titulo}")
+    return claves
+
+
 def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: list[dict[str, str]], relevancia: int, marca: str | None, marca_detalle: str, comprobada_en: int | None, consulta: str | None = None) -> str:
     """Anade una fuente al almacen privado de la corrida (o la actualiza) y
     devuelve su id."""
-    clave = (datos.get("doi") or datos.get("pmid") or datos.get("nct") or datos.get("titulo", "")).lower()
+    claves = claves_de_fuente(datos)
 
     def fn(e: dict[str, Any]) -> str:
         c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
         fuentes = c.setdefault("_fuentes", {})
-        existente = next((f for f in fuentes.values() if f.get("_clave") == clave), None)
+        # La misma fuente puede llegar de PubMed sin DOI y de Europe PMC con DOI:
+        # coincide si comparte cualquier identificador normalizado (o el titulo
+        # normalizado). Sin identificadores ni titulo, nunca se fusiona.
+        existente = next((f for f in fuentes.values() if claves and (set(f.get("_claves") or ([f["_clave"]] if f.get("_clave") else [])) & claves)), None)
         if existente:
+            existente["_claves"] = sorted(set(existente.get("_claves") or []) | claves)
+            for campo in ("doi", "pmid", "nct"):
+                if not existente.get(campo) and datos.get(campo):
+                    existente[campo] = datos[campo]
             vistos = {fr["localizador"] for fr in existente["fragmentos"]}
             existente["fragmentos"].extend(fr for fr in fragmentos if fr["localizador"] not in vistos)
             existente["relevancia"] = max(existente.get("relevancia", 0), relevancia)
@@ -201,7 +229,8 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
             textoCompleto=any(fr["localizador"] != "resumen" for fr in fragmentos),
             citas=datos.get("citas"),
         )
-        f["_clave"] = clave
+        f["_claves"] = sorted(claves)
+        f["_clave"] = next(iter(sorted(claves)), "")
         f["_marcaDetalle"] = marca_detalle
         f["fragmentos"] = fragmentos
         f["relevancia"] = relevancia
@@ -534,8 +563,11 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
     por_id = {f.fuente_id: f for f in frags}
     recuento: dict[str, int] = {}
     al_juez: list[tuple[dict[str, Any], V.Resultado]] = []
+    # Los terminos del objetivo (la enfermedad, la cohorte) no cuentan como
+    # identificadores en una declaracion de ausencia: estan en todo el corpus.
+    excluir = V.terminos_del_dominio(pregunta)
     for a in afirmaciones:
-        r = V.comprobar_determinista(a["texto"], a["cita"], a.get("fragmento"), frags, frags)
+        r = V.comprobar_determinista(a["texto"], a["cita"], a.get("fragmento"), frags, frags, excluir)
         if r.necesita_juez:
             al_juez.append((a, r))
         else:
@@ -593,15 +625,17 @@ async def paso_verificacion(ctx: Ctx, paso: dict[str, Any]) -> str:
         e["metricas"].append(
             {
                 "fecha": ahora,
-                "juez": "anthropic/claude-opus-5",
+                "juez": ctx.modelos.juez.model,
                 "casos": len(pendientes),
-                "acuerdoConHumanos": 0,
+                # Acuerdo con las personas: sale del conjunto dorado (etiquetas humanas
+                # sobre veredictos del Killer), no de una constante.
+                "acuerdoConHumanos": (ACU.acuerdo_dorado(e).get("global") or {}).get("kappa"),
                 "sostenidas": round(fid, 3) if fid is not None else 0,
                 "cobertura": round(1 - recuento.get("cita_no_resuelve", 0) / max(1, len(pendientes)), 3),
                 "ausenciasRefutadas": recuento.get("ausencia_refutada", 0),
                 "entidadDistinta": sum(1 for a in pendientes if a.get("entidadDistinta")),
                 "sinVerificar": recuento.get("sin_verificar", 0),
-                "aciertoPorTipo": {"dato": None, "literatura": None, "interpretacion": None},
+                "aciertoPorTipo": ACU.acierto_por_tipo(e),
             }
         )
         return True
@@ -738,6 +772,16 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             pista.nota(f"Las bases no respondieron para la diana: {str(ex)[:100]}")
     h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
     deterministas = K.comprobaciones_deterministas(h, e)
+    # El comprobador de supuestos causales entra como una comprobacion mas: si
+    # la identificacion no cierra, direccion_causal queda "no comprobable" con
+    # los supuestos que faltan (el juez o un experimento los resuelven).
+    if not any(c["comprobacion"] == "direccion_causal" for c in deterministas):
+        indep_previa = next((c["resultado"] for c in deterministas if c["comprobacion"] == "independencia_cohortes"), None)
+        grafo_previo = CAUSAL.grafo_local(h, [], True if indep_previa == "pasa" else False if indep_previa == "falla" else None, P.ahora_ms())
+        if grafo_previo["identificacion"] == "identificable":
+            deterministas.append({"comprobacion": "direccion_causal", "resultado": "pasa", "detalle": "Identificacion por regla: " + "; ".join(grafo_previo["supuestosCumplidos"])[:300]})
+        elif grafo_previo["identificacion"] in ("acotado", "sin_resolver"):
+            deterministas.append({"comprobacion": "direccion_causal", "resultado": "no_comprobable", "detalle": f"Identificacion {grafo_previo['identificacion']}: faltan " + "; ".join(grafo_previo["supuestosFaltantes"])[:300]})
     afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
     try:
         pred = await ctx.llamar(

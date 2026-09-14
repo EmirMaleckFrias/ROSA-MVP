@@ -17,6 +17,7 @@
 // - Toda accion relevante deja un evento, para el resumen "mientras no
 //   estabas".
 
+import { partesAutomatizadas } from '../lib/parada';
 import type {
   AlcancePermiso,
   AnclaComentario,
@@ -45,7 +46,7 @@ import type {
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector } from './tipos';
+  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado } from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -694,6 +695,37 @@ export function registrarProtocoloReal(estado: EstadoRosa, hipotesisId: string, 
   };
 }
 
+/** Una persona cualificada etiqueta una comprobacion del Killer (conjunto dorado). Mismo criterio que rosa/estado/acciones.py. */
+export function etiquetarComprobacion(estado: EstadoRosa, hipotesisId: string, comprobacion: string, veredictoHumano: 'pasa' | 'falla' | 'no_comprobable', quien: string, ahora: number, nota = ''): EstadoRosa {
+  const h = estado.hipotesis.find((x) => x.id === hipotesisId);
+  if (!h || !comprobacion) return estado;
+  const decisiones = (estado.decisiones ?? []).filter((d) => d.hipotesisId === hipotesisId && d.etapa.startsWith('killer'));
+  const ultima = decisiones[decisiones.length - 1];
+  const delJuez = ultima?.comprobaciones.find((c) => c.comprobacion === comprobacion);
+  if (!ultima || !delJuez) return estado;
+  const version = h.version ?? 1;
+  const caso: CasoDorado = {
+    id: `oro-${ahora.toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    hipotesisId,
+    version,
+    decisionId: ultima.id,
+    comprobacion,
+    veredictoJuez: delJuez.resultado,
+    detalleJuez: (delJuez.detalle ?? '').slice(0, 300),
+    veredictoHumano,
+    nota: nota.trim().slice(0, 500),
+    quien: quien.trim() || 'persona',
+    fecha: ahora,
+    modeloJuez: 'anthropic/claude-opus-5',
+  };
+  const previos = (estado.conjuntoDorado ?? []).filter((c) => !(c.hipotesisId === hipotesisId && c.comprobacion === comprobacion && c.version === version && c.quien === caso.quien));
+  return {
+    ...estado,
+    conjuntoDorado: [...previos, caso],
+    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({ ...y, procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} conjunto dorado: ${caso.quien} dice que '${comprobacion}' ${veredictoHumano} (el juez dijo ${delJuez.resultado})`] } })),
+  };
+}
+
 export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: number, arnes?: { commit: string; firmas: string; optimizados: string }): string {
   const x = h.experimento!;
   const c = h.comprobacion;
@@ -886,6 +918,7 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
     relevancia: datos.relevancia.trim(),
     limites: datos.limites.map((l) => l.trim()).filter((l) => l !== ''),
     condicionParada: datos.condicionParada.trim(),
+    condicionParadaAutomatizada: partesAutomatizadas(String(datos.condicionParada ?? '')),
     revisores: datos.revisores.map((r) => r.trim()).filter((r) => r !== ''),
     estado: 'activa',
     creadaEn: ahora,

@@ -2,7 +2,9 @@
 
 Como en Co-Scientist: se emparejan hipotesis de Elo cercano (y las nuevas con
 alguien del top para situarlas rapido), el juez compara A con B y luego B con
-A; si discrepa, el partido queda en tablas y no mueve el Elo. K = 32. El Elo
+A; si discrepa, el partido queda en tablas y no mueve el Elo. from rosa import politicas
+
+K = politicas.ELO_K. El Elo
 inicial es 1500 (es el que usa la interfaz).
 
 Bradley-Terry (`choix.ilsr_pairwise`) es la alternativa cuando haya muchas

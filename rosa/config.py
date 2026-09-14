@@ -20,6 +20,9 @@ RAIZ = Path(__file__).resolve().parent.parent
 RUTA_BD = Path(os.environ.get("ROSA_BD", RAIZ / "rosa.db"))
 PUERTO = int(os.environ.get("ROSA_PUERTO", "8765"))
 HOST = os.environ.get("ROSA_HOST", "127.0.0.1")
+# Nombres de host con los que se sirve Rosa fuera de localhost (coma separada).
+# Sin comodines: es lo que frena el DNS rebinding cuando se escucha en 0.0.0.0.
+HOSTS_PERMITIDOS = tuple(h.strip() for h in os.environ.get("ROSA_HOSTS", "").split(",") if h.strip())
 MLFLOW_URI = os.environ.get("ROSA_MLFLOW_URI", f"sqlite:///{RAIZ / 'mlflow.db'}")
 MLFLOW_UI = os.environ.get("ROSA_MLFLOW_UI", "http://127.0.0.1:5000")
 FRONTEND_DIST = RAIZ / "frontend" / "dist"

@@ -57,11 +57,20 @@ nada de esto se opera desde la terminal.
   `container`), interpreta las cifras contra el umbral del plan y un auditor
   independiente dice si el analisis vale. Solo lo valido entra como evidencia.
   Con datasets sinteticos funciona sin Docker, con aislamiento blando.
-- **Hypothesis Killer.** Cada hipotesis pasa una lista fija de once
+- **Hypothesis Killer.** Cada hipotesis pasa una lista fija de catorce
   comprobaciones; la decision (avanzar, reformular, suspender, descartar en
-  este contexto) se deriva por regla. Reformular crea una version nueva (hasta
-  dos por politica). Un tercio de los descartes lo audita otro modelo
-  defendiendo la hipotesis. Todo queda en el registro de decisiones.
+  este contexto) se deriva por regla y cada comprobacion tiene una
+  consecuencia declarada cuando falla (`rosa/killer.py`, tabla
+  `CONSECUENCIA`): descartan citas, fidelidad y supuestos; reformulan
+  causalidad, falsabilidad, factibilidad, redundancia, direccion de la
+  evidencia, unidades y novedad; suspenden fuente primaria, riesgo de sesgo
+  e identificadores que no resuelven; una sola cohorte avanza con la certeza
+  limitada. Una comprobacion por regla que encontro algo (una cifra fuera
+  del pasaje) no la puede borrar el juez. Reformular crea una version nueva
+  (hasta dos por politica). Un tercio de los descartes lo audita otro modelo
+  defendiendo la hipotesis. Todo queda en el registro de decisiones, y cada
+  comprobacion se puede etiquetar a mano: es el conjunto dorado con el que se
+  mide el acuerdo juez-humano (kappa por comprobacion, pantalla Calidad).
 - **Candidatas y dossier.** El ranking muestra las candidatas al laboratorio
   (hasta tres, sin repetir cluster) y por que las demas no lo son (bloqueos
   no compensables). El dossier en siete partes se genera desde la ficha y
@@ -97,12 +106,17 @@ nada de esto se opera desde la terminal.
   pausar con la condicion que la reabriria, reabrir, dejar sin explorar o
   asignar a una campana (corrida); todo con historial. En Objetivo y datos se
   ve la jerarquia programa, areas, campanas y preguntas con sus huecos.
-- **Motor causal minimo.** Cada hipotesis juzgada lleva un grafo local con
-  aristas tipadas (supuesto, inferencia con evidencia, base curada), las
-  alternativas que planteo el Killer como nodos, y una identificacion por
+- **Comprobador heuristico de supuestos causales.** No es un motor causal
+  (sin modelo estructural ni descubrimiento de estructura desde datos, que la
+  literatura de 2026 no considera listo para biologia). Cada hipotesis
+  juzgada lleva un grafo local con aristas tipadas (supuesto, inferencia con
+  evidencia, base curada de quince relaciones del Alzheimer escritas a mano),
+  las alternativas que planteo el Killer como nodos, y una identificacion por
   regla: identificable, acotado (con los supuestos que faltan) o sin
-  resolver. Las relaciones entran al modelo de mundo con su tipo; la base
-  curada vive en `rosa/causal.py`.
+  resolver. El resultado entra al Killer como la comprobacion
+  `direccion_causal` (no comprobable con los supuestos que faltan, hasta que
+  el juez o un experimento los resuelvan). La base curada vive en
+  `rosa/causal.py`.
 - **Panel del Killer.** Un panel con fallos plantados en hipotesis reales
   (cifra alterada, prediccion no falsable, causalidad sin temporalidad, misma
   cohorte, supuesto contradicho) y un conjunto gris mide la tasa de deteccion,

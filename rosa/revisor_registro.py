@@ -114,6 +114,7 @@ def corpus_del_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | Non
                 textos.append(str(ev.get("texto", "")) + " " + str((ev.get("consulta") or {}).get("resultados", "")))
     for q in (corrida or {}).get("busqueda", {}).get("consultas", []) or []:
         textos.append(f"{q.get('base', '')} {q.get('consulta', '')} {q.get('resultados', '')}")
+    if it:
         textos += [str(len(it.get("plan", []))), str(sum(1 for p in it.get("pistas", []) if p.get("estado") == "hecha")), str(len(it.get("pistas", [])))]
     for t in textos:
         numeros |= _numeros(t)

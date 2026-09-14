@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
+import type { CambioAprendizaje, CasoDorado, Comprobacion, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -490,7 +490,7 @@ export function Bloqueos({ bloqueos, candidata }: { bloqueos: Hipotesis['bloqueo
    Decisiones del Killer
    --------------------------------------------------------------------- */
 
-function ListaComprobaciones({ comprobaciones }: { comprobaciones: Comprobacion[] }) {
+function ListaComprobaciones({ comprobaciones, etiquetas, onEtiquetar }: { comprobaciones: Comprobacion[]; etiquetas?: Record<string, CasoDorado>; onEtiquetar?: (comprobacion: string, veredicto: 'pasa' | 'falla' | 'no_comprobable') => void }) {
   if (comprobaciones.length === 0) return null;
   const orden = { falla: 0, no_comprobable: 1, pasa: 2, no_aplica: 3 };
   const ordenadas = [...comprobaciones].sort((a, b) => orden[a.resultado] - orden[b.resultado]);
@@ -498,11 +498,23 @@ function ListaComprobaciones({ comprobaciones }: { comprobaciones: Comprobacion[
     <ul className="comprobaciones">
       {ordenadas.map((c, i) => {
         const r = RESULTADO_COMPROBACION[c.resultado];
+        const mia = etiquetas?.[c.comprobacion];
         return (
           <li key={i}>
             <Chip tono={r.tono}>{r.etiqueta}</Chip>
             <span>
               <strong>{COMPROBACION_KILLER[c.comprobacion] ?? c.comprobacion}.</strong> {c.detalle}
+              {onEtiquetar && c.resultado !== 'no_aplica' && (
+                <span className="acciones" style={{ display: 'inline-flex', marginLeft: 8, gap: 4 }} title="Tu veredicto sobre esta comprobacion entra al conjunto dorado con el que se mide si el juez acierta (kappa por comprobacion)">
+                  {(['pasa', 'falla', 'no_comprobable'] as const).map((v) => (
+                    <button key={v} type="button" className={`btn btn-s ${mia?.veredictoHumano === v ? 'btn-primario' : 'btn-fantasma'}`} onClick={() => onEtiquetar(c.comprobacion, v)} aria-label={`Marcar ${c.comprobacion} como ${v}`}>
+                      {mia?.veredictoHumano === v ? 'Tu: ' : ''}
+                      {v === 'no_comprobable' ? 'no comprobable' : v}
+                    </button>
+                  ))}
+                  {mia && mia.veredictoHumano !== c.resultado && <Chip tono="aviso">desacuerdo</Chip>}
+                </span>
+              )}
             </span>
           </li>
         );
@@ -511,9 +523,11 @@ function ListaComprobaciones({ comprobaciones }: { comprobaciones: Comprobacion[
   );
 }
 
-export function DecisionesKiller({ h, decisiones, ahora }: { h: Hipotesis; decisiones: Decision[]; ahora: number }) {
+export function DecisionesKiller({ h, decisiones, ahora, conjuntoDorado = [] }: { h: Hipotesis; decisiones: Decision[]; ahora: number; conjuntoDorado?: CasoDorado[] }) {
   const propias = decisiones.filter((d) => d.hipotesisId === h.id).sort((a, b) => b.fecha - a.fecha);
   const ultima = propias.find((d) => d.etapa === 'killer_1');
+  const etiquetas: Record<string, CasoDorado> = {};
+  for (const c of conjuntoDorado) if (c.hipotesisId === h.id && c.version === (h.version ?? 1)) etiquetas[c.comprobacion] = c;
   return (
     <Seccion titulo="Hypothesis Killer y registro de decisiones" nota="El Killer (Opus 5, otra familia que el generador) pasa una lista fija de comprobaciones; la decision no la escribe el modelo: Rosa la deriva por regla. Descartar solo si falla la evidencia; reformular si falla algo arreglable; suspender si algo critico no se pudo comprobar. Una muestra de los descartes la audita otro modelo defendiendo la hipotesis.">
       {h.decisionKiller && (
@@ -523,7 +537,8 @@ export function DecisionesKiller({ h, decisiones, ahora }: { h: Hipotesis; decis
         </div>
       )}
       {!h.decisionKiller && <p className="meta">El Killer todavia no juzgo esta version. Pasa por el en el paso de hipotesis de la siguiente iteracion, o al pedir una revision.</p>}
-      {ultima && <ListaComprobaciones comprobaciones={ultima.comprobaciones} />}
+      {ultima && <ListaComprobaciones comprobaciones={ultima.comprobaciones} etiquetas={etiquetas} onEtiquetar={(c, v) => acciones.etiquetarComprobacion(h.id, c, v)} />}
+      {ultima && <p className="meta">Marca en cada comprobacion tu veredicto (pasa, falla o no comprobable): es el conjunto dorado con el que Rosa mide si el juez acierta, comprobacion por comprobacion, y detecta si cambia cuando cambia el modelo.</p>}
       {ultima?.queHariaFalta && <p className="meta">Que haria falta para evaluarla: {ultima.queHariaFalta}</p>}
       {propias.length > 0 && (
         <details className="versiones">
@@ -1196,6 +1211,9 @@ export function Politicas({ politicas }: { politicas: Record<string, number> | u
     { clave: 'memoriaMaxEjecucionMb', etiqueta: 'Memoria maxima del sandbox (MB)', nota: '' },
     { clave: 'presupuestoUsd', etiqueta: 'Presupuesto por defecto de una mision (USD estimados)', nota: 'Se fija por mision al aprobarla.' },
     { clave: 'presupuestoHoras', etiqueta: 'Presupuesto por defecto de una mision (horas)', nota: '' },
+    { clave: 'relevanciaMinima', etiqueta: 'Relevancia minima para cribar un articulo (0 a 10)', nota: 'Por debajo, el articulo se descarta en el cribado y queda en el flujo PRISMA como excluido.' },
+    { clave: 'maxHipotesisEnContexto', etiqueta: 'Hipotesis que entran al prompt del Killer', nota: 'Politica de contexto: las vivas por Elo, mas las ultimas descartadas.' },
+    { clave: 'eloK', etiqueta: 'Factor K del Elo', nota: 'Cuanto mueve un partido el Elo.' },
   ];
   return (
     <Seccion titulo="Politicas" nota="Los limites del sistema viven en el codigo del servidor (rosa/politicas.py), no en este estado: ningun agente puede editarlos y cada cambio es un commit que queda en la version de Rosa de cada corrida. Aqui solo se leen.">
@@ -1519,7 +1537,7 @@ export function GrafoCausalDeHipotesis({ h }: { h: Hipotesis }) {
   const etiqueta = (id: string) => g.nodos.find((n) => n.id === id)?.etiqueta ?? id;
   const tono = g.identificacion === 'identificable' ? 'ok' : g.identificacion === 'acotado' ? 'aviso' : 'mal';
   return (
-    <Seccion titulo="Grafo causal y supuestos" nota="Lo minimo para no confundir asociacion con causa: la exposicion X, el desenlace Y, las alternativas que planteo el Killer y las relaciones de consenso del campo, cada arista con su tipo. La identificacion sale por regla: un ensayo aleatorizado la cierra; sin el, hacen falta temporalidad, ajuste por confusores y replicacion independiente. Lo que falta es lo que un experimento tendria que aportar.">
+    <Seccion titulo="Supuestos causales (comprobador heuristico)" nota="No es un motor causal: no hay modelo estructural, ni criterio de puerta trasera, ni descubrimiento de estructura desde datos (la literatura de 2026 dice que eso no esta listo para biologia). Es un comprobador por regla de los supuestos que separan asociacion de causa: la exposicion X, el desenlace Y, las alternativas que planteo el Killer y quince relaciones de consenso del Alzheimer escritas a mano. Un ensayo aleatorizado cierra la identificacion; sin el, hacen falta temporalidad, ajuste por confusores y replicacion independiente. Lo que falta es lo que un experimento tendria que aportar, y el Killer lo recibe como una comprobacion mas.">
       <div className="acciones">
         <Chip tono={tono}>{IDENTIFICACION_CAUSAL[g.identificacion] ?? g.identificacion}</Chip>
         <span className="meta">{g.resumen}</span>
@@ -1629,6 +1647,12 @@ export function PanelKiller({ estado }: { estado: EstadoRosa }) {
                 {ev.resumen.casos} casos sobre {ev.resumen.hipotesis} hipotesis, juez {ev.resumen.juez}, {ev.resumen.usd} USD, {new Date(ev.fecha).toLocaleString('es')}
               </span>
             </div>
+            {ev.resumen.acuerdo?.decision && (
+              <p className="meta" title="Kappa de Cohen: acuerdo entre la decision esperada y la que salio, corregido por el que se daria por azar. Landis y Koch: 0,41 a 0,60 moderado, 0,61 a 0,80 sustancial, mas de 0,80 casi perfecto.">
+                Acuerdo por decision: kappa {ev.resumen.acuerdo.decision.kappa ?? 'n/a'} ({ev.resumen.acuerdo.decision.interpretacion}, n = {ev.resumen.acuerdo.decision.n})
+                {Object.entries(ev.resumen.acuerdo.porComprobacion).map(([c, a]) => ` · ${COMPROBACION_KILLER[c] ?? c}: ${a.kappa ?? 'n/a'}`).join('')}
+              </p>
+            )}
             <table className="tabla">
               <thead>
                 <tr>
@@ -2087,6 +2111,40 @@ export function EspejoConvex({ ahora }: { ahora: number }) {
             · {esp.envios} envios · ultimo en {esp.ms} ms
           </span>
           {esp.error && <p className="tono-mal">{esp.error}</p>}
+        </div>
+      )}
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Integridad del registro: la cadena de hashes de las acciones
+
+export function IntegridadRegistro() {
+  const [estado, setEstado] = useState<{ ok: boolean; filas: number; encadenadas: number; sinHash: number; rotaEn: number | null; motivo?: string } | null | 'cargando'>('cargando');
+  useEffect(() => {
+    let vivo = true;
+    void acciones.integridadRegistro().then((r) => {
+      if (vivo) setEstado(r);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  return (
+    <Seccion titulo="Integridad del registro" nota="Cada accion que cambia el estado queda en un registro solo de anadir, y cada fila lleva el hash de la anterior (una cadena). Si alguien borra o altera una fila, la cadena se rompe desde ahi y aqui se ve. Es la parte de ALCOA+ (atribuible, contemporaneo, original, perdurable) que se puede dar sin firma electronica; la firma por persona queda para un destino regulado.">
+      {estado === 'cargando' ? (
+        <p className="meta">Comprobando la cadena...</p>
+      ) : estado === null ? (
+        <p className="meta">Sin servidor no hay registro que comprobar.</p>
+      ) : (
+        <div className="acciones">
+          <Chip tono={estado.ok ? 'ok' : 'mal'}>{estado.ok ? 'Cadena intacta' : `Cadena rota en la fila ${estado.rotaEn}`}</Chip>
+          <span className="meta">
+            {estado.filas} acciones registradas, {estado.encadenadas} encadenadas{estado.sinHash > 0 ? `, ${estado.sinHash} anteriores al encadenado (sin hash)` : ''}
+            {estado.motivo ? `. ${estado.motivo}` : ''}
+          </span>
         </div>
       )}
     </Seccion>

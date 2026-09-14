@@ -11,6 +11,7 @@ import type { EstadoRosa } from '../datos/tipos';
 import { Chip, Seccion } from '../componentes/piezas';
 import { IconAlert } from '../componentes/icons';
 import { avisosDelObjetivo, parafrasis, proponerConfiguracion } from '../lib/objetivo';
+import { partesAutomatizadas, textoAutomatizacion } from '../lib/parada';
 import { rutaDe } from '../lib/ruta';
 
 export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (hash: string) => void }) {
@@ -96,7 +97,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         <div className="campo">
           <label htmlFor="n-parada">Condicion de parada</label>
           <input id="n-parada" value={parada} onChange={(e) => setParada(e.target.value)} placeholder="3 iteraciones, o 72 horas, lo que ocurra primero" />
-          <p className="meta">Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decision de parar por otro motivo es tuya.</p>
+          <p className="meta">{parada.trim() ? textoAutomatizacion(partesAutomatizadas(parada)) : 'Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decision de parar por otro motivo es tuya.'}</p>
         </div>
         <div className="campo">
           <label htmlFor="n-revisores">Quien revisa (separados por coma)</label>

@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from rosa import config, politicas
+from rosa import parada as PARADA
 from rosa.estado import plantilla as P
 
 Estado = dict[str, Any]
@@ -440,6 +441,8 @@ def evaluar_aprendizaje(e: Estado, cambio_id: str, ahora: int) -> bool:
 
 
 def registrar_decision(e: Estado, h: dict, etapa: str, decision: str, motivo: str, quien: str, ahora: int, comprobaciones: list[dict] | None = None, que_haria_falta: str = "") -> dict:
+    if etapa.startswith("killer") and decision not in politicas.DECISIONES_KILLER:
+        raise ValueError(f"decision del Killer fuera de la politica: {decision}")
     d = P.nueva_decision(h["investigacionId"], h["id"], h.get("version", 1), etapa, decision, motivo, quien, ahora, comprobaciones, que_haria_falta)
     e.setdefault("decisiones", []).append(d)
     return d
@@ -571,13 +574,81 @@ def registrar_evaluacion(e: Estado, evaluacion: dict, quien: str, ahora: int) ->
     """Un panel de evaluacion del sistema (por ahora, el panel del Killer con
     fallos plantados) entra al estado como registro con fecha: resumen,
     detalle por tipo de fallo y los casos. Sirve para comparar versiones del
-    prompt o del modelo con la misma prueba."""
+    prompt o del modelo con la misma prueba. Si el modelo del juez cambio
+    respecto al panel anterior, o el acuerdo cayo, queda una incidencia."""
     if not isinstance(evaluacion, dict) or evaluacion.get("tipo") not in ("panel_killer",) or not isinstance(evaluacion.get("resumen"), dict):
         return False
+    anteriores = [x for x in e.get("evaluaciones", []) if x.get("tipo") == evaluacion["tipo"]]
+    anterior = anteriores[-1] if anteriores else None
     reg = {"id": P.nuevo_id("eval"), "tipo": evaluacion["tipo"], "fecha": int(evaluacion.get("fecha") or ahora), "quien": quien.strip() or "persona", "resumen": evaluacion["resumen"], "porFallo": evaluacion.get("porFallo") or {}, "fallos": evaluacion.get("fallos") or {}, "casos": list(evaluacion.get("casos") or [])[:400]}
     e.setdefault("evaluaciones", []).append(reg)
     r = reg["resumen"]
     e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Panel del Killer: deteccion {r.get('tasaDeteccion')}, abstencion {r.get('abstencion')}, sobre-matanza en gris {r.get('sobreMatanzaGris')} ({r.get('casos')} casos, {r.get('usd')} USD)", f"evaluacion:{reg['id']}", "promovido", quien, ahora))
+    avisos = []
+    if anterior and anterior["resumen"].get("juez") and r.get("juez") and anterior["resumen"]["juez"] != r["juez"]:
+        avisos.append(f"el modelo del juez cambio de {anterior['resumen']['juez']} a {r['juez']}")
+    ka = ((anterior or {}).get("resumen", {}).get("acuerdo") or {}).get("decision") or {}
+    kb = (r.get("acuerdo") or {}).get("decision") or {}
+    if ka.get("kappa") is not None and kb.get("kappa") is not None and ka["kappa"] - kb["kappa"] > 0.15:
+        avisos.append(f"el acuerdo por decision bajo de kappa {ka['kappa']} a {kb['kappa']}")
+    if anterior and anterior["resumen"].get("tasaDeteccion") is not None and r.get("tasaDeteccion") is not None and anterior["resumen"]["tasaDeteccion"] - r["tasaDeteccion"] > 0.15:
+        avisos.append(f"la deteccion bajo de {anterior['resumen']['tasaDeteccion']} a {r['tasaDeteccion']}")
+    if avisos:
+        e.setdefault("incidencias", []).append({"id": P.nuevo_id("inc"), "corridaId": None, "tipo": "calibracion_juez", "titulo": "El panel del Killer cambio respecto al anterior", "detalle": "; ".join(avisos) + ". Revisa antes de confiar en las decisiones nuevas.", "estado": "pendiente", "creadaEn": ahora, "resueltaEn": None, "resolucion": None, "opciones": ["revisar", "aceptar"]})
+    return True
+
+
+def registrar_sello_externo(e: Estado, hipotesis_id: str, sello: dict, ahora: int) -> bool:
+    """El sello RFC 3161 del prerregistro (hash, autoridades, hora firmada y
+    los tokens) queda en el experimento y en el registro de procedencia."""
+    from rosa import sello as S
+
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or not h.get("experimento") or not isinstance(sello, dict) or not sello.get("hash"):
+        return False
+    x = h["experimento"]
+    x["selloExterno"] = {k: sello.get(k) for k in ("algoritmo", "hash", "pedidoEn", "ok", "testigos", "primeraHora", "error")} | {"sellos": [{k: s_.get(k) for k in ("tsa", "url", "ca", "ok", "genTime", "serial", "politica", "tsrBase64", "error", "ms")} for s_ in sello.get("sellos") or []]}
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} prerregistro: {S.texto_para_registro(sello)}")
+    return True
+
+
+def _modelo_juez() -> str:
+    from rosa import gateway
+
+    return gateway.JUEZ
+
+
+def etiquetar_comprobacion(e: Estado, hipotesis_id: str, comprobacion: str, veredicto_humano: str, quien: str, ahora: int, nota: str = "") -> bool:
+    """Una persona cualificada dice si una comprobacion del Killer acierta:
+    su veredicto (pasa, falla, no_comprobable) queda en el conjunto dorado
+    junto al del juez, la version juzgada y el modelo. Es la materia prima
+    del acuerdo juez-humano (kappa por comprobacion)."""
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or veredicto_humano not in ("pasa", "falla", "no_comprobable") or not comprobacion:
+        return False
+    decisiones = [d for d in e.get("decisiones", []) if d.get("hipotesisId") == hipotesis_id and str(d.get("etapa", "")).startswith("killer")]
+    ultima = decisiones[-1] if decisiones else None
+    del_juez = next((c for c in (ultima or {}).get("comprobaciones", []) if c.get("comprobacion") == comprobacion), None)
+    if not del_juez:
+        return False
+    caso = {
+        "id": P.nuevo_id("oro"),
+        "hipotesisId": hipotesis_id,
+        "version": h.get("version", 1),
+        "decisionId": (ultima or {}).get("id"),
+        "comprobacion": comprobacion,
+        "veredictoJuez": del_juez.get("resultado"),
+        "detalleJuez": (del_juez.get("detalle") or "")[:300],
+        "veredictoHumano": veredicto_humano,
+        "nota": (nota or "").strip()[:500],
+        "quien": (quien or "").strip() or "persona",
+        "fecha": ahora,
+        "modeloJuez": (ultima or {}).get("modelo") or _modelo_juez(),
+    }
+    dorado = e.setdefault("conjuntoDorado", [])
+    # Una etiqueta nueva de la misma persona sobre la misma comprobacion y version sustituye a la anterior.
+    e["conjuntoDorado"] = [c for c in dorado if not (c["hipotesisId"] == hipotesis_id and c["comprobacion"] == comprobacion and c["version"] == caso["version"] and c["quien"] == caso["quien"])] + [caso]
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} conjunto dorado: {quien} dice que '{comprobacion}' {veredicto_humano} (el juez dijo {del_juez.get('resultado')})")
     return True
 
 
@@ -1135,6 +1206,8 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
         "relevancia": t("relevancia"),
         "limites": [l.strip() for l in datos.get("limites", []) if str(l).strip()],
         "condicionParada": t("condicionParada"),
+        # Que parte de la condicion mide Rosa y que parte decide una persona.
+        "condicionParadaAutomatizada": PARADA.partes_automatizadas(t("condicionParada")),
         "revisores": [r.strip() for r in datos.get("revisores", []) if str(r).strip()],
         "estado": "activa",
         "creadaEn": ahora,

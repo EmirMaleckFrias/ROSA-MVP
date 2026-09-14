@@ -401,6 +401,8 @@ class Supervisor:
         try:
             pred = await ctx.llamar("volumen", self.programas.hipotesis_en_llano, titulo=h["titulo"], enunciado=h["enunciado"], mecanismo=h["mecanismo"], comprobacion=f"Biomarcador: {c['biomarcador']}. Cohorte: {c['cohorte']}. Diseño: {c['diseno']}", relevancia=h["relevancia"]["justificacion"])
             texto = pred.explicacion.strip()
+        except PresupuestoAgotado:
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
         except Exception as ex:  # noqa: BLE001
             texto = ""
             traceback.print_exc()
@@ -445,6 +447,8 @@ class Supervisor:
                 "ficheroDatos": None,
                 "analisisPedido": x.analisis_pedido.strip(),
             }
+        except PresupuestoAgotado:
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             experimento = None
@@ -507,6 +511,8 @@ class Supervisor:
                 "fecha": P.ahora_ms(),
                 "iteracion": ctx.numero,
             }
+        except PresupuestoAgotado:
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             conclusion = None
@@ -629,13 +635,20 @@ class Supervisor:
     async def _completar_en_llano(self) -> None:
         """Rellena lo que falte: hipotesis sin version en llano e iteraciones
         cerradas sin resumen en llano (las anteriores a esta funcion). Una
-        cosa por tick, para no competir con la corrida."""
+        cosa por tick, para no competir con la corrida. Si el presupuesto se
+        agota a mitad, se deja para cuando lo amplien (sin marcar nada)."""
+        try:
+            await self._completar_en_llano_paso()
+        except PresupuestoAgotado:
+            return
+
+    async def _completar_en_llano_paso(self) -> None:
         e = self.almacen.estado
 
         def _puede_gastar(corrida: dict[str, Any] | None) -> bool:
             # Rellenar en segundo plano gasta llamadas: no se hace sobre corridas que
             # una persona detuvo ni sobre corridas pausadas por presupuesto.
-            return bool(corrida) and corrida["estado"] not in ("detenida", "pausada_por_presupuesto", "pausada")
+            return bool(corrida) and corrida["estado"] not in ("detenida", "pausada_por_presupuesto", "pausada", "terminada")
 
         for h in e["hipotesis"]:
             x = h.get("experimento")
@@ -1061,11 +1074,17 @@ class Supervisor:
                 if ya["alcanceConcedido"] == "esta_corrida":
                     e2["autonomia"]["gastar_grande"] = e2["autonomia"]["gastar_grande"]  # el permiso queda registrado en `permisos`
             else:
-                it2["presupuesto"]["limite"] = max(10, int(restante * 0.5))
+                # Denegado: la iteracion no puede gastar mas de lo ya usado y la
+                # corrida se pausa hasta que alguien amplie el tope o la reanude.
+                it2["presupuesto"]["limite"] = it2["presupuesto"]["usado"]
+                it2["_presupuestoDenegado"] = True
+                c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
+                c2["estado"] = "pausada_por_presupuesto"
+                A.con_evento(e2, c["investigacionId"], "presupuesto", f"Permiso de gasto denegado: la iteracion {it['numero']} queda sin presupuesto y la corrida se pauso. Amplia el tope o reanuda para seguir.", f"#/investigaciones/{c['investigacionId']}/corrida", P.ahora_ms())
             return True
 
         self.almacen.mutar(resolver, "presupuesto_autorizado")
-        return True
+        return ya["estado"] == "concedida"
 
     async def _ejecutar_paso(self, c: dict[str, Any], it: dict[str, Any], paso: dict[str, Any]) -> None:
         tipo = T.inferir_tipo_paso(paso)
@@ -1157,7 +1176,7 @@ class Supervisor:
                 await self._concluir_hipotesis(ctx, h)
         ahora = P.ahora_ms()
         bloqueadas = [a for a in afs if a["veredicto"] in ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")]
-        informe = _informe(inv, it, resumen, hechos_nuevos, hip_nuevas, afs, bloqueadas)
+        informe = _informe(inv, it, resumen, hechos_nuevos, hip_nuevas, afs, bloqueadas, [q for q in c["busqueda"].get("consultas", []) if q.get("iteracion") in (None, it["numero"])])
         # Revisor de registro: lo que el resumen y el resumen en llano dicen, contra
         # lo que el registro prueba. Por regla y despues con el juez.
         revision = await self._revisar_registro(ctx, inv, it, c, resumen, llano)
@@ -1353,12 +1372,12 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
     return None
 
 
-def _informe(inv: dict[str, Any], it: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], afs: list[dict], bloqueadas: list[dict]) -> str:
+def _informe(inv: dict[str, Any], it: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], afs: list[dict], bloqueadas: list[dict], consultas: list[dict] | None = None) -> str:
     lineas = [f"# {inv['titulo']}: iteracion {it['numero']}", "", resumen, "", "## Plan ejecutado", T.plan_ejecutado(it), "", f"## Hechos nuevos ({len(hechos)})"]
     lineas += [f"- {h['enunciado']} <" + "; ".join(f"{p['referencia']}{', pag. ' + str(p['pagina']) if p['pagina'] else ''}" for p in h["procedencia"]) + ">" for h in hechos] or ["Ninguno"]
     lineas += ["", f"## Hipotesis nuevas en la cola ({len(hipotesis)})"] + ([f"- {h['titulo']}" for h in hipotesis] or ["Ninguna"])
     lineas += ["", f"## Afirmaciones ({len(afs)}), bloqueadas {len(bloqueadas)}"]
     for a in afs[:80]:
         lineas.append(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" + (f" ({a['motivo']})" if a["veredicto"] != "sostenida" else ""))
-    lineas += ["", "## Consultas hechas"] + [f"- {q['base']}: {q['consulta']} ({q['resultados']} resultados)" for q in []]
+    lineas += ["", f"## Consultas hechas ({len(consultas or [])})"] + ([f"- {q.get('base', '')}: {q.get('consulta', '')} ({q.get('resultados', '?')} resultados, {datetime.fromtimestamp(q['fecha'] / 1000).strftime('%d/%m/%Y') if q.get('fecha') else 'sin fecha'})" for q in (consultas or [])] or ["Ninguna en esta iteracion"])
     return "\n".join(lineas)

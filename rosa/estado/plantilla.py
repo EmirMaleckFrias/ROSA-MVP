@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from rosa import config
+from rosa import config, politicas
 
 _contador = itertools.count(1)
 
@@ -88,6 +88,7 @@ def estado_inicial() -> dict[str, Any]:
         "comentarios": [],
         "hechos": [],
         "evaluaciones": [],
+        "conjuntoDorado": [],
         "permisosConectores": {},
         "skills": [],
         "conectores": [],
@@ -257,8 +258,8 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "mecanismo": "",
         "comprobacion": {"biomarcador": "", "cohorte": "", "diseno": ""},
         "estado": "propuesta",
-        "elo": 1500,
-        "historialElo": [{"iteracion": iteracion, "elo": 1500}],
+        "elo": politicas.ELO_INICIAL,
+        "historialElo": [{"iteracion": iteracion, "elo": politicas.ELO_INICIAL}],
         "rivales": [],
         "novedad": novedad_pendiente(),
         "afirmaciones": [],
@@ -485,7 +486,13 @@ def hash_plan(plan: dict[str, Any]) -> str:
     import hashlib
 
     claves = ("tipo", "pregunta", "variables", "poblacion", "preprocesado", "prueba", "hipotesisNula", "hipotesisAlternativa", "alpha", "direccionEsperada", "tamanoEfectoMinimo", "baseline", "controlNegativo", "correccionMultiplicidad", "umbralEfecto", "criterioNoEvaluable", "semilla", "hashDatos", "datasetId")
-    canonico = json.dumps({k: plan.get(k) for k in claves}, sort_keys=True, ensure_ascii=False)
+    canonico_dict = {k: plan.get(k) for k in claves}
+    # El entorno (imagen del sandbox, con sus versiones de numpy y scipy) forma
+    # parte del plan: cambiarlo es otro plan. Solo se incluye si no es el de
+    # siempre, para que los planes ya congelados conserven su hash.
+    if (plan.get("entorno") or "tabular") != "tabular":
+        canonico_dict["entorno"] = plan["entorno"]
+    canonico = json.dumps(canonico_dict, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonico.encode("utf-8")).hexdigest()[:16]
 
 

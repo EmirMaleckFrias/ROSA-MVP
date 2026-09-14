@@ -288,7 +288,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <GrafoCausalDeHipotesis h={h} />
         <ConsultasABases h={h} ahora={ahora} />
 
-      <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} />
+      <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} conjuntoDorado={estado.conjuntoDorado ?? []} />
 
       <Seccion titulo="Enunciado">
         <TextoConFuertes texto={h.enunciado} campo="enunciado" />
@@ -628,6 +628,16 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 <a className="chip chip-ok" href={rutaDe(h.investigacionId, 'artefactos', h.experimento.prerregistroArtefactoId)} title="Hipótesis, protocolo y criterios congelados antes de los datos">
                   Prerregistrado <Momento t={h.experimento.prerregistradoEn} ahora={ahora} />
                 </a>
+              )}
+              {h.experimento.prerregistradoEn && h.experimento.selloExterno?.ok && (
+                <Chip tono="ok" title={`sha256 ${h.experimento.selloExterno.hash}. Hora firmada por ${h.experimento.selloExterno.testigos.join(' y ')}: ${h.experimento.selloExterno.primeraHora}. Se verifica sin Rosa con openssl ts -verify sobre el token guardado.`}>
+                  Sellado por {h.experimento.selloExterno.testigos.join(' y ')} ({h.experimento.selloExterno.primeraHora?.slice(0, 16).replace('T', ' ')} UTC)
+                </Chip>
+              )}
+              {h.experimento.prerregistradoEn && !h.experimento.selloExterno?.ok && (
+                <button type="button" className="btn btn-s" title={h.experimento.selloExterno?.error ? `Ultimo intento: ${h.experimento.selloExterno.error}` : 'Pide a dos autoridades de sellado de tiempo (RFC 3161) que firmen la hora del prerregistro: un tercero atestigua que se congelo antes de los datos'} onClick={() => void acciones.sellarPrerregistro(h.id)}>
+                  {h.experimento.selloExterno ? 'Reintentar el sello externo' : 'Sellar con un tercero'}
+                </button>
               )}
             </div>
             {h.experimento.estado === 'propuesto' && (

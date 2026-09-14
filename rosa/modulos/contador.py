@@ -38,15 +38,25 @@ class ContextoLlamada:
 contexto_actual: contextvars.ContextVar[ContextoLlamada | None] = contextvars.ContextVar("rosa_contexto_llamada", default=None)
 
 
-def presupuesto_ok(almacen, corrida_id: str) -> bool:
+def presupuesto_ok(almacen, corrida_id: str, iteracion: int | None = None) -> bool:
     """La comprobacion que corta de verdad: la llama Ctx.llamar antes de cada
     llamada al modelo. (Lanzar dentro del callback de DSPy no sirve: DSPy
-    captura las excepciones de los callbacks y solo escribe un aviso.)"""
+    captura las excepciones de los callbacks y solo escribe un aviso.)
+    Comprueba el tope de la corrida y, si se da la iteracion, tambien el suyo:
+    el limite que la persona ve (y que puede recortar al denegar un permiso)
+    es el que corta, no solo el global."""
     e = almacen.estado
     c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
     if not c:
         return True
-    return c["gasto"]["llamadas"] < c["presupuesto"]["limiteLlamadas"]
+    if c["gasto"]["llamadas"] >= c["presupuesto"]["limiteLlamadas"]:
+        return False
+    if iteracion is not None:
+        it = next((x for x in e["iteraciones"] if x["corridaId"] == corrida_id and x["numero"] == iteracion), None)
+        pres = (it or {}).get("presupuesto") or {}
+        if pres.get("limite") and pres.get("usado", 0) >= pres["limite"]:
+            return False
+    return True
 
 
 def _entrada_de_esta_llamada(candidatos: list[dict[str, Any]], entradas: dict[str, Any] | None) -> dict[str, Any] | None:

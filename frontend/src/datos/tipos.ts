@@ -210,6 +210,9 @@ export interface Investigacion {
   relevancia: string;
   limites: string[];
   condicionParada: string;
+  /** Que parte de la condicion mide Rosa sola (iteraciones, tiempo, llamadas)
+   *  y que parte queda para que la decida una persona. Espejo de rosa/parada.py. */
+  condicionParadaAutomatizada?: CondicionAutomatizada;
   revisores: string[];
   estado: EstadoInvestigacion;
   creadaEn: number;
@@ -840,6 +843,68 @@ export interface Experimento {
   /** Cambios fechados del prerregistro despues de congelarlo: que campo, texto
    *  anterior y nuevo, quien y por que. */
   enmiendas?: EnmiendaPrerregistro[];
+  /** Sello de tiempo de un tercero (RFC 3161) sobre el texto del prerregistro:
+   *  hash, autoridades que lo firmaron y la hora que firmaron. Se verifica sin Rosa. */
+  selloExterno?: SelloExterno | null;
+}
+
+export interface CondicionAutomatizada {
+  iteraciones: number | null;
+  tiempo: string | null;
+  llamadas: number | null;
+  resto: string;
+  automatizada: boolean;
+}
+
+export interface SelloRfc3161 {
+  tsa: string;
+  url: string;
+  ca?: string | null;
+  ok: boolean;
+  genTime?: string;
+  serial?: string;
+  politica?: string;
+  tsrBase64?: string;
+  error?: string;
+  ms?: number;
+}
+
+export interface SelloExterno {
+  algoritmo: 'sha256';
+  hash: string;
+  pedidoEn: number;
+  ok: boolean;
+  testigos: string[];
+  primeraHora: string | null;
+  error: string | null;
+  sellos: SelloRfc3161[];
+}
+
+/** Un caso del conjunto dorado: lo que dijo el juez sobre una comprobacion y
+ *  lo que dice una persona cualificada. De aqui sale el kappa por comprobacion. */
+export interface CasoDorado {
+  id: Id;
+  hipotesisId: Id;
+  version: number;
+  decisionId: Id | null;
+  comprobacion: string;
+  veredictoJuez: 'pasa' | 'falla' | 'no_comprobable' | 'no_aplica';
+  detalleJuez: string;
+  veredictoHumano: 'pasa' | 'falla' | 'no_comprobable';
+  nota: string;
+  quien: string;
+  fecha: number;
+  modeloJuez: string;
+}
+
+export interface Acuerdo {
+  n: number;
+  bruto: number | null;
+  kappa: number | null;
+  ac1: number | null;
+  ic95: [number, number] | null;
+  interpretacion: string;
+  suficiente?: boolean;
 }
 
 export interface ProtocoloReal {
@@ -1341,7 +1406,8 @@ export interface MetricasJuez {
   fecha: number;
   juez: string;
   casos: number;
-  acuerdoConHumanos: number;
+  /** Kappa juez-humano del conjunto dorado; null mientras no haya etiquetas. */
+  acuerdoConHumanos: number | null;
   sostenidas: number;
   cobertura: number;
   ausenciasRefutadas: number;
@@ -1456,6 +1522,8 @@ export interface EstadoRosa {
   relaciones?: RelacionCausal[];
   /** Paneles de evaluacion del sistema con fallos plantados (panel del Killer). */
   evaluaciones?: RegistroEvaluacion[];
+  /** Etiquetas humanas sobre comprobaciones del Killer (calibracion de los jueces). */
+  conjuntoDorado?: CasoDorado[];
   /** El catalogo de conectores a bases publicas, tal como esta en el codigo. */
   conectores?: ConectorCatalogo[];
   /** Permiso por conector: permitir, solo cuando pregunta una persona, o bloquear. */
@@ -1525,7 +1593,7 @@ export interface RegistroEvaluacion {
   tipo: 'panel_killer';
   fecha: number;
   quien: string;
-  resumen: { casos: number; hipotesis: number; tasaDeteccion: number | null; tasaJuezDetecta: number | null; abstencion: number; sobreMatanzaGris: number | null; usd: number; segundos: number; juez: string };
+  resumen: { casos: number; hipotesis: number; tasaDeteccion: number | null; tasaJuezDetecta: number | null; abstencion: number; sobreMatanzaGris: number | null; usd: number; segundos: number; juez: string; acuerdo?: { decision: Acuerdo | null; porComprobacion: Record<string, Acuerdo> } };
   porFallo: Record<string, { casos: number; detectados?: number; decisionEsperada?: number; comprobacionFalla?: number; juezFalla?: number; suspendidas?: number; descartadas?: number; errores?: number; acuerdoConReal?: number }>;
   fallos: Record<string, string>;
   casos: { hipotesisId: string; titulo: string; fallo: string; plantado?: string; decisionReal?: string | null; detectado?: boolean | null; juezFalla?: boolean | null; decision: string; comprobacionesFallidas: string[]; juezFallidas: string[]; usd: number }[];

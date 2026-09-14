@@ -128,11 +128,17 @@ class Espejo:
         if meta:
             self.estado.update(ultimaVersion=meta.get("version"), sincronizadoEn=meta.get("sincronizadoEn"), entidades=meta.get("entidades", 0))
 
+    def _entidades(self) -> list[dict[str, Any]]:
+        with self.almacen._lock:
+            return entidades_de(self.almacen.estado)
+
     async def sincronizar(self) -> dict[str, Any]:
         """Un ciclo: diff contra los hashes conocidos y envio por lotes."""
         t0 = time.monotonic()
         version = self.almacen.version
-        filas = entidades_de(self.almacen.estado)
+        # Instantanea bajo el cerrojo y en un hilo: ni lee un estado a medio
+        # mutar ni bloquea el bucle de eventos con el escaneo.
+        filas = await asyncio.to_thread(self._entidades)
         actuales = {(f["coleccion"], f["id"]): f for f in filas}
         cambios = [f for k, f in actuales.items() if self.hashes.get(k) != f["hash"]]
         borrados = [{"coleccion": c, "id": i} for (c, i) in self.hashes if (c, i) not in actuales]

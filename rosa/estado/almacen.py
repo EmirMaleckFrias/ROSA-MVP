@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import inspect
+import hashlib
 import json
 import sqlite3
 import threading
@@ -44,7 +45,9 @@ CREATE TABLE IF NOT EXISTS acciones (
   nombre TEXT NOT NULL,
   args TEXT NOT NULL,
   resultado TEXT,
-  version INTEGER NOT NULL
+  version INTEGER NOT NULL,
+  hash TEXT,
+  hash_anterior TEXT
 );
 CREATE TABLE IF NOT EXISTS llamadas (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +64,11 @@ CREATE TABLE IF NOT EXISTS llamadas (
 );
 CREATE INDEX IF NOT EXISTS ix_llamadas_corrida ON llamadas(corrida_id, seq);
 """
+
+
+def hash_fila(hash_anterior: str, t: int, nombre: str, args_json: str, resultado_json: str, version: int) -> str:
+    """sha256 de la fila y del hash de la anterior: el eslabon de la cadena."""
+    return hashlib.sha256("\n".join([hash_anterior or "", str(t), nombre, args_json, resultado_json, str(version)]).encode("utf-8")).hexdigest()
 
 
 def _limpiar_para_cliente(valor: Any) -> Any:
@@ -82,14 +90,23 @@ class Almacen:
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.execute("PRAGMA busy_timeout=30000")
         self._con.executescript(ESQUEMA)
+        # Bases anteriores al encadenado de hashes: se anaden las columnas.
+        columnas = {fila[1] for fila in self._con.execute("PRAGMA table_info(acciones)")}
+        for col in ("hash", "hash_anterior"):
+            if col not in columnas:
+                self._con.execute(f"ALTER TABLE acciones ADD COLUMN {col} TEXT")
+        ultimo = self._con.execute("SELECT hash FROM acciones ORDER BY seq DESC LIMIT 1").fetchone()
+        self._ultimo_hash: str = (ultimo[0] if ultimo and ultimo[0] else "")
         self.version = 0
         self.estado: dict[str, Any] = self._cargar()
+        self._partes: dict[str, str] = {}
+        self._serializar()  # linea base para saber que claves toca cada mutacion
         self._suscriptores: set[asyncio.Queue] = set()
         self._bucle_asyncio: asyncio.AbstractEventLoop | None = None
 
     # -- persistencia ------------------------------------------------------
 
-    def _cargar(self) -> dict[str, Any]:
+    def _cargar(self, migrar: bool = True) -> dict[str, Any]:
         fila = self._con.execute("SELECT version, json FROM estado WHERE clave='rosa'").fetchone()
         if fila is None:
             estado = P.estado_inicial()
@@ -97,14 +114,25 @@ class Almacen:
             return estado
         self.version = fila[0]
         estado = json.loads(fila[1])
-        # Campos nuevos que un estado guardado con una version anterior no tenga.
-        for k, v in P.estado_inicial().items():
-            estado.setdefault(k, v)
-        _migrar(estado)
+        if migrar:
+            # Campos nuevos que un estado guardado con una version anterior no tenga.
+            for k, v in P.estado_inicial().items():
+                estado.setdefault(k, v)
+            _migrar(estado)
         return estado
 
-    def _guardar(self) -> None:
-        self._con.execute("UPDATE estado SET version=?, json=?, actualizado_en=? WHERE clave='rosa'", (self.version, json.dumps(self.estado, ensure_ascii=False), P.ahora_ms()))
+    def _serializar(self) -> tuple[str, list[str]]:
+        """El JSON del estado y las claves de primer nivel que cambiaron desde
+        la ultima escritura. Se serializa por clave (mismo coste que entero) para
+        poder decir en el registro que toco cada mutacion del bucle."""
+        partes = {k: json.dumps(v, ensure_ascii=False) for k, v in self.estado.items()}
+        anteriores = getattr(self, "_partes", {})
+        cambiaron = [k for k, v in partes.items() if anteriores.get(k) != v] + [k for k in anteriores if k not in partes]
+        self._partes = partes
+        return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + v for k, v in partes.items()) + "}", cambiaron
+
+    def _guardar(self, texto: str) -> None:
+        self._con.execute("UPDATE estado SET version=?, json=?, actualizado_en=? WHERE clave='rosa'", (self.version, texto, P.ahora_ms()))
 
     # -- lectura -----------------------------------------------------------
 
@@ -128,14 +156,38 @@ class Almacen:
                 resultado = fn(self.estado)
             except Exception:
                 # Un reducer que lanza a medias deja el estado en memoria mutado sin
-                # guardar; se vuelve a la ultima version persistida y se relanza.
-                self.estado = self._cargar()
+                # guardar: se vuelve a la ultima version persistida. Se rellena EL
+                # MISMO diccionario (no se rebindea el atributo): las corrutinas del
+                # bucle que capturaron `almacen.estado` siguen viendo el estado bueno.
+                recargado = self._cargar(migrar=False)
+                self.estado.clear()
+                self.estado.update(recargado)
+                self._partes = {}
                 raise
             if resultado is False:
                 return False
-            self.version += 1
-            self._guardar()
-            self._con.execute("INSERT INTO acciones(t, nombre, args, resultado, version) VALUES (?,?,?,?,?)", (P.ahora_ms(), nombre, json.dumps(args or {}, ensure_ascii=False, default=str), json.dumps(resultado, default=str), self.version))
+            texto, cambiaron = self._serializar()
+            # Registro solo de anadir encadenado: cada fila lleva el hash de la
+            # anterior. Borrar o alterar una fila rompe la cadena desde ahi
+            # (verificar_cadena). Las mutaciones del bucle, que no traen argumentos,
+            # registran que claves del estado tocaron. Estado y registro se escriben
+            # en la misma transaccion: o quedan los dos o ninguno.
+            t = P.ahora_ms()
+            args_json = json.dumps(args if args else {"cambiaron": cambiaron}, ensure_ascii=False, default=str)
+            res_json = json.dumps(resultado, default=str)
+            version_nueva = self.version + 1
+            h = hash_fila(self._ultimo_hash, t, nombre, args_json, res_json, version_nueva)
+            self._con.execute("BEGIN IMMEDIATE")
+            try:
+                self.version = version_nueva
+                self._guardar(texto)
+                self._con.execute("INSERT INTO acciones(t, nombre, args, resultado, version, hash, hash_anterior) VALUES (?,?,?,?,?,?,?)", (t, nombre, args_json, res_json, version_nueva, h, self._ultimo_hash))
+                self._con.execute("COMMIT")
+            except Exception:
+                self._con.execute("ROLLBACK")
+                self.version = version_nueva - 1
+                raise
+            self._ultimo_hash = h
             self._avisar()
             return resultado
 
@@ -152,6 +204,27 @@ class Almacen:
         elif con_ahora and "ahora" not in kwargs:
             kwargs["ahora"] = P.ahora_ms()
         return self.mutar(lambda e: fn(e, **kwargs), nombre, args)
+
+    def verificar_cadena(self) -> dict[str, Any]:
+        """Recorre el registro y recalcula cada eslabon. Devuelve cuantas filas
+        hay, cuantas estan encadenadas (las anteriores al encadenado no llevan
+        hash y se cuentan aparte) y la primera rotura si la hay."""
+        with self._lock:
+            filas = self._con.execute("SELECT seq, t, nombre, args, resultado, version, hash, hash_anterior FROM acciones ORDER BY seq").fetchall()
+        anterior = ""
+        encadenadas = 0
+        sin_hash = 0
+        for seq, t, nombre, args, resultado, version, h, h_ant in filas:
+            if not h:
+                sin_hash += 1
+                continue
+            if (h_ant or "") != anterior and encadenadas > 0:
+                return {"ok": False, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": seq, "motivo": "el hash anterior no coincide (fila borrada o insertada)"}
+            if hash_fila(h_ant or "", t, nombre, args, resultado or "null", version) != h:
+                return {"ok": False, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": seq, "motivo": "el contenido de la fila no corresponde a su hash (fila alterada)"}
+            anterior = h
+            encadenadas += 1
+        return {"ok": True, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": None, "ultimoHash": anterior}
 
     def registrar_llamada(self, modelo: str, rol: str | None, corrida_id: str | None, iteracion: int | None, tokens_entrada: int, tokens_salida: int, ms: int, ok: bool, error: str | None = None) -> None:
         with self._lock:
@@ -459,6 +532,8 @@ _TABLA: dict[str, Callable] = {
     "registrarProtocoloReal": A.registrar_protocolo_real,
     "cambiarEstadoArea": A.cambiar_estado_area,
     "registrarEvaluacion": A.registrar_evaluacion,
+    "registrarSelloExterno": A.registrar_sello_externo,
+    "etiquetarComprobacion": A.etiquetar_comprobacion,
     "fijarPermisoConector": A.fijar_permiso_conector,
     "resolverHallazgoRegistro": A.resolver_hallazgo_registro,
     "anadirMemoria": A.anadir_memoria,

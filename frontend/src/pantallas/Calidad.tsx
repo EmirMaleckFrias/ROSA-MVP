@@ -11,7 +11,8 @@ import type { CasoControl, EstadoRosa, Investigacion } from '../datos/tipos';
 import { IconExternal } from '../componentes/icons';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { agujerosDeConejo, calibracion } from '../lib/calidad';
-import { CATEGORIA_CASO, ESTADO_CASO, TIPO_AFIRMACION } from '../lib/etiquetas';
+import { acuerdoDe, acuerdoPorComprobacion } from '../lib/acuerdo';
+import { CATEGORIA_CASO, COMPROBACION_KILLER, ESTADO_CASO, TIPO_AFIRMACION } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
 
@@ -95,8 +96,8 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         {ultima && (
           <div className="metricas">
             <div className="gasto-item">
-              <strong>{aprobados === 0 ? 'Sin casos' : formatearPorcentaje(ultima.acuerdoConHumanos)}</strong>
-              <span>acuerdo con la etiqueta humana</span>
+              <strong>{ultima.acuerdoConHumanos === null || ultima.acuerdoConHumanos === undefined ? 'Sin etiquetas' : `kappa ${ultima.acuerdoConHumanos}`}</strong>
+              <span>acuerdo juez-humano (conjunto dorado)</span>
             </div>
             <div className="gasto-item">
               <strong>{formatearPorcentaje(ultima.sostenidas)}</strong>
@@ -120,6 +121,45 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
             </div>
           </div>
         )}
+      </Seccion>
+
+      <Seccion titulo="Conjunto dorado: acuerdo juez-humano por comprobacion" nota="Cada etiqueta que una persona pone sobre una comprobacion del Killer (en la ficha de la hipotesis) entra aqui. Kappa de Cohen corrige el acuerdo por el azar; se mide por comprobacion, no en promedio, porque el juez puede acertar en citas y fallar en sesgo. Hacen falta al menos 100 casos por comprobacion (200 si el fallo es raro) para que la cifra sea estable; hasta entonces es orientativa.">
+        {(() => {
+          const casos = estado.conjuntoDorado ?? [];
+          if (casos.length === 0) return <p className="meta">Sin etiquetas todavia. Abre una hipotesis juzgada por el Killer y marca en cada comprobacion tu veredicto.</p>;
+          const global = acuerdoDe(casos);
+          const porComp = acuerdoPorComprobacion(casos);
+          return (
+            <>
+              <div className="acciones" style={{ marginBottom: 8 }}>
+                <Chip tono={global.kappa !== null && global.kappa >= 0.61 ? 'ok' : 'aviso'}>Global: kappa {global.kappa ?? 'n/a'} ({global.interpretacion})</Chip>
+                <span className="meta">{global.n} etiquetas; acuerdo bruto {global.bruto === null ? 'n/a' : formatearPorcentaje(global.bruto)}</span>
+              </div>
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Comprobacion</th>
+                    <th>Etiquetas</th>
+                    <th>Acuerdo bruto</th>
+                    <th>Kappa</th>
+                    <th>Lectura</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(porComp).map(([c, a]) => (
+                    <tr key={c}>
+                      <td>{COMPROBACION_KILLER[c] ?? c}</td>
+                      <td className="num">{a.n}</td>
+                      <td className="num">{a.bruto === null ? 'n/a' : formatearPorcentaje(a.bruto)}</td>
+                      <td className="num">{a.kappa ?? 'n/a'}</td>
+                      <td className="meta">{a.n < 5 ? 'muy pocos casos' : a.interpretacion}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          );
+        })()}
       </Seccion>
 
       <Seccion titulo="Acierto por tipo de afirmacion" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. Rosa lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
