@@ -194,3 +194,21 @@ la pagina entera salia con fundido y volvia a entrar; medido con Playwright
 (`auditoria/hueco.mjs`, fuera de git) el hueco sin pagina era de unos 105 ms
 en un navegador ocioso y se alargaba cuando el navegador estaba ocupado con
 el flujo de eventos del final de una corrida. Ahora es 0 ms.
+
+## El árbol: fuerzas acotadas
+
+`pantallas/Arbol.tsx` dibuja el grafo de la investigación con una disposición
+por fuerzas (`lib/arbol.ts`, función `paso`): repulsión entre todos los nodos,
+un resorte por enlace, empuje entre etiquetas que se solapan, el tronco fijo
+y una gravedad suave. Con muchos nodos desplegados y un arrastre, la versión
+original se descontrolaba: dos nodos casi encima producían una repulsión
+enorme (va con el inverso del cuadrado de la distancia), un solape de
+etiquetas de cien unidades se convertía en un salto de decenas por paso y
+nada limitaba la velocidad. Emir lo describió como "se empieza a volver
+loco". Desde el 14 de septiembre de 2026 la repulsión se satura por debajo de
+12 unidades, el empuje por solape se acota a 24 unidades de solape y cada
+nodo tiene un tope de velocidad proporcional a la energía (2 + 28 · alfa
+unidades por paso). `lib/arbol.estabilidad.test.ts` arrastra un nodo con todo
+desplegado en el árbol de muestra y en uno sintético de 250 nodos: la
+velocidad máxima de los vecinos bajó de 27 a 31 unidades por paso a 9,5 a
+11,8, y el árbol se asienta en unos cien fotogramas al soltar.

@@ -262,6 +262,9 @@ export function posicionInicial(g: Grafo, posiciones: Map<string, Posicion>, id:
   return { x: Math.cos(ang) * r, y: Math.sin(ang) * r, vx: 0, vy: 0 };
 }
 
+const VELOCIDAD_BASE = 2;
+const VELOCIDAD_POR_ALFA = 28;
+
 export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Posicion>, alfa: number): void {
   const ids = [...visibles].filter((id) => posiciones.has(id));
   // Repulsion.
@@ -279,7 +282,10 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
         dy = (Math.random() - 0.5) * 2;
         d2 = 1;
       }
-      const f = (3400 * (pa + pb) * 0.5 * alfa) / d2;
+      // La repulsión se satura por debajo de 12 unidades: dos nodos que caen
+      // casi encima no salen disparados (con muchos nodos, un solo par así
+      // bastaba para que todo el árbol temblara).
+      const f = (3400 * (pa + pb) * 0.5 * alfa) / Math.max(d2, 144);
       const d = Math.sqrt(d2);
       let fx = (dx / d) * f;
       let fy = (dy / d) * f;
@@ -293,9 +299,11 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
         const ox = sx - Math.abs(dx);
         const oy = sy - Math.abs(dy);
         if (ox > 0 && oy > 0) {
+          // El empuje por solape de etiquetas se acota: un solape de 150
+          // unidades no puede convertirse en un salto de 50 por paso.
           const k = 0.35 * alfa;
-          fx += Math.sign(dx || 1) * ox * k;
-          fy += Math.sign(dy || 1) * oy * k * 0.6;
+          fx += Math.sign(dx || 1) * Math.min(ox, 24) * k;
+          fy += Math.sign(dy || 1) * Math.min(oy, 24) * k * 0.6;
         }
       }
       if (!a.fijo) {
@@ -335,6 +343,14 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
     p.vy -= p.y * 0.004 * alfa;
     p.vx *= 0.82;
     p.vy *= 0.82;
+    // Tope de velocidad proporcional a la energía: al arrastrar (alfa 0,35)
+    // nadie se mueve más de unas 12 unidades por paso; al asentarse, menos.
+    const tope = VELOCIDAD_BASE + VELOCIDAD_POR_ALFA * alfa;
+    const v = Math.hypot(p.vx, p.vy);
+    if (v > tope) {
+      p.vx *= tope / v;
+      p.vy *= tope / v;
+    }
     p.x += p.vx;
     p.y += p.vy;
   }
