@@ -36,17 +36,18 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
-        <Vacio titulo="Esta investigacion no tiene corridas">
-          {estado.conexion === 'muestra' ? (
-            'Cuando Rosa este conectada, aqui se arranca la primera con el objetivo y los limites definidos.'
-          ) : (
-            <>
-              <span style={{ display: 'block', marginBottom: 10 }}>Rosa arranca la corrida con el objetivo y los limites definidos, propone el plan de la primera iteracion y espera tu aprobacion.</span>
+        <Vacio
+          titulo="Esta investigacion no tiene corridas"
+          pasos={['Rosa lee el objetivo y los limites y propone el plan de la iteracion 1.', 'Tu apruebas el plan (puedes reordenar, quitar o anadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aqui ves cada consulta a cada base.', 'Al cerrar la iteracion, Rosa resume en llano lo que encontro y lo que te espera.']}
+          accion={
+            estado.conexion === 'muestra' ? undefined : (
               <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)}>
                 <IconPlay size={13} /> Arrancar la primera corrida
               </button>
-            </>
-          )}
+            )
+          }
+        >
+          {estado.conexion === 'muestra' ? 'Cuando Rosa este conectada, aqui se arranca la primera con el objetivo y los limites definidos.' : 'Rosa arranca la corrida con el objetivo y los limites definidos, propone el plan de la primera iteracion y espera tu aprobacion.'}
         </Vacio>
       </div>
     );

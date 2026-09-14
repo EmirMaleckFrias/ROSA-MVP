@@ -3193,3 +3193,518 @@ mark.fuerte {
   background: color-mix(in srgb, var(--aviso, #c98a1a) 12%, transparent);
   font-size: 13px;
 }
+
+/* ---------------------------------------------------------------------- 10
+   Rework (14 de septiembre de 2026): movimiento con significado, el hilo del
+   proceso, el recorrido de primera vez, deshacer, pistas con actividad,
+   estados vacios que ensenan, y piezas unificadas. Duraciones cortas
+   (150 a 400 ms); todo respeta el movimiento reducido.
+   ---------------------------------------------------------------------- */
+
+:root {
+  --dur-1: 150ms;
+  --dur-2: 240ms;
+  --dur-3: 400ms;
+  --ease-salida: cubic-bezier(0.22, 1, 0.36, 1);
+  --sombra-flotante: var(--shadow-float);
+}
+
+/* Piezas: la misma respuesta al tacto en toda Rosa. */
+.btn {
+  transition: background var(--dur-1) var(--ease-salida), border-color var(--dur-1) var(--ease-salida), transform var(--dur-1) var(--ease-salida), box-shadow var(--dur-1) var(--ease-salida);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+
+.btn-primario:hover:not(:disabled) {
+  box-shadow: 0 2px 10px var(--accent-soft-2);
+}
+
+.chip {
+  transition: background var(--dur-2) var(--ease-salida), color var(--dur-2) var(--ease-salida), border-color var(--dur-2) var(--ease-salida);
+}
+
+.tarjeta {
+  transition: border-color var(--dur-1) var(--ease-salida), box-shadow var(--dur-2) var(--ease-salida), transform var(--dur-2) var(--ease-salida);
+}
+
+.tarjeta-interactiva:hover {
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.tarjeta-interactiva:active {
+  transform: translateY(0);
+}
+
+.seccion-titulo h3 {
+  font-size: 14.5px;
+}
+
+.tabla th {
+  font-weight: 600;
+  color: var(--text-2);
+  font-size: 12px;
+  letter-spacing: 0.1px;
+  text-transform: none;
+}
+
+.nav-item,
+.nav-inv {
+  transition: background var(--dur-1) var(--ease-salida), color var(--dur-1) var(--ease-salida);
+}
+
+.nav-cuenta {
+  animation: aparecer-cuenta var(--dur-3) var(--ease-salida);
+}
+
+@keyframes aparecer-cuenta {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.cabecera .chip-aviso {
+  animation: respirar 2.4s ease-in-out infinite;
+}
+
+@keyframes respirar {
+  50% {
+    box-shadow: 0 0 0 4px var(--amber-soft);
+  }
+}
+
+/* La pagina: el fundido de cambio de ruta necesita un contenedor propio. */
+.pagina {
+  width: 100%;
+  min-height: 40vh;
+}
+
+/* El hilo del proceso, bajo la cabecera de cada investigacion. */
+.hilo {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 10px 28px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.hilo::-webkit-scrollbar {
+  display: none;
+}
+
+.hilo-etapa {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 118px;
+  padding: 6px 10px 10px 4px;
+  color: var(--text-2);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color var(--dur-2) var(--ease-salida), border-color var(--dur-2) var(--ease-salida);
+}
+
+.hilo-etapa:hover {
+  color: var(--text);
+}
+
+.hilo-aqui {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.hilo-punto {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--dur-3) var(--ease-salida), color var(--dur-3) var(--ease-salida), border-color var(--dur-3) var(--ease-salida);
+}
+
+.hilo-hecha .hilo-punto {
+  background: var(--green-soft);
+  border-color: transparent;
+  color: var(--green);
+}
+
+.hilo-activa .hilo-punto {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.hilo-activa {
+  color: var(--text);
+}
+
+.hilo-latido {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  pointer-events: none;
+}
+
+.hilo-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.hilo-nombre {
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hilo-cuenta {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.hilo-aviso {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--amber);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  animation: aparecer-cuenta var(--dur-3) var(--ease-salida);
+}
+
+.hilo-linea {
+  position: absolute;
+  right: -1px;
+  top: 16px;
+  width: 12px;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.hilo-compacto .hilo-etapa {
+  min-width: 90px;
+  padding-bottom: 6px;
+}
+
+/* Pistas con actividad: una franja que recorre el marcador mientras trabaja. */
+.pista {
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-salida), background var(--dur-2) var(--ease-salida);
+}
+
+.pista-en_curso {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.pista-actividad {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  pointer-events: none;
+}
+
+.pista-hecha {
+  border-color: rgba(22, 163, 74, 0.35);
+}
+
+.paso {
+  border-radius: var(--radio-s);
+  transition: background var(--dur-3) var(--ease-salida);
+}
+
+.paso-en_curso {
+  background: var(--accent-soft);
+}
+
+.paso-hecho .paso-titulo {
+  color: var(--text-2);
+}
+
+/* El destello de un cambio de estado. */
+.destello {
+  animation: destello var(--dur-3) var(--ease-salida);
+}
+
+@keyframes destello {
+  0% {
+    background: var(--accent-soft-2);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Estados vacios que ensenan que va a pasar. */
+.vacio {
+  padding: 40px 24px;
+  border-style: dashed;
+  background: var(--inset);
+}
+
+.vacio-icono {
+  display: inline-flex;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.vacio-pasos {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px auto 0;
+  padding: 0;
+  max-width: 560px;
+  text-align: left;
+  counter-reset: paso;
+  list-style: none;
+}
+
+.vacio-pasos li {
+  position: relative;
+  padding-left: 30px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.vacio-pasos li::before {
+  counter-increment: paso;
+  content: counter(paso);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Deshacer: la pila de avisos con su barra de tiempo, abajo a la derecha. */
+.deshacer-pila {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(440px, calc(100vw - 40px));
+}
+
+.deshacer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px 14px;
+  border-radius: var(--radio);
+  border: 1px solid var(--border-strong);
+  background: var(--elevated);
+  box-shadow: var(--sombra-flotante);
+  overflow: hidden;
+}
+
+.deshacer-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.deshacer-texto strong {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deshacer-barra {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 250ms linear;
+}
+
+/* El recorrido de primera vez. */
+.recorrido-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(28, 25, 23, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.recorrido {
+  width: min(600px, 100%);
+  padding: 22px 24px 18px;
+  border-radius: 12px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--sombra-flotante);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.recorrido h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin: 4px 0 8px;
+}
+
+.recorrido p {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.recorrido-pista {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radio-s);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+
+:root[data-theme='dark'] .recorrido-pista {
+  color: var(--text);
+}
+
+.recorrido-hilo {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.recorrido-etapa {
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: var(--inset);
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background var(--dur-3) var(--ease-salida), color var(--dur-3) var(--ease-salida), transform var(--dur-3) var(--ease-salida);
+}
+
+.recorrido-etapa.activa {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  transform: scale(1.06);
+}
+
+.recorrido-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.recorrido-puntos {
+  display: flex;
+  gap: 6px;
+}
+
+.recorrido-puntos button {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border-strong);
+  transition: background var(--dur-2) var(--ease-salida), transform var(--dur-2) var(--ease-salida);
+}
+
+.recorrido-puntos button.activo {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+@media (max-width: 720px) {
+  .hilo {
+    padding: 8px 14px 0;
+  }
+  .hilo-etapa {
+    min-width: 96px;
+  }
+  .hilo-cuenta {
+    display: none;
+  }
+  .deshacer-pila {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hilo-latido,
+  .pista-actividad,
+  .cabecera .chip-aviso,
+  .nav-cuenta,
+  .hilo-aviso,
+  .destello {
+    animation: none !important;
+  }
+  .tarjeta-interactiva:hover {
+    transform: none;
+  }
+}

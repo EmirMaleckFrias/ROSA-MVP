@@ -5,6 +5,7 @@
 // cada cluster, como hace el agente de proximidad de Co-Scientist.
 
 import { useMemo, useState } from 'react';
+import { Contador, ElementoAnimado, ListaAnimada } from '../componentes/Animado';
 import type { EstadoRosa, Hipotesis, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip } from '../componentes/piezas';
 import { Bloqueos, Candidatas } from '../componentes/Rosa2018';
@@ -62,7 +63,9 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
       </div>
       <GraficaElo puntos={h.historialElo} />
       <div className="hip-elo">
-        <strong>{h.elo}</strong>
+        <strong>
+          <Contador valor={h.elo} />
+        </strong>
         <span className={d > 0 ? 'subida' : d < 0 ? 'bajada' : 'meta'}>{d > 0 ? `+${d}` : d}</span>
         {h.bt && (
           <span className="meta" title="Fuerza de Bradley-Terry sobre los partidos, con intervalo del 95 % por bootstrap. Es lo que ordena a las candidatas.">
@@ -130,11 +133,13 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
       </div>
 
       {vista === 'lista' ? (
-        <div className="cola">
+        <ListaAnimada className="cola" como="div">
           {lista.map((h, i) => (
-            <Fila key={h.id} h={h} i={i} inv={inv} estado={estado} />
+            <ElementoAnimado key={h.id}>
+              <Fila h={h} i={i} inv={inv} estado={estado} />
+            </ElementoAnimado>
           ))}
-        </div>
+        </ListaAnimada>
       ) : (
         <div className="seccion">
           <label className="interruptor">

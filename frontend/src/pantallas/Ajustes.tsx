@@ -320,6 +320,9 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
       </Seccion>
 
       <Seccion titulo="Apariencia">
+        <button type="button" className="btn btn-s" style={{ marginBottom: 10 }} onClick={() => { try { localStorage.removeItem('rosa.recorrido.v1'); } catch { /* sin almacenamiento */ } window.location.reload(); }} title="Vuelve a mostrar el recorrido de cinco pasos con el que empieza Rosa">
+          Ver el recorrido de Rosa otra vez
+        </button>
         <div className="segmentos" role="group" aria-label="Tema">
           {(['sistema', 'claro', 'oscuro'] as Tema[]).map((t) => (
             <button key={t} type="button" aria-pressed={tema === t} onClick={() => setTema(t)}>

@@ -2,6 +2,7 @@
 // vacios, confirmacion en dos pasos inline (nunca window.confirm), el aviso
 // de datos de muestra y el momento (hora absoluta y relativa).
 
+import { motion, useReducedMotion } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import type { EstadoConexion } from '../datos/tipos';
 import { fechaCorta, tiempoRelativo } from '../lib/formato';
@@ -32,9 +33,13 @@ export function Momento({ t, ahora, soloRelativo = false }: { t: number; ahora: 
   );
 }
 
+/** Toda seccion de Rosa entra suavemente cuando aparece en pantalla (una
+ *  sola vez): asi las pantallas largas se leen de arriba abajo en vez de
+ *  caer de golpe. Con movimiento reducido, solo un fundido. */
 export function Seccion({ titulo, nota, acciones, children }: { titulo: string; nota?: string; acciones?: ReactNode; children: ReactNode }) {
+  const reducido = useReducedMotion();
   return (
-    <section className="seccion">
+    <motion.section className="seccion" initial={reducido ? { opacity: 0 } : { opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-24px' }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
       <div className="seccion-titulo">
         <div>
           <h3>{titulo}</h3>
@@ -43,15 +48,33 @@ export function Seccion({ titulo, nota, acciones, children }: { titulo: string; 
         {acciones && <div className="acciones">{acciones}</div>}
       </div>
       {children}
-    </section>
+    </motion.section>
   );
 }
 
-export function Vacio({ titulo, children }: { titulo: string; children?: ReactNode }) {
+/** Un estado vacio que explica que va a pasar aqui (y que tiene que ocurrir
+ *  antes), en vez de quedarse en blanco. `pasos` son esas frases, en orden. */
+export function Vacio({ titulo, children, pasos, accion }: { titulo: string; children?: ReactNode; pasos?: string[]; accion?: ReactNode }) {
   return (
     <div className="vacio">
+      <span className="vacio-icono" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21V12" />
+          <path d="M12 12c-3 0-5.5-2.2-5.5-5S9 3 12 3s5.5 1.8 5.5 4-2.5 5-5.5 5Z" />
+          <path d="M12 12c-1.5-1.5-4-2-6-1M12 12c1.5-1.5 4-2 6-1" />
+          <path d="M8 21h8" />
+        </svg>
+      </span>
       <h3>{titulo}</h3>
       {children && <p>{children}</p>}
+      {pasos && pasos.length > 0 && (
+        <ol className="vacio-pasos">
+          {pasos.map((p, i) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ol>
+      )}
+      {accion && <div className="acciones" style={{ justifyContent: 'center', marginTop: 12 }}>{accion}</div>}
     </div>
   );
 }

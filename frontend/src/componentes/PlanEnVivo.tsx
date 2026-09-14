@@ -9,7 +9,9 @@
 // Biomni-AD, Devin y Magentic-UI; Claude Science espera la aprobacion desde
 // la 0.1.27).
 
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
+import { RESORTE, useMovimientoReducido } from '../lib/movimiento';
 import type { Iteracion, PasoPlan, Pista } from '../datos/tipos';
 import { ESTADO_PISTA, TIPO_PISTA } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
@@ -59,15 +61,17 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
         <p className="meta">Todavia sin actividad registrada.</p>
       ) : (
         <ol className="transcripcion" aria-label={`Transcripcion de ${pista.titulo}`}>
-          {pista.transcripcion.map((e, i) => (
-            <li key={i} className={`t-${e.tipo}`}>
-              <time>{formatearDuracion(e.t) || '0 s'}</time>
-              <div>
-                <span>{e.texto}</span>
-                {e.consulta && <Consulta c={e.consulta} />}
-              </div>
-            </li>
-          ))}
+          <AnimatePresence initial={false}>
+            {pista.transcripcion.map((e, i) => (
+              <motion.li key={`${e.t}-${i}`} className={`t-${e.tipo}`} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18 }}>
+                <time>{formatearDuracion(e.t) || '0 s'}</time>
+                <div>
+                  <span>{e.texto}</span>
+                  {e.consulta && <Consulta c={e.consulta} />}
+                </div>
+              </motion.li>
+            ))}
+          </AnimatePresence>
         </ol>
       )}
       {pista.estado === 'en_curso' && onDetener && (
@@ -84,12 +88,14 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
 }
 
 export function MarcadorPista({ pista, abierta, onClick }: { pista: Pista; abierta: boolean; onClick: () => void }) {
+  const reducido = useMovimientoReducido();
   return (
-    <button type="button" className={`pista pista-${pista.estado}`} aria-expanded={abierta} onClick={onClick} title={`${TIPO_PISTA[pista.tipo]} · ${pista.fuente}`}>
+    <motion.button type="button" className={`pista pista-${pista.estado}`} aria-expanded={abierta} onClick={onClick} title={`${TIPO_PISTA[pista.tipo]} · ${pista.fuente}`} layout={!reducido} initial={reducido ? false : { opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={RESORTE}>
       <i aria-hidden="true" />
       <span>{pista.titulo}</span>
-      <span className="meta">{pista.estado === 'en_curso' ? 'en curso' : pista.resumen}</span>
-    </button>
+      <span className="meta">{pista.estado === 'en_curso' ? 'trabajando' : pista.resumen}</span>
+      {pista.estado === 'en_curso' && !reducido && <motion.b className="pista-actividad" aria-hidden="true" animate={{ x: ['-100%', '100%'] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} />}
+    </motion.button>
   );
 }
 
@@ -201,7 +207,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
       {iteracion.plan.map((paso) => {
         const pistas = iteracion.pistas.filter((p) => p.pasoId === paso.id);
         return (
-          <li key={paso.id} className={`paso paso-${paso.estado} ${paso.indicacionHumana ? 'paso-humano' : ''}`}>
+          <motion.li key={paso.id} className={`paso paso-${paso.estado} ${paso.indicacionHumana ? 'paso-humano' : ''}`} layout transition={RESORTE} initial={false} animate={paso.estado === 'en_curso' ? { backgroundColor: 'var(--accent-soft)' } : { backgroundColor: 'rgba(0,0,0,0)' }}>
             <span className="paso-icono" aria-hidden="true">
               <IconoPaso paso={paso} />
             </span>
@@ -225,7 +231,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
                 <Transcripcion pista={pistaAbierta} ahora={ahora} onDetener={onDetenerPista ? (ind) => onDetenerPista(pistaAbierta.id, ind) : undefined} />
               )}
             </div>
-          </li>
+          </motion.li>
         );
       })}
     </ol>

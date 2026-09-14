@@ -7,6 +7,7 @@ import { acciones } from '../datos/almacen';
 import type { EstadoRosa } from '../datos/tipos';
 import { iteracionActualDe } from '../datos/acciones';
 import { Resumen } from '../componentes/Resumen';
+import { Aparece } from '../componentes/Animado';
 import { Chip, Momento, Vacio } from '../componentes/piezas';
 import { digest, loQueEspera } from '../lib/digest';
 import { ESTADO_CORRIDA } from '../lib/etiquetas';
@@ -33,17 +34,28 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       })}
 
       {estado.investigaciones.length === 0 ? (
-        <Vacio titulo="Todavia no hay investigaciones">Crea la primera: objetivo, limites, condicion de parada y quien revisa.</Vacio>
+        <Vacio
+          titulo="Todavia no hay investigaciones"
+          pasos={['Escribes el objetivo, los limites y la condicion de parada.', 'Rosa propone la mision y el plan de la primera iteracion; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipotesis.', 'Tu decides sobre las hipotesis; las candidatas van al laboratorio con prerregistro.']}
+          accion={
+            <a className="btn btn-primario" href="#/nueva">
+              Crear la primera investigacion
+            </a>
+          }
+        >
+          Una investigacion es un objetivo con sus limites y su condicion de parada. Rosa corre dentro de ellos.
+        </Vacio>
       ) : (
         <div className="inicio-rejilla" style={{ marginTop: 20 }}>
-          {estado.investigaciones.map((inv) => {
+          {estado.investigaciones.map((inv, idx) => {
             const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0];
             const it = corrida ? iteracionActualDe(estado, corrida) : null;
             const enCurso = it?.plan.find((p) => p.estado === 'en_curso');
             const espera = loQueEspera(estado, inv.id, ahora);
             const pistasVivas = it?.pistas.filter((p) => p.estado === 'en_curso').length ?? 0;
             return (
-              <a key={inv.id} className="tarjeta tarjeta-interactiva inicio-tarjeta" href={rutaDe(inv.id, 'corrida')}>
+              <Aparece key={inv.id} retraso={idx * 0.05}>
+              <a className="tarjeta tarjeta-interactiva inicio-tarjeta" href={rutaDe(inv.id, 'corrida')}>
                 <h3>{inv.titulo}</h3>
                 {corrida ? (
                   <div className="ahora">
@@ -84,6 +96,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                   </span>
                 </footer>
               </a>
+              </Aparece>
             );
           })}
         </div>

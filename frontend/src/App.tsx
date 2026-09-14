@@ -3,11 +3,16 @@
 // abre con Cmd+K o Ctrl+K. El titulo de la pestana lleva cuantas decisiones
 // esperan, para verlo sin abrir la pestana.
 
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { cerrarAvisoConflicto, useAvisoConflicto, useRosa } from './datos/almacen';
 import { BarraLateral } from './componentes/BarraLateral';
 import { BusquedaGlobal } from './componentes/BusquedaGlobal';
 import { Cabecera } from './componentes/Cabecera';
+import { ToastDeshacer } from './componentes/Deshacer';
+import { HiloDelProceso } from './componentes/HiloDelProceso';
+import { Recorrido, recorridoVisto } from './componentes/Recorrido';
+import { pagina } from './lib/movimiento';
 import { loQueEspera } from './lib/digest';
 import { useAhora } from './lib/useAhora';
 import { useRuta } from './lib/useRuta';
@@ -42,6 +47,7 @@ export default function App() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [cajonAbierto, setCajonAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
+  const [recorrido, setRecorrido] = useState(() => !recorridoVisto());
 
   const irA = (hash: string) => {
     window.location.hash = hash;
@@ -138,7 +144,8 @@ export default function App() {
     <div className={`app ${conCajon ? 'con-cajon' : ''}`}>
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
-        <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} />
+        <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
+        {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} />}
         {aviso && (
           <div className="aviso-conflicto" role="alert">
             <span>{aviso.texto}</span>
@@ -147,9 +154,15 @@ export default function App() {
             </button>
           </div>
         )}
-        {pantalla}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={claveRuta} className="pagina" variants={pagina} initial="oculto" animate="visible" exit="salida">
+            {pantalla}
+          </motion.div>
+        </AnimatePresence>
       </main>
       <BusquedaGlobal estado={estado} investigacionId={inv?.id ?? null} abierta={buscando} onCerrar={() => setBuscando(false)} />
+      <ToastDeshacer />
+      <Recorrido abierto={recorrido} onCerrar={() => setRecorrido(false)} />
     </div>
   );
 }

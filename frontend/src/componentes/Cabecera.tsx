@@ -16,9 +16,10 @@ interface Props {
   esperan: number;
   onMenu: () => void;
   onBuscar: () => void;
+  onAyuda?: () => void;
 }
 
-export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar }: Props) {
+export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, onAyuda }: Props) {
   return (
     <header className="cabecera">
       <button type="button" className="btn btn-fantasma btn-icono btn-menu" aria-label="Abrir el menu" onClick={onMenu}>
@@ -35,6 +36,11 @@ export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar }: 
         <button type="button" className="btn btn-fantasma btn-icono" aria-label="Buscar (Cmd+K)" onClick={onBuscar}>
           <IconSearch size={15} />
         </button>
+        {onAyuda && (
+          <button type="button" className="btn btn-fantasma btn-icono" aria-label="Ver el recorrido de Rosa" title="Como funciona Rosa, en cinco pasos" onClick={onAyuda}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>?</span>
+          </button>
+        )}
         <span className={`estado-conexion ${conexion}`} title={CONEXION[conexion]}>
           <i aria-hidden="true" />
           {CONEXION[conexion]}

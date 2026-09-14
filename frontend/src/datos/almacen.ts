@@ -143,6 +143,83 @@ function versionDe(texto: string | null | undefined): number | null {
 }
 
 /* ---------------------------------------------------------------------
+   Acciones diferidas con deshacer. Una decision con peso (aceptar, descartar,
+   refinar una hipotesis) se aplica al instante en pantalla y viaja al
+   servidor unos segundos despues; mientras, se puede deshacer. Si el estado
+   cambio entre medias (llego algo por SSE), deshacer recarga del servidor en
+   vez de restaurar una copia vieja.
+   --------------------------------------------------------------------- */
+
+export interface AccionPendiente {
+  id: string;
+  etiqueta: string;
+  hasta: number;
+  ms: number;
+  enviar: () => void;
+  deshacer: () => void;
+}
+
+let pendientes: AccionPendiente[] = [];
+const oyentesPendientes = new Set<() => void>();
+
+function avisarPendientes(): void {
+  for (const o of oyentesPendientes) o();
+}
+
+export function useAccionesPendientes(): AccionPendiente[] {
+  return useSyncExternalStore(
+    (o) => {
+      oyentesPendientes.add(o);
+      return () => oyentesPendientes.delete(o);
+    },
+    () => pendientes,
+    () => pendientes,
+  );
+}
+
+export const MS_DESHACER = 6000;
+
+function programar(etiqueta: string, aplicarLocal: () => void, enviarServidor: () => void, ms = MS_DESHACER): void {
+  const antes = estado;
+  aplicarLocal();
+  const despues = estado;
+  const id = `pend-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+  const quitar = () => {
+    pendientes = pendientes.filter((p) => p.id !== id);
+    avisarPendientes();
+  };
+  const timer = window.setTimeout(() => {
+    enviarServidor();
+    quitar();
+  }, ms);
+  pendientes = [
+    ...pendientes,
+    {
+      id,
+      etiqueta,
+      hasta: Date.now() + ms,
+      ms,
+      enviar: () => {
+        window.clearTimeout(timer);
+        enviarServidor();
+        quitar();
+      },
+      deshacer: () => {
+        window.clearTimeout(timer);
+        if (estado === despues) {
+          estado = antes;
+          notificar();
+        } else {
+          void resincronizar();
+        }
+        quitar();
+      },
+    },
+  ];
+  avisarPendientes();
+}
+
+/* ---------------------------------------------------------------------
    Aviso de conflicto: una accion que el servidor rechazo o un dato que
    cambio mientras se revisaba. Se muestra en la cabecera hasta que se cierra.
    --------------------------------------------------------------------- */
@@ -393,13 +470,20 @@ export const acciones = {
    *  segundos que tardo en decidir; si el servidor la rechaza (la hipotesis
    *  cambio entre medias), se resincroniza el estado y se avisa. */
   revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null) => {
-    aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada));
-    void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
-      if (ok === false) {
-        fijarAviso('La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.');
-        void resincronizar();
-      }
-    });
+    const titulo = estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipotesis';
+    const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decision registrada';
+    programar(
+      `${verbo}: ${titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo}`,
+      () => aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada)),
+      () => {
+        void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
+          if (ok === false) {
+            fijarAviso('La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.');
+            void resincronizar();
+          }
+        });
+      },
+    );
   },
   votarRelevancia: (id: string, voto: 'alta' | 'media' | 'baja') => {
     aplicar((e) => A.votarRelevancia(e, id, voto));

@@ -9,6 +9,9 @@
 // abiertos (motivoNoAceptable).
 
 import { useMemo, useRef, useState } from 'react';
+import { Contador, ElementoAnimado, ListaAnimada } from '../componentes/Animado';
+import type { TargetAndTransition } from 'motion/react';
+import { salidaPorDecision } from '../lib/movimiento';
 import { acciones } from '../datos/almacen';
 import type { EstadoRosa, Hipotesis as Hip, Investigacion, Supuesto } from '../datos/tipos';
 import { BandejaComentarios, NuevoComentario, useSeleccionComentable } from '../componentes/Comentarios';
@@ -106,12 +109,21 @@ function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: numb
         </div>
       </div>
       <div className="hip-elo">
-        <strong>{h.elo}</strong>
+        <strong>
+          <Contador valor={h.elo} />
+        </strong>
         <span className={d > 0 ? 'subida' : d < 0 ? 'bajada' : 'meta'}>{d > 0 ? `+${d}` : d}</span>
         <span className="meta">{h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}</span>
       </div>
     </a>
   );
+}
+
+function salidaDe(h: Hip): TargetAndTransition {
+  if (h.estado === 'aceptada') return salidaPorDecision.aprobar;
+  if (h.estado === 'descartada') return salidaPorDecision.descartar;
+  if (h.estado === 'refinar' || h.estado === 'aclarando') return salidaPorDecision.refinar;
+  return salidaPorDecision.neutra;
 }
 
 function ArbolSupuestos({ supuestos, nivel = 0 }: { supuestos: Supuesto[]; nivel?: number }) {
@@ -895,13 +907,17 @@ export function Hipotesis({
       </div>
       {proponiendo && <FormularioHipotesis inv={inv} onCerrar={() => setProponiendo(false)} irA={irA} />}
       {visibles.length === 0 ? (
-        <Vacio titulo="Nada pendiente">Rosa no tiene hipotesis esperando revision en esta investigacion.</Vacio>
+        <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavia no hay hipotesis'} pasos={propias.length === 0 ? ['Rosa busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, Rosa genera hipotesis y el Killer las juzga; las que quedan aparecen aqui, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
+          {propias.length > 0 ? 'Rosa no tiene hipotesis esperando tu revision en esta investigacion. Con "Todas" ves las ya decididas.' : 'Tambien puedes proponer una tu con el boton de arriba: pasa por el mismo Killer.'}
+        </Vacio>
       ) : (
-        <div className="cola" style={{ marginTop: proponiendo ? 16 : 0 }}>
+        <ListaAnimada className="cola" como="div">
           {visibles.map((h) => (
-            <FilaCola key={h.id} h={h} ahora={ahora} href={rutaDe(inv.id, 'hipotesis', h.id)} horasEspera={estado.politicaEsperas.horas} estado={estado} />
+            <ElementoAnimado key={h.id} salida={salidaDe(estado.hipotesis.find((x) => x.id === h.id) ?? h)}>
+              <FilaCola h={h} ahora={ahora} href={rutaDe(inv.id, 'hipotesis', h.id)} horasEspera={estado.politicaEsperas.horas} estado={estado} />
+            </ElementoAnimado>
           ))}
-        </div>
+        </ListaAnimada>
       )}
     </div>
   );

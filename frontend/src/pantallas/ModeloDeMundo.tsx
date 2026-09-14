@@ -11,6 +11,7 @@ import type { EstadoRosa, HechoMundo, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Momento, Seccion } from '../componentes/piezas';
 import { IconChevronDown } from '../componentes/icons';
 import { Entidades, PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
+import { ElementoAnimado, ListaAnimada } from '../componentes/Animado';
 import { COBERTURA_MINIMA, faltanParaCobertura } from '../lib/cobertura';
 import { CLASIFICACION_CITA, ESTADO_HECHO, TIPO_HECHO } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
@@ -244,11 +245,13 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                 {lista.length === 0 ? (
                   <p className="meta">Nada aqui{q !== '' || tema !== 'todos' ? ' con este filtro' : ''}.</p>
                 ) : (
-                  <ul className="mundo-columna">
+                  <ListaAnimada className="mundo-columna" como="ul">
                     {lista.map((h) => (
-                      <TarjetaHecho key={h.id} h={h} ahora={ahora} />
+                      <ElementoAnimado key={h.id} como="li">
+                        <TarjetaHecho h={h} ahora={ahora} />
+                      </ElementoAnimado>
                     ))}
-                  </ul>
+                  </ListaAnimada>
                 )}
               </section>
             );

@@ -68,3 +68,32 @@ interfaz entra en modo servidor: el estado llega por Server-Sent Events
 instante con el reducer local y se envia por `POST /api/acciones/{nombre}`. Si
 el servidor no responde, sigue con los datos de muestra y la simulacion, y lo
 avisa en la franja amarilla. Las pantallas no distinguen un modo del otro.
+
+## Rework del 14 de septiembre de 2026: movimiento con significado
+
+La interfaz explica el proceso por si misma. Lo que cambio y donde tocar:
+
+- **Hilo del proceso** (`src/componentes/HiloDelProceso.tsx`): las siete
+  etapas (plan, literatura, verificar, modelo de mundo, hipotesis y Killer,
+  candidatas, laboratorio) siempre visibles bajo la cabecera, con la activa
+  latiendo, las hechas apagadas y lo que espera a una persona marcado. Se
+  deriva del estado con `estadoDelHilo`, sin inventar nada.
+- **Recorrido de primera vez** (`src/componentes/Recorrido.tsx`): cinco
+  pasos; aparece una vez (clave `rosa.recorrido.v1` en el navegador) y vuelve
+  desde el boton `?` de la cabecera o desde Ajustes.
+- **Deshacer** (`src/componentes/Deshacer.tsx` y `programar` en
+  `src/datos/almacen.ts`): aceptar, descartar o refinar una hipotesis se
+  aplica al instante y viaja al servidor seis segundos despues; mientras, un
+  aviso con barra de tiempo permite deshacer o enviar ya.
+- **Sistema de movimiento** (`src/lib/movimiento.ts`,
+  `src/componentes/Animado.tsx`, seccion 10 de `styles.css`): duraciones de
+  150 a 400 ms, una sola curva, `Aparece`, `ListaAnimada` y
+  `ElementoAnimado` (entrada escalonada, reordenacion con resorte, salida
+  por decision: aceptar desplaza adelante, descartar apaga, refinar devuelve
+  arriba), `Contador` (el Elo corre hasta su valor), `Destello`. Todo
+  respeta `prefers-reduced-motion`. La libreria es Motion (`motion/react`).
+- **Estados vacios que ensenan** (`Vacio` con `pasos` y `accion` en
+  `piezas.tsx`) y **secciones que entran al aparecer** (`Seccion`).
+- Cambio de pantalla con fundido (`App.tsx`), pistas con franja de actividad
+  y pasos que se iluminan (`PlanEnVivo.tsx`), hechos que se mueven entre
+  columnas (`ModeloDeMundo.tsx`), tarjetas de inicio escalonadas.
