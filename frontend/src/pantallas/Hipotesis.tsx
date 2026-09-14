@@ -8,7 +8,7 @@
 // por aqui, y no se puede aceptar con afirmaciones bloqueantes o hallazgos
 // abiertos (motivoNoAceptable).
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Contador, ElementoAnimado, ListaAnimada } from '../componentes/Animado';
 import type { TargetAndTransition } from 'motion/react';
 import { salidaPorDecision } from '../lib/movimiento';
@@ -850,12 +850,21 @@ export function Hipotesis({
   irA: (hash: string) => void;
 }) {
   const propias = useMemo(() => ordenarCola(estado.hipotesis.filter((h) => h.investigacionId === inv.id)), [estado.hipotesis, inv.id]);
-  const [filtro, setFiltro] = useState<'pendientes' | 'todas'>('pendientes');
+  // "laboratorio" en el sitio del id es la vista del tramo final (la etapa
+  // Laboratorio del hilo): lo asignado, en curso o con datos, y las candidatas
+  // con experimento propuesto que esperan un laboratorio.
+  const vistaLab = detalleId === 'laboratorio';
+  const [filtro, setFiltro] = useState<'pendientes' | 'todas' | 'laboratorio'>(vistaLab ? 'laboratorio' : 'pendientes');
+  useEffect(() => {
+    if (vistaLab) setFiltro('laboratorio');
+    else if (detalleId === null) setFiltro((f) => (f === 'laboratorio' ? 'pendientes' : f));
+  }, [vistaLab, detalleId]);
   const [proponiendo, setProponiendo] = useState(false);
   const [pestana, setPestana] = useState<PestanaProcedencia>('fuentes');
   const [celda, setCelda] = useState<number | null>(null);
-  const seleccionada = propias.find((h) => h.id === detalleId) ?? null;
-  const visibles = filtro === 'todas' ? propias : propias.filter((h) => h.estado === 'propuesta' || h.estado === 'en_revision' || h.estado === 'refinar' || h.estado === 'aclarando');
+  const seleccionada = vistaLab ? null : propias.find((h) => h.id === detalleId) ?? null;
+  const enLaboratorio = (h: Hip) => Boolean(h.experimento && (h.experimento.estado !== 'propuesto' || h.candidata));
+  const visibles = filtro === 'todas' ? propias : filtro === 'laboratorio' ? propias.filter(enLaboratorio) : propias.filter((h) => h.estado === 'propuesta' || h.estado === 'en_revision' || h.estado === 'refinar' || h.estado === 'aclarando');
 
   if (seleccionada) {
     return (
@@ -888,8 +897,8 @@ export function Hipotesis({
       <AvisoMuestra conexion={estado.conexion} />
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
-          <h2>Cola de hipotesis</h2>
-          <p>Lo que Rosa propone y espera tu lectura. Arriba lo pendiente, ordenado por Elo. Nada entra al modelo de mundo sin pasar por aqui.</p>
+          <h2>{filtro === 'laboratorio' ? 'Laboratorio' : 'Cola de hipotesis'}</h2>
+          <p>{filtro === 'laboratorio' ? 'El tramo final: hipotesis con experimento asignado (prerregistrado y sellado), en curso o con datos recibidos, y las candidatas que esperan un laboratorio. Cuando vuelven los datos, Rosa los juzga contra el prerregistro.' : 'Lo que Rosa propone y espera tu lectura. Arriba lo pendiente, ordenado por Elo. Nada entra al modelo de mundo sin pasar por aqui.'}</p>
         </div>
         <div className="acciones">
           <div className="segmentos" role="group" aria-label="Filtro">
@@ -899,6 +908,9 @@ export function Hipotesis({
             <button type="button" aria-pressed={filtro === 'todas'} onClick={() => setFiltro('todas')}>
               Todas
             </button>
+            <button type="button" aria-pressed={filtro === 'laboratorio'} onClick={() => setFiltro('laboratorio')} title="Hipotesis con experimento asignado, en curso o con datos, y candidatas que esperan laboratorio">
+              Laboratorio
+            </button>
           </div>
           <button type="button" className="btn btn-primario" onClick={() => setProponiendo((v) => !v)}>
             Proponer hipotesis
@@ -907,9 +919,15 @@ export function Hipotesis({
       </div>
       {proponiendo && <FormularioHipotesis inv={inv} onCerrar={() => setProponiendo(false)} irA={irA} />}
       {visibles.length === 0 ? (
+        filtro === 'laboratorio' ? (
+          <Vacio titulo="Nada en el laboratorio todavia" pasos={['El Killer deja avanzar una hipotesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'Rosa le propone un experimento: protocolo, ensayo, controles y criterios de exito y refutacion.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y Rosa los juzga contra lo prerregistrado.']}>
+            Aqui apareceran las hipotesis que lleguen a ese tramo.
+          </Vacio>
+        ) : (
         <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavia no hay hipotesis'} pasos={propias.length === 0 ? ['Rosa busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, Rosa genera hipotesis y el Killer las juzga; las que quedan aparecen aqui, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
           {propias.length > 0 ? 'Rosa no tiene hipotesis esperando tu revision en esta investigacion. Con "Todas" ves las ya decididas.' : 'Tambien puedes proponer una tu con el boton de arriba: pasa por el mismo Killer.'}
         </Vacio>
+        )
       ) : (
         <ListaAnimada className="cola" como="div">
           {visibles.map((h) => (

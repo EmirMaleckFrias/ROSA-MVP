@@ -14,14 +14,14 @@ import { rutaDe, type Pantalla } from '../lib/ruta';
 
 export type Etapa = 'plan' | 'literatura' | 'verificar' | 'mundo' | 'hipotesis' | 'candidatas' | 'laboratorio';
 
-export const ETAPAS: { clave: Etapa; nombre: string; corto: string; explicacion: string; pantalla: Pantalla }[] = [
+export const ETAPAS: { clave: Etapa; nombre: string; corto: string; explicacion: string; pantalla: Pantalla; detalle?: string }[] = [
   { clave: 'plan', nombre: 'Plan', corto: 'Plan', explicacion: 'Rosa propone el plan de la iteracion y espera tu aprobacion antes de ejecutar nada.', pantalla: 'corrida' },
   { clave: 'literatura', nombre: 'Buscar literatura', corto: 'Literatura', explicacion: 'Consultas a PubMed, Europe PMC, ensayos clinicos y bases curadas. Cada consulta queda registrada con fecha.', pantalla: 'corrida' },
   { clave: 'verificar', nombre: 'Verificar afirmaciones', corto: 'Verificar', explicacion: 'Cada afirmacion extraida se contrasta con su pasaje literal; el juez decide si la fuente la sostiene.', pantalla: 'corrida' },
   { clave: 'mundo', nombre: 'Modelo de mundo', corto: 'Mundo', explicacion: 'Lo sostenido entra como hecho con su procedencia; lo abierto queda como pregunta.', pantalla: 'mundo' },
   { clave: 'hipotesis', nombre: 'Hipotesis y Killer', corto: 'Hipotesis', explicacion: 'Rosa genera hipotesis, el Killer las somete a catorce comprobaciones y tu decides sobre las que quedan en la cola.', pantalla: 'hipotesis' },
   { clave: 'candidatas', nombre: 'Candidatas', corto: 'Candidatas', explicacion: 'El torneo (Elo y Bradley-Terry) y los bloqueos deciden cuales llegan al laboratorio: hasta tres por ciclo.', pantalla: 'ranking' },
-  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y Rosa actualiza su conclusion.', pantalla: 'hipotesis' },
+  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y Rosa actualiza su conclusion. Aqui se ven solo las hipotesis que estan en ese tramo.', pantalla: 'hipotesis', detalle: 'laboratorio' },
 ];
 
 const ETAPA_POR_PISTA: Record<TipoPista, Etapa> = {
@@ -101,7 +101,7 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
   return { activa, hechas, esperan, cuentas, viva };
 }
 
-export function HiloDelProceso({ estado, inv, pantalla, compacto = false }: { estado: EstadoRosa; inv: Investigacion; pantalla: Pantalla | null; compacto?: boolean }) {
+export function HiloDelProceso({ estado, inv, pantalla, detalleId = null, compacto = false }: { estado: EstadoRosa; inv: Investigacion; pantalla: Pantalla | null; detalleId?: string | null; compacto?: boolean }) {
   const reducido = useMovimientoReducido();
   const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0] ?? null;
   const hilo = estadoDelHilo(estado, inv, corrida);
@@ -111,9 +111,9 @@ export function HiloDelProceso({ estado, inv, pantalla, compacto = false }: { es
         const activa = hilo.activa === e.clave;
         const hecha = hilo.hechas.has(e.clave) && !activa;
         const espera = hilo.esperan[e.clave] ?? 0;
-        const aqui = pantalla === e.pantalla && (e.pantalla !== 'corrida' || e.clave === (hilo.activa ?? 'plan'));
+        const aqui = pantalla === e.pantalla && (e.pantalla !== 'corrida' || e.clave === (hilo.activa ?? 'plan')) && (e.pantalla !== 'hipotesis' || (e.detalle ?? null) === (detalleId === 'laboratorio' ? 'laboratorio' : null));
         return (
-          <a key={e.clave} className={`hilo-etapa ${activa ? 'hilo-activa' : ''} ${hecha ? 'hilo-hecha' : ''} ${espera ? 'hilo-espera' : ''} ${aqui ? 'hilo-aqui' : ''}`} href={rutaDe(inv.id, e.pantalla)} title={`${e.nombre}. ${e.explicacion}${espera ? ` Te espera${espera > 1 ? 'n' : ''} ${espera}.` : ''}`} aria-current={aqui ? 'step' : undefined}>
+          <a key={e.clave} className={`hilo-etapa ${activa ? 'hilo-activa' : ''} ${hecha ? 'hilo-hecha' : ''} ${espera ? 'hilo-espera' : ''} ${aqui ? 'hilo-aqui' : ''}`} href={rutaDe(inv.id, e.pantalla, e.detalle)} title={`${e.nombre}. ${e.explicacion}${espera ? ` Te espera${espera > 1 ? 'n' : ''} ${espera}.` : ''}`} aria-current={aqui ? 'step' : undefined}>
             <span className="hilo-punto" aria-hidden="true">
               {activa && !reducido && <motion.i className="hilo-latido" animate={{ scale: [1, 1.9, 1], opacity: [0.55, 0, 0.55] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />}
               {hecha ? '✓' : i + 1}

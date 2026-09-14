@@ -87,6 +87,11 @@ describe('la aplicacion montada en el cliente', () => {
       expect(raiz.textContent, pantalla).not.toContain('Esta investigacion no existe');
       document.body.innerHTML = '';
     }
+    // La etapa Laboratorio del hilo tiene su propia vista, distinta de la cola.
+    const lab = await montar(rutaDe(inv.id, 'hipotesis', 'laboratorio'));
+    expect(lab.querySelector('h2')?.textContent).toBe('Laboratorio');
+    const hrefs = [...lab.querySelectorAll<HTMLAnchorElement>('.hilo-etapa')].map((a) => a.getAttribute('href'));
+    expect(new Set(hrefs).size).toBe(hrefs.length - 2); // solo Plan, Literatura y Verificar comparten destino (la corrida)
   });
 
   it('decidir sobre una hipotesis deja un aviso para deshacer, y deshacer la devuelve', async () => {

@@ -145,7 +145,7 @@ export default function App() {
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
         <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
-        {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} />}
+        {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} detalleId={ruta.detalleId} />}
         {aviso && (
           <div className="aviso-conflicto" role="alert">
             <span>{aviso.texto}</span>
