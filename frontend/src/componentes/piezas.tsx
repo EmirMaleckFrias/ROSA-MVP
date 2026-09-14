@@ -6,6 +6,8 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import type { EstadoConexion } from '../datos/tipos';
 import { fechaCorta, tiempoRelativo } from '../lib/formato';
+import { terminosEn } from '../lib/glosario';
+import { primeraFrase, useModo } from '../lib/modo';
 import { IconAlert } from './icons';
 
 export function Chip({ tono, children, title }: { tono?: 'ok' | 'aviso' | 'mal' | 'acento' | 'borde' | 'neutro'; children: ReactNode; title?: string }) {
@@ -33,21 +35,78 @@ export function Momento({ t, ahora, soloRelativo = false }: { t: number; ahora: 
   );
 }
 
+interface SeccionProps {
+  titulo: string;
+  nota?: string;
+  acciones?: ReactNode;
+  children: ReactNode;
+  /** Ingenieria: en modo sencillo queda plegada tras una linea de resumen. */
+  detalle?: boolean;
+  /** Se puede plegar a mano aunque no sea de detalle. */
+  plegable?: boolean;
+  /** Si es plegable, si empieza abierta (por defecto si). */
+  abierta?: boolean;
+  /** La linea que se ve plegada (si no, la primera frase de la nota). */
+  resumen?: ReactNode;
+  id?: string;
+}
+
 /** Toda seccion de Rosa entra suavemente cuando aparece en pantalla (una
- *  sola vez): asi las pantallas largas se leen de arriba abajo en vez de
- *  caer de golpe. Con movimiento reducido, solo un fundido. */
-export function Seccion({ titulo, nota, acciones, children }: { titulo: string; nota?: string; acciones?: ReactNode; children: ReactNode }) {
+ *  sola vez). En modo sencillo, la nota se reduce a su primera frase y el
+ *  boton "?" abre la explicacion completa con las definiciones de los
+ *  terminos tecnicos que nombra; las secciones de detalle quedan plegadas
+ *  tras una linea de resumen. La profundidad sigue ahi, a un clic. */
+export function Seccion({ titulo, nota, acciones, children, detalle = false, plegable = false, abierta, resumen, id }: SeccionProps) {
   const reducido = useReducedMotion();
+  const modo = useModo();
+  const sencillo = modo === 'sencillo';
+  const pliegaPorModo = detalle && sencillo;
+  const puedePlegar = plegable || detalle;
+  const [abiertoManual, setAbiertoManual] = useState<boolean | null>(null);
+  const abierto = abiertoManual ?? (pliegaPorModo ? false : (abierta ?? true));
+  const [ayuda, setAyuda] = useState(false);
+  const notaCorta = nota ? (sencillo ? primeraFrase(nota) : nota) : undefined;
+  const terminos = nota || titulo ? terminosEn(`${titulo} ${nota ?? ''}`) : [];
+  const hayAyuda = Boolean(nota && (sencillo ? notaCorta !== nota || terminos.length > 0 : terminos.length > 0));
   return (
-    <motion.section className="seccion" initial={reducido ? { opacity: 0 } : { opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-24px' }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
+    <motion.section id={id} className={`seccion ${!abierto ? 'seccion-plegada' : ''} ${detalle ? 'seccion-detalle' : ''}`} initial={reducido ? { opacity: 0 } : { opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-24px' }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
       <div className="seccion-titulo">
-        <div>
-          <h3>{titulo}</h3>
-          {nota && <p>{nota}</p>}
+        <div style={{ minWidth: 0 }}>
+          <h3>
+            {puedePlegar ? (
+              <button type="button" className="seccion-plegar" aria-expanded={abierto} onClick={() => setAbiertoManual(!abierto)}>
+                <span className="seccion-flecha" aria-hidden="true">{abierto ? '▾' : '▸'}</span> {titulo}
+              </button>
+            ) : (
+              titulo
+            )}
+            {detalle && <span className="chip chip-borde seccion-etiqueta-detalle" title="Es informacion de ingenieria o de auditoria: en modo Detalle se abre sola.">detalle</span>}
+            {hayAyuda && (
+              <button type="button" className="seccion-ayuda" aria-expanded={ayuda} aria-label={`Explicar ${titulo}`} title="Que es esto y que significan sus terminos" onClick={() => setAyuda((v) => !v)}>
+                ?
+              </button>
+            )}
+          </h3>
+          {abierto ? notaCorta && <p>{notaCorta}</p> : <p className="seccion-resumen">{resumen ?? notaCorta}</p>}
+          {ayuda && nota && (
+            <div className="ayuda-caja" role="note">
+              <p>{nota}</p>
+              {terminos.length > 0 && (
+                <dl>
+                  {terminos.map((t) => (
+                    <div key={t.termino}>
+                      <dt>{t.termino}</dt>
+                      <dd>{t.definicion}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          )}
         </div>
-        {acciones && <div className="acciones">{acciones}</div>}
+        {acciones && abierto && <div className="acciones">{acciones}</div>}
       </div>
-      {children}
+      {abierto && children}
     </motion.section>
   );
 }
@@ -175,4 +234,22 @@ export function descargar(nombre: string, contenido: string, tipo = 'text/plain;
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+
+/** Un bloque de ingenieria que no es una seccion (una rejilla de cifras, una
+ *  tabla): en modo sencillo se sustituye por una linea de resumen con un
+ *  boton para verlo; en modo detalle se ve entero. */
+export function SoloDetalle({ resumen, children }: { resumen: ReactNode; children: ReactNode }) {
+  const modo = useModo();
+  const [ver, setVer] = useState(false);
+  if (modo === 'detalle' || ver) return <>{children}</>;
+  return (
+    <p className="solo-detalle meta">
+      {resumen}{' '}
+      <button type="button" className="enlace" onClick={() => setVer(true)}>
+        Ver detalle
+      </button>
+    </p>
+  );
 }

@@ -97,3 +97,22 @@ La interfaz explica el proceso por si misma. Lo que cambio y donde tocar:
 - Cambio de pantalla con fundido (`App.tsx`), pistas con franja de actividad
   y pasos que se iluminan (`PlanEnVivo.tsx`), hechos que se mueven entre
   columnas (`ModeloDeMundo.tsx`), tarjetas de inicio escalonadas.
+
+## Menos complicado: modo Sencillo y Detalle (14 de septiembre de 2026)
+
+- **Interruptor en la cabecera** (`src/lib/modo.ts`): en Sencillo, las
+  secciones marcadas `detalle` (ingenieria y auditoria: hashes, tolerancias,
+  kappa, entorno, conectores, politicas) quedan plegadas tras una linea de
+  resumen, y cada nota larga se reduce a su primera frase. En Detalle se abre
+  todo. Se recuerda en el navegador.
+- **Ayuda con glosario** (`src/lib/glosario.ts`): el boton `?` de cada
+  seccion muestra la explicacion completa y define los terminos tecnicos que
+  nombra (Elo, GRADE, kappa, prerregistro, puerta de reproduccion...).
+- **Secciones plegables** (`Seccion` en `piezas.tsx`: `detalle`, `plegable`,
+  `abierta`, `resumen`, `id`) y `SoloDetalle` para bloques que no son
+  secciones (el gasto de la corrida).
+- **"Que toca hacer aqui"** arriba de Objetivo y datos: mision sin aprobar,
+  datasets pendientes, puerta bloqueada, sin corridas; cada cosa con su boton.
+- **Formularios solo cuando hacen falta**: subir dataset y registrar una
+  reproduccion viven tras un boton; el de reproduccion se abre solo si la
+  puerta esta bloqueada.

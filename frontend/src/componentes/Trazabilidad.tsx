@@ -64,7 +64,7 @@ export function Trazabilidad({ corrida, activa }: { corrida: Corrida; activa: bo
 
   return (
     <Seccion
-      titulo="De la consulta a la afirmacion"
+      detalle titulo="De la consulta a la afirmacion"
       nota="Cada consulta, las fuentes que trajo y las afirmaciones que salieron de cada fuente con su veredicto. Una afirmacion nace sin comprobar y cambia de color cuando el juez dictamina."
       acciones={
         iteraciones.length > 1 ? (

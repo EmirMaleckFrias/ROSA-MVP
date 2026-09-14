@@ -17,7 +17,7 @@ import { TarjetaIncidencia } from '../componentes/TarjetaIncidencia';
 import { TarjetaPermiso } from '../componentes/TarjetaPermiso';
 import { Trazabilidad } from '../componentes/Trazabilidad';
 import { ResumenEnLlano } from '../componentes/EnLlano';
-import { AvisoMuestra, Barra, Chip, Confirmar, Momento, Seccion, Vacio } from '../componentes/piezas';
+import { AvisoMuestra, Barra, Chip, Confirmar, Momento, Seccion, SoloDetalle, Vacio } from '../componentes/piezas';
 import { IconPause, IconPlay } from '../componentes/icons';
 import { ALCANCE, ESTADO_CORRIDA } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
@@ -206,6 +206,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
 
       <div className="rejilla-2" style={{ marginTop: 28, alignItems: 'start' }}>
         <div className="seccion" style={{ gridColumn: '1 / -1' }}>
+          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} articulos leidos, ${formatearDuracion(corrida.gasto.segundos * 1000) || '0 s'} de corrida.`}>
           <div className="gasto">
             <div className="gasto-item">
               <strong>{formatearDuracion(corrida.gasto.segundos * 1000) || '0 s'}</strong>
@@ -235,6 +236,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
               <Barra fraccion={contextoPct} tono={contextoPct > 0.8 ? 'aviso' : undefined} />
             </div>
           </div>
+          </SoloDetalle>
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <Presupuesto corrida={corrida} onAmpliar={(l) => acciones.ampliarPresupuesto(corrida.id, l)} />
@@ -312,7 +314,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       )}
 
       {procesosVivos.length > 0 && (
-        <Seccion titulo="Computo en marcha" nota="Cada proceso vivo. Detenerlo con una indicacion se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
+        <Seccion detalle titulo="Computo en marcha" nota="Cada proceso vivo. Detenerlo con una indicacion se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
           <table className="tabla">
             <thead>
               <tr>
@@ -352,7 +354,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       <Trazabilidad corrida={corrida} activa={estado.conexion !== 'muestra'} />
 
       <Seccion
-        titulo="Busqueda de la corrida"
+        detalle titulo="Busqueda de la corrida"
         nota="El flujo de la busqueda (identificados, cribados, leidos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
         acciones={
           <div className="acciones">
@@ -455,7 +457,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
 
       {(resueltas.length > 0 || incidencias.some((i) => i.estado === 'resuelta')) && (
         <Seccion
-          titulo="Permisos e incidencias ya respondidos"
+          detalle titulo="Permisos e incidencias ya respondidos"
           acciones={
             <button type="button" className="btn btn-fantasma btn-s" onClick={() => setVerResueltas((v) => !v)}>
               {verResueltas ? 'Ocultar' : `Ver ${resueltas.length + incidencias.filter((i) => i.estado === 'resuelta').length}`}

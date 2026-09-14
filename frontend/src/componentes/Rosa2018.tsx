@@ -340,7 +340,7 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
   );
   return (
     <Seccion
-      titulo="Pregunta de esta campana"
+      detalle titulo="Pregunta de esta campana"
       nota="Rosa la formula desde la meta y el area elegida con una plantilla fija: contexto, etapa, intervencion, comparador, desenlace, ventana, unidad biologica independiente, mecanismos que distingue, decision que se toma con la respuesta y umbral de efecto. Un umbral sin base queda 'sin resolver'. Se aprueba con el primer plan."
       acciones={
         <div className="acciones">
@@ -425,7 +425,7 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
 export function RegistroMetodos({ metodos, ahora }: { metodos: MetodoRegistrado[] | undefined; ahora: number }) {
   const lista = metodos ?? [];
   return (
-    <Seccion titulo="Registro de metodos y ensayos" nota="Cada metodo dice que puede evaluar, donde aplica, que necesita, como se valido y en que estado esta. La popularidad no lo hace apto; la validacion si. La puerta de reproduccion marca los metodos de analisis como probados en contexto. Un predictor no confirma sus propios datos de entrenamiento.">
+    <Seccion detalle titulo="Registro de metodos y ensayos" nota="Cada metodo dice que puede evaluar, donde aplica, que necesita, como se valido y en que estado esta. La popularidad no lo hace apto; la validacion si. La puerta de reproduccion marca los metodos de analisis como probados en contexto. Un predictor no confirma sus propios datos de entrenamiento.">
       {lista.length === 0 ? (
         <p className="meta">Sin servidor no hay registro que leer.</p>
       ) : (
@@ -614,7 +614,7 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
   const puerta = inv?.puertaReproduccion;
   const puertaOk = puerta ? puerta.estado === 'abierta' || puerta.estado === 'eximida' : false;
   return (
-    <Seccion titulo="Análisis in silico" nota="Rosa congela un plan de análisis (sin ver las filas), escribe el código, lo ejecuta en un sandbox sin red con los datos en solo lectura, interpreta las cifras contra el umbral del plan y un auditor independiente (Killer II) dice si el análisis vale. Solo un análisis válido entra como evidencia.">
+    <Seccion detalle titulo="Análisis in silico" nota="Rosa congela un plan de análisis (sin ver las filas), escribe el código, lo ejecuta en un sandbox sin red con los datos en solo lectura, interpreta las cifras contra el umbral del plan y un auditor independiente (Killer II) dice si el análisis vale. Solo un análisis válido entra como evidencia.">
       {runs.length === 0 && <p className="meta">Sin analisis con datos todavia.</p>}
       {h.evidenciaSecuencial && (
         <div className="acciones">
@@ -777,9 +777,15 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
   const ds = datasets.some((x) => x.id === dsElegido) ? dsElegido : datasets[0]?.id ?? '';
   const [d, setD] = useState({ referencia: '', doi: '', descripcion: '', cifraPublicada: '', valorPublicado: '', tolerancia: '0.1' });
   const [error, setError] = useState<string | null>(null);
+  // El formulario solo se ensena si hace falta (puerta bloqueada) o si se pide.
+  const [formulario, setFormulario] = useState(puerta.estado === 'bloqueada');
   const tono = puerta.estado === 'abierta' ? 'ok' : puerta.estado === 'eximida' ? 'aviso' : 'mal';
   return (
     <Seccion
+      id="puerta"
+      plegable
+      abierta={puerta.estado !== 'abierta'}
+      resumen={<span>{puerta.estado === 'abierta' ? `Abierta: ${puerta.superadas} de ${puerta.requeridas} analisis publicados reproducidos. Rosa ya puede descubrir con datos.` : puerta.estado === 'eximida' ? `Eximida por ${puerta.eximidaPor}: ${puerta.motivo}` : `Bloqueada: ${puerta.superadas} de ${puerta.requeridas} reproducidos. Hasta abrirla, ningun analisis con datos cuenta como descubrimiento.`}</span>}
       titulo="Puerta de reproduccion"
       nota="Antes de descubrir nada con datos, Rosa tiene que reproducir analisis ya publicados dentro de una tolerancia fijada de antemano. Si no lo consigue, un resultado nuevo no se distingue de un error del pipeline. Una persona puede eximirla dejando el motivo; queda como cambio de politica."
       acciones={
@@ -819,9 +825,20 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
       )}
       {datasets.length === 0 ? (
         <p className="meta">Sube primero el dataset publico del analisis que quieres reproducir (por ejemplo GSE1297, OASIS-1 o SEA-AD).</p>
+      ) : !formulario ? (
+        <div className="acciones">
+          <button type="button" className="btn btn-s" onClick={() => setFormulario(true)}>
+            Registrar otro analisis publicado para reproducir
+          </button>
+        </div>
       ) : (
         <div className="seccion">
-          <p className="campo-etiqueta">Registrar un analisis publicado para reproducir</p>
+          <div className="acciones" style={{ justifyContent: 'space-between' }}>
+            <p className="campo-etiqueta">Registrar un analisis publicado para reproducir</p>
+            <button type="button" className="btn btn-fantasma btn-s" onClick={() => setFormulario(false)}>
+              Ocultar
+            </button>
+          </div>
           <div className="acciones">
             {REPRODUCCIONES_SUGERIDAS.map((s) => (
               <button key={s.doi} type="button" className="btn btn-s" title={s.descripcion} onClick={() => setD({ referencia: s.referencia, doi: s.doi, descripcion: s.descripcion, cifraPublicada: s.cifraPublicada, valorPublicado: String(s.valorPublicado), tolerancia: String(s.tolerancia) })}>
@@ -1087,9 +1104,25 @@ export function SubirDataset({ inv }: { inv: Investigacion }) {
   const [sintetico, setSintetico] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState(false);
+  if (!abierto) {
+    return (
+      <div className="acciones">
+        <button type="button" className="btn" onClick={() => setAbierto(true)}>
+          Subir un dataset
+        </button>
+        <span className="meta">CSV, TSV o JSON, hasta 200 MB. Ninguna fila pasa por un modelo al subir.</span>
+      </div>
+    );
+  }
   return (
     <div className="tarjeta seccion">
-      <p className="campo-etiqueta">Subir un dataset con fichero</p>
+      <div className="acciones" style={{ justifyContent: 'space-between' }}>
+        <p className="campo-etiqueta">Subir un dataset con fichero</p>
+        <button type="button" className="btn btn-fantasma btn-s" onClick={() => setAbierto(false)}>
+          Cancelar
+        </button>
+      </div>
       <p className="meta">CSV, TSV o JSON (lista de objetos), hasta 200 MB. El servidor calcula el hash, cuenta filas y columnas, detecta valores centinela y prepara el diccionario para que lo completes. Ninguna fila pasa por un modelo al subir.</p>
       <div className="rejilla-2">
         <div className="campo">
@@ -1144,7 +1177,7 @@ export function RegistroAprendizaje({ estado, ahora }: { estado: EstadoRosa; aho
   const [nivel, setNivel] = useState<1 | 2 | 3>(2);
   const visibles = cambios.filter((c) => c.nivel === nivel);
   return (
-    <Seccion titulo="Registro de aprendizaje" nota="Todo lo que Rosa cambia al aprender, en tres niveles. El nivel 1 es automatico; el nivel 2 lo propone Rosa y lo promueve una persona tras evaluarlo sobre el conjunto reservado; el nivel 3 solo lo cambia una persona.">
+    <Seccion detalle titulo="Registro de aprendizaje" nota="Todo lo que Rosa cambia al aprender, en tres niveles. El nivel 1 es automatico; el nivel 2 lo propone Rosa y lo promueve una persona tras evaluarlo sobre el conjunto reservado; el nivel 3 solo lo cambia una persona.">
       <div className="segmentos" role="group" aria-label="Nivel">
         {([1, 2, 3] as const).map((n) => (
           <button key={n} type="button" aria-pressed={nivel === n} onClick={() => setNivel(n)} title={NIVEL_APRENDIZAJE[n].nota}>
@@ -1223,7 +1256,7 @@ export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] })
     { clave: 'eloK', etiqueta: 'Factor K del Elo', nota: 'Cuanto mueve un partido el Elo.' },
   ];
   return (
-    <Seccion titulo="Politicas" nota="Los limites del sistema viven en el codigo del servidor (rosa/politicas.py), no en este estado: ningun agente puede editarlos y cada cambio es un commit que queda en la version de Rosa de cada corrida. Aqui solo se leen.">
+    <Seccion detalle titulo="Politicas" nota="Los limites del sistema viven en el codigo del servidor (rosa/politicas.py), no en este estado: ningun agente puede editarlos y cada cambio es un commit que queda en la version de Rosa de cada corrida. Aqui solo se leen.">
       {!politicas ? (
         <p className="meta">Sin servidor no hay politicas que leer.</p>
       ) : (
@@ -1479,7 +1512,7 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
     );
   };
   return (
-    <Seccion titulo="Programa, areas, campanas y preguntas" nota="La jerarquia del plan completo: una meta amplia se reparte en areas comparables; cada area se trabaja en campanas (corridas) con una pregunta concreta y comprobable. Aqui se ve que area tiene campana, cual esta pausada y con que condicion, y que campana todavia no tiene pregunta.">
+    <Seccion detalle titulo="Programa, areas, campanas y preguntas" nota="La jerarquia del plan completo: una meta amplia se reparte en areas comparables; cada area se trabaja en campanas (corridas) con una pregunta concreta y comprobable. Aqui se ve que area tiene campana, cual esta pausada y con que condicion, y que campana todavia no tiene pregunta.">
       <ul className="arbol">
         <li>
           <strong>Programa:</strong> {m.metaAmplia || inv.objetivo}
@@ -1544,7 +1577,7 @@ export function GrafoCausalDeHipotesis({ h }: { h: Hipotesis }) {
   const etiqueta = (id: string) => g.nodos.find((n) => n.id === id)?.etiqueta ?? id;
   const tono = g.identificacion === 'identificable' ? 'ok' : g.identificacion === 'acotado' ? 'aviso' : 'mal';
   return (
-    <Seccion titulo="Supuestos causales (comprobador heuristico)" nota="No es un motor causal: no hay modelo estructural, ni criterio de puerta trasera, ni descubrimiento de estructura desde datos (la literatura de 2026 dice que eso no esta listo para biologia). Es un comprobador por regla de los supuestos que separan asociacion de causa: la exposicion X, el desenlace Y, las alternativas que planteo el Killer y quince relaciones de consenso del Alzheimer escritas a mano. Un ensayo aleatorizado cierra la identificacion; sin el, hacen falta temporalidad, ajuste por confusores y replicacion independiente. Lo que falta es lo que un experimento tendria que aportar, y el Killer lo recibe como una comprobacion mas.">
+    <Seccion detalle titulo="Supuestos causales (comprobador heuristico)" nota="No es un motor causal: no hay modelo estructural, ni criterio de puerta trasera, ni descubrimiento de estructura desde datos (la literatura de 2026 dice que eso no esta listo para biologia). Es un comprobador por regla de los supuestos que separan asociacion de causa: la exposicion X, el desenlace Y, las alternativas que planteo el Killer y quince relaciones de consenso del Alzheimer escritas a mano. Un ensayo aleatorizado cierra la identificacion; sin el, hacen falta temporalidad, ajuste por confusores y replicacion independiente. Lo que falta es lo que un experimento tendria que aportar, y el Killer lo recibe como una comprobacion mas.">
       <div className="acciones">
         <Chip tono={tono}>{IDENTIFICACION_CAUSAL[g.identificacion] ?? g.identificacion}</Chip>
         <span className="meta">{g.resumen}</span>
@@ -1592,7 +1625,7 @@ export function RelacionesCausales({ estado, inv }: { estado: EstadoRosa; inv: I
   const propias = rels.filter((r) => r.hipotesisId);
   const base = rels.filter((r) => !r.hipotesisId);
   return (
-    <Seccion titulo="Relaciones causales tipadas" nota="Cada arista dice de donde sale. Las de las hipotesis entran cuando el Killer las juzga, como supuesto o como inferencia con evidencia, y se actualizan con cada version. La base curada es consenso del campo escrito a mano en el codigo (rosa/causal.py): se puede discutir y cambiar ahi.">
+    <Seccion detalle titulo="Relaciones causales tipadas" nota="Cada arista dice de donde sale. Las de las hipotesis entran cuando el Killer las juzga, como supuesto o como inferencia con evidencia, y se actualizan con cada version. La base curada es consenso del campo escrito a mano en el codigo (rosa/causal.py): se puede discutir y cambiar ahi.">
       {propias.length === 0 ? <p className="meta">Ninguna hipotesis juzgada todavia: solo la base curada.</p> : null}
       <ul className="lista-plana">
         {propias.map((r) => (
@@ -1639,7 +1672,7 @@ const ETIQUETA_FALLO: Record<string, string> = {
 export function PanelKiller({ estado }: { estado: EstadoRosa }) {
   const evs = [...(estado.evaluaciones ?? [])].filter((e) => e.tipo === 'panel_killer').sort((a, b) => b.fecha - a.fecha);
   return (
-    <Seccion titulo="Panel del Killer" nota="Hipótesis reales con un fallo plantado a propósito (cifra alterada, predicción vaga, causalidad sin temporalidad, misma cohorte, supuesto contradicho) y un conjunto gris que no debe descartarse. Mide qué fracción detecta el Killer, si lo detecta la comprobación correcta, cuánto se abstiene y cuánto mata de más. Se repite con cada versión del prompt o del modelo: si baja, se sabe antes de que llegue a una hipótesis real.">
+    <Seccion detalle titulo="Panel del Killer" nota="Hipótesis reales con un fallo plantado a propósito (cifra alterada, predicción vaga, causalidad sin temporalidad, misma cohorte, supuesto contradicho) y un conjunto gris que no debe descartarse. Mide qué fracción detecta el Killer, si lo detecta la comprobación correcta, cuánto se abstiene y cuánto mata de más. Se repite con cada versión del prompt o del modelo: si baja, se sabe antes de que llegue a una hipótesis real.">
       {evs.length === 0 ? (
         <p className="meta">Sin paneles todavia. Se corre desde el servidor con el comando del README (cuesta llamadas al juez).</p>
       ) : (
@@ -1705,7 +1738,7 @@ export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | un
   const grupos = Array.from(new Set(lista.map((c) => c.grupo)));
   const disponibles = lista.filter((c) => c.estado === 'disponible').length;
   return (
-    <Seccion titulo="Conectores a bases publicas" nota={`Cada conector envuelve una API publica con su limite de peticiones y su licencia. Cada llamada deja un registro de consulta (herramienta, argumentos, fecha, resultados, identificadores, invariante comprobada) en la hipotesis que la pidio. ${disponibles} de ${lista.length} disponibles; el resto se lista con el motivo. Una fuente que no responde es "no pude comprobar", nunca "no hay".`}>
+    <Seccion detalle titulo="Conectores a bases publicas" nota={`Cada conector envuelve una API publica con su limite de peticiones y su licencia. Cada llamada deja un registro de consulta (herramienta, argumentos, fecha, resultados, identificadores, invariante comprobada) en la hipotesis que la pidio. ${disponibles} de ${lista.length} disponibles; el resto se lista con el motivo. Una fuente que no responde es "no pude comprobar", nunca "no hay".`}>
       {lista.length === 0 ? (
         <p className="meta">El catalogo llega del servidor al arrancar.</p>
       ) : (
@@ -1818,7 +1851,7 @@ export function ConsultasABases({ h, ahora }: { h: Hipotesis; ahora: number }) {
   if (cs.length === 0) return null;
   const fallidas = cs.filter((c) => c.error).length;
   return (
-    <Seccion titulo="Consultas a bases" nota="Cada fila es una llamada a una base publica hecha para esta hipotesis. La invariante es una comprobacion independiente de que la respuesta es la que se esperaba (un simbolo resuelve a un unico gen, el accession coincide). Sin respuesta significa que no se pudo comprobar, no que no exista.">
+    <Seccion detalle titulo="Consultas a bases" nota="Cada fila es una llamada a una base publica hecha para esta hipotesis. La invariante es una comprobacion independiente de que la respuesta es la que se esperaba (un simbolo resuelve a un unico gen, el accession coincide). Sin respuesta significa que no se pudo comprobar, no que no exista.">
       <p className="meta">
         {cs.length} {cs.length === 1 ? 'consulta' : 'consultas'}
         {fallidas ? `, ${fallidas} sin respuesta` : ''}
@@ -2038,7 +2071,7 @@ export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefi
 export function Skills({ skills }: { skills: SkillCatalogo[] | undefined }) {
   const lista = skills ?? [];
   return (
-    <Seccion titulo="Skills de metodo" nota="Un fichero de instrucciones por metodo (como correr una reproduccion de GEO, como calcular un tamano muestral, como hacer control de calidad de celula unica). Rosa carga las que casan con el plan y las pasa al modelo junto con los modulos que el sandbox puede importar. Se anaden o cambian editando rosa/skills/; el catalogo se lee al arrancar.">
+    <Seccion detalle titulo="Skills de metodo" nota="Un fichero de instrucciones por metodo (como correr una reproduccion de GEO, como calcular un tamano muestral, como hacer control de calidad de celula unica). Rosa carga las que casan con el plan y las pasa al modelo junto con los modulos que el sandbox puede importar. Se anaden o cambian editando rosa/skills/; el catalogo se lee al arrancar.">
       {lista.length === 0 ? (
         <p className="meta">El catalogo de skills llega del servidor al arrancar.</p>
       ) : (
@@ -2097,7 +2130,7 @@ export function EspejoConvex({ ahora }: { ahora: number }) {
     };
   }, []);
   return (
-    <Seccion titulo="Espejo del estado en Convex" nota="Una copia en la nube de cada entidad publica del estado (hipotesis, hechos, iteraciones, artefactos, decisiones), actualizada pocos segundos despues de cada cambio. SQLite en el servidor de Rosa sigue siendo la fuente de verdad y el unico que escribe; el espejo sirve para leer desde cualquier sitio y para que varias personas vean lo mismo. La clave vive solo en el .env del servidor.">
+    <Seccion detalle titulo="Espejo del estado en Convex" nota="Una copia en la nube de cada entidad publica del estado (hipotesis, hechos, iteraciones, artefactos, decisiones), actualizada pocos segundos despues de cada cambio. SQLite en el servidor de Rosa sigue siendo la fuente de verdad y el unico que escribe; el espejo sirve para leer desde cualquier sitio y para que varias personas vean lo mismo. La clave vive solo en el .env del servidor.">
       {esp === undefined ? (
         <p className="meta">Consultando el servidor...</p>
       ) : esp === null ? (
@@ -2140,7 +2173,7 @@ export function IntegridadRegistro() {
     };
   }, []);
   return (
-    <Seccion titulo="Integridad del registro" nota="Cada accion que cambia el estado queda en un registro solo de anadir, y cada fila lleva el hash de la anterior (una cadena). Si alguien borra o altera una fila, la cadena se rompe desde ahi y aqui se ve. Es la parte de ALCOA+ (atribuible, contemporaneo, original, perdurable) que se puede dar sin firma electronica; la firma por persona queda para un destino regulado.">
+    <Seccion detalle titulo="Integridad del registro" nota="Cada accion que cambia el estado queda en un registro solo de anadir, y cada fila lleva el hash de la anterior (una cadena). Si alguien borra o altera una fila, la cadena se rompe desde ahi y aqui se ve. Es la parte de ALCOA+ (atribuible, contemporaneo, original, perdurable) que se puede dar sin firma electronica; la firma por persona queda para un destino regulado.">
       {estado === 'cargando' ? (
         <p className="meta">Comprobando la cadena...</p>
       ) : estado === null ? (
@@ -2206,7 +2239,7 @@ export function NivelDeAutonomia({ politicas }: { politicas: EstadoRosa['politic
   const niveles = (politicas?.nivelesAutonomia as { nivel: number; nombre: string; definicion: string }[] | undefined) ?? [];
   const declarado = typeof politicas?.nivelAutonomiaDeclarado === 'number' ? politicas.nivelAutonomiaDeclarado : 2;
   return (
-    <Seccion titulo="Nivel de autonomia declarado" nota="Con la escala que usa el resto del sector (Beal y Rogers 2020; la revision de laboratorios autonomos de 2025 dice que la mayoria esta en el nivel 3 y ninguno en produccion pasa del 4). Rosa opera en el nivel 2 y lo declara en cada dossier: propone hipotesis, planes y protocolos y corre analisis in silico; toda decision que toca el mundo real la toma una persona. El dial de autonomia de arriba no sube este nivel: ajusta cuanto pregunta dentro de el.">
+    <Seccion detalle titulo="Nivel de autonomia declarado" nota="Con la escala que usa el resto del sector (Beal y Rogers 2020; la revision de laboratorios autonomos de 2025 dice que la mayoria esta en el nivel 3 y ninguno en produccion pasa del 4). Rosa opera en el nivel 2 y lo declara en cada dossier: propone hipotesis, planes y protocolos y corre analisis in silico; toda decision que toca el mundo real la toma una persona. El dial de autonomia de arriba no sube este nivel: ajusta cuanto pregunta dentro de el.">
       {niveles.length === 0 ? (
         <p className="meta">Sin servidor no hay politicas que leer.</p>
       ) : (
@@ -2283,7 +2316,7 @@ export function CostesPorDecision({ investigacionId }: { investigacionId: string
   }, [investigacionId]);
   const usd = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `${v.toFixed(2).replace('.', ',')} $`);
   return (
-    <Seccion titulo="Coste por decision" nota="Lo que decide presupuestos no es el coste de una llamada sino cuanto cuesta una hipotesis que llega al dossier, una candidata al laboratorio o una decision que tomo una persona. El tiempo de revision humana entra en el coste a la tarifa declarada en politicas: sin eso la comparacion con investigar sin Rosa no es honesta.">
+    <Seccion detalle titulo="Coste por decision" nota="Lo que decide presupuestos no es el coste de una llamada sino cuanto cuesta una hipotesis que llega al dossier, una candidata al laboratorio o una decision que tomo una persona. El tiempo de revision humana entra en el coste a la tarifa declarada en politicas: sin eso la comparacion con investigar sin Rosa no es honesta.">
       {c === 'cargando' ? (
         <p className="meta">Calculando...</p>
       ) : c === null ? (

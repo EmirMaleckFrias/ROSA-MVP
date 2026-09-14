@@ -159,7 +159,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </Seccion>
 
-      <Seccion titulo="Permisos concedidos" nota="Lo que has permitido con alcance mayor que una vez. Revocar hace que Rosa vuelva a pedirlo con una tarjeta.">
+      <Seccion detalle titulo="Permisos concedidos" nota="Lo que has permitido con alcance mayor que una vez. Revocar hace que Rosa vuelva a pedirlo con una tarjeta.">
         {estado.permisos.length === 0 ? (
           <p className="meta">Sin permisos concedidos.</p>
         ) : (
@@ -195,7 +195,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Planes guardados" nota="Flujos que funcionaron, reutilizables. Rosa propone usarlos cuando la tarea se parece (memoria de planes, como Magentic-UI).">
+      <Seccion detalle titulo="Planes guardados" nota="Flujos que funcionaron, reutilizables. Rosa propone usarlos cuando la tarea se parece (memoria de planes, como Magentic-UI).">
         {estado.planesGuardados.length === 0 ? (
           <p className="meta">Sin planes guardados.</p>
         ) : (
@@ -217,7 +217,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Criterios de revision" nota="Los tuyos se suman a los integrados y no pueden debilitarlos. Las debilidades de la meta-revision se inyectan aqui.">
+      <Seccion detalle titulo="Criterios de revision" nota="Los tuyos se suman a los integrados y no pueden debilitarlos. Las debilidades de la meta-revision se inyectan aqui.">
         <div className="tarjeta">
           <p className="campo-etiqueta" style={{ marginBottom: 8 }}>
             Integrados (no se pueden quitar)
@@ -332,7 +332,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </Seccion>
 
-      <Seccion titulo="Modelos de Rosa" nota="Piezas intercambiables dentro de Rosa, todas por el AI Gateway de Vercel. Se cambian por la metrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
+      <Seccion detalle titulo="Modelos de Rosa" nota="Piezas intercambiables dentro de Rosa, todas por el AI Gateway de Vercel. Se cambian por la metrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
         <table className="tabla">
           <tbody>
             <tr>

@@ -3905,3 +3905,149 @@ mark.fuerte {
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
+
+/* ---------------------------------------------------------------------- 12
+   Menos complicado: modo sencillo y detalle, secciones plegables con
+   resumen, ayuda con glosario, "que toca hacer aqui".
+   ---------------------------------------------------------------------- */
+
+.segmentos-modo button {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.seccion-plegar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.seccion-flecha {
+  display: inline-block;
+  width: 12px;
+  color: var(--text-3);
+  transition: transform var(--dur-2) var(--ease-salida);
+}
+
+.seccion-titulo h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seccion-etiqueta-detalle {
+  font-size: 10.5px;
+  min-height: 18px;
+  padding: 0 6px;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.seccion-ayuda {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  transition: background var(--dur-1) var(--ease-salida), color var(--dur-1) var(--ease-salida);
+}
+
+.seccion-ayuda:hover,
+.seccion-ayuda[aria-expanded='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.seccion-resumen {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.seccion-plegada {
+  gap: 4px;
+}
+
+.seccion-plegada + .seccion {
+  margin-top: 18px;
+}
+
+.ayuda-caja {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radio-s);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  font-size: 13px;
+  line-height: 1.5;
+  animation: aparecer-ayuda var(--dur-2) var(--ease-salida);
+}
+
+@keyframes aparecer-ayuda {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.ayuda-caja dl {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ayuda-caja dt {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.ayuda-caja dd {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.solo-detalle {
+  font-size: 13px;
+}
+
+.quetoca {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-radius: var(--radio);
+  border: 1px solid var(--amber);
+  background: var(--amber-soft);
+  font-size: 13.5px;
+}
+
+.quetoca-vacio {
+  border-color: var(--border);
+  background: var(--inset);
+}
+
+.quetoca ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quetoca li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}

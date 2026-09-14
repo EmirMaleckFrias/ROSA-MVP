@@ -347,7 +347,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
-      <Seccion titulo="Novedad" nota="Consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora, la genetica humana (GWAS Catalog, ClinVar), los farmacos contra la diana (ChEMBL, DGIdb), los datos publicos para comprobarla (GEO, CELLxGENE) y si alguien ya lo propuso en la literatura.">
+      <Seccion detalle titulo="Novedad" nota="Consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora, la genetica humana (GWAS Catalog, ClinVar), los farmacos contra la diana (ChEMBL, DGIdb), los datos publicos para comprobarla (GEO, CELLxGENE) y si alguien ya lo propuso en la literatura.">
         <div className="novedad novedad-4">
           <div className="novedad-item">
             <strong>Open Targets</strong>
@@ -424,12 +424,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <EjecucionesInSilico h={h} estado={estado} ahora={ahora} />
 
       {h.supuestos.length > 0 && (
-        <Seccion titulo="Supuestos" nota="La hipotesis descompuesta en lo que da por cierto, independiente de las citas (la verificacion profunda de Co-Scientist).">
+        <Seccion detalle titulo="Supuestos" nota="La hipotesis descompuesta en lo que da por cierto, independiente de las citas (la verificacion profunda de Co-Scientist).">
           <ArbolSupuestos supuestos={h.supuestos} />
         </Seccion>
       )}
 
-      <Seccion titulo="Revisiones del agente" nota="Seis tipos de revision, separados, para saber que se hizo y que falta.">
+      <Seccion detalle titulo="Revisiones del agente" nota="Seis tipos de revision, separados, para saber que se hizo y que falta.">
         <ul className="revisiones-auto">
           {h.revisionesAutomaticas.map((r) => (
             <li key={r.tipo} className={`revision-auto revision-${r.estado}`}>
@@ -450,12 +450,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </ul>
       </Seccion>
 
-      <Seccion titulo="Revisor" nota="Rosa atiende cada hallazgo en su siguiente mensaje: corrige o explica por que no aplica.">
+      <Seccion detalle titulo="Revisor" nota="Rosa atiende cada hallazgo en su siguiente mensaje: corrige o explica por que no aplica.">
         <Revisor hallazgos={h.hallazgos} />
       </Seccion>
 
       {h.partidos.length > 0 && (
-        <Seccion titulo="Partidos del torneo" nota="Contra quien, quien gano y por que. Un Elo con pocos partidos dice poco.">
+        <Seccion detalle titulo="Partidos del torneo" nota="Contra quien, quien gano y por que. Un Elo con pocos partidos dice poco.">
           <table className="tabla">
             <thead>
               <tr>
@@ -487,7 +487,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       )}
 
       <Seccion
-        titulo="Replicacion independiente"
+        detalle titulo="Replicacion independiente"
         nota="Kosmos confirmo sus hallazgos clave con cinco trayectorias independientes. Gasta presupuesto de la iteracion."
         acciones={
           <button type="button" className="btn btn-s" disabled={h.replicacion?.estado === 'en_curso' || !corrida || corrida.estado !== 'en_marcha'} onClick={() => acciones.replicarHipotesis(h.id, 5)}>
@@ -510,7 +510,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       </Seccion>
 
       {rivales.length > 0 && (
-        <Seccion titulo="Rivales" nota="Hipótesis que compiten por la misma pregunta.">
+        <Seccion detalle titulo="Rivales" nota="Hipótesis que compiten por la misma pregunta.">
           <div className="rivales">
             {rivales.map((r) => (
               <a key={r.id} className="chip chip-borde" href={rutaDe(h.investigacionId, 'hipotesis', r.id)} title={r.titulo}>
@@ -699,7 +699,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </Seccion>
       )}
 
-      <Seccion titulo="Historial">
+      <Seccion detalle titulo="Historial">
         <ul className="lista-limpia">
           {h.revisiones.map((r, i) => (
             <li key={i}>
@@ -815,7 +815,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         )}
       </Seccion>
 
-      <Seccion titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipotesis fuera de Rosa: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
+      <Seccion detalle titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipotesis fuera de Rosa: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
         <div className="dirigir">
           <input className="entrada" value={aplicableA} placeholder="Aplicable a (cohorte, modelo, condicion): por ejemplo portadores de APOE4 con genotipo de TREM2" onChange={(e) => setAplicableA(e.target.value)} aria-label="Aplicable a" />
           <a className="btn" href={`/api/hipotesis/${encodeURIComponent(h.id)}/rocrate`} download={`rosa-${h.id}.crate.zip`} title="RO-Crate 1.2 (perfil Process Run Crate) con procedencia W3C PROV: la hipotesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el codigo y resultado de cada analisis, el prerregistro y sus sellos RFC 3161. Se verifica con herramientas de terceros, sin Rosa.">

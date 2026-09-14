@@ -97,6 +97,38 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
   );
 }
 
+/** Lo primero de la pantalla: que espera aqui una decision tuya, y un boton
+ *  que te lleva a cada cosa. Si no hay nada, lo dice. */
+function QueToca({ inv, corridas, irA }: { inv: Inv; corridas: EstadoRosa['corridas']; irA: (hash: string) => void }) {
+  const ir = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const puerta = inv.puertaReproduccion;
+  const pendientes = inv.datasets.filter((d) => d.estado === 'pendiente').length;
+  const tareas: { texto: string; accion: () => void; etiqueta: string }[] = [];
+  if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'Rosa propuso la mision (poblacion, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la mision' });
+  if (pendientes > 0) tareas.push({ texto: `${pendientes} ${pendientes === 1 ? 'dataset espera' : 'datasets esperan'} que completes su libro de procedencia y lo apruebes.`, accion: () => ir('datos'), etiqueta: 'Ver los datos' });
+  if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproduccion esta bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningun analisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
+  if (corridas.length === 0) tareas.push({ texto: 'Esta investigacion no tiene corridas: Rosa todavia no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
+  return (
+    <div className={`quetoca ${tareas.length === 0 ? 'quetoca-vacio' : ''}`} role="status">
+      <strong>{tareas.length === 0 ? 'Nada te espera aqui.' : tareas.length === 1 ? 'Te espera una cosa:' : `Te esperan ${tareas.length} cosas:`}</strong>
+      {tareas.length === 0 ? (
+        <span className="meta"> El objetivo, la mision y los datos estan en orden. Lo demas de esta pantalla es consulta.</span>
+      ) : (
+        <ul>
+          {tareas.map((t) => (
+            <li key={t.etiqueta}>
+              <span>{t.texto}</span>
+              <button type="button" className="btn btn-s" onClick={t.accion}>
+                {t.etiqueta}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: EstadoRosa; ahora: number; irA: (hash: string) => void }) {
   const corridas = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero);
   const origen = inv.ramaDe ? estado.investigaciones.find((i) => i.id === inv.ramaDe) : null;
@@ -137,6 +169,8 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         />
       </div>
 
+      <QueToca inv={inv} corridas={corridas} irA={irA} />
+
       <div className="rejilla-2">
         <div className="tarjeta seccion">
           <h3 style={{ fontSize: 13, fontWeight: 600 }}>Objetivo</h3>
@@ -169,7 +203,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         </div>
       </div>
 
-      <Seccion titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. Rosa propone; una persona aprueba. Debajo, las áreas de investigación que Rosa comparó para elegir por dónde empezar.">
+      <Seccion id="mision" titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. Rosa propone; una persona aprueba. Debajo, las áreas de investigación que Rosa comparó para elegir por dónde empezar.">
         {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la mision al arrancar la primera corrida. Tambien puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
         <FormularioMision inv={inv} corridas={corridas} />
       </Seccion>
@@ -249,7 +283,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         )}
       </Seccion>
 
-      <Seccion
+      <Seccion id="datos"
         titulo="Datos"
         nota="Antes de una corrida larga, la comprobacion de datos: columnas sin diccionario, valores centinela y nombres duplicados contaminaron horas de una corrida de Kosmos. Nada se aprueba con esos contadores en rojo."
         acciones={
@@ -314,7 +348,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
 
       <PuertaYReproducciones inv={inv} estado={estado} ahora={ahora} />
 
-      <Seccion titulo="Corridas" nota="Cada corrida es un arranque del bucle con estas instrucciones.">
+      <Seccion detalle titulo="Corridas" nota="Cada corrida es un arranque del bucle con estas instrucciones.">
         {corridas.length === 0 ? (
           <p className="meta">Sin corridas todavia.</p>
         ) : (

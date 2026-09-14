@@ -158,7 +158,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       </div>
 
       {coberturas.length > 0 && (
-        <Seccion titulo="Cobertura de la busqueda por tema" nota={`Cuanto de lo relevante se estima encontrado (curva de descubrimiento). Por debajo del ${Math.round(COBERTURA_MINIMA * 100)} % una "ausencia refutada" se degrada a "sin verificar".`}>
+        <Seccion detalle titulo="Cobertura de la busqueda por tema" nota={`Cuanto de lo relevante se estima encontrado (curva de descubrimiento). Por debajo del ${Math.round(COBERTURA_MINIMA * 100)} % una "ausencia refutada" se degrada a "sin verificar".`}>
           <div className="coberturas">
             {coberturas.map((c) => {
               const faltan = faltanParaCobertura(c, 0.9);

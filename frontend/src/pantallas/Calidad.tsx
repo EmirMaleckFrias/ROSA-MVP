@@ -92,7 +92,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         </div>
       </div>
 
-      <Seccion titulo="Metricas del juez" nota={ultima ? `Ultima medicion con ${ultima.juez}` : 'Sin mediciones'} acciones={ultima ? <Momento t={ultima.fecha} ahora={ahora} /> : undefined}>
+      <Seccion detalle titulo="Metricas del juez" nota={ultima ? `Ultima medicion con ${ultima.juez}` : 'Sin mediciones'} acciones={ultima ? <Momento t={ultima.fecha} ahora={ahora} /> : undefined}>
         {ultima && (
           <div className="metricas">
             <div className="gasto-item">
@@ -162,7 +162,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         })()}
       </Seccion>
 
-      <Seccion titulo="Acierto por tipo de afirmacion" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. Rosa lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
+      <Seccion detalle titulo="Acierto por tipo de afirmacion" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. Rosa lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
         <div className="rejilla-3">
           {(['dato', 'literatura', 'interpretacion'] as const).map((t) => {
             const v = ultima?.aciertoPorTipo[t] ?? null;
@@ -199,7 +199,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
           ['200 o mas hechos', (n) => n >= 200],
         ];
         return (
-          <Seccion titulo="Acuerdo juez-humano segun el tamano del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decision del Killer guarda cuantos hechos habia en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la politica de contexto tiene que recortar antes de que duela.">
+          <Seccion detalle titulo="Acuerdo juez-humano segun el tamano del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decision del Killer guarda cuantos hechos habia en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la politica de contexto tiene que recortar antes de que duela.">
             <table className="tabla">
               <thead>
                 <tr>
@@ -240,7 +240,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         );
       })()}
 
-      <Seccion titulo="Calibracion del revisor frente a las personas" nota="Que recomendaba el revisor (bloquear o pasar) frente a lo que decidio una persona. Los desacuerdos son el conjunto de entrenamiento de GEPA para el juez.">
+      <Seccion detalle titulo="Calibracion del revisor frente a las personas" nota="Que recomendaba el revisor (bloquear o pasar) frente a lo que decidio una persona. Los desacuerdos son el conjunto de entrenamiento de GEPA para el juez.">
         <div className="rejilla-2">
           <table className="tabla matriz">
             <thead>
@@ -288,7 +288,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         </div>
       </Seccion>
 
-      <Seccion titulo="Agujeros de conejo y coste" nota="Hipótesis con evidencia estadística fuerte que una persona votó poco relevantes: lo que Kosmos reconoce como su fallo. Y cuánto costó cada una.">
+      <Seccion detalle titulo="Agujeros de conejo y coste" nota="Hipótesis con evidencia estadística fuerte que una persona votó poco relevantes: lo que Kosmos reconoce como su fallo. Y cuánto costó cada una.">
         <div className="rejilla-2">
           <div className="tarjeta">
             <p className="campo-etiqueta">Significativas pero irrelevantes</p>
@@ -324,7 +324,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
       </Seccion>
 
       <Seccion
-        titulo="Casos de control"
+        detalle titulo="Casos de control"
         nota="Los 17 los propuso el RAG sobre otro corpus y ninguno esta aprobado. Sirven para probar el ciclo; los del dominio del Alzheimer hay que escribirlos con el compañero."
         acciones={
           <div className="segmentos" role="group" aria-label="Filtro de casos">
@@ -339,7 +339,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         {casos.length === 0 ? <p className="meta">Ningun caso en este estado.</p> : casos.map((c) => <Caso key={c.clave} c={c} />)}
       </Seccion>
 
-      <Seccion titulo="Optimizaciones con GEPA" nota="Cada compilacion queda registrada en MLflow con sus evaluaciones anidadas; el detalle se abre alli.">
+      <Seccion detalle titulo="Optimizaciones con GEPA" nota="Cada compilacion queda registrada en MLflow con sus evaluaciones anidadas; el detalle se abre alli.">
         <table className="tabla">
           <thead>
             <tr>
