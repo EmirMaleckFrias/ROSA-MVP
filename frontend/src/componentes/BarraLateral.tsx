@@ -3,6 +3,7 @@
 // pendientes llevan su cuenta al lado, porque son lo que espera a una persona.
 
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
+import { CuentaActual } from './Acceso';
 import { ESTADO_CORRIDA } from '../lib/etiquetas';
 import { pendientesDeRevision } from '../lib/hipotesis';
 import { rutaDe, type Pantalla, type Ruta } from '../lib/ruta';
@@ -122,6 +123,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
           </a>
         </div>
 
+        <CuentaActual />
         <p className="barra-pie">Rosa investiga; la persona decide. Ninguna hipotesis entra al modelo de mundo sin pasar por la cola.</p>
       </nav>
     </>

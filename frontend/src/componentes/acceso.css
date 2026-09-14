@@ -1,0 +1,36 @@
+/* El árbol púrpura existente guía la entrada; el formulario queda en calma. */
+.acceso { min-height: 100dvh; display: grid; grid-template-columns: 1.1fr 1fr; background: var(--bg); color: var(--text); }
+.acceso-identidad { background: #eeeaf6; color: #3d1973; padding: clamp(32px, 6vw, 100px); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+.acceso-identidad img { width: clamp(120px, 19vw, 240px); height: auto; object-fit: contain; margin-bottom: 28px; }
+.acceso-identidad > p:first-of-type { font-size: 17px; font-weight: 600; margin: 0 0 24px; }
+.acceso-identidad h1 { font-size: clamp(28px, 3.3vw, 50px); line-height: 1.16; letter-spacing: -.035em; font-weight: 550; margin: 0; }
+.acceso-descripcion { font-size: 17px; line-height: 1.7; margin-top: 24px; }
+.acceso-formulario { width: min(100%, 490px); margin: auto; padding: 48px 36px; }
+.acceso-marca { font-size: 28px; font-weight: 650; letter-spacing: -.04em; margin-bottom: 42px; }
+.acceso-opciones { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+.acceso-opciones button { border: 0; background: none; padding: 0 0 12px; color: var(--text-2); font: inherit; cursor: pointer; }
+.acceso-opciones button[aria-pressed=true] { color: var(--accent); border-bottom: 2px solid var(--accent); }
+.acceso-formulario h2 { font-size: 26px; line-height: 1.25; letter-spacing: -.025em; margin: 0 0 12px; }
+.acceso-formulario p { line-height: 1.65; }
+.acceso-formulario form { display: grid; gap: 12px; margin-top: 28px; }
+.acceso-formulario input { width: 100%; min-height: 46px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); padding: 10px 12px; font: inherit; }
+.acceso-formulario label { font-size: 13px; font-weight: 600; }
+.acceso .acceso-continuar { width: 100%; min-height: 46px; justify-content: center; background: var(--accent); color: var(--accent-contrast); margin: 8px 0; border: 0; }
+.acceso-privacidad { font-size: 12px; color: var(--text-2); margin-top: 22px; }
+.acceso-aviso { border-left: 3px solid var(--amber); padding-left: 12px; font-size: 13px; }
+.acceso-instalacion { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 18px; font-size: 13px; }
+.acceso-instalacion summary { cursor: pointer; }
+.cuenta-actual { display: grid; gap: 6px; padding: 8px 4px; overflow-wrap: anywhere; }
+.cuenta-actual small { color: var(--text-2); }
+.cuenta-actual button { justify-self: start; }
+[data-theme=dark] .acceso-identidad { background: #20162e; color: #d2b9f4; }
+@media (max-width: 760px) {
+  .acceso { grid-template-columns: 1fr; }
+  .acceso-identidad { padding: 28px; }
+  .acceso-identidad img { width: 84px; margin-bottom: 12px; }
+  .acceso-identidad > p:first-of-type { margin-bottom: 12px; }
+  .acceso-identidad h1 { font-size: 27px; }
+  .acceso-descripcion { display: none; }
+  .acceso-formulario { padding: 32px 24px; }
+  .acceso-marca { margin-bottom: 24px; }
+}

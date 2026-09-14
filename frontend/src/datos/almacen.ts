@@ -369,7 +369,7 @@ async function enviarYComprobar(nombre: string, args: Record<string, unknown>): 
 }
 
 /** Intenta el servidor; si no esta, arranca la muestra. Idempotente. */
-export async function conectar(): Promise<'muestra' | 'servidor'> {
+export async function conectar(permitirMuestra = true): Promise<'muestra' | 'servidor'> {
   try {
     const r = await fetch(conToken(`${API}/estado`), { cache: 'no-store', headers: cabeceras(false) });
     if (!r.ok) throw new Error(String(r.status));
@@ -384,6 +384,7 @@ export async function conectar(): Promise<'muestra' | 'servidor'> {
     abrirEventos();
     vigilarFlujo();
   } catch {
+    if (!permitirMuestra) throw new Error('No se pudo cargar el estado de Rosa');
     modo = 'muestra';
     arrancarMuestra();
   }

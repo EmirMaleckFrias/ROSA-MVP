@@ -2,6 +2,7 @@
 cuerpos inválidos, hosts permitidos, ruta estática sin salto de directorio."""
 
 import tempfile
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -23,7 +24,10 @@ def cliente(monkeypatch):
     monkeypatch.setattr(config, "FRONTEND_DIST", dist)
     al = Almacen(raiz / "t.db")
     app = crear_app(al)
-    return TestClient(app, base_url="http://127.0.0.1:8765"), al
+    # Estos tests aíslan las rutas del dominio. El acceso real se prueba en test_acceso_correo.
+    app.state.acceso = SimpleNamespace(usuario=lambda token: 'test@alzheimerproject.com' if token == 'sesion-test' else None)
+    app.state.correo = SimpleNamespace(preferencias=lambda email: al.instantanea()['avisos'])
+    return TestClient(app, base_url="http://127.0.0.1:8765", cookies={'rosa_sesion': 'sesion-test'}), al
 
 
 def test_escrituras_exigen_cabecera_y_json(cliente):

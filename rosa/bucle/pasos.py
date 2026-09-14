@@ -1283,6 +1283,7 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
             h["procedencia"] = P.procedencia_vacia(f"Generada en la iteración {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuación.", ahora, codigo=f"programas.hipotesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[f"iteración {ctx.numero}: generar -> {hp.titulo[:60]}"])
             h["procedencia"]["fuentes"] = fuentes_h
             h["_entidades"] = list(hp.entidades_novedad)[:6]
+            h["_corridaOrigen"] = ctx.corrida_id
             ctx.mutar(lambda e2, h=h: (e2["hipotesis"].append(h), A.con_evento(e2, ctx.investigacion_id, "hipotesis_nueva", f"Hipótesis nueva en la cola: {h['titulo']}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}", ahora)) and True, "hipotesis_nueva")
             nuevas_ids.append(h["id"])
             existentes_titulos.add(V.normalizar(h["titulo"]))

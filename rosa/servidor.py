@@ -32,6 +32,8 @@ from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 from rosa import config
 from rosa.estado import plantilla as P
 from rosa.estado.almacen import ACCIONES, Almacen
+from rosa.acceso import Acceso, COOKIE, DURACION
+from urllib.parse import urlsplit
 
 
 # Acciones que solo aplica el propio servidor (subidas, panel del Killer,
@@ -81,6 +83,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         correo = Correo(almacen)
         app.state.correo = correo
+        app.state.acceso = Acceso(correo)
         tarea = asyncio.create_task(correo.correr())
         try:
             yield
@@ -95,6 +98,25 @@ def crear_app(almacen: Almacen) -> FastAPI:
     app.state.token_interno = token_interno()
     app.state.semaforo_preguntas = asyncio.Semaphore(2)
     app.state.preguntas_hoy = {"dia": "", "n": 0}
+
+    def instalacion_local(request):
+        # Solo instalación local directa, nunca por un proxy o desde la red.
+        origen = request.headers.get('origin')
+        return (config.HOST in HOSTS_LOCALES and request.client is not None
+                and request.client.host in HOSTS_LOCALES and request.url.hostname in HOSTS_LOCALES
+                and (not origen or urlsplit(origen).hostname in HOSTS_LOCALES)
+                and not request.headers.get('x-forwarded-for')
+                and not app.state.acceso.db.execute('SELECT 1 FROM cuentas LIMIT 1').fetchone())
+
+    def es_admin(email):
+        fila = app.state.acceso.db.execute('SELECT correo FROM cuentas ORDER BY rowid LIMIT 1').fetchone()
+        return bool(email and fila and fila[0] == email)
+
+    def estado_de(request):
+        e = almacen.instantanea()
+        if request.state.usuario:
+            e['avisos'] = app.state.correo.preferencias(request.state.usuario)
+        return e
     # Solo se aceptan peticiones dirigidas al nombre con el que se sirve Rosa:
     # frena el "DNS rebinding" (una web ajena que resuelve a 127.0.0.1).
     permitidos = list(HOSTS_LOCALES) + ([config.HOST] if config.HOST not in HOSTS_LOCALES else []) + [f"{h}:{config.PUERTO}" for h in HOSTS_LOCALES]
@@ -104,9 +126,17 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.middleware("http")
     async def _guardias(request: Request, call_next):
+        path = request.url.path
+        publico = path in ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion')
+        acceso = getattr(app.state, 'acceso', None)
+        usuario = acceso.usuario(request.cookies.get(COOKIE)) if acceso else None
+        request.state.usuario = usuario
+        interno = secrets.compare_digest(request.headers.get('x-rosa-interno', ''), app.state.token_interno)
+        if path.startswith('/api/') and not publico and not usuario and not interno:
+            return JSONResponse({'detail': 'Inicia sesión con tu correo verificado'}, status_code=401)
         # 1. Si hay token configurado (servidor expuesto fuera de la maquina), toda
         #    la API lo exige, por cabecera o, para el flujo SSE, por parametro.
-        if config.ROSA_TOKEN and request.url.path.startswith("/api/"):
+        if config.ROSA_TOKEN and path.startswith("/api/") and not usuario and not publico and not interno:
             dado = request.headers.get("x-rosa-token") or request.query_params.get("token")
             if not dado or not secrets.compare_digest(dado, config.ROSA_TOKEN):
                 return JSONResponse({"detail": "Falta el token de acceso a Rosa"}, status_code=401)
@@ -114,19 +144,94 @@ def crear_app(almacen: Almacen) -> FastAPI:
         #    ajena no puede mandarla sin preflight, y sin CORS el preflight falla.
         if request.method == "POST" and request.url.path.startswith("/api/") and request.headers.get("x-rosa") != "1" and not request.headers.get("x-rosa-interno"):
             return JSONResponse({"detail": "Falta la cabecera X-Rosa (la interfaz la manda siempre)"}, status_code=403)
-        return await call_next(request)
+        respuesta = await call_next(request)
+        if path.startswith('/api/'):
+            respuesta.headers['Cache-Control'] = 'no-store'
+        respuesta.headers['Referrer-Policy'] = 'no-referrer'
+        return respuesta
+
+    @app.get('/api/acceso/estado')
+    async def acceso_estado(request: Request):
+        c = app.state.correo.estado()
+        local = instalacion_local(request)
+        ultimo = next((x for x in c['historial'] if x['tipo'] == 'acceso'), None) if local else None
+        aviso = (ultimo['error'] or ('El proveedor aceptó el último correo de acceso. Comprueba el buzón y spam.' if ultimo['estado'] == 'aceptado' else 'El último correo de acceso está ' + ultimo['estado'])) if ultimo else None
+        return {'correo': request.state.usuario, 'administrador': es_admin(request.state.usuario),
+                'correoConfigurado': c['configurado'], 'instalacionLocal': local, 'avisoInstalacion': aviso}
+
+    async def objeto_pequeno(request):
+        cuerpo = bytearray()
+        async for parte in request.stream():
+            cuerpo.extend(parte)
+            if len(cuerpo) > 4096:
+                raise HTTPException(413, 'Petición demasiado grande')
+        try:
+            obj = json.loads(cuerpo)
+        except (ValueError, UnicodeDecodeError):
+            raise HTTPException(400, 'JSON inválido') from None
+        if not isinstance(obj, dict):
+            raise HTTPException(400, 'Se espera un objeto JSON')
+        return obj
+
+    @app.post('/api/acceso/configuracion')
+    async def acceso_configurar(request: Request):
+        if not instalacion_local(request):
+            raise HTTPException(403, 'La instalación inicial solo se configura en el equipo de Rosa antes de crear cuentas')
+        obj = await objeto_pequeno(request)
+        try:
+            app.state.correo.configurar(obj)
+        except ValueError as ex:
+            raise HTTPException(400, str(ex)) from None
+        return {'ok': True}
+
+    @app.post('/api/acceso/solicitar')
+    async def acceso_solicitar(request: Request):
+        obj = await objeto_pequeno(request)
+        email = obj.get('correo')
+        if not isinstance(email, str):
+            raise HTTPException(400, 'Falta el correo corporativo')
+        try:
+            app.state.acceso.solicitar(email, request.client.host if request.client else 'desconocida')
+        except ValueError as ex:
+            raise HTTPException(400, str(ex)) from None
+        return {'ok': True, 'mensaje': 'Revisa tu correo para confirmar el acceso. El enlace caduca en 15 minutos.'}
+
+    @app.post('/api/acceso/confirmar')
+    async def acceso_confirmar(request: Request):
+        obj = await objeto_pequeno(request)
+        try:
+            token, email = app.state.acceso.confirmar(obj.get('enlace'))
+        except ValueError as ex:
+            raise HTTPException(400, str(ex)) from None
+        respuesta = JSONResponse({'ok': True, 'correo': email})
+        seguro = urlsplit(app.state.correo._config()['url']).scheme == 'https'
+        respuesta.set_cookie(COOKIE, token, max_age=DURACION, httponly=True, secure=seguro, samesite='strict', path='/')
+        return respuesta
+
+    @app.post('/api/acceso/salir')
+    async def acceso_salir(request: Request):
+        app.state.acceso.salir(request.cookies.get(COOKIE))
+        respuesta = JSONResponse({'ok': True})
+        respuesta.delete_cookie(COOKIE, path='/')
+        return respuesta
 
 
     @app.get("/api/estado")
-    async def estado() -> JSONResponse:
-        return JSONResponse(content=almacen.instantanea(), headers={"Cache-Control": "no-store", "X-Rosa-Version": str(almacen.version)})
+    async def estado(request: Request) -> JSONResponse:
+        return JSONResponse(content=estado_de(request), headers={"Cache-Control": "no-store", "X-Rosa-Version": str(almacen.version)})
 
     @app.get("/api/correo")
-    async def correo_estado():
-        return JSONResponse(app.state.correo.estado(), headers={"Cache-Control": "no-store"})
+    async def correo_estado(request: Request):
+        resultado = app.state.correo.estado()
+        resultado['administrador'] = es_admin(request.state.usuario)
+        if not resultado['administrador']:
+            resultado['historial'] = [x for x in resultado['historial'] if x['destinatario'] == request.state.usuario]
+        return JSONResponse(resultado, headers={"Cache-Control": "no-store"})
 
     @app.post("/api/correo/configuracion")
     async def correo_configuracion(request: Request):
+        if not es_admin(request.state.usuario):
+            raise HTTPException(403, 'Solo el administrador puede configurar el proveedor')
         cuerpo = bytearray()
         async for parte in request.stream():
             cuerpo.extend(parte)
@@ -142,9 +247,9 @@ def crear_app(almacen: Almacen) -> FastAPI:
         return JSONResponse(resultado, headers={"Cache-Control": "no-store"})
 
     @app.post("/api/correo/prueba")
-    async def correo_prueba():
+    async def correo_prueba(request: Request):
         try:
-            id_ = app.state.correo.prueba()
+            id_ = app.state.correo.prueba(request.state.usuario)
         except ValueError as ex:
             raise HTTPException(400, str(ex)) from None
         return {"ok": True, "id": id_}
@@ -155,8 +260,10 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         async def generar():
             try:
-                yield {"event": "estado", "id": str(almacen.version), "data": almacen.instantanea_json(), "retry": 2000}
+                yield {"event": "estado", "id": str(almacen.version), "data": json.dumps(estado_de(request)), "retry": 2000}
                 while True:
+                    if request.state.usuario and not app.state.acceso.usuario(request.cookies.get(COOKIE)):
+                        break
                     if await request.is_disconnected():
                         break
                     try:
@@ -166,7 +273,9 @@ def crear_app(almacen: Almacen) -> FastAPI:
                     # Coalescer: si llegaron varias versiones, solo importa la ultima.
                     while not cola.empty():
                         cola.get_nowait()
-                    yield {"event": "estado", "id": str(almacen.version), "data": almacen.instantanea_json()}
+                    if request.state.usuario and not app.state.acceso.usuario(request.cookies.get(COOKIE)):
+                        break
+                    yield {"event": "estado", "id": str(almacen.version), "data": json.dumps(estado_de(request))}
             finally:
                 almacen.desuscribir(cola)
 
@@ -194,7 +303,11 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if not isinstance(args, dict):
             raise HTTPException(400, "Los argumentos van como objeto JSON")
         try:
-            resultado = almacen.aplicar(nombre, args)
+            if nombre == 'actualizarAvisos' and request.state.usuario:
+                resultado = app.state.correo.guardar_preferencias(request.state.usuario, args.get('avisos'))
+                almacen._avisar()
+            else:
+                resultado = almacen.aplicar(nombre, args, actor=request.state.usuario)
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, IndexError) as ex:
             # El almacen ya deshizo la mutacion a medias; el cliente recibe un 400 con el motivo.
             raise HTTPException(400, f"Argumentos inválidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")

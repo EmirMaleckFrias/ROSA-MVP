@@ -229,8 +229,11 @@ def acuerdo_del_panel(resultados: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Path | None, registrar: bool) -> dict[str, Any]:
+    token = (config.RAIZ / "datos" / "_token_interno").read_text(encoding="utf-8").strip()
     async with httpx.AsyncClient(timeout=60) as cli:
-        e = (await cli.get(f"{URL}/api/estado")).json()
+        respuesta = await cli.get(f"{URL}/api/estado", headers={"X-Rosa-Interno": token})
+        respuesta.raise_for_status()
+        e = respuesta.json()
     candidatas = [h for h in e["hipotesis"] if h["estado"] != "descartada" and len([a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial")]) >= 2 and h.get("tarjeta") and (h.get("tarjeta") or {}).get("prediccionFalsable")]
     # Primero las que el Killer real dejo avanzar: en una hipotesis que ya se
     # descarta por otro motivo, un fallo plantado no se puede medir.
@@ -297,7 +300,6 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         print(f"Escrito {salida}", file=sys.stderr)
     if registrar:
         async with httpx.AsyncClient(timeout=60) as cli:
-            token = (config.RAIZ / "datos" / "_token_interno").read_text(encoding="utf-8").strip()
             r = await cli.post(f"{URL}/api/acciones/registrarEvaluacion", headers={"X-Rosa-Interno": token, "X-Rosa": "1"}, json={"evaluacion": {k: v for k, v in salida_dict.items() if k != "casos"} | {"casos": [{k: v for k, v in c.items() if k not in ("motivo",)} for c in resultados]}, "quien": "panel_killer"})
             print(f"Registro en el estado: {r.status_code} {r.text[:120]}", file=sys.stderr)
     return salida_dict

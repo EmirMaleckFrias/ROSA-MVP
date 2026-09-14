@@ -10,18 +10,18 @@ import { describe, expect, it } from 'vitest';
 
 const MARCADORES = new Set(['conclusion', 'llano-bloque', 'plan-edicion', 'lista-plana', 'campo-fila', 'revision-registro', 'procedencia-artefacto', 'pestanas-s', 'embudo', 'arbol-afirmaciones']);
 
-function ficheros(d: string): string[] {
+function ficheros(d: string, extension = /\.tsx$/): string[] {
   const salida: string[] = [];
   for (const f of readdirSync(d)) {
     const p = join(d, f);
-    if (statSync(p).isDirectory()) salida.push(...ficheros(p));
-    else if (/\.tsx$/.test(p) && !/\.test\.tsx$/.test(p)) salida.push(p);
+    if (statSync(p).isDirectory()) salida.push(...ficheros(p, extension));
+    else if (extension.test(p) && !/\.test\.tsx$/.test(p)) salida.push(p);
   }
   return salida;
 }
 
 describe('clases CSS del JSX', () => {
-  const css = readFileSync(join(__dirname, 'styles.css'), 'utf8');
+  const css = ficheros(__dirname, /\.css$/).map((p) => readFileSync(p, 'utf8')).join('\n');
   const definidas = new Set([...css.matchAll(/\.([a-zA-Z_][\w-]*)/g)].map((m) => m[1]));
   const usos: { fichero: string; texto: string }[] = [];
   for (const f of ficheros(__dirname)) {

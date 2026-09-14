@@ -145,7 +145,10 @@ def cliente(monkeypatch):
     monkeypatch.setattr(config, "FRONTEND_DIST", dist)
     al = Almacen(raiz / "t.db")
     app = crear_app(al)
-    return TestClient(app, base_url="http://127.0.0.1:8765"), al
+    from types import SimpleNamespace
+    app.state.acceso = SimpleNamespace(usuario=lambda token: 'test@alzheimerproject.com' if token == 'sesion-test' else None)
+    app.state.correo = SimpleNamespace(preferencias=lambda email: al.instantanea()['avisos'])
+    return TestClient(app, base_url="http://127.0.0.1:8765", cookies={'rosa_sesion': 'sesion-test'}), al
 
 
 def test_c1_subir_dataset_y_datos_de_experimento(cliente, monkeypatch):

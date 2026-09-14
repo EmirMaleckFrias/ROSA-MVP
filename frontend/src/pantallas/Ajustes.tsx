@@ -271,7 +271,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
 
       <EspejoConvex ahora={ahora} />
 
-      <Seccion titulo="Avisos" nota="El bucle trabaja cuando nadie mira. Aquí se decide como te enteras, y el resumen diario es el mismo 'mientras no estabas' que ves al entrar.">
+      <Seccion titulo="Avisos" nota="El bucle trabaja cuando nadie mira. Estos ajustes son de tu cuenta; el correo lleva contadores y un enlace, sin datos sensibles.">
         <div className="tarjeta seccion">
           <label className="interruptor">
             <input type="checkbox" checked={avisos.slack.activo} onChange={(e) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, activo: e.target.checked } })} />
@@ -288,12 +288,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
             <input type="checkbox" checked={avisos.correo.activo} onChange={(e) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, activo: e.target.checked } })} />
             Correo
           </label>
-          {(
-            <div className="campo">
-              <label htmlFor="correo-dir">Dirección</label>
-              <EntradaDiferida id="correo-dir" tipo="email" valor={avisos.correo.direccion} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, direccion: v } })} />
-            </div>
-          )}
+          <p>Los avisos llegan a la cuenta verificada que inició cada corrida. No se utiliza una dirección global.</p>
           <p className="campo-etiqueta">Avisar cuando</p>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.hipotesisNueva} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, hipotesisNueva: e.target.checked } })} />
@@ -318,7 +313,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
             </div>
           )}
         </div>
-        <Correo servidor={estado.conexion.modo === 'servidor'} />
+        <Correo servidor={estado.conexion === 'en_linea'} />
       </Seccion>
 
       <Seccion titulo="Apariencia">

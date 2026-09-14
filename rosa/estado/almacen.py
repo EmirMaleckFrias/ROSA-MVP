@@ -204,7 +204,7 @@ class Almacen:
         elif con_ahora and "ahora" not in kwargs:
             kwargs["ahora"] = P.ahora_ms()
         def aplicar_con_autoria(e):
-            anteriores = {tabla: {x['id'] for x in e[tabla]} for tabla in ('investigaciones', 'corridas')}
+            anteriores = {tabla: {x['id'] for x in e[tabla]} for tabla in ('investigaciones', 'corridas', 'hipotesis')}
             resultado = fn(e, **kwargs)
             if actor and resultado is not False:
                 for tabla in anteriores:

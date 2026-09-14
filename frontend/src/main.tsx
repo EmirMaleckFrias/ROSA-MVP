@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '@fontsource-variable/inter';
 import App from './App';
 import { Limite } from './componentes/Limite';
-import { conectar } from './datos/almacen';
+import { Acceso } from './componentes/Acceso';
 import { observarSistema } from './lib/theme';
 import './styles.css';
 
@@ -11,8 +11,7 @@ import './styles.css';
 // cambios del sistema para que la opcion 'sistema' siga al SO en vivo.
 observarSistema();
 
-// Primero el servidor de Rosa (/api); si no responde, la muestra simulada.
-void conectar();
+// No cargar estado de investigación antes de verificar la sesión.
 
 const raiz = document.getElementById('root');
 if (!raiz) throw new Error('No se encontró el elemento #root');
@@ -20,7 +19,7 @@ if (!raiz) throw new Error('No se encontró el elemento #root');
 createRoot(raiz).render(
   <StrictMode>
     <Limite ambito="Rosa">
-      <App />
+      <Acceso><App /></Acceso>
     </Limite>
   </StrictMode>,
 );
