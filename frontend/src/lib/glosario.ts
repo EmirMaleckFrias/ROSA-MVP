@@ -23,7 +23,7 @@ export const GLOSARIO: { patron: RegExp; termino: string; definicion: string }[]
   { patron: /\bmision\b|\bmisión\b/i, termino: 'Misión', definicion: 'El marco de la investigación que Rosa propone y tu apruebas: población, etapa, tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto.' },
   { patron: /autonomia/i, termino: 'Autonomía', definicion: 'Cuanto hace Rosa sola en cada clase de acción: sugerir, preguntar antes o actuar. Nunca toma sola una decisión que toque el mundo real.' },
   { patron: /\bskill/i, termino: 'Skill', definicion: 'Un método de análisis empaquetado (instrucciones y código) que Rosa carga cuando el plan lo pide, como una plantilla de laboratorio.' },
-  { patron: /conector/i, termino: 'Conector', definicion: 'La conexión a una base pública (PubMed, Open Targets, GEO...). Cada consulta queda registrada con lo que devolvio.' },
+  { patron: /conector/i, termino: 'Conector', definicion: 'La conexión a una base pública (PubMed, Open Targets, GEO...). Cada consulta queda registrada con lo que devolvió.' },
   { patron: /e-?valor/i, termino: 'E-valor', definicion: 'Una medida de evidencia acumulable prueba a prueba, alternativa al valor p, que permite seguir mirando sin inflar los falsos positivos.' },
   { patron: /\bRO-?Crate\b|\bPROV\b/, termino: 'RO-Crate y PROV', definicion: 'Formatos estándar para empaquetar un expediente con su procedencia de modo que cualquier herramienta de terceros lo verifique sin Rosa.' },
   { patron: /PRISMA/, termino: 'PRISMA', definicion: 'La guía con la que se reporta una revisión de la literatura: cuantos artículos se encontraron, se cribaron, se leyeron y se usaron, y por que se excluyo el resto.' },

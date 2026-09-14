@@ -74,7 +74,7 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
         {n !== ultima.n && <Chip tono="aviso">Versión anterior, solo lectura</Chip>}
       </div>
       <p className="meta" style={{ marginBottom: 10 }}>
-        v{version.n} · iteracion {version.iteracion} · <Momento t={version.creadaEn} ahora={ahora} /> · {version.resumen}
+        v{version.n} · iteración {version.iteracion} · <Momento t={version.creadaEn} ahora={ahora} /> · {version.resumen}
         {resumen && (
           <>
             {' · '}
@@ -95,7 +95,7 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
         <pre className="contenido-artefacto">{version.contenido}</pre>
       )}
       <details className="versiones">
-        <summary>Procedencia de la version {version.n}: mensajes, codigo, registro de ejecucion, entorno y revision</summary>
+        <summary>Procedencia de la versión {version.n}: mensajes, código, registro de ejecución, entorno y revisión</summary>
         <ProcedenciaDeArtefacto p={version.procedencia} />
       </details>
     </div>

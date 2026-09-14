@@ -91,7 +91,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
           <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si está vacío, Rosa perseguira todo lo que parezca significativo.</small>
         </div>
         <div className="campo">
-          <label htmlFor="n-limites">Limites (uno por linea)</label>
+          <label htmlFor="n-limites">Límites (uno por línea)</label>
           <textarea id="n-limites" value={limites} onChange={(e) => setLimites(e.target.value)} rows={4} />
         </div>
         <div className="campo">
@@ -111,11 +111,11 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
           </div>
           <div className="rejilla-2">
             <div className="campo">
-              <label htmlFor="n-atr">Atributos deseables (uno por linea)</label>
+              <label htmlFor="n-atr">Atributos deseables (uno por línea)</label>
               <textarea id="n-atr" value={configEfectiva.atributos} rows={4} onChange={(e) => setConfig({ ...configEfectiva, atributos: e.target.value })} />
             </div>
             <div className="campo">
-              <label htmlFor="n-res">Restricciones (una por linea)</label>
+              <label htmlFor="n-res">Restricciones (una por línea)</label>
               <textarea id="n-res" value={configEfectiva.restricciones} rows={4} onChange={(e) => setConfig({ ...configEfectiva, restricciones: e.target.value })} />
             </div>
           </div>

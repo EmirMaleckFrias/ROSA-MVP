@@ -41,7 +41,7 @@ function Consulta({ c }: { c: NonNullable<Pista['transcripcion'][number]['consul
         <dl className="consulta-detalle">
           <dt>Parámetros</dt>
           <dd className="mono">{c.parametros}</dd>
-          <dt>Devolvio</dt>
+          <dt>Devolvió</dt>
           <dd>{c.resultados}</dd>
         </dl>
       )}
@@ -126,7 +126,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
       <div className="plan-editor">
         <div className="acciones" style={{ justifyContent: 'space-between' }}>
           <div>
-            <strong style={{ fontSize: 13 }}>Plan propuesto para la iteracion {iteracion.numero}</strong>
+            <strong style={{ fontSize: 13 }}>Plan propuesto para la iteración {iteracion.numero}</strong>
             <p className="meta">
               Propuesto <Momento t={iteracion.planPropuestoEn} ahora={ahora} />. Rosa no ejecuta nada hasta que lo apruebes. Reordena, quita o añade pasos y fija el presupuesto de cada uno.
             </p>

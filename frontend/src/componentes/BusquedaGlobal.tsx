@@ -70,7 +70,7 @@ export function BusquedaGlobal({ estado, investigacionId, abierta, onCerrar }: {
         </div>
         {q.trim().length >= 2 && (
           <ul className="busqueda-resultados">
-            {resultados.length === 0 && <li className="meta">Nada en esta investigacion coincide con «{q}».</li>}
+            {resultados.length === 0 && <li className="meta">Nada en esta investigación coincide con «{q}».</li>}
             {resultados.map((r, i) => (
               <li key={`${r.tipo}-${r.titulo}-${i}`}>
                 <button type="button" className={`busqueda-item ${i === indice ? 'busqueda-activo' : ''}`} onMouseEnter={() => setIndice(i)} onClick={() => ir(r)}>

@@ -448,10 +448,10 @@ const ITERACION_ANTERIOR: Iteracion = {
   planAprobado: true,
   planPropuestoEn: hace(53 * MIN),
   presupuesto: { limite: 120, usado: 118 },
-  resumen: '4 busquedas, 22 artículos, 201 afirmaciones (183 sostenidas), 1 hipótesis nueva, 2 hechos añadidos',
+  resumen: '4 búsquedas, 22 artículos, 201 afirmaciones (183 sostenidas), 1 hipótesis nueva, 2 hechos añadidos',
   plan: [
     { id: 'a1', titulo: 'Reordenar preguntas abiertas', detalle: '', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
-    { id: 'a2', titulo: 'Buscar literatura', detalle: '4 busquedas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
+    { id: 'a2', titulo: 'Buscar literatura', detalle: '4 búsquedas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
     { id: 'a3', titulo: 'Extraer afirmaciones con procedencia', detalle: '22 artículos', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
     { id: 'a4', titulo: 'Verificar cada afirmación', detalle: '183 de 201 sostenidas', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
     { id: 'a5', titulo: 'Comprobar novedad', detalle: '1 hipótesis nueva, 1 ya en ensayo', estado: 'hecho', indicacionHumana: false, motivoFallo: null, presupuesto: null },
@@ -530,7 +530,7 @@ export const INCIDENCIAS: Incidencia[] = [
     id: 'inc-1',
     corridaId: 'cor-3',
     tipo: 'modelo_bloqueado',
-    titulo: 'El extractor devolvio vacío por filtro de contenido',
+    titulo: 'El extractor devolvió vacío por filtro de contenido',
     detalle:
       'En la pista "Extraer afirmaciones de 18 articulos", el articulo 7 (cineticas de agregacion del beta amiloide) devolvio una respuesta vacia con finish_reason content-filter. La pista sigue con los otros 17; ese articulo queda sin extraer hasta que se decida.',
     recurso: 'anthropic/claude-sonnet-5 (extractor)',
@@ -1243,7 +1243,7 @@ export const CRITERIOS: string[] = [
 
 /** Eventos de las ultimas horas, para el resumen "mientras no estabas". */
 export const EVENTOS: Evento[] = [
-  { id: 'ev-1', investigacionId: 'inv-1', t: hace(14 * HORA), tipo: 'iteracion_terminada', texto: 'Iteración 10 terminada: 3 busquedas, 19 artículos, 1 hecho nuevo', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-1', investigacionId: 'inv-1', t: hace(14 * HORA), tipo: 'iteracion_terminada', texto: 'Iteración 10 terminada: 3 búsquedas, 19 artículos, 1 hecho nuevo', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-2', investigacionId: 'inv-1', t: hace(9 * HORA), tipo: 'permiso_pendiente', texto: 'Rosa pide gastar 400 llamadas en la hipótesis de NLRP3', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-3', investigacionId: 'inv-1', t: hace(8 * HORA), tipo: 'iteracion_terminada', texto: 'Iteración 11 terminada: 1 hipótesis nueva (NLRP3), 2 hallazgos abiertos del revisor', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-4', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'hipotesis_nueva', texto: 'Hipótesis nueva en la cola: NLRP3 como puente entre amiloide y tau', ruta: '#/investigaciones/inv-1/hipotesis/hip-2' },
@@ -1253,7 +1253,7 @@ export const EVENTOS: Evento[] = [
   { id: 'ev-8', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'ranking_cambio', texto: 'NLRP3 subio al primer puesto del ranking (Elo 1701) tras ganar a la hipótesis del cociente', ruta: '#/investigaciones/inv-1/ranking' },
   { id: 'ev-9', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'hecho_nuevo', texto: 'Pregunta cerrada en el modelo de mundo: el cociente ya se usa como criterio de inclusión', ruta: '#/investigaciones/inv-1/mundo' },
   { id: 'ev-10', investigacionId: 'inv-1', t: hace(7 * MIN), tipo: 'iteracion_terminada', texto: 'Iteración 13 terminada: 201 afirmaciones (183 sostenidas), 1 hipótesis nueva, 2 hechos', ruta: '#/investigaciones/inv-1/corrida' },
-  { id: 'ev-11', investigacionId: 'inv-1', t: hace(3 * MIN), tipo: 'incidencia', texto: 'El extractor devolvio vacío por filtro de contenido en un artículo', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-11', investigacionId: 'inv-1', t: hace(3 * MIN), tipo: 'incidencia', texto: 'El extractor devolvió vacío por filtro de contenido en un artículo', ruta: '#/investigaciones/inv-1/corrida' },
 ];
 
 export function estadoDeMuestra(): EstadoRosa {

@@ -122,7 +122,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Modelo de mundo</h2>
-          <p>La memoria estructurada de la investigacion. Cada hecho lleva su procedencia hasta la pagina y las fuentes que lo apoyan o contradicen; cada descarte, su motivo.</p>
+          <p>La memoria estructurada de la investigación. Cada hecho lleva su procedencia hasta la página y las fuentes que lo apoyan o contradicen; cada descarte, su motivo.</p>
         </div>
         <div className="filtros">
           <div className="segmentos" role="group" aria-label="Vista">
@@ -278,7 +278,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                   {ESTADO_HECHO[col]} <span className="nav-cuenta">{lista.length}</span>
                 </h3>
                 {lista.length === 0 ? (
-                  <p className="meta">Nada aqui{q !== '' || tema !== 'todos' ? ' con este filtro' : ''}.</p>
+                  <p className="meta">Nada aquí{q !== '' || tema !== 'todos' ? ' con este filtro' : ''}.</p>
                 ) : (
                   <ListaAnimada className="mundo-columna" como="ul">
                     {lista.map((h) => (

@@ -288,7 +288,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       ultimoArrastreMovido.current = false;
       return;
     }
-    if (detalle > 1) return; // la segunda pulsacion de un doble clic no vuelve a plegar
+    if (detalle > 1) return; // la segunda pulsación de un doble clic no vuelve a plegar
     setSeleccion(n.id);
     setVisibles((v) => alternar(grafo, v, n.id));
   };
@@ -314,7 +314,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Árbol de la investigación</h2>
-          <p>El objetivo es el tronco; las ramas, los clusters con varias hipotesis; las hojas, las hipotesis; alrededor, lo que las sostiene. Pasa el raton por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demas lo siguen). Las etiquetas pequenas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
         </div>
         <div className="acciones">
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
@@ -374,7 +374,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               {nodoSel.sub && <p className="meta">{nodoSel.sub}</p>}
               {nodoSel.alerta && <p className="tono-mal" style={{ fontSize: 13 }}>{nodoSel.alerta}</p>}
               {nodoSel.alias && nodoSel.alias.length > 1 && <p className="meta">Alias: {nodoSel.alias.slice(0, 8).join(', ')}</p>}
-              <p className="meta">Aparece desde la iteracion {nodoSel.iteracion || 1}.</p>
+              <p className="meta">Aparece desde la iteración {nodoSel.iteracion || 1}.</p>
               <h4>Conectado con</h4>
               <ul className="grafo-vecinos">
                 {grafo.enlaces
@@ -424,7 +424,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       </div>
       <div className="grafo-tiempo">
         <label htmlFor="grafo-iteracion">
-          Como crecio: hasta la iteracion <strong>{hasta}</strong> de {grafo.iteracionMax}
+          Cómo creció: hasta la iteración <strong>{hasta}</strong> de {grafo.iteracionMax}
         </label>
         <input id="grafo-iteracion" type="range" min={1} max={Math.max(1, grafo.iteracionMax)} value={Math.min(hasta, Math.max(1, grafo.iteracionMax))} onChange={(e) => setHasta(Number(e.target.value))} />
         <span className="meta">

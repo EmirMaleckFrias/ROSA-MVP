@@ -65,7 +65,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                     <p>
                       {corrida.estado === 'en_marcha' && enCurso ? (
                         <>
-                          Iteracion {corrida.iteracionActual}: <span className="shimmer-text">{enCurso.titulo.toLowerCase()}</span>
+                          Iteración {corrida.iteracionActual}: <span className="shimmer-text">{enCurso.titulo.toLowerCase()}</span>
                           {pistasVivas > 0 && ` (${pistasVivas} ${pistasVivas === 1 ? 'pista' : 'pistas'} en paralelo)`}
                         </>
                       ) : corrida.estado === 'esperando_plan' ? (

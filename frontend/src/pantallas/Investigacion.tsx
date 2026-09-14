@@ -248,11 +248,11 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
             </div>
             <div className="rejilla-2">
               <div className="campo">
-                <label htmlFor="c-atr">Atributos (uno por linea)</label>
+                <label htmlFor="c-atr">Atributos (uno por línea)</label>
                 <textarea id="c-atr" value={atr} rows={4} onChange={(e) => setAtr(e.target.value)} />
               </div>
               <div className="campo">
-                <label htmlFor="c-res">Restricciones (una por linea)</label>
+                <label htmlFor="c-res">Restricciones (una por línea)</label>
                 <textarea id="c-res" value={res} rows={4} onChange={(e) => setRes(e.target.value)} />
               </div>
             </div>

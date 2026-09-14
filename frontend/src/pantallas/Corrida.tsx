@@ -84,13 +84,13 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
           <h2>Corrida {corrida.numero}</h2>
           <div className="corrida-estado">
             <Chip tono={tono}>{ESTADO_CORRIDA[corrida.estado]}</Chip>
-            <span className="meta">Iteracion {corrida.iteracionActual}</span>
+            <span className="meta">Iteración {corrida.iteracionActual}</span>
             <span className="meta">
-              Empezo <Momento t={corrida.empezadaEn} ahora={ahora} />
+              Empezó <Momento t={corrida.empezadaEn} ahora={ahora} />
             </span>
             {corrida.terminadaEn !== null && (
               <span className="meta">
-                Termino <Momento t={corrida.terminadaEn} ahora={ahora} />
+                Término <Momento t={corrida.terminadaEn} ahora={ahora} />
               </span>
             )}
             {corrida.motivoCierre && <span className="meta">{corrida.motivoCierre}</span>}
@@ -176,7 +176,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                     Permitir {ALCANCE[a].toLowerCase()}
                   </button>
                 ))}
-                {alcancesComunes.length === 0 && <span className="meta">sin un alcance comun; resuelvelas una a una</span>}
+                {alcancesComunes.length === 0 && <span className="meta">sin un alcance común; resuelvelas una a una</span>}
                 <button
                   type="button"
                   className="btn btn-s btn-peligro"

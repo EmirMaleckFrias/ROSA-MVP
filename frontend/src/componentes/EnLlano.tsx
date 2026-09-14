@@ -13,7 +13,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
   return (
     <Seccion titulo={`Qué encontró Rosa en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada término técnico definido al final. El detalle con citas, veredictos y pistas está más abajo.">
       {resumen === null ? (
-        <p className="meta">Rosa no pudo escribir el resumen de esta iteracion (el modelo no respondio). El resumen tecnico esta en las iteraciones anteriores.</p>
+        <p className="meta">Rosa no pudo escribir el resumen de esta iteración (el modelo no respondió). El resumen técnico está en las iteraciones anteriores.</p>
       ) : (
         <div className={`llano ${abierta ? '' : 'llano-compacto'}`}>
           {resumen.titulo && <p className="llano-pregunta">{resumen.titulo}</p>}
@@ -91,7 +91,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
           </p>
           {resumen.terminos.length > 0 && (
             <details className="llano-glosario">
-              <summary>Los terminos que aparecen arriba ({resumen.terminos.length})</summary>
+              <summary>Los términos que aparecen arriba ({resumen.terminos.length})</summary>
               <dl>
                 {resumen.terminos.map((t) => (
                   <div key={t.termino}>
@@ -140,7 +140,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
       nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración."
       acciones={
         <span className="meta">
-          Iteracion {conclusion.iteracion} · <Momento t={conclusion.fecha} ahora={ahora} />
+          Iteración {conclusion.iteracion} · <Momento t={conclusion.fecha} ahora={ahora} />
         </span>
       }
     >

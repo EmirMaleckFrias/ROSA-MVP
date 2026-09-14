@@ -124,7 +124,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
         </div>
 
         <CuentaActual />
-        <p className="barra-pie">Rosa investiga; la persona decide. Ninguna hipotesis entra al modelo de mundo sin pasar por la cola.</p>
+        <p className="barra-pie">Rosa investiga; la persona decide. Ninguna hipótesis entra al modelo de mundo sin pasar por la cola.</p>
       </nav>
     </>
   );

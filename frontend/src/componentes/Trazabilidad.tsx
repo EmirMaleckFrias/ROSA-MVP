@@ -89,7 +89,7 @@ export function Trazabilidad({ corrida, activa }: { corrida: Corrida; activa: bo
         </div>
         <div className="embudo-paso">
           <strong>{formatearEntero(e.fuentes)}</strong>
-          <span>fuentes leidas · {e.textoCompleto} a texto completo</span>
+          <span>fuentes leídas · {e.textoCompleto} a texto completo</span>
         </div>
         <div className="embudo-paso">
           <strong>{formatearEntero(e.afirmaciones)}</strong>
@@ -220,7 +220,7 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
               </a>
             )}
             {f.anio && <span>{f.anio}</span>}
-            {nodo.tambienEn.length > 0 && <span>Tambien la trajo la consulta {nodo.tambienEn.join(', ')}</span>}
+            {nodo.tambienEn.length > 0 && <span>También la trajo la consulta {nodo.tambienEn.join(', ')}</span>}
             {f.retraccionDetalle && <span>Crossref: {f.retraccionDetalle}</span>}
             {!f.extraida && <span>Todavía sin extraer</span>}
           </div>

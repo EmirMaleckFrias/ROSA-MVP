@@ -99,7 +99,7 @@ function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: numb
           {bloqueos.length > 0 && <span className="tono-mal">{bloqueos.length} {bloqueos.length === 1 ? 'bloqueo' : 'bloqueos'}</span>}
           {abiertos > 0 && <span className="tono-mal">{abiertos} {abiertos === 1 ? 'hallazgo abierto' : 'hallazgos abiertos'}</span>}
           {retractadas.length > 0 && <span className="tono-mal">depende de una fuente retractada</span>}
-          <span>Iteracion {h.iteracion}</span>
+          <span>Iteración {h.iteracion}</span>
           {pendiente && (
             <span className={tarde ? 'tono-mal' : ''} title={tarde ? `Supera las ${horasEspera} h de la política de esperas` : ''}>
               esperando {formatearDuracion(espera)}
@@ -240,8 +240,8 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             </a>
           )}
           <span className="meta">Elo {h.elo} · {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}</span>
-          <span className="meta">Iteracion {h.iteracion}</span>
-          <span className="meta">Version {h.version ?? 1}</span>
+          <span className="meta">Iteración {h.iteracion}</span>
+          <span className="meta">Versión {h.version ?? 1}</span>
           {h.decisionKiller && (
             <Chip tono={DECISION_KILLER[h.decisionKiller].tono} title={DECISION_KILLER[h.decisionKiller].nota}>
               Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}
@@ -266,7 +266,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <div className="acciones">
         <span className="meta">
-          Ultima revision automatica: {h.ultimaRevisionAutomatica ? <Momento t={h.ultimaRevisionAutomatica} ahora={ahora} /> : 'nunca'}. El silencio del revisor no es aprobacion.
+          Última revisión automática: {h.ultimaRevisionAutomatica ? <Momento t={h.ultimaRevisionAutomatica} ahora={ahora} /> : 'nunca'}. El silencio del revisor no es aprobación.
         </span>
         <button type="button" className="btn btn-s" onClick={() => acciones.solicitarRevision(h.id)}>
           Solicitar revision ahora
@@ -376,21 +376,21 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           </div>
           {h.novedad.genetica && (
             <div className="novedad-item">
-              <strong>Genetica humana (GWAS Catalog, ClinVar)</strong>
+              <strong>Genética humana (GWAS Catalog, ClinVar)</strong>
               <Chip tono={h.novedad.genetica.estado === 'sin_vinculo' ? 'ok' : h.novedad.genetica.estado === 'vinculo_conocido' ? 'aviso' : 'borde'}>{h.novedad.genetica.estado === 'sin_vinculo' ? 'Sin vínculo genético' : h.novedad.genetica.estado === 'vinculo_conocido' ? 'Vínculo conocido' : 'No comprobado'}</Chip>
               <p>{h.novedad.genetica.detalle}</p>
             </div>
           )}
           {h.novedad.farmacos && (
             <div className="novedad-item">
-              <strong>Farmacos (ChEMBL, DGIdb)</strong>
+              <strong>Fármacos (ChEMBL, DGIdb)</strong>
               <Chip tono={h.novedad.farmacos.estado === 'farmacos_existentes' ? 'aviso' : h.novedad.farmacos.estado === 'sin_farmacos' ? 'ok' : 'borde'}>{h.novedad.farmacos.estado === 'farmacos_existentes' ? 'Diana abordable' : h.novedad.farmacos.estado === 'sin_farmacos' ? 'Sin fármacos' : 'No comprobado'}</Chip>
               <p>{h.novedad.farmacos.detalle}</p>
             </div>
           )}
           {h.novedad.datosPublicos && (
             <div className="novedad-item">
-              <strong>Datos publicos (GEO, CELLxGENE)</strong>
+              <strong>Datos públicos (GEO, CELLxGENE)</strong>
               <Chip tono={h.novedad.datosPublicos.estado === 'hay_datos' ? 'ok' : h.novedad.datosPublicos.estado === 'sin_datos' ? 'aviso' : 'borde'}>{h.novedad.datosPublicos.estado === 'hay_datos' ? 'Hay datos' : h.novedad.datosPublicos.estado === 'sin_datos' ? 'Sin datos públicos' : 'No comprobado'}</Chip>
               <p>{h.novedad.datosPublicos.detalle}</p>
               {h.novedad.datosPublicos.series.length > 0 && (
@@ -609,7 +609,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </div>
                 <Dimensiones d={h.experimento.resultado.dimensiones} />
                 <p>{h.experimento.resultado.resultado}</p>
-                {h.experimento.resultado.accionTomada && <p className="meta">Que hizo Rosa: {h.experimento.resultado.accionTomada}</p>}
+                {h.experimento.resultado.accionTomada && <p className="meta">Qué hizo Rosa: {h.experimento.resultado.accionTomada}</p>}
                 {h.experimento.resultado.hipotesisDerivadaId && (
                   <p className="meta">
                     Hipotesis derivada:{' '}
@@ -647,7 +647,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </Chip>
               )}
               {h.experimento.prerregistradoEn && !h.experimento.selloExterno?.ok && (
-                <button type="button" className="btn btn-s" title={h.experimento.selloExterno?.error ? `Último intento: ${h.experimento.selloExterno.error}` : 'Pide a dos autoridades de sellado de tiempo (RFC 3161) que firmen la hora del prerregistro: un tercero atestigua que se congelo antes de los datos'} onClick={() => void acciones.sellarPrerregistro(h.id)}>
+                <button type="button" className="btn btn-s" title={h.experimento.selloExterno?.error ? `Último intento: ${h.experimento.selloExterno.error}` : 'Pide a dos autoridades de sellado de tiempo (RFC 3161) que firmen la hora del prerregistro: un tercero atestigua que se congeló antes de los datos'} onClick={() => void acciones.sellarPrerregistro(h.id)}>
                   {h.experimento.selloExterno ? 'Reintentar el sello externo' : 'Sellar con un tercero'}
                 </button>
               )}
@@ -670,7 +670,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                   <input id="exp-fichero" type="file" accept=".csv,.tsv,.txt,.json,.pdf,.md" onChange={(e) => setFicheroDatos(e.target.files?.[0] ?? null)} />
                 </div>
                 <div className="campo">
-                  <label htmlFor="exp-analisis">Que analisis quieres (ademas de los criterios prerregistrados)</label>
+                  <label htmlFor="exp-analisis">Qué análisis quieres (además de los criterios prerregistrados)</label>
                   <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteración, por grupo genético" onChange={(e) => setAnalisis(e.target.value)} />
                 </div>
                 <div className="acciones">
@@ -690,7 +690,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                     {subiendo ? 'Subiendo...' : 'Subir datos y evaluar contra el prerregistro'}
                   </button>
                   {errorSubida && <span className="tono-mal">{errorSubida}</span>}
-                  {h.experimento.estado === 'datos_recibidos' && !h.experimento.resultado && <span className="meta">Datos recibidos; Rosa los esta evaluando.</span>}
+                  {h.experimento.estado === 'datos_recibidos' && !h.experimento.resultado && <span className="meta">Datos recibidos; Rosa los está evaluando.</span>}
                 </div>
               </div>
             )}

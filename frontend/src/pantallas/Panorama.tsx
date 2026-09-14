@@ -92,7 +92,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
           meta.map((m) => (
             <div key={m.iteracion} className="tarjeta seccion">
               <p className="meta">
-                Iteracion {m.iteracion} · <Momento t={m.fecha} ahora={ahora} />
+                Iteración {m.iteracion} · <Momento t={m.fecha} ahora={ahora} />
               </p>
               <ul className="lista-limpia">
                 {m.debilidades.map((d) => (

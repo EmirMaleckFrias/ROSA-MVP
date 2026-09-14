@@ -80,7 +80,7 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
       },
       {
         tipo: 'ensayos',
-        titulo: 'ARIA en portadores de APOE4 (reintento)',
+        titulo: 'ARIA en portadores de APOE4 (reintentó)',
         fuente: 'ClinicalTrials.gov v2',
         lineas: [
           { tipo: 'accion', texto: 'GET /api/v2/studies?query.cond=Alzheimer&query.term=ARIA APOE4', consulta: { base: 'ClinicalTrials.gov v2', parametros: 'query.cond=Alzheimer&query.term=ARIA APOE4&pageSize=100', resultados: '7 estudios' } },

@@ -281,7 +281,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
             <div className="campo">
               <label htmlFor="slack-canal">Canal</label>
               <EntradaDiferida id="slack-canal" valor={avisos.slack.canal} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, canal: v } })} />
-              <small>La conexion con Slack se hara con un boton "Conectar con Slack" cuando Rosa este en su servidor; aqui solo se elige el canal.</small>
+              <small>La conexión con Slack se hará con un botón "Conectar con Slack" cuando Rosa este en su servidor; aquí solo se elige el canal.</small>
             </div>
           )}
           <label className="interruptor">

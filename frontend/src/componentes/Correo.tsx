@@ -6,7 +6,7 @@ type EstadoCorreo = Configuracion & {
   claveGuardada: boolean; configurado: boolean; administrador: boolean; error: string | null;
   historial: { id: string; tipo: string; destinatario: string; estado: string; creado: number; intentos: number; error: string | null }[];
 };
-const ETIQUETAS: Record<string, string> = { pendiente: 'En cola / reintento', aceptado: 'Aceptado por Resend', fallido: 'No confirmado', cancelado: 'Cancelado' };
+const ETIQUETAS: Record<string, string> = { pendiente: 'En cola / reintentó', aceptado: 'Aceptado por Resend', fallido: 'No confirmado', cancelado: 'Cancelado' };
 
 async function pedir(ruta = '', cuerpo?: object) {
   const r = await fetch(`/api/correo${ruta}`, { method: cuerpo ? 'POST' : 'GET', headers: cabeceras(), cache: 'no-store', ...(cuerpo ? { body: JSON.stringify(cuerpo) } : {}) });

@@ -271,17 +271,75 @@ _CASTELLANO = re.compile(r"\b(el|la|los|las|de|del|que|y|en|con|para|por|una|un|
 ATRIBUTOS = ("titulo", "nota", "placeholder", "aria-label", "title", "etiqueta", "label", "texto", "explicacion", "definicion", "pista", "descripcion", "resumen", "sub")
 
 
+def partir_llaves(texto: str) -> list[str]:
+    """Separa texto y expresiones {...} contando la profundidad, para que una
+    expresion con llaves dentro ({a ? {b} : c}) no rompa el reparto."""
+    partes: list[str] = []
+    actual = ""
+    profundidad = 0
+    for c in texto:
+        if c == "{":
+            if profundidad == 0:
+                partes.append(actual)
+                actual = ""
+            profundidad += 1
+            actual += c
+        elif c == "}" and profundidad > 0:
+            profundidad -= 1
+            actual += c
+            if profundidad == 0:
+                partes.append(actual)
+                actual = ""
+        else:
+            actual += c
+    partes.append(actual)
+    return partes
+
+
 def acentuar_tsx(codigo: str) -> str:
     # 1. Texto JSX entre etiquetas: solo tramos que son texto de verdad (en una
     #    linea, sin llaves ni signos de codigo: parentesis, igual, punto y coma,
     #    corchetes, flechas). Asi no se toca `=> b.numero - a.numero` ni tipos.
+    #    Segunda version (14 de septiembre): el punto y coma, los parentesis y los
+    #    dos puntos son puntuacion normal de una frase ("las ramas, los clusters;
+    #    las hojas (GFAP, HGNC:4235)"), y un texto con expresiones {x} se acentua
+    #    por tramos, fuera de las llaves. Siguen siendo marca de codigo el igual,
+    #    la flecha, el acento grave, & y |, los corchetes, `palabra.palabra` y
+    #    una anotacion de tipo (`nombre: Tipo`).
     def jsx(m: re.Match) -> str:
         t = m.group(1)
-        if re.search(r"[=(){};\[\]`|&]", t) or re.search(r"\w\.\w", t) or t.strip() == "":
+        if t.strip() == "":
             return m.group(0)
-        return ">" + acentuar_texto(t) + "<"
+        partes = partir_llaves(t)
+        textos = [x for x in partes if not x.startswith("{")]
+        for x in textos:
+            if re.search(r"[=`&|\[\]]|=>|\w\.\w", x) or re.search(r"\b\w+:\s*(?:string|number|boolean|null|undefined|[A-Z])", x):
+                return m.group(0)
+        return ">" + "".join(x if x.startswith("{") else acentuar_texto(x) for x in partes) + "<"
 
-    codigo = re.sub(r">([^<>{}\n]+)<", jsx, codigo)
+    codigo = re.sub(r">([^<>\n]+)<", jsx, codigo)
+    #    JSX a varias lineas: una linea que empieza con texto y acaba en una
+    #    etiqueta ("Como crecio: hasta la iteracion <strong>") o que sigue a una
+    #    etiqueta hasta el final de la linea ("</strong> de {n}"). Mismas marcas
+    #    de codigo; ademas la linea no puede ser una sentencia (return, const,
+    #    import, export) ni contener un punto y coma final.
+
+    def jsx_inicio(m: re.Match) -> str:
+        t = m.group(2)
+        if re.match(r"\s*(return|const|let|var|import|export|if|else|case|default|function|type|interface)\b", t) or not re.search(r"[A-Za-z]{3,}", t):
+            return m.group(0)
+        falso = jsx(re.match(r">([^<>\n]+)<", ">" + t + "<"))
+        return m.group(1) + falso[1:-1] + "<"
+
+    def jsx_final(m: re.Match) -> str:
+        t = m.group(1)
+        if not re.search(r"[A-Za-z]{3,}", t) or t.rstrip().endswith((";", ",", "{", "(", "=>", "&&", "||", "?", ":")):
+            return m.group(0)
+        falso = jsx(re.match(r">([^<>\n]+)<", ">" + t + "<"))
+        return ">" + falso[1:-1]
+
+    codigo = re.sub(r"^(\s+)([^<>\n{}][^<>\n]*)<", jsx_inicio, codigo, flags=re.MULTILINE)
+    codigo = re.sub(r">([^<>\n]+)$", jsx_final, codigo, flags=re.MULTILINE)
     # 2. Atributos de texto con comillas dobles.
     def attr(m: re.Match) -> str:
         return f'{m.group(1)}="{acentuar_texto(m.group(2))}"'
