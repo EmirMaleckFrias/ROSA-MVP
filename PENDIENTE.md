@@ -1,7 +1,42 @@
 # Pendiente para la siguiente sesion
 
-Actualizado el 11 de septiembre de 2026. El plan completo por etapas esta en
+Actualizado el 14 de septiembre de 2026. El plan completo por etapas esta en
 `PLAN-ROSA2018.md`; esto es la lista corta de lo inmediato.
+
+## Hecho el 14 de septiembre: auditoria de bugs de todo Rosa
+
+Cinco revisores en paralelo (servidor y estado, bucle, conectores y fuentes,
+sandbox y datos, frontend) mas los nueve hallazgos de Codex. Se corrigio todo
+en cuatro lotes, cada uno con tests y commit (`2bf90d5`, `97b3668`,
+`327a2e4`, `6565fdb`).
+
+- Servidor y estado: ruta estatica sin salida del directorio; acciones solo
+  con JSON, cabecera `X-Rosa: 1`, token opcional `ROSA_TOKEN`, cuerpo de 1 MB,
+  subidas por trozos; acciones internas del bucle fuera del alcance del
+  navegador; una accion que falla a medias no deja el estado a medias (se
+  recarga del disco); Convex con funciones internas y recorte garantizado.
+- Bucle y gasto: el presupuesto se comprueba antes de cada llamada, una
+  corrida parada no gasta, tope de 10 minutos por llamada; e-valores sin
+  inflar por repeticion (una prueba por hash de datos y de plan); cambiar la
+  semilla ya no toca filtros del codigo; Elo con tablas.
+- Sandbox: aislamiento local apagado por defecto (`ROSA_PERMITIR_LOCAL_SINTETICO=1`
+  solo para sinteticos) y endurecido; contenedores con nombre que se borran al
+  agotar el tiempo, sin capacidades, sin escalada de privilegios, con limite
+  de procesos y de swap; salida a fichero fuera del directorio montado; skills
+  importables con `python -I`.
+- Fuentes y conectores: limitador compartido por host (NCBI, Europe PMC),
+  404 es "sin registro" y no caida, JSON y XML rotos son "no pude comprobar",
+  PDF en streaming con tope de 50 MB y sin hosts privados; argumentos de las
+  herramientas validados; lo que devuelve una base va delimitado como dato.
+- Datos: el juez no recibe filas del laboratorio, columnas de muchos valores
+  no se enumeran, miles y coma decimal, `.txt` sin delimitador no es tabla.
+- Interfaz: una accion rechazada por el servidor se ve (aviso bajo la
+  cabecera) y se deshace; la resincronizacion respeta versiones; formularios
+  que se rehidratan; claves por investigacion; guardas para URL, fechas y
+  tipos desconocidos.
+
+Queda por hacer una persona: rotar la clave de despliegue de Convex (paso por
+el chat) en el panel de Convex y poner la nueva en `.env`.
 
 ## Hecho el 11 de septiembre (ROSA2018)
 
