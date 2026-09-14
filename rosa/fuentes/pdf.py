@@ -6,6 +6,7 @@ en esa pagina: un desfase de una pagina es un fallo grave.
 from __future__ import annotations
 
 import hashlib
+import httpx
 import re
 from pathlib import Path
 from typing import Any
@@ -13,9 +14,10 @@ from typing import Any
 import pymupdf
 
 from rosa import config
-from rosa.fuentes.base import Limitador, pedir
+from rosa.fuentes.base import Limitador, cliente, pedir
 
 _limitador = Limitador(2.0)
+MAX_PDF_BYTES = 50 * 1024 * 1024
 
 
 async def descargar(url: str) -> Path | None:
@@ -24,10 +26,29 @@ async def descargar(url: str) -> Path | None:
     destino = config.DIR_PDFS / (hashlib.sha1(url.encode()).hexdigest() + ".pdf")
     if destino.exists():
         return destino
-    r = await pedir("GET", url, _limitador, headers={"Accept": "application/pdf"})
-    if not r.content.startswith(b"%PDF"):
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    if not host or host in ("localhost",) or host.startswith(("127.", "10.", "192.168.", "169.254.", "0.")) or host.endswith(".local") or re.match(r"^172\.(1[6-9]|2\d|3[01])\.", host):
+        return None  # una URL de terceros nunca apunta al propio servidor ni a la red local
+    await _limitador.esperar()
+    partes: list[bytes] = []
+    total = 0
+    try:
+        async with cliente().stream("GET", url, headers={"Accept": "application/pdf"}) as r:
+            if r.status_code >= 400:
+                return None
+            async for trozo in r.aiter_bytes():
+                total += len(trozo)
+                if total > MAX_PDF_BYTES:
+                    return None  # mas de 50 MB no es un articulo
+                partes.append(trozo)
+    except httpx.HTTPError:
         return None
-    destino.write_bytes(r.content)
+    contenido = b"".join(partes)
+    if not contenido.startswith(b"%PDF"):
+        return None
+    destino.write_bytes(contenido)
     return destino
 
 

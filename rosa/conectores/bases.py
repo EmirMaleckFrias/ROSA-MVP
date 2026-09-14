@@ -13,7 +13,7 @@ from urllib.parse import quote
 
 from rosa import config
 from rosa.conectores.base import Resultado, conector
-from rosa.fuentes.base import Limitador, pedir
+from rosa.fuentes.base import Limitador, compartido, pedir
 
 ALZHEIMER_MONDO = "MONDO_0004975"
 ALZHEIMER_EFO = "EFO_0000249"
@@ -22,7 +22,7 @@ HUMANO = 9606
 _lim = {
     "ols": Limitador(5.0), "mygene": Limitador(5.0), "myvariant": Limitador(2.0), "uniprot": Limitador(5.0), "ensembl": Limitador(10.0),
     "string": Limitador(1.0), "reactome": Limitador(5.0), "gwas": Limitador(5.0), "chembl": Limitador(3.0), "hpa": Limitador(3.0),
-    "alphafold": Limitador(3.0), "pdb": Limitador(3.0), "biorxiv": Limitador(2.0), "s2": Limitador(1.0), "ncbi": Limitador(2.0),
+    "alphafold": Limitador(3.0), "pdb": Limitador(3.0), "biorxiv": Limitador(2.0), "s2": Limitador(1.0), "ncbi": compartido("ncbi", 9.0 if getattr(config, "CLAVE_NCBI", "") else 2.5),
     "cellxgene": Limitador(1.0), "synapse": Limitador(2.0), "gtex": Limitador(3.0),
 }
 
@@ -154,7 +154,8 @@ async def string_interactores(simbolo: str) -> Resultado:
     r = await pedir("GET", "https://version-12-0.string-db.org/api/json/interaction_partners", _lim["string"], params={"identifiers": simbolo, "species": HUMANO, "limit": 10, "caller_identity": "rosa-alzheimer-project"})
     filas = r.json()
     datos = [{"interactor": f.get("preferredName_B"), "puntuacion": f.get("score"), "experimental": f.get("escore"), "bases": f.get("dscore"), "texto": f.get("tscore")} for f in filas]
-    return Resultado(datos, len(datos), [f["interactor"] for f in datos if f["interactor"]], "12.0", (all((f.get("preferredName_A") or "").upper() == simbolo.upper() for f in filas), "el simbolo resolvio a la proteina pedida" if filas else "sin interactores"))
+    resolvio = bool(filas) and all((f.get("preferredName_A") or "").upper() == simbolo.upper() for f in filas)
+    return Resultado(datos, len(datos), [f["interactor"] for f in datos if f["interactor"]], "12.0", (resolvio, "el simbolo resolvio a la proteina pedida" if resolvio else ("sin interactores: el simbolo no resolvio o no tiene red" if not filas else "STRING resolvio a otra proteina")))
 
 
 @conector("reactome_rutas", "Reactome ContentService", "Las rutas curadas en las que participa una proteina (por accession UniProt)", "La ruta biologica de la diana, con identificador estable", _esq(uniprot="Accession UniProt"), "CC0", "No publicado; 5 por segundo en Rosa", "https://reactome.org/dev/content-service", grupo="genes_ontologias")
@@ -221,7 +222,8 @@ async def geo_series(terminos: str) -> Resultado:
         for i in ids:
             s = res.get(i) or {}
             series.append({"accession": s.get("accession"), "titulo": (s.get("title") or "")[:160], "n_muestras": s.get("n_samples"), "plataforma": s.get("gpl"), "organismo": s.get("taxon"), "tipo": s.get("gdstype"), "fecha": s.get("pdat"), "pubmed": [str(x) for x in (s.get("pubmedids") or [])][:3]})
-    return Resultado({"total": total, "series": series}, total, [s["accession"] for s in series if s.get("accession")], None, (len(series) == min(len(ids), 8), f"{total} series; {len(series)} resumidas"))
+    con_acc = [s_ for s_ in series if s_.get("accession")]
+    return Resultado({"total": total, "series": con_acc}, total, [s_["accession"] for s_ in con_acc], None, (len(con_acc) == len(ids), f"{total} series; {len(con_acc)} de {len(ids)} ids con resumen"))
 
 
 @conector("geo_serie", "GEO (NCBI E-utilities, db=gds)", "Los metadatos de una serie GSE concreta para el libro de procedencia", "Rellena origen, n, plataforma, organismo, fecha y articulo del dataset", _esq(accession="Accession GSE, por ejemplo GSE1297"), "Dominio publico (NCBI)", "3 por segundo, 10 con clave NCBI", "https://www.ncbi.nlm.nih.gov/geo/info/geo_paccess.html", grupo="omicas")
@@ -267,7 +269,7 @@ async def synapse_buscar(terminos: str) -> Resultado:
 
 @conector("biorxiv_preprint", "bioRxiv y medRxiv API", "Los detalles de un preprint por DOI y si ya se publico en revista", "Si una afirmacion se apoya en un preprint y si ese preprint paso revision", _esq(doi="DOI del preprint, por ejemplo 10.1101/2024.01.01.573777", servidor="biorxiv o medrxiv"), "Por preprint (CC BY a ninguna); no cachear texto completo", "No documentado; bloquean agentes 'bot'", "https://api.biorxiv.org/", grupo="directorio")
 async def biorxiv_preprint(doi: str, servidor: str = "biorxiv") -> Resultado:
-    r = await pedir("GET", f"https://api.biorxiv.org/details/{servidor}/{doi}/na/json", _lim["biorxiv"])
+    r = await pedir("GET", f"https://api.biorxiv.org/details/{quote(servidor, safe='')}/{quote(doi, safe='/')}/na/json", _lim["biorxiv"])
     col = r.json().get("collection", [])
     if not col:
         return Resultado(None, 0, [], None, (False, "DOI sin registro en ese servidor"))
@@ -279,7 +281,7 @@ async def biorxiv_preprint(doi: str, servidor: str = "biorxiv") -> Resultado:
 @conector("s2_citas", "Semantic Scholar Academic Graph", "Numero de citas e influyentes de un articulo por DOI", "Quien cito y cuanto peso tiene la fuente; complementa a OpenAlex", _esq(doi="DOI del articulo"), "Licencia propia de la API", "1 por segundo con clave; pool compartido sin clave", "https://api.semanticscholar.org/api-docs/", clave="opcional", grupo="literatura")
 async def s2_citas(doi: str) -> Resultado:
     cab = {"x-api-key": config.CLAVE_S2} if getattr(config, "CLAVE_S2", "") else {}
-    r = await pedir("GET", f"https://api.semanticscholar.org/graph/v1/paper/DOI:{doi}", _lim["s2"], params={"fields": "citationCount,influentialCitationCount,title,year"}, headers=cab)
+    r = await pedir("GET", f"https://api.semanticscholar.org/graph/v1/paper/DOI:{quote(doi, safe='/')}", _lim["s2"], params={"fields": "citationCount,influentialCitationCount,title,year"}, headers=cab, follow_redirects=False)
     d = r.json()
     datos = {"titulo": d.get("title"), "anio": d.get("year"), "citas": d.get("citationCount"), "influyentes": d.get("influentialCitationCount"), "paperId": d.get("paperId")}
     return Resultado(datos, 1 if d.get("paperId") else 0, [d.get("paperId")] if d.get("paperId") else [], None, (d.get("citationCount") is not None, f"{d.get('citationCount')} citas"))

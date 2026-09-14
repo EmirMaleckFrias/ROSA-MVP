@@ -27,6 +27,8 @@ MAX_BYTES = 200 * 1024 * 1024
 def nombre_seguro(nombre: str) -> str:
     base = Path(nombre).name
     base = re.sub(r"[^\w.\-]+", "_", base)
+    if not base.strip(".") or base.strip(".-_") == "":
+        base = "datos"  # '..', '...' o solo signos: no puede ser un nombre de fichero
     return base[:120] or "datos"
 
 
@@ -47,8 +49,14 @@ def guardar(hipotesis_id: str, nombre: str, contenido: bytes) -> Path:
 
 
 def _numero(v: str) -> float | None:
-    t = v.strip().replace(",", ".")
+    t = v.strip()
     if not t or t.lower() in ("na", "nan", "null", "none", "n/a", "-", "."):
+        return None
+    if re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", t):
+        t = t.replace(",", "")  # separador de miles: 1,234,567
+    elif t.count(",") == 1 and "." not in t:
+        t = t.replace(",", ".")  # coma decimal europea: 0,8
+    elif "," in t:
         return None
     try:
         return float(t)
@@ -101,7 +109,13 @@ def _resumen_tabla(cabecera: list[str], filas: list[list[str]]) -> str:
                 k = v.strip() or "(vacio)"
                 distintos[k] = distintos.get(k, 0) + 1
             top = sorted(distintos.items(), key=lambda kv: -kv[1])[:8]
-            lineas.append(f"- {col} (categorica): {len(distintos)} valores distintos; mas frecuentes: " + ", ".join(f"{k}={n}" for k, n in top) + f"; faltantes={faltan}")
+            if len(distintos) <= 30:
+                lineas.append(f"- {col} (categorica): {len(distintos)} valores distintos; mas frecuentes: " + ", ".join(f"{k[:40]}={n}" for k, n in top) + f"; faltantes={faltan}")
+            else:
+                # Muchos valores distintos: podrian ser identificadores o texto libre de
+                # personas. No se enumeran: solo cardinalidad y longitudes.
+                longs = [len(k) for k in distintos]
+                lineas.append(f"- {col} (texto o identificador): {len(distintos)} valores distintos (no se enumeran), longitud {min(longs)} a {max(longs)} caracteres; faltantes={faltan}")
     return "\n".join(lineas)
 
 
@@ -142,6 +156,8 @@ def _leer_tabla(ruta: Path) -> tuple[list[str], list[list[str]]] | None:
         try:
             dialecto = csv.Sniffer().sniff(texto[:5000], delimiters=",;\t|")
         except csv.Error:
+            if suf == ".txt":
+                return None  # un .txt sin delimitador reconocible no es una tabla
             dialecto = csv.excel
         filas = [f for f in csv.reader(io.StringIO(texto), dialecto) if any(c.strip() for c in f)]
         if len(filas) >= 2:

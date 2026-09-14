@@ -11,6 +11,7 @@ codigo pueda importarlos.
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,12 @@ RAIZ = Path(__file__).parent
 MAX_TEXTO_PROMPT = 6000
 
 
+def _sin_acentos(t: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c)).lower()
+
+
 def _frontmatter(texto: str) -> tuple[dict[str, str], str]:
+    texto = texto.replace("\r\n", "\n")
     m = re.match(r"^---\n(.*?)\n---\n(.*)$", texto, re.S)
     if not m:
         return {}, texto
@@ -66,12 +72,12 @@ def para_texto(texto: str, maximo: int = 3, contexto: str = "analisis") -> list[
     """Las skills del contexto (analisis, literatura, mision) cuyas palabras
     de activacion aparecen como palabras completas en el texto, las mas
     coincidentes primero. Palabra completa: 'area' no se activa con 'lineal'."""
-    t = (texto or "").lower()
+    t = _sin_acentos(texto or "")
     puntuadas = []
     for s in todas():
         if contexto not in s["contexto"]:
             continue
-        p = sum(1 for k in s["activaSi"] if re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", t))
+        p = sum(1 for k in s["activaSi"] if re.search(r"(?<![a-z0-9])" + re.escape(_sin_acentos(k)) + r"(?![a-z0-9])", t))
         if p:
             puntuadas.append((p, s))
     puntuadas.sort(key=lambda x: -x[0])

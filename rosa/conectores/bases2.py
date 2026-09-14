@@ -17,9 +17,11 @@ from urllib.parse import quote
 from rosa import config
 from rosa.conectores.base import Resultado, conector, inerte
 from rosa.conectores.bases import HUMANO, _esq, _params_ncbi
-from rosa.fuentes.base import Limitador, pedir
+from rosa.fuentes.base import Limitador, compartido, pedir
 
-_lim = {k: Limitador(v) for k, v in {"ebi": 5.0, "quickgo": 5.0, "interpro": 3.0, "ncbi": 2.0, "eqtl": 2.0, "pheweb": 1.0, "clingen": 1.0, "civic": 2.0, "encode": 2.0, "jaspar": 2.0, "intact": 2.0, "cbio": 2.0, "pubchem": 4.0, "bindingdb": 1.0, "fda": 0.6, "arxiv": 0.5, "grants": 1.0, "antibody": 1.0, "ucsc": 2.0, "enrichr": 1.0, "gprofiler": 1.0, "dgidb": 2.0, "niagads": 1.0, "epmc": 5.0, "gxa": 1.0, "ot": 2.0, "biomart": 0.5}.items()}
+_lim = {k: Limitador(v) for k, v in {"ebi": 5.0, "quickgo": 5.0, "interpro": 3.0, "ncbi": 2.0, "eqtl": 2.0, "pheweb": 1.0, "clingen": 1.0, "civic": 2.0, "encode": 2.0, "jaspar": 2.0, "intact": 2.0, "cbio": 2.0, "pubchem": 4.0, "bindingdb": 1.0, "fda": 0.6, "arxiv": 0.5, "grants": 1.0, "antibody": 1.0, "ucsc": 2.0, "enrichr": 1.0, "gprofiler": 1.0, "dgidb": 2.0, "niagads": 1.0, "gxa": 1.0, "ot": 2.0, "biomart": 0.5}.items()}
+_lim["ncbi"] = compartido("ncbi", 9.0 if getattr(config, "CLAVE_NCBI", "") else 2.5)
+_lim["epmc"] = compartido("europepmc", 6.0)
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +112,9 @@ async def interpro_dominios(uniprot: str) -> Resultado:
 
 @conector("biomart_gen", "Ensembl BioMart", "Identificadores cruzados de un gen (HGNC, Entrez, UniProt) por consulta BioMart", "Mapeo de identificadores en bloque cuando MyGene no baste", _esq(ensembl="Identificador Ensembl"), "Sin restricciones", "0,5 por segundo en Rosa (servicio lento)", "https://www.ensembl.org/info/data/biomart/biomart_restful.html", grupo="genes_ontologias")
 async def biomart_gen(ensembl: str) -> Resultado:
-    xml = f'<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE Query><Query virtualSchemaName="default" formatter="TSV" header="0" uniqueRows="1" count="" datasetConfigVersion="0.6"><Dataset name="hsapiens_gene_ensembl" interface="default"><Filter name="ensembl_gene_id" value="{ensembl}"/><Attribute name="ensembl_gene_id"/><Attribute name="hgnc_symbol"/><Attribute name="entrezgene_id"/><Attribute name="uniprotswissprot"/><Attribute name="description"/></Dataset></Query>'
+    from xml.sax.saxutils import quoteattr
+
+    xml = f'<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE Query><Query virtualSchemaName="default" formatter="TSV" header="0" uniqueRows="1" count="" datasetConfigVersion="0.6"><Dataset name="hsapiens_gene_ensembl" interface="default"><Filter name="ensembl_gene_id" value={quoteattr(ensembl)}/><Attribute name="ensembl_gene_id"/><Attribute name="hgnc_symbol"/><Attribute name="entrezgene_id"/><Attribute name="uniprotswissprot"/><Attribute name="description"/></Dataset></Query>'
     r = await pedir("GET", "https://www.ensembl.org/biomart/martservice", _lim["biomart"], params={"query": xml})
     filas = [l.split("\t") for l in r.text.strip().splitlines() if l.strip()]
     datos = [{"ensembl": f[0], "hgnc": f[1], "entrez": f[2], "uniprot": f[3], "descripcion": f[4][:120] if len(f) > 4 else ""} for f in filas if len(f) >= 4]
@@ -267,7 +271,7 @@ async def ucsc_genes_region(cromosoma: str, inicio: str, fin: str) -> Resultado:
 
 @conector("pubchem_compuesto", "PubChem (PUG REST)", "Propiedades de un compuesto por nombre: formula, peso, SMILES, IUPAC", "Identidad quimica de un farmaco o metabolito que la hipotesis nombra", _esq(nombre="Nombre del compuesto"), "Dominio publico", "5 por segundo, 400 por minuto", "https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest", grupo="quimica")
 async def pubchem_compuesto(nombre: str) -> Resultado:
-    r = await pedir("GET", f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quote(nombre)}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON", _lim["pubchem"])
+    r = await pedir("GET", f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quote(nombre, safe='')}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON", _lim["pubchem"])
     props = (r.json().get("PropertyTable") or {}).get("Properties", [])
     datos = [{"cid": p.get("CID"), "formula": p.get("MolecularFormula"), "peso": p.get("MolecularWeight"), "iupac": p.get("IUPACName"), "smiles": p.get("CanonicalSMILES")} for p in props]
     return Resultado(datos, len(datos), [str(p["cid"]) for p in datos if p.get("cid")], None, (len(datos) == 1, f"{len(datos)} compuestos con ese nombre"))
@@ -350,9 +354,10 @@ async def epmc_anotaciones(pmid: str) -> Resultado:
     anots = arts[0].get("annotations", []) if arts else []
     por_tipo: dict[str, dict[str, int]] = {}
     for a in anots:
-        por_tipo.setdefault(a.get("type", "otro"), {})
+        tipo_a = a.get("type") or "otro"
+        por_tipo.setdefault(tipo_a, {})
         k = a.get("exact") or ""
-        por_tipo[a["type"]][k] = por_tipo[a["type"]].get(k, 0) + 1
+        por_tipo[tipo_a][k] = por_tipo[tipo_a].get(k, 0) + 1
     datos = {t: sorted(v.items(), key=lambda kv: -kv[1])[:12] for t, v in por_tipo.items()}
     return Resultado(datos, len(anots), [], None, (bool(arts), f"{len(anots)} anotaciones en {len(por_tipo)} tipos"))
 

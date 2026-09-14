@@ -23,6 +23,31 @@ class FuenteNoDisponible(RuntimeError):
     """La fuente no respondio o respondio con error. No significa "no hay"."""
 
 
+class NoEncontrado(FuenteNoDisponible):
+    """La fuente respondio 404: el identificador no existe alli. Es la unica
+    respuesta de error que si significa "no esta" (y no cuenta como caida)."""
+
+
+_COMPARTIDOS: dict[str, "Limitador"] = {}
+
+
+def compartido(clave: str, por_segundo: float) -> "Limitador":
+    """Un limitador por host compartido entre modulos: PubMed, ClinVar y GEO
+    pegan al mismo E-utilities, y el limite es por IP, no por modulo."""
+    if clave not in _COMPARTIDOS:
+        _COMPARTIDOS[clave] = Limitador(por_segundo)
+    return _COMPARTIDOS[clave]
+
+
+def json_de(r: httpx.Response) -> Any:
+    """`r.json()` que convierte un cuerpo no parseable (HTML de error con 200)
+    en FuenteNoDisponible en vez de en una excepcion suelta."""
+    try:
+        return r.json()
+    except ValueError as ex:
+        raise FuenteNoDisponible(f"{r.url}: respuesta no parseable ({str(ex)[:60]})")
+
+
 class Limitador:
     def __init__(self, por_segundo: float):
         self.intervalo = 1.0 / por_segundo
@@ -75,6 +100,8 @@ async def pedir(metodo: str, url: str, limitador: Limitador, *, intentos: int = 
                 segundos = 0.5 * 2**intento
             await asyncio.sleep(segundos)
             continue
+        if r.status_code == 404:
+            raise NoEncontrado(f"{url}: HTTP 404")
         if r.status_code >= 400:
             raise FuenteNoDisponible(f"{url}: HTTP {r.status_code} {r.text[:200]}")
         return r

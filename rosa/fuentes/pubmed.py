@@ -12,10 +12,10 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from rosa import config
-from rosa.fuentes.base import Limitador, pedir, referencia_corta
+from rosa.fuentes.base import Limitador, compartido, json_de, pedir, referencia_corta, FuenteNoDisponible
 
 BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-_limitador = Limitador(9.0 if config.CLAVE_NCBI else 2.5)
+_limitador = compartido("ncbi", 9.0 if config.CLAVE_NCBI else 2.5)
 
 
 def _params(**kw: Any) -> dict[str, Any]:
@@ -33,7 +33,7 @@ async def buscar(consulta: str, maximo: int = 50, desde_anio: int | None = None)
         params["maxdate"] = "3000"
         params["datetype"] = "pdat"
     r = await pedir("GET", f"{BASE}/esearch.fcgi", _limitador, params=params)
-    d = r.json().get("esearchresult", {})
+    d = json_de(r).get("esearchresult", {})
     return list(d.get("idlist", [])), int(d.get("count", 0) or 0)
 
 
@@ -52,7 +52,10 @@ async def detalles(pmids: list[str]) -> list[dict[str, Any]]:
     for i in range(0, len(pmids), 100):
         lote = pmids[i : i + 100]
         r = await pedir("POST", f"{BASE}/efetch.fcgi", _limitador, data=_params(db="pubmed", id=",".join(lote), rettype="abstract", retmode="xml"))
-        raiz = ET.fromstring(r.text)
+        try:
+            raiz = ET.fromstring(r.text)
+        except ET.ParseError as ex:
+            raise FuenteNoDisponible(f"PubMed efetch: XML no parseable ({str(ex)[:60]})")
         for art in raiz.findall(".//PubmedArticle"):
             med = art.find("MedlineCitation")
             if med is None:

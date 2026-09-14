@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from rosa.estado import plantilla as P
-from rosa.fuentes.base import FuenteNoDisponible
+from rosa.fuentes.base import FuenteNoDisponible, NoEncontrado
 
 
 @dataclass
@@ -115,6 +115,10 @@ async def consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle
     c.ultimo_uso = reg["fecha"]
     try:
         r = await c.fn(**argumentos)
+    except NoEncontrado:
+        # 404: el identificador no existe en esa base. Es una respuesta, no una caida.
+        reg.update(n=0, ids=[], invariante={"ok": False, "detalle": "sin registro en la fuente (404)"}, ms=int((time.monotonic() - t0) * 1000), resumen=resumen or nombre)
+        return reg, None
     except FuenteNoDisponible as ex:
         c.errores += 1
         reg.update(error=f"No pude comprobar: {str(ex)[:200]}", ms=int((time.monotonic() - t0) * 1000), resumen=resumen or nombre)

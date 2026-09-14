@@ -35,7 +35,7 @@ def reconstruir_resumen(indice: dict[str, list[int]] | None) -> str:
 
 
 def _obra(w: dict[str, Any]) -> dict[str, Any]:
-    autores = [a.get("author", {}).get("display_name", "").split(" ")[-1] for a in w.get("authorships", [])[:12]]
+    autores = [((a.get("author") or {}).get("display_name") or "").split(" ")[-1] for a in w.get("authorships", [])[:12] if (a.get("author") or {}).get("display_name")]
     autores = [a for a in autores if a]
     anio = w.get("publication_year")
     oa = w.get("best_oa_location") or {}
@@ -57,6 +57,7 @@ def _obra(w: dict[str, Any]) -> dict[str, Any]:
 
 
 async def buscar(texto: str, maximo: int = 25, desde_anio: int | None = None) -> tuple[list[dict[str, Any]], int, float]:
+    texto = texto.replace(",", " ")  # OpenAlex rechaza comas sin escapar en los filtros
     """Precedente: obras cuyo titulo o resumen casan con el texto. Devuelve
     (obras, total, coste_usd)."""
     filtro = f"title_and_abstract.search:{texto}"

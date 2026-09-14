@@ -357,9 +357,20 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     consultas = [c.model_dump() for c in pred.consultas][:5]
     if not consultas:
         return "El modelo no propuso consultas"
-    resultados = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas))
+    crudos = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)
+    for c, r in zip(consultas, crudos):
+        if isinstance(r, PresupuestoAgotado):
+            raise r
+        if isinstance(r, BaseException):
+            # Una consulta que reventó no tumba las otras cuatro.
+            traceback.print_exc()
+            ctx.pista(paso["id"], "literatura", f"Consulta fallida: {c.get('consulta', '')[:50]}", "").fallar(f"{type(r).__name__}: {str(r)[:160]}")
+    pares = [(q, r) for q, r in zip(consultas, crudos) if isinstance(r, dict)]
+    resultados = [r for _, r in pares]
     total = {k: sum(r[k] for r in resultados) for k in resultados[0]} if resultados else {}
-    leidos_por_tema = {q["tema"][:60]: r["leidos"] for q, r in zip(consultas, resultados)}
+    leidos_por_tema: dict[str, int] = {}
+    for q, r in pares:
+        leidos_por_tema[q["tema"][:60]] = leidos_por_tema.get(q["tema"][:60], 0) + r["leidos"]
 
     def actualizar(e2: dict[str, Any]) -> bool:
         c = next(x for x in e2["corridas"] if x["id"] == ctx.corrida_id)

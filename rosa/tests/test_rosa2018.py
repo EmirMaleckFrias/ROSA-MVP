@@ -705,3 +705,122 @@ def test_recorte_del_espejo_garantiza_el_limite():
     out = EC._recortar(anidado, bytes_)
     assert len(json.dumps(out, ensure_ascii=False).encode("utf-8")) <= EC.MAX_BYTES_DOC and out["_truncadoEspejo"]["bytesOriginales"] == bytes_
     assert out["id"] == "x"
+
+
+# ---------------------------------------------------------------------------
+# Auditoria, lote 3: conectores, fuentes, sandbox y datos
+# ---------------------------------------------------------------------------
+
+
+def test_numeros_con_miles_y_coma_decimal():
+    from rosa import datos as D
+
+    assert D._numero("1,234,567") == 1234567.0
+    assert D._numero("1,234.5") == 1234.5
+    assert D._numero("0,8") == 0.8
+    assert D._numero("1,2,3") is None and D._numero("NA") is None and D._numero("-") is None
+
+
+def test_nombre_seguro_no_acepta_solo_puntos():
+    from rosa import datos as D
+
+    assert D.nombre_seguro("..") == "datos" and D.nombre_seguro("...") == "datos" and D.nombre_seguro("---") == "datos"
+    assert D.nombre_seguro("../../etc/passwd") == "passwd"
+    assert D.nombre_seguro("mi tabla (v2).csv") == "mi_tabla_v2_.csv"
+
+
+def test_txt_sin_delimitador_no_es_tabla(tmp_path: Path):
+    from rosa import datos as D
+
+    f = tmp_path / "notas.txt"
+    f.write_text("Esto es un parrafo de texto libre sin ninguna estructura tabular\nque sigue en otra linea\n")
+    assert D._leer_tabla(f) is None
+
+
+def test_resumen_no_enumera_columnas_de_alta_cardinalidad(tmp_path: Path):
+    from rosa import datos as D
+
+    filas = ["id_paciente,grupo,valor"] + [f"PAC-{i:04d},{'AD' if i % 2 else 'CTRL'},{i * 0.5}" for i in range(100)]
+    f = tmp_path / "t.csv"
+    f.write_text("\n".join(filas) + "\n")
+    resumen, _ = D.resumir(f)
+    assert "PAC-0001" not in resumen and "no se enumeran" in resumen
+    assert "AD=" in resumen and "CTRL=" in resumen  # baja cardinalidad si se enumera
+
+
+def test_modulos_extra_del_sandbox_solo_nombres_seguros():
+    extras = X._extras_validos({"ayuda.py": "x", "os.py": "malo", "analisis.py": "malo", "../x.py": "malo", "Mayus.py": "malo", "json.py": "malo"})
+    assert extras == {"ayuda.py": "x"}
+    assert X._con_ruta_de_modulos("print(1)", "/trabajo", {}) == "print(1)"
+    con = X._con_ruta_de_modulos("print(1)", "/trabajo", extras)
+    assert con.startswith("import sys as _rosa_sys") and "'/trabajo'" in con and con.endswith("print(1)")
+
+
+def test_ejecucion_local_desactivada_por_defecto(monkeypatch):
+    monkeypatch.setattr(X, "PERMITIR_LOCAL_SINTETICO", False)
+    monkeypatch.setattr(X, "_docker_disponible", lambda: False)
+    monkeypatch.setattr(X, "_container_disponible", lambda: False)
+    assert X.runtime_disponible(True)[0] == "ninguno"
+    assert X.runtime_disponible(False)[0] == "ninguno"
+
+
+def test_sandbox_local_bloquea_lectura_y_escritura_fuera(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(X, "PERMITIR_LOCAL_SINTETICO", True)
+    monkeypatch.setattr(X, "_docker_disponible", lambda: False)
+    monkeypatch.setattr(X, "_container_disponible", lambda: False)
+    datos = tmp_path / "d.csv"
+    datos.write_text("g,v\na,1\n")
+    fuera = tmp_path / "fuera.txt"
+    r = X.ejecutar(f"import pathlib\npathlib.Path({str(fuera)!r}).write_text('x')\nprint('RESULTADO x=1')", datos, 1, True, "run-l1")
+    assert r.estado == "error_tecnico" and "fuera del directorio" in r.error and not fuera.exists()
+    r2 = X.ejecutar("open('/etc/hosts').read()\nprint('RESULTADO x=1')", datos, 1, True, "run-l2")
+    assert r2.estado == "error_tecnico" and "lectura fuera" in r2.error
+    r3 = X.ejecutar("import os\nos.fork()\nprint('RESULTADO x=1')", datos, 1, True, "run-l3")
+    assert r3.estado == "error_tecnico" and "deshabilitada" in r3.error
+    r4 = X.ejecutar("from ayuda import doble\nimport os, csv\nn=sum(1 for _ in csv.reader(open(os.environ['ROSA_DATOS'])))\nprint('RESULTADO n=%d' % doble(n))", datos, 1, True, "run-l4", ficheros_extra={"ayuda.py": "def doble(x):\n    return 2 * x\n"})
+    assert r4.estado == "completado" and r4.resultados == {"n": "4"}
+
+
+def test_herramientas_rechazan_argumentos_inventados():
+    import asyncio
+
+    from rosa import conectores as CON
+    from rosa import herramientas as H
+
+    registro: list = []
+    hs = H.herramientas({"investigaciones": [], "hechos": [], "hipotesis": []}, "inv-x", registro, origen="persona")
+    disponibles = [n for n, c in CON.REGISTRO.items() if c.estado == "disponible" and c.esquema.get("properties")]
+    assert hs and disponibles
+    t = next(t for t in hs if t.name == disponibles[0])
+    props = CON.REGISTRO[disponibles[0]].esquema["properties"]
+    salida = asyncio.run(t.func(**{k: "x" for k in props}, argumento_inventado="y"))
+    assert "ARGUMENTOS INVALIDOS" in salida and "argumento_inventado" in salida and registro == []
+
+
+def test_404_de_una_fuente_es_sin_registro_no_caida():
+    import asyncio
+
+    from rosa import conectores as CON
+    from rosa.fuentes.base import NoEncontrado
+
+    nombre = next(n for n, c in CON.REGISTRO.items() if c.estado == "disponible")
+    c = CON.REGISTRO[nombre]
+    original = c.fn
+
+    async def falla(**kw):
+        raise NoEncontrado("HTTP 404")
+
+    try:
+        c.fn = falla
+        reg, datos = asyncio.run(CON.consultar(nombre, resumen="prueba", **{k: "x" for k in c.esquema.get("required", [])}))
+    finally:
+        c.fn = original
+    assert reg["error"] is None and reg["n"] == 0 and datos is None and "404" in reg["invariante"]["detalle"]
+
+
+def test_skills_con_acentos_y_crlf():
+    from rosa import skills as SK
+
+    meta, cuerpo = SK._frontmatter("---\r\nname: x\r\ndescription: y\r\n---\r\ncuerpo\r\n")
+    assert meta.get("name") == "x" and cuerpo.strip() == "cuerpo"
+    assert SK._sin_acentos("Expresión Diferencial") == "expresion diferencial"

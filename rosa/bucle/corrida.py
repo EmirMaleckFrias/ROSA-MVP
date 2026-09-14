@@ -542,6 +542,9 @@ class Supervisor:
             resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "No se encontro el fichero de datos en el servidor.", "motivo": f"Se registro el nombre '{x.get('ficheroDatos')}' pero el fichero no se subio. Sube el fichero desde la ficha.", "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": x.get("ficheroDatos")}
         else:
             resumen, muestra = await asyncio.to_thread(D.resumir, ruta)
+            # Los datos del laboratorio no salen al modelo fila a fila: el juez recibe el
+            # resumen agregado y solo la cabecera de la muestra.
+            muestra = (muestra.splitlines()[0] if muestra else "") + "\n[filas omitidas: los datos individuales del laboratorio no se envian al modelo; el veredicto se apoya en el resumen agregado]"
             try:
                 pred = await ctx.llamar(
                     "juez",

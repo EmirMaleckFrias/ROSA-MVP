@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rosa.fuentes.base import Limitador, pedir
+from rosa.fuentes.base import Limitador, json_de, pedir
 
 URL = "https://api.platform.opentargets.org/api/v4/graphql"
 _limitador = Limitador(2.0)
@@ -30,12 +30,12 @@ async def asociacion_alzheimer(simbolo: str) -> dict[str, Any]:
     """{simbolo, ensembl, puntuacion (0 a 1 o None), tipos: {datatype: score}}.
     puntuacion None con `encontrado` True significa "sin asociacion registrada"."""
     r = await pedir("POST", URL, _limitador, json={"query": _BUSCAR, "variables": {"q": simbolo}})
-    hits = r.json().get("data", {}).get("search", {}).get("hits", [])
+    hits = (((json_de(r).get("data") or {}).get("search") or {}).get("hits")) or []
     hit = next((h for h in hits if h.get("name", "").upper() == simbolo.upper()), hits[0] if hits else None)
     if not hit:
         return {"simbolo": simbolo, "ensembl": None, "encontrado": False, "puntuacion": None, "tipos": {}}
     r2 = await pedir("POST", URL, _limitador, json={"query": _ASOCIACION, "variables": {"id": hit["id"], "enf": [ALZHEIMER, "EFO_0000249"]}})
-    t = r2.json().get("data", {}).get("target") or {}
+    t = (json_de(r2).get("data") or {}).get("target") or {}
     filas = (t.get("associatedDiseases") or {}).get("rows") or []
     if not filas:
         return {"simbolo": t.get("approvedSymbol", simbolo), "ensembl": hit["id"], "encontrado": True, "puntuacion": None, "tipos": {}}

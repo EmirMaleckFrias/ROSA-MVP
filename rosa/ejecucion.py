@@ -58,7 +58,9 @@ PAQUETES_SANDBOX = ["pandas", "numpy", "scipy", "statsmodels"]
 
 # Permitir el aislamiento blando local con datos sinteticos. Es una politica:
 # se cambia aqui, con commit, no desde la interfaz.
-PERMITIR_LOCAL_SINTETICO = True
+# El aislamiento blando local (sin Docker) es evadible: solo se activa a
+# proposito con ROSA_PERMITIR_LOCAL_SINTETICO=1 y solo con datos sinteticos.
+PERMITIR_LOCAL_SINTETICO = os.environ.get("ROSA_PERMITIR_LOCAL_SINTETICO", "") == "1"
 
 
 @dataclass
@@ -147,35 +149,55 @@ def _asegurar_imagen(runtime: str, entorno: str = "tabular") -> str | None:
 # ---------------------------------------------------------------------------
 
 PREAMBULO_LOCAL = r'''
-# Preambulo de aislamiento blando de Rosa (solo datos sinteticos).
-import builtins as _b, os as _os, sys as _sys, resource as _res
-_TRABAJO = _os.path.realpath(_os.getcwd())
-_DATOS = _os.path.realpath(_os.environ.get("ROSA_DATOS", ""))
-_res.setrlimit(_res.RLIMIT_CPU, (__CPU__, __CPU__))
-_open = _b.open
-def _open_vigilado(f, mode="r", *a, **k):
-    p = _os.path.realpath(str(f)) if not isinstance(f, int) else None
-    if p is not None and ("w" in mode or "a" in mode or "+" in mode or "x" in mode) and not p.startswith(_TRABAJO):
-        raise PermissionError("Rosa: escritura fuera del directorio de trabajo")
-    return _open(f, mode, *a, **k)
-_b.open = _open_vigilado
-import socket as _sock
-def _sin_red(*a, **k):
-    raise PermissionError("Rosa: red deshabilitada en el sandbox")
-_sock.socket = _sin_red
-_sock.create_connection = _sin_red
-import subprocess as _sp
-_sp.Popen = _sin_red
-_sp.run = _sin_red
-_os.system = _sin_red
-_os.popen = _sin_red
-_os.remove = _sin_red
-_os.unlink = _sin_red
-_os.rmdir = _sin_red
-import shutil as _sh
-_sh.rmtree = _sin_red
-_sh.move = _sin_red
-del _b, _sock, _sp, _sh
+# Preambulo de aislamiento blando de Rosa (solo datos sinteticos y solo si se
+# activa a proposito). Lectura limitada al directorio de trabajo, al dataset y
+# al propio Python; escritura solo en el directorio de trabajo; sin red, sin
+# procesos. Es una barrera contra errores, no contra un atacante decidido.
+def _instalar_sandbox():
+    import builtins, os, sys, io, resource, sysconfig
+    trabajo = os.path.realpath(os.getcwd())
+    datos = os.path.realpath(os.environ.get("ROSA_DATOS", ""))
+    permitidos = tuple(p for p in {trabajo, datos, os.path.realpath(sys.prefix), os.path.realpath(sys.base_prefix), *(os.path.realpath(v) for v in sysconfig.get_paths().values() if v)} if p)
+    resource.setrlimit(resource.RLIMIT_CPU, (__CPU__, __CPU__))
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (__MEM__, __MEM__))
+    except (ValueError, OSError):
+        pass
+    abrir = builtins.open
+    io_abrir = io.open
+    def vigilado(f, mode="r", *a, **k):
+        if isinstance(f, int):
+            return abrir(f, mode, *a, **k)
+        p = os.path.realpath(str(f))
+        escribe = any(c in mode for c in "wax+")
+        if escribe and not p.startswith(trabajo):
+            raise PermissionError("Rosa: escritura fuera del directorio de trabajo")
+        if not escribe and not p.startswith(permitidos):
+            raise PermissionError("Rosa: lectura fuera del dataset y del directorio de trabajo")
+        return abrir(f, mode, *a, **k)
+    builtins.open = vigilado
+    io.open = vigilado
+    os_open = os.open
+    def os_open_vigilado(path, flags, *a, **k):
+        p = os.path.realpath(str(path))
+        if (flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC)) and not p.startswith(trabajo):
+            raise PermissionError("Rosa: escritura fuera del directorio de trabajo")
+        if not p.startswith(permitidos):
+            raise PermissionError("Rosa: lectura fuera del dataset y del directorio de trabajo")
+        return os_open(path, flags, *a, **k)
+    os.open = os_open_vigilado
+    def sin(*a, **k):
+        raise PermissionError("Rosa: operacion deshabilitada en el sandbox")
+    import socket, _socket, subprocess, shutil
+    socket.socket = sin; socket.create_connection = sin; _socket.socket = sin
+    subprocess.Popen = sin; subprocess.run = sin; subprocess.call = sin; subprocess.check_output = sin
+    os.system = sin; os.popen = sin; os.remove = sin; os.unlink = sin; os.rmdir = sin
+    for n in ("fork", "forkpty", "execv", "execve", "execvp", "execvpe", "posix_spawn", "posix_spawnp", "spawnv", "spawnve"):
+        if hasattr(os, n):
+            setattr(os, n, sin)
+    shutil.rmtree = sin; shutil.move = sin
+_instalar_sandbox()
+del _instalar_sandbox
 # Fin del preambulo.
 '''
 
@@ -238,6 +260,33 @@ def _paquetes(runtime: str) -> list[dict[str, str]]:
     return [{"nombre": "imagen", "version": IMAGEN}]
 
 
+def _cola(ruta: Path, maximo: int) -> str:
+    """Los ultimos `maximo` bytes de un fichero de salida, como texto."""
+    try:
+        tam = ruta.stat().st_size
+        with open(ruta, "rb") as f:
+            if tam > maximo:
+                f.seek(tam - maximo)
+            return f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _extras_validos(ficheros_extra: dict[str, str] | None) -> dict[str, str]:
+    """Modulos de skills que se copian al directorio de trabajo: nombres de
+    identificador, nunca analisis.py ni un nombre de la biblioteca estandar
+    (sombrearia un modulo del sistema)."""
+    return {n: c for n, c in (ficheros_extra or {}).items() if re.fullmatch(r"[a-z_][a-z0-9_]*\.py", n) and n != "analisis.py" and n[:-3] not in sys.stdlib_module_names}
+
+
+def _con_ruta_de_modulos(codigo: str, directorio: str, extras: dict[str, str]) -> str:
+    """`python -I` no pone el directorio del script en sys.path: si hay
+    modulos de skills que importar, se anade a mano al principio."""
+    if not extras:
+        return codigo
+    return f"import sys as _rosa_sys\n_rosa_sys.path.insert(0, {directorio!r})\ndel _rosa_sys\n" + codigo
+
+
 def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ejecucion: str, entorno: str = "tabular", ficheros_extra: dict[str, str] | None = None) -> Resultado:
     """Corre el script contra el fichero. Bloqueante: llamarlo desde un hilo.
     `entorno` elige la imagen (tabular o celula_unica); `ficheros_extra` son
@@ -249,24 +298,32 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
     trabajo = Path(tempfile.mkdtemp(prefix=f"{id_ejecucion}-", dir=DIR_TRABAJO))
     inicio = time.monotonic()
     tiempo = politicas.SEGUNDOS_MAX_EJECUCION
+    salida_dir: Path | None = None
     try:
         if runtime in ("docker", "container"):
             err = _asegurar_imagen(runtime, entorno)
             if err:
                 return Resultado(estado="no_ejecutado", runtime=runtime, error=err)
-            (trabajo / "analisis.py").write_text(codigo, encoding="utf-8")
-            for nombre, contenido in (ficheros_extra or {}).items():
-                if re.fullmatch(r"[a-z_][a-z0-9_]*\.py", nombre):
-                    (trabajo / nombre).write_text(contenido, encoding="utf-8")
+            extras = _extras_validos(ficheros_extra)
+            (trabajo / "analisis.py").write_text(_con_ruta_de_modulos(codigo, "/trabajo", extras), encoding="utf-8")
+            for nombre, contenido in extras.items():
+                (trabajo / nombre).write_text(contenido, encoding="utf-8")
+            nombre_contenedor = f"rosa-{re.sub(r'[^a-zA-Z0-9_.-]', '-', id_ejecucion)[:60]}"
             cmd = [
                 runtime, "run", "--rm",
+                "--name", nombre_contenedor,
                 "--network", "none",
                 "--memory", f"{politicas.MEMORIA_MAX_EJECUCION_MB}m",
+                "--memory-swap", f"{politicas.MEMORIA_MAX_EJECUCION_MB}m",
                 "--cpus", "2",
+                "--pids-limit", "256",
+                "--cap-drop", "ALL",
+                "--security-opt", "no-new-privileges",
                 "-v", f"{ruta_datos.resolve()}:/datos/{ruta_datos.name}:ro",
                 "-v", f"{trabajo}:/trabajo",
                 "-w", "/trabajo",
                 "-e", f"ROSA_SEMILLA={semilla}",
+                "-e", f"ROSA_DATOS=/datos/{ruta_datos.name}",
                 IMAGENES.get(entorno, IMAGENES["tabular"])[0], "python", "-I", "/trabajo/analisis.py",
             ]
             entorno = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "")}
@@ -274,24 +331,36 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
                 entorno["DOCKER_HOST"] = os.environ["DOCKER_HOST"]
             cwd = None
         else:
-            preambulo = PREAMBULO_LOCAL.replace("__CPU__", str(tiempo))
-            (trabajo / "analisis.py").write_text(preambulo + "\n" + codigo, encoding="utf-8")
-            for nombre, contenido in (ficheros_extra or {}).items():
-                if re.fullmatch(r"[a-z_][a-z0-9_]*\.py", nombre):
-                    (trabajo / nombre).write_text(contenido, encoding="utf-8")
+            preambulo = PREAMBULO_LOCAL.replace("__CPU__", str(tiempo)).replace("__MEM__", str(politicas.MEMORIA_MAX_EJECUCION_MB * 1024 * 1024))
+            extras = _extras_validos(ficheros_extra)
+            nombre_contenedor = None
+            (trabajo / "analisis.py").write_text(preambulo + "\n" + _con_ruta_de_modulos(codigo, str(trabajo), extras), encoding="utf-8")
+            for nombre, contenido in extras.items():
+                (trabajo / nombre).write_text(contenido, encoding="utf-8")
             cmd = [sys.executable, "-I", str(trabajo / "analisis.py")]
             entorno = {"ROSA_DATOS": str(ruta_datos.resolve()), "ROSA_SEMILLA": str(semilla), "PATH": "/usr/bin:/bin", "HOME": str(trabajo), "PYTHONDONTWRITEBYTECODE": "1", "MPLBACKEND": "Agg"}
             cwd = str(trabajo)
+        # La salida va a ficheros (no a memoria del servidor): un script que imprime
+        # en bucle no puede agotar la RAM del proceso de Rosa.
+        # Los ficheros de salida viven fuera del directorio montado: el script no
+        # puede leerlos ni reescribirlos.
+        salida_dir = Path(tempfile.mkdtemp(prefix=f"{id_ejecucion}-salida-", dir=DIR_TRABAJO))
+        f_out, f_err = salida_dir / "stdout.txt", salida_dir / "stderr.txt"
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=tiempo + 30, env=entorno, cwd=cwd)
-        except subprocess.TimeoutExpired as ex:
-            return Resultado(estado="tiempo_agotado", runtime=runtime, salida=(ex.stdout or "")[-4000:] if isinstance(ex.stdout, str) else "", error=f"Tiempo agotado tras {tiempo} s. Es un error tecnico, no un resultado nulo.", duracion_s=round(time.monotonic() - inicio, 1))
+            with open(f_out, "w", encoding="utf-8") as fo, open(f_err, "w", encoding="utf-8") as fe:
+                r = subprocess.run(cmd, stdout=fo, stderr=fe, text=True, timeout=tiempo + 30, env=entorno, cwd=cwd)
+        except subprocess.TimeoutExpired:
+            if runtime in ("docker", "container") and nombre_contenedor:
+                # Matar al cliente no mata el contenedor: se para y se borra por nombre.
+                subprocess.run([runtime, "rm", "-f", nombre_contenedor], capture_output=True, text=True, timeout=30)
+            return Resultado(estado="tiempo_agotado", runtime=runtime, salida=_cola(f_out, 4000), error=f"Tiempo agotado tras {tiempo} s. Es un error tecnico, no un resultado nulo.", duracion_s=round(time.monotonic() - inicio, 1))
         duracion = round(time.monotonic() - inicio, 1)
-        # Se parsea la salida completa (un script puede imprimir mucho antes de la
-        # cifra final) y se guarda recortada.
-        resultados, baseline, control, no_evaluable = _parsear(r.stdout)
-        salida = r.stdout[-12000:]
-        error = r.stderr[-4000:]
+        # Se parsea la salida completa (hasta 50 MB; un script puede imprimir mucho
+        # antes de la cifra final) y se guarda recortada.
+        stdout = _cola(f_out, 50 * 1024 * 1024)
+        resultados, baseline, control, no_evaluable = _parsear(stdout)
+        salida = stdout[-12000:]
+        error = _cola(f_err, 4000)
         if r.returncode != 0:
             return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error=error or f"Codigo de salida {r.returncode}", codigo_salida=r.returncode, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
         if not resultados and not no_evaluable:
@@ -299,6 +368,8 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
         return Resultado(estado="completado", runtime=runtime, salida=salida, error=error, codigo_salida=0, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
     finally:
         shutil.rmtree(trabajo, ignore_errors=True)
+        if salida_dir:
+            shutil.rmtree(salida_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------

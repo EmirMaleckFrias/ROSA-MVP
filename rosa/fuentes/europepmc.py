@@ -15,10 +15,10 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from rosa.fuentes.base import Limitador, pedir, referencia_corta
+from rosa.fuentes.base import Limitador, NoEncontrado, compartido, pedir, referencia_corta
 
 BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
-_limitador = Limitador(6.0)
+_limitador = compartido("europepmc", 6.0)
 
 
 async def buscar(consulta: str, maximo: int = 50, solo_preprints: bool = False, desde_anio: int | None = None) -> tuple[list[dict[str, Any]], int]:
@@ -58,7 +58,10 @@ async def buscar(consulta: str, maximo: int = 50, solo_preprints: bool = False, 
 
 async def texto_completo(pmcid: str) -> list[dict[str, str]]:
     """Secciones del articulo: [{seccion, texto}]. Vacio si no hay XML."""
-    r = await pedir("GET", f"{BASE}/{pmcid}/fullTextXML", _limitador)
+    try:
+        r = await pedir("GET", f"{BASE}/{pmcid}/fullTextXML", _limitador)
+    except NoEncontrado:
+        return []  # sin texto completo abierto para ese PMCID: no es una caida
     try:
         raiz = ET.fromstring(r.text)
     except ET.ParseError:
