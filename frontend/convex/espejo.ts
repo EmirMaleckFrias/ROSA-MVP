@@ -1,11 +1,13 @@
-// Funciones del espejo: sincronizar (mutation, la llama el servidor de Rosa
-// con su clave de despliegue) y las consultas que leera la interfaz.
-import { mutation, query } from './_generated/server';
+// Funciones del espejo, todas internas: solo se invocan con la clave de
+// despliegue (el servidor de Rosa). Una funcion publica de Convex la podria
+// llamar cualquiera que conozca la URL del deployment, sin clave; por eso
+// ninguna lo es. Cuando la interfaz lea del espejo, lo hara con auth propia.
+import { internalMutation, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
 
 const LIMITE_LOTE = 400;
 
-export const sincronizar = mutation({
+export const sincronizar = internalMutation({
   args: {
     version: v.number(),
     origen: v.string(),
@@ -62,7 +64,7 @@ export const sincronizar = mutation({
   },
 });
 
-export const meta = query({
+export const meta = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db
@@ -72,7 +74,7 @@ export const meta = query({
   },
 });
 
-export const coleccion = query({
+export const coleccion = internalQuery({
   args: { coleccion: v.string(), investigacionId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const filas = await ctx.db
@@ -83,7 +85,7 @@ export const coleccion = query({
   },
 });
 
-export const entidad = query({
+export const entidad = internalQuery({
   args: { coleccion: v.string(), id: v.string() },
   handler: async (ctx, args) => {
     const f = await ctx.db
@@ -94,7 +96,7 @@ export const entidad = query({
   },
 });
 
-export const hashes = query({
+export const hashes = internalQuery({
   args: {},
   handler: async (ctx) => {
     const filas = await ctx.db.query('entidades').collect();

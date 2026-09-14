@@ -118,6 +118,10 @@ class Supervisor:
                 await asyncio.wait_for(self._parar.wait(), timeout=2.0)
         for t in self.tareas.values():
             t.cancel()
+        # Esperar a que las tareas terminen sus finally (escriben en el almacen)
+        # antes de que main cierre SQLite.
+        if self.tareas:
+            await asyncio.gather(*self.tareas.values(), return_exceptions=True)
 
     def parar(self) -> None:
         self._parar.set()
@@ -616,37 +620,43 @@ class Supervisor:
         cerradas sin resumen en llano (las anteriores a esta funcion). Una
         cosa por tick, para no competir con la corrida."""
         e = self.almacen.estado
+
+        def _puede_gastar(corrida: dict[str, Any] | None) -> bool:
+            # Rellenar en segundo plano gasta llamadas: no se hace sobre corridas que
+            # una persona detuvo ni sobre corridas pausadas por presupuesto.
+            return bool(corrida) and corrida["estado"] not in ("detenida", "pausada_por_presupuesto", "pausada")
+
         for h in e["hipotesis"]:
             x = h.get("experimento")
             if x and x.get("estado") == "datos_recibidos" and not h.get("_resultadoEvaluado"):
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida:
+                if corrida and corrida["estado"] != "pausada_por_presupuesto":
                     await self._evaluar_resultado(self._ctx(corrida), h)
                     return
             if h.get("enLlano") is None and not h.get("_enLlanoIntentado"):
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida:
+                if _puede_gastar(corrida):
                     await self._hipotesis_en_llano(self._ctx(corrida), h)
                     return
             if h.get("conclusion") is None and not h.get("_conclusionIntentada"):
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida:
+                if _puede_gastar(corrida):
                     await self._concluir_hipotesis(self._ctx(corrida), h)
                     return
             if h.get("experimento") is None and not h.get("_experimentoIntentado") and h["estado"] != "descartada":
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida:
+                if _puede_gastar(corrida):
                     await self._proponer_experimento(self._ctx(corrida), h)
                     return
             if h.get("tarjeta") is None and not h.get("_tarjetaIntentada") and h["estado"] != "descartada":
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida:
+                if _puede_gastar(corrida):
                     await PASOS._completar_tarjeta(self._ctx(corrida), h, None)
                     return
         for inv in e["investigaciones"]:
             if inv.get("mision") is None and not inv.get("_misionIntentada"):
                 corrida = A.ultima_corrida_de(e, inv["id"])
-                if corrida:
+                if _puede_gastar(corrida):
                     await self._proponer_mision(self._ctx(corrida), inv)
                     return
         for it in e["iteraciones"]:

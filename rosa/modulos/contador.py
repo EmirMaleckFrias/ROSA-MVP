@@ -38,6 +38,17 @@ class ContextoLlamada:
 contexto_actual: contextvars.ContextVar[ContextoLlamada | None] = contextvars.ContextVar("rosa_contexto_llamada", default=None)
 
 
+def presupuesto_ok(almacen, corrida_id: str) -> bool:
+    """La comprobacion que corta de verdad: la llama Ctx.llamar antes de cada
+    llamada al modelo. (Lanzar dentro del callback de DSPy no sirve: DSPy
+    captura las excepciones de los callbacks y solo escribe un aviso.)"""
+    e = almacen.estado
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c:
+        return True
+    return c["gasto"]["llamadas"] < c["presupuesto"]["limiteLlamadas"]
+
+
 class Contador(BaseCallback):
     def __init__(self, almacen) -> None:
         super().__init__()
@@ -46,17 +57,12 @@ class Contador(BaseCallback):
         self._lock = threading.Lock()
 
     def _presupuesto_ok(self, corrida_id: str) -> bool:
-        e = self.almacen.estado
-        c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
-        if not c:
-            return True
-        return c["gasto"]["llamadas"] < c["presupuesto"]["limiteLlamadas"]
+        return presupuesto_ok(self.almacen, corrida_id)
 
     def on_lm_start(self, call_id: str, instance: Any, inputs: dict[str, Any]) -> None:
         ctx = contexto_actual.get()
         modelo = getattr(instance, "model", "?")
-        if ctx and not self._presupuesto_ok(ctx.corrida_id):
-            raise PresupuestoAgotado(f"Presupuesto de la corrida {ctx.corrida_id} agotado")
+        # El corte real esta en Ctx.llamar (DSPy se traga lo que un callback lance).
         with self._lock:
             self._inicio[call_id] = (time.monotonic(), ctx, modelo)
 

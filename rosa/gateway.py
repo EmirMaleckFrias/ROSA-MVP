@@ -40,6 +40,7 @@ def clave() -> str:
 
 def lm(modelo: str, **kwargs) -> dspy.LM:
     """Un modelo del gateway listo para DSPy. `modelo` es el id del gateway."""
+    kwargs.setdefault("timeout", 300)  # segundos por peticion HTTP al gateway; sin esto LiteLLM espera 6000
     return dspy.LM(f"openai/{modelo}", api_base=URL_GATEWAY, api_key=clave(), **kwargs)
 
 

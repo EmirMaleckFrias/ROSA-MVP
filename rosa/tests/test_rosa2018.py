@@ -693,3 +693,15 @@ def test_entidades_del_espejo_sin_claves_privadas_y_con_recorte(al):
     from rosa import config
 
     assert isinstance(EC.activo(), bool) and (EC.activo() == bool(config.CONVEX_URL and config.CONVEX_DEPLOY_KEY))
+
+
+def test_recorte_del_espejo_garantiza_el_limite():
+    import json
+
+    from rosa import espejo_convex as EC
+
+    anidado = {"id": "x", "titulo": "t", "procedencia": {"fuentes": [{"fragmento": "a" * 300_000} for _ in range(5)]}, "versiones": [{"contenido": "b" * 500_000}]}
+    bytes_ = len(json.dumps(anidado))
+    out = EC._recortar(anidado, bytes_)
+    assert len(json.dumps(out, ensure_ascii=False).encode("utf-8")) <= EC.MAX_BYTES_DOC and out["_truncadoEspejo"]["bytesOriginales"] == bytes_
+    assert out["id"] == "x"

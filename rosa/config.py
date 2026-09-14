@@ -33,6 +33,12 @@ USER_AGENT = f"Rosa/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
 CLAVE_NCBI = os.environ.get("ROSA_NCBI_KEY", "")
 CLAVE_OPENALEX = os.environ.get("ROSA_OPENALEX_KEY", "")
 CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
+# Token de acceso a la API. Obligatorio si el servidor escucha fuera de 127.0.0.1:
+# sin el, cualquier equipo de la red podria arrancar corridas y gastar en el gateway.
+ROSA_TOKEN = os.environ.get("ROSA_TOKEN", "")
+# Preguntas con herramientas (ReAct) por dia: cuestan llamadas al cerebro y no
+# pasan por el presupuesto de una corrida.
+PREGUNTAS_MAX_DIA = int(os.environ.get("ROSA_PREGUNTAS_MAX_DIA", "40"))
 # Espejo del estado en Convex (opcional): URL del deployment y clave de despliegue. Solo en .env.
 CONVEX_URL = os.environ.get("CONVEX_URL", "").rstrip("/")
 CONVEX_DEPLOY_KEY = os.environ.get("CONVEX_DEPLOY_KEY", "")

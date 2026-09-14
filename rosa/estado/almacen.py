@@ -124,7 +124,13 @@ class Almacen:
         """Aplica `fn(estado)` bajo el cerrojo. Si devuelve algo distinto de
         False, sube la version, guarda y avisa."""
         with self._lock:
-            resultado = fn(self.estado)
+            try:
+                resultado = fn(self.estado)
+            except Exception:
+                # Un reducer que lanza a medias deja el estado en memoria mutado sin
+                # guardar; se vuelve a la ultima version persistida y se relanza.
+                self.estado = self._cargar()
+                raise
             if resultado is False:
                 return False
             self.version += 1
@@ -138,7 +144,12 @@ class Almacen:
         resultado del reducer; lanza KeyError si la accion no existe."""
         fn, con_ahora = ACCIONES[nombre]
         kwargs = dict(args)
-        if con_ahora and "ahora" not in kwargs:
+        # El sello de tiempo lo pone el servidor: las decisiones, permisos y enmiendas
+        # son piezas de auditoria y no pueden fecharse desde el navegador. La unica
+        # excepcion es marcarVisita, que registra el reloj de la persona.
+        if con_ahora and nombre != "marcarVisita":
+            kwargs["ahora"] = P.ahora_ms()
+        elif con_ahora and "ahora" not in kwargs:
             kwargs["ahora"] = P.ahora_ms()
         return self.mutar(lambda e: fn(e, **kwargs), nombre, args)
 
@@ -286,6 +297,7 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
         c.setdefault("pregunta", None)
         c["gasto"].setdefault("usd", 0.0)
     for h in estado.get("hipotesis", []):
+        h.setdefault("prerregistradaEn", h.get("creadaEn", 0))
         h.setdefault("tarjeta", None)
         h.setdefault("version", 1)
         h.setdefault("versiones", [])
@@ -295,6 +307,7 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
         h.setdefault("dossierArtefactoId", None)
         h.setdefault("ejecuciones", [])
         for a in h.get("afirmaciones", []):
+            a.setdefault("tipo", "literatura")
             a.setdefault("clase", "derivado" if a.get("tipo") == "dato" and a.get("trayectoria") else "literatura")
             a.setdefault("sintetico", False)
     # Los bloqueos se recalculan al arrancar: la regla vive en el codigo y puede
@@ -303,6 +316,8 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
 
     for h in estado.get("hipotesis", []):
         h["bloqueos"] = bloqueos_de(estado, h)
+        if h["bloqueos"]:
+            h["candidata"] = False
 
 
 def _migrar_experimentos(estado: dict[str, Any]) -> None:

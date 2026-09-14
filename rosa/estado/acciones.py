@@ -22,6 +22,8 @@ aqui se respeta; si no, se genera uno.
 
 from __future__ import annotations
 
+import copy
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -107,9 +109,11 @@ def detener_corrida(e: Estado, corrida_id: str, motivo: str, ahora: int, vigilar
 
 def ampliar_presupuesto(e: Estado, corrida_id: str, nuevo_limite: float, ahora: int) -> bool:
     c = corrida_de(e, corrida_id)
-    if not c or not isinstance(nuevo_limite, (int, float)) or nuevo_limite <= c["gasto"]["llamadas"]:
+    if not c or not isinstance(nuevo_limite, (int, float)) or isinstance(nuevo_limite, bool):
         return False
-    limite = round(nuevo_limite)
+    limite = int(round(nuevo_limite))
+    if limite <= c["gasto"]["llamadas"] or limite <= 0:
+        return False
     c["presupuesto"]["limiteLlamadas"] = limite
     c["presupuesto"]["avisadas"] = [a for a in c["presupuesto"]["avisadas"] if c["gasto"]["llamadas"] / limite >= a]
     if c["estado"] == "pausada_por_presupuesto":
@@ -291,7 +295,7 @@ def resolver_solicitud(e: Estado, solicitud_id: str, decision: str, alcance: str
     if argumentos:
         for a in s["argumentos"]:
             if a["editable"] and a["nombre"] in argumentos:
-                a["valor"] = argumentos[a["nombre"]].strip() or a["valor"]
+                a["valor"] = str(argumentos[a["nombre"]]).strip() or a["valor"]
     if decision == "conceder" and alcance and alcance != "una_vez":
         e["permisos"].append(
             {
@@ -560,7 +564,6 @@ def registrar_pregunta_bases(e: Estado, investigacion_id: str, pregunta: dict, a
     if not inv or not isinstance(pregunta, dict) or not pregunta.get("pregunta"):
         return False
     inv.setdefault("preguntasABases", []).append({"id": P.nuevo_id("pb"), "fecha": ahora, **{k: pregunta.get(k) for k in ("pregunta", "respuesta", "limites", "herramientas", "consultas", "iteraciones", "quien", "error")}})
-    inv["preguntasABases"] = inv["preguntasABases"][-30:]
     return True
 
 
@@ -908,7 +911,7 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
     lineas = [
         f"# Prerregistro: {h['titulo']}",
         "",
-        f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')}. Asignado a: {laboratorio}. Hipotesis {h['id']} version {h.get('version', 1)}, iteracion {h['iteracion']}, prerregistrada el {datetime.fromtimestamp(h['prerregistradaEn'] / 1000).strftime('%d/%m/%Y')}. El resultado del laboratorio probara esta version; si la hipotesis cambia despues, se comprobara la compatibilidad.",
+        f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')}. Asignado a: {laboratorio}. Hipotesis {h['id']} version {h.get('version', 1)}, iteracion {h['iteracion']}, prerregistrada el {datetime.fromtimestamp((h.get('prerregistradaEn') or h.get('creadaEn') or ahora) / 1000).strftime('%d/%m/%Y')}. El resultado del laboratorio probara esta version; si la hipotesis cambia despues, se comprobara la compatibilidad.",
         "",
         "## Hipotesis (no se modifica despues de esta fecha)",
         h["enunciado"],
@@ -1161,7 +1164,7 @@ def _heredar(e: Estado, inv: dict, datos: dict) -> str:
     heredar = datos.get("heredarModeloDe")
     if heredar:
         for h in [x for x in e["hechos"] if x["investigacionId"] == heredar]:
-            e["hechos"].append({**h, "id": f"{h['id']}-{inv['id']}", "investigacionId": inv["id"]})
+            e["hechos"].append({**copy.deepcopy(h), "id": f"{h['id']}-{inv['id']}", "investigacionId": inv["id"]})
     return inv["id"]
 
 
@@ -1170,19 +1173,22 @@ def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora:
     if not origen:
         return False
     nuevo = id_ or P.nuevo_id("inv")
+    # Copia profunda: la puerta, la mision con sus areas, la memoria y los datasets
+    # de la rama no pueden ser los mismos objetos que los del origen (los reducers
+    # mutan en sitio y el cambio se persistiria en las dos investigaciones).
     rama = {
-        **origen,
+        **copy.deepcopy(origen),
         "id": nuevo,
         "titulo": f"{origen['titulo']} (rama)",
         "objetivo": origen["objetivo"] if not motivo.strip() else f"{origen['objetivo']}\n\nRama: {motivo.strip()}",
         "creadaEn": ahora,
         "ramaDe": origen["id"],
         "vigilarLiteraturaHasta": None,
-        "datasets": [dict(d) for d in origen["datasets"]],
+        "preguntasABases": [],
     }
     e["investigaciones"].append(rama)
     for h in [x for x in e["hechos"] if x["investigacionId"] == investigacion_id]:
-        e["hechos"].append({**h, "id": f"{h['id']}-{nuevo}", "investigacionId": nuevo})
+        e["hechos"].append({**copy.deepcopy(h), "id": f"{h['id']}-{nuevo}", "investigacionId": nuevo})
     return nuevo
 
 
@@ -1204,6 +1210,8 @@ def anadir_dataset(e: Estado, investigacion_id: str, dataset: dict, id_: str | N
         return False
     ds = {**dataset, "id": id_ or P.nuevo_id("ds"), "estado": "pendiente"}
     ds.setdefault("procedencia", None)
+    for k in ("columnasSinDiccionario", "valoresCentinela", "nombresDuplicados"):
+        ds[k] = int(ds.get(k) or 0)
     inv["datasets"].append(ds)
     return ds["id"]
 
@@ -1221,6 +1229,12 @@ def actualizar_procedencia_dataset(e: Estado, investigacion_id: str, dataset_id:
     nueva = {**base, **{k: str(procedencia[k]).strip() for k in editables if k in procedencia}}
     if procedencia.get("usoIAAutorizado") in ("si", "no", "desconocido"):
         nueva["usoIAAutorizado"] = procedencia["usoIAAutorizado"]
+    if procedencia.get("acceso") in ("abierto", "controlado", "colaboracion", "propio"):
+        nueva["acceso"] = procedencia["acceso"]
+    if "permiteLlmTerceros" in procedencia:
+        nueva["permiteLlmTerceros"] = bool(procedencia["permiteLlmTerceros"])
+    if "restriccionIA" in procedencia:
+        nueva["restriccionIA"] = str(procedencia["restriccionIA"]).strip()[:400]
     if "sintetico" in procedencia:
         nueva["sintetico"] = bool(procedencia["sintetico"])
     if procedencia.get("clase") in politicas.CLASES_EVIDENCIA:
@@ -1377,15 +1391,32 @@ def borrar_criterio(e: Estado, indice: int) -> bool:
 
 
 def actualizar_avisos(e: Estado, avisos: dict) -> bool:
-    e["avisos"] = avisos
+    """Se normaliza campo a campo desde la plantilla: un cuerpo malformado no
+    puede romper la interfaz de todos los navegadores conectados."""
+    if not isinstance(avisos, dict):
+        return False
+    base = P.estado_inicial()["avisos"]
+    correo = avisos.get("correo") if isinstance(avisos.get("correo"), dict) else {}
+    slack = avisos.get("slack") if isinstance(avisos.get("slack"), dict) else {}
+    cuando = avisos.get("cuando") if isinstance(avisos.get("cuando"), dict) else {}
+    e["avisos"] = {
+        "correo": {"activo": bool(correo.get("activo", base["correo"]["activo"])), "direccion": str(correo.get("direccion", base["correo"]["direccion"]))[:200]},
+        "slack": {"activo": bool(slack.get("activo", base["slack"]["activo"])), "canal": str(slack.get("canal", base["slack"]["canal"]))[:200]},
+        "cuando": {k: bool(cuando.get(k, v)) for k, v in base["cuando"].items()},
+    }
     return True
 
 
 def actualizar_politica_esperas(e: Estado, politica: dict) -> bool:
-    horas = politica.get("horas")
-    if not isinstance(horas, (int, float)) or horas <= 0:
+    if not isinstance(politica, dict):
         return False
-    e["politicaEsperas"] = {**politica, "escalarA": str(politica.get("escalarA", "")).strip()}
+    horas = politica.get("horas")
+    if not isinstance(horas, (int, float)) or isinstance(horas, bool) or horas <= 0 or horas > 24 * 365:
+        return False
+    accion = politica.get("accion", "recordar")
+    if accion not in ("recordar", "escalar", "detener", "continuar"):
+        return False
+    e["politicaEsperas"] = {"horas": horas, "accion": accion, "escalarA": str(politica.get("escalarA", "")).strip()[:200]}
     return True
 
 
@@ -1411,6 +1442,8 @@ def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | 
         return False
     c = P.nueva_corrida(investigacion_id, (ultima["numero"] + 1) if ultima else 1, ahora, limite)
     e["corridas"].append(c)
+    if inv.get("estado") == "cerrada":
+        con_evento(e, investigacion_id, "corrida_estado", "Investigacion reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     inv["estado"] = "activa"
     con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteracion 1", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     return c["id"]

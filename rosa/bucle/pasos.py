@@ -39,7 +39,7 @@ from rosa.estado.almacen import Almacen
 from rosa.fuentes import clinicaltrials, crossref, europepmc, openalex, opentargets, pdf, pubmed, unpaywall
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
-from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual
+from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, presupuesto_ok
 from rosa.modulos.firmas import Programas
 
 MAX_FUENTES_POR_CONSULTA = 12
@@ -52,6 +52,9 @@ TAU_COBERTURA = 20.0
 
 class ModeloBloqueado(RuntimeError):
     pass
+
+
+SEGUNDOS_MAX_LLAMADA = 600  # una llamada al gateway que tarda mas de esto es un fallo, no una espera
 
 
 @dataclass
@@ -110,21 +113,34 @@ class Ctx:
         Si el modelo devuelve vacio o lo bloquea un filtro, reintenta una vez
         con el modelo de volumen y deja una incidencia."""
         lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen}[rol]
+        # El corte de presupuesto de verdad: antes de llamar. (El callback de DSPy no
+        # puede cortar: DSPy captura lo que lance y sigue.)
+        if not presupuesto_ok(self.almacen, self.corrida_id):
+            raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} agotado")
         token = contexto_actual.set(ContextoLlamada(self.corrida_id, self.numero, rol))
         try:
             try:
                 with dspy.context(lm=lm):
-                    return await programa.acall(**kwargs)
+                    return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
             except PresupuestoAgotado:
                 raise
+            except asyncio.TimeoutError:
+                self.incidencia("modelo_sin_respuesta", f"El modelo {lm.model} no respondio en {SEGUNDOS_MAX_LLAMADA} s", "Tiempo agotado esperando al gateway", lm.model, "Se reintenta en el siguiente paso; si se repite, revisar el gateway.")
+                raise RuntimeError(f"El modelo {lm.model} no respondio en {SEGUNDOS_MAX_LLAMADA} s")
             except Exception as ex:  # noqa: BLE001
                 texto = str(ex)
                 bloqueado = any(s in texto.lower() for s in ("content", "filter", "policy", "refus", "empty", "no output", "parse"))
                 if not bloqueado or rol == "volumen":
                     raise
+                if rol == "juez":
+                    # El juez no cae a otro modelo sin decirlo: se reintenta una vez con el
+                    # mismo y, si vuelve a fallar, la decision queda "no respondio".
+                    self.incidencia("modelo_bloqueado", f"El juez {lm.model} no respondio a una peticion", texto[:400], lm.model, "Se reintento una vez con el mismo modelo; el juez nunca se sustituye por otro sin registrarlo.")
+                    with dspy.context(lm=lm):
+                        return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
                 self.incidencia("modelo_bloqueado", f"El modelo {lm.model} no respondio a una peticion", texto[:400], lm.model, "Se reintento con Sonnet 5 automaticamente; si vuelve a pasar, revisar el prompt o cambiar el modelo del rol.")
                 with dspy.context(lm=self.modelos.volumen):
-                    return await programa.acall(**kwargs)
+                    return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
         finally:
             contexto_actual.reset(token)
 

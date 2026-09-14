@@ -38,6 +38,9 @@ def configurar_mlflow() -> None:
 
 
 async def principal() -> None:
+    if config.HOST not in ("127.0.0.1", "localhost", "::1") and not config.ROSA_TOKEN:
+        print(f"Rosa no arranca escuchando en {config.HOST} sin ROSA_TOKEN en .env: cualquier equipo de la red podria gastar en el gateway y alterar el estado.", file=sys.stderr)
+        raise SystemExit(2)
     almacen = Almacen()
     modelos = cargar_modelos()
     programas = Programas()
@@ -74,6 +77,8 @@ async def principal() -> None:
 
     print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, version {almacen.version})")
     await asyncio.gather(servidor.serve(), supervisor.correr())
+    # Apagado ordenado: primero las tareas del bucle y el espejo, despues SQLite.
+    await espejo.parar()
     almacen.cerrar()
 
 

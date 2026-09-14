@@ -37,6 +37,37 @@ import type {
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
 
+/** Token de acceso opcional (solo cuando el servidor escucha fuera de la
+ *  maquina). Llega en la URL (?token=...) una vez y se guarda en el navegador. */
+function tokenAcceso(): string | null {
+  try {
+    const enUrl = new URLSearchParams(window.location.search).get('token');
+    if (enUrl) {
+      localStorage.setItem('rosaToken', enUrl);
+      return enUrl;
+    }
+    return localStorage.getItem('rosaToken');
+  } catch {
+    return null;
+  }
+}
+
+/** Cabeceras de toda escritura: X-Rosa marca que viene de la interfaz (una
+ *  pagina ajena no puede mandarla sin que el navegador la bloquee) y el token
+ *  si existe. */
+function cabeceras(json = true): Record<string, string> {
+  const h: Record<string, string> = { 'X-Rosa': '1' };
+  if (json) h['Content-Type'] = 'application/json';
+  const t = tokenAcceso();
+  if (t) h['X-Rosa-Token'] = t;
+  return h;
+}
+
+function conToken(url: string): string {
+  const t = tokenAcceso();
+  return t ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(t)}` : url;
+}
+
 function leerVisita(): number | null {
   try {
     const v = localStorage.getItem(CLAVE_VISITA);
@@ -120,7 +151,7 @@ function vigilarFlujo(): void {
 
 async function resincronizar(): Promise<void> {
   try {
-    const r = await fetch(`${API}/estado`, { cache: 'no-store' });
+    const r = await fetch(conToken(`${API}/estado`), { cache: 'no-store', headers: cabeceras(false) });
     if (r.ok) recibirRemoto((await r.json()) as EstadoRosa);
   } catch {
     if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
@@ -130,7 +161,7 @@ async function resincronizar(): Promise<void> {
 
 function abrirEventos(): void {
   if (fuenteEventos) fuenteEventos.close();
-  const es = new EventSource(`${API}/eventos`);
+  const es = new EventSource(conToken(`${API}/eventos`));
   fuenteEventos = es;
   ultimaSenal = Date.now();
   es.addEventListener('latido', () => {
@@ -158,9 +189,24 @@ function abrirEventos(): void {
  *  optimista; el servidor manda el suyo por SSE en cuanto la procesa. */
 function enviar(nombre: string, args: Record<string, unknown>): void {
   if (modo !== 'servidor') return;
-  void fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) })
-    .then((r) => {
-      if (!r.ok && estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+  void fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args) })
+    .then(async (r) => {
+      if (r.status >= 500) {
+        if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+        return;
+      }
+      if (!r.ok) {
+        // 4xx: el servidor rechazo la accion (argumentos, permiso). No es un corte de
+        // conexion: se deshace el cambio optimista volviendo a pedir el estado.
+        avisoConflicto = `El servidor no acepto la accion ${nombre} (${r.status}).`;
+        void resincronizar();
+        return;
+      }
+      const d = (await r.json().catch(() => null)) as { ok?: boolean } | null;
+      if (d && d.ok === false) {
+        avisoConflicto = `El servidor no aplico la accion ${nombre}: la regla no se cumplia.`;
+        void resincronizar();
+      }
     })
     .catch(() => {
       if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
@@ -172,7 +218,7 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
 async function enviarYComprobar(nombre: string, args: Record<string, unknown>): Promise<boolean | null> {
   if (modo !== 'servidor') return null;
   try {
-    const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+    const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args) });
     if (!r.ok) return null;
     const cuerpo = (await r.json()) as { ok: boolean };
     return cuerpo.ok;
@@ -192,7 +238,7 @@ export function tomarAvisoConflicto(): string | null {
 /** Intenta el servidor; si no esta, arranca la muestra. Idempotente. */
 export async function conectar(): Promise<'muestra' | 'servidor'> {
   try {
-    const r = await fetch(`${API}/estado`, { cache: 'no-store' });
+    const r = await fetch(conToken(`${API}/estado`), { cache: 'no-store', headers: cabeceras(false) });
     if (!r.ok) throw new Error(String(r.status));
     const remoto = (await r.json()) as EstadoRosa;
     if (!Array.isArray(remoto.investigaciones)) throw new Error('respuesta sin forma de EstadoRosa');
@@ -348,7 +394,7 @@ export const acciones = {
     cuerpo.append('fichero', fichero, fichero.name);
     cuerpo.append('analisis', analisis);
     try {
-      const r = await fetch(`${API}/hipotesis/${encodeURIComponent(id)}/datos`, { method: 'POST', body: cuerpo });
+      const r = await fetch(`${API}/hipotesis/${encodeURIComponent(id)}/datos`, { method: 'POST', headers: cabeceras(false), body: cuerpo });
       if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
       return null;
     } catch {
@@ -530,7 +576,7 @@ export const acciones = {
   estadoEspejo: async (): Promise<EstadoEspejo | null> => {
     if (modo !== 'servidor') return null;
     try {
-      const r = await fetch(`${API}/espejo`, { cache: 'no-store' });
+      const r = await fetch(`${API}/espejo`, { cache: 'no-store', headers: cabeceras(false) });
       return r.ok ? ((await r.json()) as EstadoEspejo) : null;
     } catch {
       return null;
@@ -554,7 +600,7 @@ export const acciones = {
   preguntarALasBases: async (investigacionId: string, pregunta: string): Promise<string | null> => {
     if (modo !== 'servidor') return 'Preguntar a las bases requiere el servidor de Rosa.';
     try {
-      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/preguntar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pregunta, quien: QUIEN }) });
+      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/preguntar`, { method: 'POST', headers: cabeceras(), body: JSON.stringify({ pregunta, quien: QUIEN }) });
       if (!r.ok) return `El servidor no pudo responder (${r.status}).`;
       const d = (await r.json()) as { ok: boolean; resultado?: { error?: string | null } };
       return d.ok ? null : d.resultado?.error ?? 'La pregunta fallo.';
@@ -596,7 +642,7 @@ export const acciones = {
     cuerpo.append('descripcion', descripcion);
     cuerpo.append('sintetico', sintetico ? 'si' : 'no');
     try {
-      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/datasets`, { method: 'POST', body: cuerpo });
+      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/datasets`, { method: 'POST', headers: cabeceras(false), body: cuerpo });
       if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
       return null;
     } catch {

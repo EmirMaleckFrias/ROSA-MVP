@@ -19,7 +19,7 @@ SERVIDOR=$!
 (cd frontend && npm run dev -- --host 127.0.0.1 >/dev/null 2>&1) &
 INTERFAZ=$!
 
-trap 'kill $SERVIDOR $INTERFAZ 2>/dev/null; exit 0' INT TERM
+trap 'kill $SERVIDOR $INTERFAZ 2>/dev/null; wait $SERVIDOR $INTERFAZ 2>/dev/null; exit 0' INT TERM
 sleep 4
 open "http://localhost:5174" 2>/dev/null || true
 echo "Rosa: servidor en http://127.0.0.1:8765, interfaz en http://localhost:5174. Ctrl+C para parar."

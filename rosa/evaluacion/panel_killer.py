@@ -261,7 +261,8 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         print(f"Escrito {salida}", file=sys.stderr)
     if registrar:
         async with httpx.AsyncClient(timeout=60) as cli:
-            r = await cli.post(f"{URL}/api/acciones/registrarEvaluacion", json={"evaluacion": {k: v for k, v in salida_dict.items() if k != "casos"} | {"casos": [{k: v for k, v in c.items() if k not in ("motivo",)} for c in resultados]}, "quien": "panel_killer"})
+            token = (config.RAIZ / "datos" / "_token_interno").read_text(encoding="utf-8").strip()
+            r = await cli.post(f"{URL}/api/acciones/registrarEvaluacion", headers={"X-Rosa-Interno": token, "X-Rosa": "1"}, json={"evaluacion": {k: v for k, v in salida_dict.items() if k != "casos"} | {"casos": [{k: v for k, v in c.items() if k not in ("motivo",)} for c in resultados]}, "quien": "panel_killer"})
             print(f"Registro en el estado: {r.status_code} {r.text[:120]}", file=sys.stderr)
     return salida_dict
 

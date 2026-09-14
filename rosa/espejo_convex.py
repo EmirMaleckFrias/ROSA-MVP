@@ -48,19 +48,26 @@ def _hash(texto: str) -> str:
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:24]
 
 
+def _recortar_valor(v: Any, texto_max: int, lista_max: int) -> Any:
+    if isinstance(v, str):
+        return v if len(v) <= texto_max else v[:texto_max] + " ... [recortado para el espejo]"
+    if isinstance(v, list):
+        return [_recortar_valor(x, texto_max, lista_max) for x in v[:lista_max]]
+    if isinstance(v, dict):
+        return {k: _recortar_valor(x, texto_max, lista_max) for k, x in v.items()}
+    return v
+
+
 def _recortar(datos: dict[str, Any], bytes_: int) -> dict[str, Any]:
-    """Una entidad mayor que el limite de Convex: se conservan los campos
-    cortos y se recortan los textos largos, dejando constancia."""
-    out: dict[str, Any] = {}
-    for k, v in datos.items():
-        if isinstance(v, str) and len(v) > 20_000:
-            out[k] = v[:20_000] + " ... [recortado para el espejo]"
-        elif isinstance(v, list) and len(json.dumps(v, ensure_ascii=False, default=str)) > 200_000:
-            out[k] = v[:50]
-        else:
-            out[k] = v
-    out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el limite de Convex; el original esta en el servidor de Rosa"}
-    return out
+    """Una entidad mayor que el limite de Convex: se recortan textos y listas
+    a cualquier profundidad, cada vez mas, hasta caber; si ni asi cabe,
+    queda solo la identidad con la nota. Siempre devuelve algo bajo el limite."""
+    for texto_max, lista_max in ((20_000, 60), (4_000, 30), (800, 12), (200, 5)):
+        out = _recortar_valor(datos, texto_max, lista_max)
+        out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el limite de Convex; el original esta en el servidor de Rosa"}
+        if len(json.dumps(out, ensure_ascii=False, default=str).encode("utf-8")) <= MAX_BYTES_DOC:
+            return out
+    return {k: datos.get(k) for k in ("id", "investigacionId", "titulo", "nombre", "estado") if k in datos} | {"_truncadoEspejo": {"bytesOriginales": bytes_, "nota": "Entidad demasiado grande para el espejo incluso recortada"}}
 
 
 def entidades_de(estado: dict[str, Any]) -> list[dict[str, Any]]:
