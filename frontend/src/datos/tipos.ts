@@ -1632,7 +1632,7 @@ export interface EstadoRosa {
 export type TipoArista = 'supuesto' | 'inferencia_con_evidencia' | 'base_curada';
 
 export interface GrafoCausal {
-  nodos: { id: string; etiqueta: string; rol: string }[];
+  nodos: { id: string; etiqueta: string; rol: string; idCanonico?: string }[];
   aristas: { de: string; a: string; tipo: TipoArista; contexto: string }[];
   identificacion: 'identificable' | 'acotado' | 'sin_resolver';
   supuestosCumplidos: string[];

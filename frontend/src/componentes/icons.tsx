@@ -399,6 +399,16 @@ export function IconLayers({ size = 16, ...props }: IconProps) {
   );
 }
 
+export function IconTree({ size = 16, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M12 22v-8" />
+      <path d="M12 14c-3.3 0-6-2.4-6-5.5S8.7 3 12 3s6 2.4 6 5.5-2.7 5.5-6 5.5Z" />
+      <path d="M12 14l-3-3M12 11l3-3M12 8l-2-2" />
+    </svg>
+  );
+}
+
 export function IconGauge({ size = 16, ...props }: IconProps) {
   return (
     <svg {...base(size, props)}>

@@ -3708,3 +3708,172 @@ mark.fuerte {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------- 11
+   El arbol de la investigacion (pantallas/Arbol.tsx).
+   ---------------------------------------------------------------------- */
+
+.arbol-marco {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.arbol {
+  width: 100%;
+  height: min(62vh, 620px);
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  background: radial-gradient(circle at 50% 50%, var(--surface), var(--inset));
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.arbol:active {
+  cursor: grabbing;
+}
+
+.arbol-nodo {
+  cursor: pointer;
+  transition: opacity var(--dur-2) var(--ease-salida);
+  animation: brotar var(--dur-3) var(--ease-salida);
+  transform-box: fill-box;
+}
+
+@keyframes brotar {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.arbol-nodo circle {
+  transition: r var(--dur-2) var(--ease-salida), stroke-width var(--dur-2) var(--ease-salida);
+}
+
+.arbol-nodo:hover circle {
+  stroke-width: 3;
+}
+
+.arbol-seleccionado circle {
+  stroke: var(--text) !important;
+  stroke-width: 2.5;
+}
+
+.arbol-atenuado {
+  opacity: 0.18;
+}
+
+.arbol-enlace {
+  transition: opacity var(--dur-2) var(--ease-salida);
+}
+
+.arbol-etiqueta {
+  fill: var(--text);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.arbol-hipotesis .arbol-etiqueta,
+.arbol-objetivo .arbol-etiqueta {
+  font-weight: 600;
+}
+
+.arbol-fuente .arbol-etiqueta,
+.arbol-entidad .arbol-etiqueta {
+  fill: var(--text-2);
+}
+
+.arbol-panel {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  max-height: min(62vh, 620px);
+}
+
+.arbol-panel h3 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.arbol-panel h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+
+.arbol-leyenda,
+.arbol-vecinos {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.arbol-vecinos li {
+  line-height: 1.4;
+}
+
+.arbol-vecinos .enlace {
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.arbol-punto {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.arbol-linea {
+  display: inline-block;
+  width: 18px;
+  border-top: 2px solid;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.arbol-tiempo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.arbol-tiempo input[type='range'] {
+  flex: 1 1 200px;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .arbol-marco {
+    grid-template-columns: 1fr;
+  }
+  .arbol {
+    height: 60vw;
+  }
+}

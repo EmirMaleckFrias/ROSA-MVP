@@ -17,6 +17,7 @@ import { loQueEspera } from './lib/digest';
 import { useAhora } from './lib/useAhora';
 import { useRuta } from './lib/useRuta';
 import { Ajustes } from './pantallas/Ajustes';
+import { Arbol } from './pantallas/Arbol';
 import { Artefactos } from './pantallas/Artefactos';
 import { Calidad } from './pantallas/Calidad';
 import { Corrida } from './pantallas/Corrida';
@@ -34,6 +35,7 @@ const TITULO_PANTALLA = {
   ranking: 'Ranking',
   panorama: 'Panorama',
   mundo: 'Modelo de mundo',
+  arbol: 'Arbol de la investigacion',
   artefactos: 'Artefactos',
   calidad: 'Calidad',
   investigacion: 'Objetivo y datos',
@@ -122,6 +124,9 @@ export default function App() {
           break;
         case 'mundo':
           pantalla = <ModeloDeMundo inv={inv} estado={estado} ahora={ahora} />;
+          break;
+        case 'arbol':
+          pantalla = <Arbol key={inv.id} inv={inv} estado={estado} />;
           break;
         case 'artefactos':
           pantalla = <Artefactos inv={inv} estado={estado} ahora={ahora} detalleId={ruta.detalleId} />;
