@@ -4,6 +4,7 @@
 // esperan, para verlo sin abrir la pestana.
 
 import { AnimatePresence, motion } from 'motion/react';
+import { Limite } from './componentes/Limite';
 import { useEffect, useMemo, useState } from 'react';
 import { cerrarAvisoConflicto, useAvisoConflicto, useRosa } from './datos/almacen';
 import { BarraLateral } from './componentes/BarraLateral';
@@ -31,11 +32,11 @@ import { Ranking } from './pantallas/Ranking';
 
 const TITULO_PANTALLA = {
   corrida: 'Corrida en vivo',
-  hipotesis: 'Cola de hipotesis',
+  hipotesis: 'Cola de hipótesis',
   ranking: 'Ranking',
   panorama: 'Panorama',
   mundo: 'Modelo de mundo',
-  arbol: 'Arbol de la investigacion',
+  arbol: 'Arbol de la investigación',
   artefactos: 'Artefactos',
   calidad: 'Calidad',
   investigacion: 'Objetivo y datos',
@@ -59,6 +60,12 @@ export default function App() {
   const esperan = inv ? loQueEspera(estado, inv.id, ahora).total : 0;
 
   const claveRuta = ruta.tipo === 'investigacion' ? `${ruta.investigacionId}/${ruta.pantalla}/${ruta.detalleId ?? ''}` : ruta.tipo;
+  // La transicion de pagina se dispara solo al cambiar de pantalla. Abrir un
+  // detalle (una hipotesis en su cajon, un artefacto) es la misma pantalla:
+  // si tambien cambiara la clave, la pagina entera se desmontaria y volveria
+  // a montarse con fundido, y en tema oscuro eso se ve como un parpadeo negro
+  // (mas largo cuanto mas ocupado este el navegador con el flujo de eventos).
+  const clavePagina = ruta.tipo === 'investigacion' ? `${ruta.investigacionId}/${ruta.pantalla}` : ruta.tipo;
   useEffect(() => {
     setMenuAbierto(false);
     setBuscando(false);
@@ -86,7 +93,7 @@ export default function App() {
   let pantalla: JSX.Element;
 
   if (ruta.tipo === 'nueva') {
-    titulo = 'Nueva investigacion';
+    titulo = 'Nueva investigación';
     pantalla = <NuevaInvestigacion estado={estado} irA={irA} />;
   } else if (ruta.tipo === 'ajustes') {
     titulo = 'Ajustes';
@@ -97,7 +104,7 @@ export default function App() {
       pantalla = (
         <div className="contenido">
           <div className="vacio">
-            <h3>Esta investigacion no existe</h3>
+            <h3>Esta investigación no existe</h3>
             <p>
               <a className="enlace" href="#/">
                 Volver al inicio
@@ -159,9 +166,9 @@ export default function App() {
             </button>
           </div>
         )}
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={claveRuta} className="pagina" variants={pagina} initial="oculto" animate="visible" exit="salida">
-            {pantalla}
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.div key={clavePagina} className="pagina" variants={pagina} initial="oculto" animate="visible" exit="salida">
+            <Limite clave={claveRuta} ambito={`la pantalla ${titulo ?? ruta.tipo}`}>{pantalla}</Limite>
           </motion.div>
         </AnimatePresence>
       </main>

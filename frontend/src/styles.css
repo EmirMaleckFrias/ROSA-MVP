@@ -380,6 +380,8 @@ pre {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* popLayout saca la pagina saliente del flujo (absolute): se ancla aqui. */
+  position: relative;
 }
 
 .cabecera {
@@ -4142,4 +4144,45 @@ details.versiones > :not(summary) {
 .rejilla-2 > .tarjeta,
 .rejilla-3 > .tarjeta {
   margin-top: 0;
+}
+
+/* ---------------------------------------------------------------------- 14
+   Limite de error (componentes/Limite.tsx): lo que se ve si una pantalla
+   falla al pintarse, en vez de una pagina vacia.
+   ---------------------------------------------------------------------- */
+
+.limite-error {
+  margin: 24px;
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger, #c2410c);
+  border-radius: 12px;
+  background: var(--surface);
+  max-width: 72ch;
+}
+
+.limite-error h3 {
+  margin: 0 0 8px;
+}
+
+.limite-error p {
+  margin: 0 0 12px;
+  color: var(--text-2);
+}
+
+.limite-detalle {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  margin: 0 0 14px;
+}
+
+.limite-error .acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

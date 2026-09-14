@@ -136,8 +136,9 @@ describe('la aplicacion montada en el cliente', () => {
     expect(aviso).toBeTruthy();
     const deshacer = [...aviso!.querySelectorAll('button')].find((b) => b.textContent === 'Deshacer')!;
     await act(async () => deshacer.click());
+    // El aviso sale con una animacion de 0.22 s; se espera a que termine.
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 400));
     });
     expect(raiz.ownerDocument.querySelector('.deshacer')).toBeNull();
   });

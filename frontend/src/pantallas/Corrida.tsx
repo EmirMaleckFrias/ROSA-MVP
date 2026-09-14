@@ -6,7 +6,7 @@
 // "volver aqui" y "bifurcar desde aqui"; y detener con vigilancia de
 // literatura.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { iteracionActualDe } from '../datos/acciones';
 import type { AlcancePermiso, EstadoRosa, Investigacion } from '../datos/tipos';
@@ -31,14 +31,21 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [vigilar, setVigilar] = useState(true);
   const [indicacionProceso, setIndicacionProceso] = useState<Record<string, string>>({});
+  const viva = corrida !== null && corrida.estado !== 'detenida' && corrida.estado !== 'terminada';
+  // El reloj de la corrida avanza cada segundo en pantalla mientras esta viva;
+  // el servidor guarda gasto.segundos solo de vez en cuando (cada 5 s de reloj
+  // y solo si coincide con una vuelta del bucle), asi que sin esto el tiempo
+  // saltaba "de la nada". Al terminar se ensena el valor guardado. Va antes
+  // del retorno temprano porque los hooks no pueden ser condicionales.
+  const segundosDeCorrida = useSegundosDeCorrida(corrida?.empezadaEn ?? 0, corrida?.gasto.segundos ?? 0, viva);
 
   if (!corrida) {
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
         <Vacio
-          titulo="Esta investigacion no tiene corridas"
-          pasos={['Rosa lee el objetivo y los limites y propone el plan de la iteracion 1.', 'Tu apruebas el plan (puedes reordenar, quitar o anadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aqui ves cada consulta a cada base.', 'Al cerrar la iteracion, Rosa resume en llano lo que encontro y lo que te espera.']}
+          titulo="Esta investigación no tiene corridas"
+          pasos={['Rosa lee el objetivo y los límites y propone el plan de la iteración 1.', 'Tu apruebas el plan (puedes reordenar, quitar o añadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aquí ves cada consulta a cada base.', 'Al cerrar la iteración, Rosa resume en llano lo que encontró y lo que te espera.']}
           accion={
             estado.conexion === 'muestra' ? undefined : (
               <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)}>
@@ -47,7 +54,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
             )
           }
         >
-          {estado.conexion === 'muestra' ? 'Cuando Rosa este conectada, aqui se arranca la primera con el objetivo y los limites definidos.' : 'Rosa arranca la corrida con el objetivo y los limites definidos, propone el plan de la primera iteracion y espera tu aprobacion.'}
+          {estado.conexion === 'muestra' ? 'Cuando Rosa este conectada, aquí se arranca la primera con el objetivo y los límites definidos.' : 'Rosa arranca la corrida con el objetivo y los límites definidos, propone el plan de la primera iteración y espera tu aprobación.'}
         </Vacio>
       </div>
     );
@@ -60,7 +67,6 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
   const resueltas = solicitudes.filter((s) => s.estado !== 'pendiente');
   const incidencias = estado.incidencias.filter((i) => i.corridaId === corrida.id).sort((a, b) => b.creadaEn - a.creadaEn);
   const incidenciasPendientes = incidencias.filter((i) => i.estado === 'pendiente');
-  const viva = corrida.estado !== 'detenida' && corrida.estado !== 'terminada';
   const tono = corrida.estado === 'en_marcha' ? 'acento' : corrida.estado === 'detenida' || corrida.estado === 'terminada' ? undefined : 'aviso';
   const alcancesComunes = useMemo(() => {
     const sel = pendientes.filter((s) => seleccion.has(s.id));
@@ -97,7 +103,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
         </div>
         {!viva && estado.conexion !== 'muestra' && (
           <div className="acciones">
-            <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)} title="Rosa propone el plan de la iteracion 1 sobre el modelo de mundo actual">
+            <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)} title="Rosa propone el plan de la iteración 1 sobre el modelo de mundo actual">
               <IconPlay size={13} /> Nueva corrida
             </button>
           </div>
@@ -142,7 +148,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       })()}
 
       {incidenciasPendientes.length > 0 && (
-        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se nego o un conector caducado no matan la corrida en silencio: aparecen aqui con la alternativa que Rosa propone.">
+        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se nego o un conector caducado no matan la corrida en silencio: aparecen aquí con la alternativa que Rosa propone.">
           {incidenciasPendientes.map((i) => (
             <TarjetaIncidencia key={i.id} incidencia={i} ahora={ahora} onResolver={(r) => acciones.resolverIncidencia(i.id, r)} />
           ))}
@@ -206,15 +212,15 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
 
       <div className="rejilla-2" style={{ marginTop: 28, alignItems: 'start' }}>
         <div className="seccion" style={{ gridColumn: '1 / -1' }}>
-          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} articulos leidos, ${formatearDuracion(corrida.gasto.segundos * 1000) || '0 s'} de corrida.`}>
+          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} artículos leídos, ${formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de corrida.`}>
           <div className="gasto">
             <div className="gasto-item">
-              <strong>{formatearDuracion(corrida.gasto.segundos * 1000) || '0 s'}</strong>
+              <strong>{formatearDuracion(segundosDeCorrida * 1000) || '0 s'}</strong>
               <span>de corrida</span>
             </div>
             <div className="gasto-item">
               <strong>{formatearEntero(corrida.gasto.articulosLeidos)}</strong>
-              <span>articulos leidos</span>
+              <span>artículos leídos</span>
             </div>
             <div className="gasto-item">
               <strong>{formatearEntero(corrida.gasto.llamadas)}</strong>
@@ -228,7 +234,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
               <strong>{formatearCompacto(corrida.gasto.tokensSalida)}</strong>
               <span>tokens de salida</span>
             </div>
-            <div className="gasto-item" title="Cuanto del contexto del cerebro esta ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras dias.">
+            <div className="gasto-item" title="Cuanto del contexto del cerebro esta ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras días.">
               <strong>{formatearPorcentaje(contextoPct)}</strong>
               <span>
                 contexto ocupado · {corrida.contexto.compactaciones} {corrida.contexto.compactaciones === 1 ? 'compactacion' : 'compactaciones'}
@@ -244,7 +250,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       </div>
 
       {inv.mision && !inv.mision.aprobadaEn && viva && (
-        <Seccion titulo="La mision espera tu aprobacion" nota="Rosa propuso el marco de la investigacion a partir de tu objetivo (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como esta; si quieres corregirla, hazlo aqui o en Objetivo y datos.">
+        <Seccion titulo="La misión espera tu aprobación" nota="Rosa propuso el marco de la investigación a partir de tu objetivo (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como esta; si quieres corregirla, hazlo aquí o en Objetivo y datos.">
           <FormularioMision inv={inv} compacto />
         </Seccion>
       )}
@@ -253,7 +259,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
 
       {iteracion && (
         <Seccion
-          titulo={`Iteracion ${iteracion.numero}`}
+          titulo={`Iteración ${iteracion.numero}`}
           nota={
             iteracion.terminadaEn
               ? `Terminada`
@@ -265,7 +271,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
             <span className="meta" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               {iteracion.terminadaEn ? <Momento t={iteracion.terminadaEn} ahora={ahora} /> : <Momento t={iteracion.planAprobado ? iteracion.empezadaEn : iteracion.planPropuestoEn} ahora={ahora} />}
               <span className="sep" />
-              Presupuesto {iteracion.presupuesto.usado} / {iteracion.presupuesto.limite} llamadas
+              Pasos: {iteracion.presupuesto.usado} de {iteracion.presupuesto.limite} llamadas
               <span style={{ width: 90, display: 'inline-block' }}>
                 <Barra fraccion={iteracion.presupuesto.usado / iteracion.presupuesto.limite} />
               </span>
@@ -293,9 +299,9 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                 className="entrada"
                 value={indicacion}
                 rows={1}
-                placeholder="Dirigir la corrida: una indicacion que entra al plan tras el paso actual"
+                placeholder="Dirigir la corrida: una indicación que entra al plan tras el paso actual"
                 onChange={(e) => setIndicacion(e.target.value)}
-                aria-label="Indicacion para Rosa"
+                aria-label="Indicación para Rosa"
               />
               <button
                 type="button"
@@ -314,7 +320,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       )}
 
       {procesosVivos.length > 0 && (
-        <Seccion detalle titulo="Computo en marcha" nota="Cada proceso vivo. Detenerlo con una indicacion se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
+        <Seccion detalle titulo="Computo en marcha" nota="Cada proceso vivo. Detenerlo con una indicación se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
           <table className="tabla">
             <thead>
               <tr>
@@ -338,7 +344,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                   </td>
                   <td>
                     <div className="dirigir">
-                      <input className="entrada entrada-s" value={indicacionProceso[p.id] ?? ''} placeholder="Indicacion (opcional)" onChange={(e) => setIndicacionProceso({ ...indicacionProceso, [p.id]: e.target.value })} aria-label={`Indicacion al detener ${p.nombre}`} />
+                      <input className="entrada entrada-s" value={indicacionProceso[p.id] ?? ''} placeholder="Indicación (opcional)" onChange={(e) => setIndicacionProceso({ ...indicacionProceso, [p.id]: e.target.value })} aria-label={`Indicación al detener ${p.nombre}`} />
                       <button type="button" className="btn btn-s btn-peligro" onClick={() => acciones.detenerProceso(corrida.id, p.id, indicacionProceso[p.id] ?? '')}>
                         Detener
                       </button>
@@ -355,10 +361,10 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
 
       <Seccion
         detalle titulo="Busqueda de la corrida"
-        nota="El flujo de la busqueda (identificados, cribados, leidos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
+        nota="El flujo de la busqueda (identificados, cribados, leídos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
         acciones={
           <div className="acciones">
-            <button type="button" className="btn btn-s" title="Descarga el flujo en PRISMA 2020 (variables oficiales del diagrama, items 6, 7, 8, 16a y 16b), la extension para revisiones vivas y la declaracion de la IA usada, en JSON y en Markdown. Sin ningun modelo: sale del registro." onClick={() => void acciones.exportarPrisma(corrida.id)}>
+            <button type="button" className="btn btn-s" title="Descarga el flujo en PRISMA 2020 (variables oficiales del diagrama, items 6, 7, 8, 16a y 16b), la extensión para revisiones vivas y la declaración de la IA usada, en JSON y en Markdown. Sin ningun modelo: sale del registro." onClick={() => void acciones.exportarPrisma(corrida.id)}>
               Exportar PRISMA 2020
             </button>
             <button type="button" className="btn btn-fantasma btn-s" onClick={() => setVerBusqueda((v) => !v)}>
@@ -372,7 +378,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
             ['Identificados', corrida.busqueda.identificados],
             ['Cribados', corrida.busqueda.cribados],
             ['Texto completo', corrida.busqueda.textoCompleto],
-            ['Usados en hipotesis', corrida.busqueda.usados],
+            ['Usados en hipótesis', corrida.busqueda.usados],
           ].map(([et, n], i) => (
             <div key={et} className="prisma-caja">
               <strong>{formatearEntero(Number(n))}</strong>
@@ -410,7 +416,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       </Seccion>
 
       {anteriores.length > 0 && (
-        <Seccion titulo="Iteraciones anteriores" nota="Volver a un punto abre una iteracion nueva con el plan de esa (y, si quieres, el modelo de mundo como estaba). Bifurcar crea una investigacion hermana desde ahi.">
+        <Seccion titulo="Iteraciones anteriores" nota="Volver a un punto abre una iteración nueva con el plan de esa (y, si quieres, el modelo de mundo como estaba). Bifurcar crea una investigación hermana desde ahí.">
           <div className="iteraciones-lista">
             {anteriores.map((it) => (
               <div key={it.id} className="iteracion-fila iteracion-fila-acciones">
@@ -431,20 +437,20 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                 <div className="acciones">
                   {viva && it.terminadaEn !== null && (
                     <Confirmar
-                      etiqueta="Volver aqui"
+                      etiqueta="Volver aquí"
                       clase="btn-s"
-                      pregunta={`Se abre una iteracion nueva con el plan de la ${it.numero} y se cierra la actual. Elige que restaurar.`}
+                      pregunta={`Se abre una iteración nueva con el plan de la ${it.numero} y se cierra la actual. Elige que restaurar.`}
                       extra={<VolverOpciones onElegir={(que) => acciones.volverAIteracion(it.id, que)} />}
                       onConfirmar={() => acciones.volverAIteracion(it.id, 'plan')}
                     />
                   )}
                   <Confirmar
-                    etiqueta="Bifurcar desde aqui"
+                    etiqueta="Bifurcar desde aquí"
                     clase="btn-s"
-                    pregunta={`Se crea una investigacion hermana partiendo del estado de la iteracion ${it.numero}. La original sigue igual.`}
-                    pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Hipotesis rival desde este punto' }}
+                    pregunta={`Se crea una investigación hermana partiendo del estado de la iteración ${it.numero}. La original sigue igual.`}
+                    pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Hipótesis rival desde este punto' }}
                     onConfirmar={(motivo) => {
-                      const id = acciones.bifurcarInvestigacion(inv.id, `${motivo} (desde la iteracion ${it.numero})`);
+                      const id = acciones.bifurcarInvestigacion(inv.id, `${motivo} (desde la iteración ${it.numero})`);
                       if (id) irA(rutaDe(id, 'corrida'));
                     }}
                   />
@@ -486,4 +492,17 @@ function VolverOpciones({ onElegir }: { onElegir: (que: 'plan' | 'mundo' | 'ambo
       </button>
     </div>
   );
+}
+
+/** Segundos desde que empezo la corrida, actualizados cada segundo mientras
+ *  esta viva; si no, el valor que guardo el servidor. */
+function useSegundosDeCorrida(empezadaEn: number, guardados: number, viva: boolean): number {
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!viva) return;
+    const t = window.setInterval(() => setAhora(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [viva]);
+  if (!viva) return guardados;
+  return Math.max(guardados, Math.round((ahora - empezadaEn) / 1000));
 }

@@ -18,19 +18,22 @@ export function Presupuesto({ corrida, onAmpliar }: { corrida: Corrida; onAmplia
   return (
     <div className={`tarjeta presupuesto ${pausada ? 'presupuesto-pausado' : ''}`}>
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: 13 }}>Presupuesto de la corrida</strong>
+        <strong style={{ fontSize: 13 }}>Tope de toda la corrida</strong>
         <span className="meta">
-          {formatearEntero(corrida.gasto.llamadas)} de {formatearEntero(corrida.presupuesto.limiteLlamadas)} llamadas · {formatearPorcentaje(p.fraccion)}
+          {formatearEntero(corrida.gasto.llamadas)} de {formatearEntero(corrida.presupuesto.limiteLlamadas)} llamadas en total · {formatearPorcentaje(p.fraccion)}
         </span>
       </div>
       <Barra fraccion={p.fraccion} marcas={corrida.presupuesto.alertas} tono={tono} />
+      <p className="meta" style={{ margin: '6px 0 0' }}>
+        Cuenta todas las llamadas al modelo de la corrida: el plan, los pasos de cada iteración y el juez. El presupuesto que aparece en cada iteración cuenta solo las llamadas de sus pasos, por eso es más pequeño.
+      </p>
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
         <span className="meta">
           {pausada
             ? 'Tope alcanzado: la corrida esta pausada, no muerta. Amplia el tope para seguir.'
             : p.msHastaTope !== null
               ? `Al ritmo actual llegas al tope en ${formatearDuracion(p.msHastaTope)}. Una pregunta pendiente tiene prioridad sobre el tope.`
-              : 'Sin ritmo medible todavia.'}
+              : 'Sin ritmo medible todavía.'}
         </span>
         {corrida.presupuesto.avisadas.map((a) => (
           <Chip key={a} tono={a >= 0.8 ? 'mal' : 'aviso'}>
