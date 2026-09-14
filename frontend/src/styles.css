@@ -3710,17 +3710,18 @@ mark.fuerte {
 }
 
 /* ---------------------------------------------------------------------- 11
-   El arbol de la investigacion (pantallas/Arbol.tsx).
+   El arbol de la investigacion (pantallas/Arbol.tsx). Clases grafo-*: las
+   clases arbol-* son del arbol plegable de la trazabilidad.
    ---------------------------------------------------------------------- */
 
-.arbol-marco {
+.grafo-marco {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 14px;
   align-items: stretch;
 }
 
-.arbol {
+.grafo {
   width: 100%;
   height: min(62vh, 620px);
   border: 1px solid var(--border);
@@ -3731,11 +3732,11 @@ mark.fuerte {
   user-select: none;
 }
 
-.arbol:active {
+.grafo:active {
   cursor: grabbing;
 }
 
-.arbol-nodo {
+.grafo-nodo {
   cursor: grab;
   transition: opacity var(--dur-2) var(--ease-salida);
   animation: brotar var(--dur-3) var(--ease-salida);
@@ -3751,35 +3752,35 @@ mark.fuerte {
   }
 }
 
-.arbol-nodo circle {
+.grafo-nodo circle {
   transition: r var(--dur-2) var(--ease-salida), stroke-width var(--dur-2) var(--ease-salida), transform var(--dur-2) var(--ease-salida);
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.arbol-hover circle {
+.grafo-hover circle {
   stroke-width: 3;
   transform: scale(1.18);
 }
 
-.arbol-nodo:active {
+.grafo-nodo:active {
   cursor: grabbing;
 }
 
-.arbol-seleccionado circle {
+.grafo-seleccionado circle {
   stroke: var(--text) !important;
   stroke-width: 2.5;
 }
 
-.arbol-atenuado {
+.grafo-atenuado {
   opacity: 0.18;
 }
 
-.arbol-enlace {
+.grafo-enlace {
   transition: opacity var(--dur-2) var(--ease-salida);
 }
 
-.arbol-etiqueta {
+.grafo-etiqueta {
   transition: opacity var(--dur-2) var(--ease-salida);
   fill: var(--text);
   font-family: var(--font-sans);
@@ -3791,17 +3792,17 @@ mark.fuerte {
   pointer-events: none;
 }
 
-.arbol-hipotesis .arbol-etiqueta,
-.arbol-objetivo .arbol-etiqueta {
+.grafo-hipotesis .grafo-etiqueta,
+.grafo-objetivo .grafo-etiqueta {
   font-weight: 600;
 }
 
-.arbol-fuente .arbol-etiqueta,
-.arbol-entidad .arbol-etiqueta {
+.grafo-fuente .grafo-etiqueta,
+.grafo-entidad .grafo-etiqueta {
   fill: var(--text-2);
 }
 
-.arbol-panel {
+.grafo-panel {
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radio);
@@ -3813,21 +3814,21 @@ mark.fuerte {
   max-height: min(62vh, 620px);
 }
 
-.arbol-panel h3 {
+.grafo-panel h3 {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
 }
 
-.arbol-panel h4 {
+.grafo-panel h4 {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-2);
   margin-top: 6px;
 }
 
-.arbol-leyenda,
-.arbol-vecinos {
+.grafo-leyenda,
+.grafo-vecinos {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -3837,16 +3838,16 @@ mark.fuerte {
   font-size: 12.5px;
 }
 
-.arbol-vecinos li {
+.grafo-vecinos li {
   line-height: 1.4;
 }
 
-.arbol-vecinos .enlace {
+.grafo-vecinos .enlace {
   text-align: left;
   font-size: 12.5px;
 }
 
-.arbol-punto {
+.grafo-punto {
   display: inline-block;
   width: 9px;
   height: 9px;
@@ -3855,7 +3856,7 @@ mark.fuerte {
   vertical-align: middle;
 }
 
-.arbol-linea {
+.grafo-linea {
   display: inline-block;
   width: 18px;
   border-top: 2px solid;
@@ -3863,7 +3864,7 @@ mark.fuerte {
   vertical-align: middle;
 }
 
-.arbol-tiempo {
+.grafo-tiempo {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -3872,16 +3873,16 @@ mark.fuerte {
   flex-wrap: wrap;
 }
 
-.arbol-tiempo input[type='range'] {
+.grafo-tiempo input[type='range'] {
   flex: 1 1 200px;
   accent-color: var(--accent);
 }
 
 @media (max-width: 900px) {
-  .arbol-marco {
+  .grafo-marco {
     grid-template-columns: 1fr;
   }
-  .arbol {
+  .grafo {
     height: 60vw;
   }
 }

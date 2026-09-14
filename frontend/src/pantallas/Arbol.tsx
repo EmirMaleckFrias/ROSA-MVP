@@ -218,7 +218,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const empezarArrastre = (e: React.PointerEvent) => {
-    const nodo = (e.target as Element).closest('.arbol-nodo') as SVGGElement | null;
+    const nodo = (e.target as Element).closest('.grafo-nodo') as SVGGElement | null;
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     if (nodo) {
       const id = nodo.getAttribute('data-id');
@@ -325,8 +325,8 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
         </div>
       </div>
 
-      <div className="arbol-marco">
-        <svg ref={svgRef} className="arbol" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Arbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
+      <div className="grafo-marco">
+        <svg ref={svgRef} className="grafo" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Arbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
           <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
             {enlacesVisibles.map((e) => {
               const a = posiciones.get(e.de)!;
@@ -335,7 +335,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               const vb = vaiven(e.a, grafo.porId.get(e.a)?.peso ?? 1);
               const t = TRAZO[e.tipo];
               const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
-              return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="arbol-enlace" />;
+              return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="grafo-enlace" />;
             })}
             {nodosVisibles.map((n) => {
               const p = posiciones.get(n.id)!;
@@ -346,12 +346,12 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               const filas = lineas(n.etiqueta);
               const v = vaiven(n.id, n.peso);
               return (
-                <g key={n.id} data-id={n.id} className={`arbol-nodo arbol-${n.tipo} ${vivo ? '' : 'arbol-atenuado'} ${sel ? 'arbol-seleccionado' : ''} ${hover === n.id ? 'arbol-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
+                <g key={n.id} data-id={n.id} className={`grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
                   {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
                   <circle r={r} fill={COLOR[n.tipo]} stroke={n.alerta ? 'var(--red)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : undefined} />
                   {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
                   {opEt > 0.02 && (
-                    <text y={r + 11} textAnchor="middle" className="arbol-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 10.5 : 9 }}>
+                    <text y={r + 11} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 10.5 : 9 }}>
                       {filas.map((f, i) => (
                         <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
                           {f}
@@ -364,7 +364,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
             })}
           </g>
         </svg>
-        <aside className="arbol-panel">
+        <aside className="grafo-panel">
           {nodoSel ? (
             <>
               <Chip tono="acento">{NOMBRE_TIPO[nodoSel.tipo]}</Chip>
@@ -374,7 +374,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               {nodoSel.alias && nodoSel.alias.length > 1 && <p className="meta">Alias: {nodoSel.alias.slice(0, 8).join(', ')}</p>}
               <p className="meta">Aparece desde la iteracion {nodoSel.iteracion || 1}.</p>
               <h4>Conectado con</h4>
-              <ul className="arbol-vecinos">
+              <ul className="grafo-vecinos">
                 {grafo.enlaces
                   .filter((e) => e.de === nodoSel.id || e.a === nodoSel.id)
                   .slice(0, 40)
@@ -384,7 +384,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                     return (
                       <li key={`${e.de}|${e.a}|${e.tipo}`}>
                         <button type="button" className="enlace" onClick={() => { setSeleccion(otro.id); setVisibles((v) => new Set([...v, otro.id])); }}>
-                          <span className="arbol-punto" style={{ background: COLOR[otro.tipo] }} aria-hidden="true" /> {otro.etiqueta.length > 60 ? `${otro.etiqueta.slice(0, 58)}...` : otro.etiqueta}
+                          <span className="grafo-punto" style={{ background: COLOR[otro.tipo] }} aria-hidden="true" /> {otro.etiqueta.length > 60 ? `${otro.etiqueta.slice(0, 58)}...` : otro.etiqueta}
                         </button>
                         <span className="meta"> · {NOMBRE_ENLACE[e.tipo]}{e.etiqueta ? ` (${e.etiqueta})` : ''}</span>
                       </li>
@@ -400,18 +400,18 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
           ) : (
             <>
               <h3>Leyenda</h3>
-              <ul className="arbol-leyenda">
+              <ul className="grafo-leyenda">
                 {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).map((t) => (
                   <li key={t}>
-                    <span className="arbol-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
+                    <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
                   </li>
                 ))}
               </ul>
               <h4>Enlaces</h4>
-              <ul className="arbol-leyenda">
+              <ul className="grafo-leyenda">
                 {(Object.keys(NOMBRE_ENLACE) as TipoEnlace[]).map((t) => (
                   <li key={t}>
-                    <span className="arbol-linea" style={{ borderColor: TRAZO[t].color, borderStyle: TRAZO[t].guion ? 'dashed' : 'solid' }} aria-hidden="true" /> {NOMBRE_ENLACE[t]}
+                    <span className="grafo-linea" style={{ borderColor: TRAZO[t].color, borderStyle: TRAZO[t].guion ? 'dashed' : 'solid' }} aria-hidden="true" /> {NOMBRE_ENLACE[t]}
                   </li>
                 ))}
               </ul>
@@ -420,11 +420,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
           )}
         </aside>
       </div>
-      <div className="arbol-tiempo">
-        <label htmlFor="arbol-iteracion">
+      <div className="grafo-tiempo">
+        <label htmlFor="grafo-iteracion">
           Como crecio: hasta la iteracion <strong>{hasta}</strong> de {grafo.iteracionMax}
         </label>
-        <input id="arbol-iteracion" type="range" min={1} max={Math.max(1, grafo.iteracionMax)} value={Math.min(hasta, Math.max(1, grafo.iteracionMax))} onChange={(e) => setHasta(Number(e.target.value))} />
+        <input id="grafo-iteracion" type="range" min={1} max={Math.max(1, grafo.iteracionMax)} value={Math.min(hasta, Math.max(1, grafo.iteracionMax))} onChange={(e) => setHasta(Number(e.target.value))} />
         <span className="meta">
           {nodosVisibles.length} nodos · {enlacesVisibles.length} enlaces
         </span>
