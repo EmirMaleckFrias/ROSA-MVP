@@ -15,9 +15,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-_ITERACIONES = re.compile(r"(\d+)\s*iteraci")
-_TIEMPO = re.compile(r"(\d+(?:[.,]\d+)?)\s*(min\b|minuto|hora|h\b|dia|día)")
-_LLAMADAS = re.compile(r"(\d+)\s*llamadas")
+_ITERACIONES = re.compile(r"(\d+)\s*iteraci\w*")
+_TIEMPO = re.compile(r"(\d+(?:[.,]\d+)?)\s*(min\b|minutos?|horas?|h\b|dias?|días?)")
+_LLAMADAS = re.compile(r"(\d+)\s*llamadas?")
 
 
 def partes_automatizadas(texto: str) -> dict[str, Any]:
@@ -40,8 +40,11 @@ def partes_automatizadas(texto: str) -> dict[str, Any]:
     if m:
         salida["llamadas"] = int(m.group(1))
         resto = resto.replace(m.group(0), " ")
-    resto = re.sub(r"\b(o|y|u|e|cuando|hasta|tras|despues|después|de|la|el|los|las|corrida|iteraciones|al|llegar|a|se|cumplan)\b", " ", resto)
-    resto = re.sub(r"[^\wáéíóúñ]+", " ", resto).strip()
+    # El resto se conserva tal como lo escribio la persona: solo se limpian los
+    # conectores sueltos de los bordes ("o", ", o", "y") y los espacios dobles.
+    resto = re.sub(r"\s+", " ", resto).strip(" ,;.")
+    resto = re.sub(r"^(o|y|u|e|,|;)\s+", "", resto).strip(" ,;.")
+    resto = re.sub(r"\s+(o|y|u|e)$", "", resto).strip(" ,;.")
     salida["resto"] = resto if len(resto) >= 4 else ""
     salida["automatizada"] = any(salida[k] is not None for k in ("iteraciones", "tiempo", "llamadas"))
     return salida

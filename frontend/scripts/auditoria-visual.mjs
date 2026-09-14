@@ -100,7 +100,31 @@ const AUDITAR = () => {
       if (A.rs.some((ra) => B.rs.some((rb) => pisa(ra, rb)))) problemas.push({ tipo: 'textos superpuestos', el: descr(A.el), extra: `con ${descr(B.el)}` });
     }
   }
-  // 5. Scroll horizontal del documento.
+  // 5. Titulos pegados al bloque anterior: falta de aire (lo que se ve como
+  //    "un texto demasiado cerca de otra cosa"). Menos de 10 px es pegado.
+  for (const h of document.querySelectorAll('.seccion-titulo h3, .pantalla-cabecera h2, .quetoca')) {
+    const sec = h.closest('.seccion') ?? h.closest('.pantalla-cabecera') ?? h;
+    if (!visible(sec)) continue;
+    let prev = sec.previousElementSibling;
+    while (prev && !visible(prev)) prev = prev.previousElementSibling;
+    if (!prev) continue;
+    const rp = prev.getBoundingClientRect();
+    const rh = h.getBoundingClientRect();
+    if (rh.top - rp.bottom < 10 && rh.top - rp.bottom > -2) problemas.push({ tipo: 'titulo pegado al bloque anterior', el: descr(h), extra: `${Math.round(rh.top - rp.bottom)} px sobre ${descr(prev).slice(0, 40)}` });
+  }
+  // 6. Tarjetas de una misma fila de rejilla que no empiezan a la misma altura.
+  for (const rej of document.querySelectorAll('.rejilla-2, .rejilla-3')) {
+    if (!visible(rej)) continue;
+    const hijos = [...rej.children].filter(visible).map((el) => ({ el, r: el.getBoundingClientRect() }));
+    for (let i = 0; i < hijos.length; i++) {
+      for (let j = i + 1; j < hijos.length; j++) {
+        const A = hijos[i], B = hijos[j];
+        const mismaFila = Math.min(A.r.bottom, B.r.bottom) - Math.max(A.r.top, B.r.top) > 20 && Math.abs(A.r.left - B.r.left) > 20;
+        if (mismaFila && Math.abs(A.r.top - B.r.top) > 3) problemas.push({ tipo: 'tarjetas desalineadas en la rejilla', el: descr(A.el), extra: `${Math.round(A.r.top)} frente a ${Math.round(B.r.top)} de ${descr(B.el).slice(0, 40)}` });
+      }
+    }
+  }
+  // 7. Scroll horizontal del documento.
   if (document.documentElement.scrollWidth > window.innerWidth + 2) problemas.push({ tipo: 'scroll horizontal de la pagina', el: 'html', extra: `${document.documentElement.scrollWidth} > ${window.innerWidth}` });
   return problemas;
 };

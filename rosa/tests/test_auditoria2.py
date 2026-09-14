@@ -86,7 +86,7 @@ def test_m2_pasaje_con_comienzo_real_y_final_inventado_no_pasa():
 # A3: la condicion de parada dice que parte se automatiza.
 def test_a3_partes_automatizadas_de_la_condicion():
     p = parada.partes_automatizadas("3 iteraciones o cuando el modelo de mundo deje de cambiar")
-    assert p["iteraciones"] == 3 and p["automatizada"] and "modelo" in p["resto"]
+    assert p["iteraciones"] == 3 and p["automatizada"] and p["resto"] == "cuando el modelo de mundo deje de cambiar"
     p2 = parada.partes_automatizadas("cuando el modelo de mundo deje de cambiar")
     assert not p2["automatizada"] and "no puede medir" in parada.texto_automatizacion(p2)
     p3 = parada.partes_automatizadas("48 horas o 400 llamadas")

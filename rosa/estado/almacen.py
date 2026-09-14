@@ -323,10 +323,10 @@ def _migrar(estado: dict[str, Any]) -> None:
         b.setdefault("traidos", 0)
     for inv in estado.get("investigaciones", []):
         inv.setdefault("conocimientoOperativo", [])
-        if "condicionParadaAutomatizada" not in inv:
-            from rosa import parada as PARADA
+        # Se recalcula siempre: es derivado del texto y la regla puede mejorar.
+        from rosa import parada as PARADA
 
-            inv["condicionParadaAutomatizada"] = PARADA.partes_automatizadas(inv.get("condicionParada", ""))
+        inv["condicionParadaAutomatizada"] = PARADA.partes_automatizadas(inv.get("condicionParada", ""))
     _migrar_fragmentos(estado)
     _migrar_consultas(estado)
     _migrar_conclusiones(estado)

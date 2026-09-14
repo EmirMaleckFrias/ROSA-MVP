@@ -4120,3 +4120,26 @@ details.versiones > :not(summary) {
 .tabla select.entrada-s {
   min-width: 150px;
 }
+
+/* Aire entre bloques: una seccion que sigue a cualquier bloque (una rejilla
+   de tarjetas, un aviso, un hilo) respira igual que si siguiera a otra seccion. */
+.contenido > .seccion,
+.contenido > * + .seccion,
+.rejilla-2 + .seccion,
+.rejilla-3 + .seccion,
+.tarjeta + .seccion {
+  margin-top: 28px;
+}
+
+.contenido > .seccion:first-child {
+  margin-top: 0;
+}
+
+/* Las tarjetas de una rejilla comparten fila: ninguna lleva el margen de
+   seccion, o una queda mas baja y mas corta que sus vecinas. */
+.rejilla-2 > .seccion,
+.rejilla-3 > .seccion,
+.rejilla-2 > .tarjeta,
+.rejilla-3 > .tarjeta {
+  margin-top: 0;
+}

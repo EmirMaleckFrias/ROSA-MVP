@@ -6,7 +6,7 @@ describe('partesAutomatizadas', () => {
     const p = partesAutomatizadas('3 iteraciones o cuando el modelo de mundo deje de cambiar');
     expect(p.iteraciones).toBe(3);
     expect(p.automatizada).toBe(true);
-    expect(p.resto).toContain('modelo');
+    expect(p.resto).toBe('cuando el modelo de mundo deje de cambiar');
     expect(textoAutomatizacion(p)).toContain('3 iteraciones');
     expect(textoAutomatizacion(p)).toContain('lo decides tu');
   });
