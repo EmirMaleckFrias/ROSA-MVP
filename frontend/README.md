@@ -116,3 +116,14 @@ La interfaz explica el proceso por si misma. Lo que cambio y donde tocar:
 - **Formularios solo cuando hacen falta**: subir dataset y registrar una
   reproduccion viven tras un boton; el de reproduccion se abre solo si la
   puerta esta bloqueada.
+
+## Auditoria visual (Playwright)
+
+`npm run auditoria-visual` abre cada pantalla de Rosa en un Chromium real
+(servida por el servidor de Rosa en el 8765) a cuatro anchos (1440, 1100,
+800 y 420) y en los dos modos, despliega las secciones de detalle y busca lo
+que las pruebas de DOM no ven: texto recortado por su caja o por un
+antecesor, texto superpuesto (comparando las cajas de cada linea), texto
+fuera de la ventana y scroll horizontal de la pagina. Deja capturas de
+pagina completa y `informe.json` en `frontend/auditoria/` (fuera de git).
+Correrla despues de cualquier cambio de estilos; el objetivo es cero.

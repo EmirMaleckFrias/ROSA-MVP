@@ -4051,3 +4051,72 @@ mark.fuerte {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* ---------------------------------------------------------------------- 13
+   Auditoria visual (Playwright): lo que encontro y como se corrige.
+   ---------------------------------------------------------------------- */
+
+/* Un <details> con display:flex (heredado de la lista de versiones de los
+   artefactos, que comparte el nombre) no mide su contenido: las tablas de los
+   conectores se pintaban unas sobre otras. Los desplegables son bloques. */
+details.versiones {
+  display: block;
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+details.versiones > :not(summary) {
+  margin-top: 8px;
+}
+
+/* Una tabla mas ancha que su seccion se desplaza dentro de la seccion; nunca
+   ensancha la pagina. */
+.seccion:has(> .tabla),
+.tarjeta:has(> .tabla),
+.seccion:has(> details > .tabla),
+.seccion:has(> div > .tabla) {
+  overflow-x: auto;
+}
+
+.tabla td,
+.tabla th {
+  overflow-wrap: anywhere;
+}
+
+/* Ningun texto se acerca a otro: cada celda y cada nota respiran. */
+.seccion-titulo > div > p {
+  max-width: 78ch;
+  line-height: 1.5;
+}
+
+.hip-meta,
+.acciones {
+  row-gap: 6px;
+}
+
+/* La cabecera en pantallas estrechas: se envuelve en vez de recortar. */
+@media (max-width: 680px) {
+  .cabecera {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 14px;
+  }
+  .cabecera-derecha {
+    flex-wrap: wrap;
+  }
+  .segmentos-modo button {
+    padding: 3px 7px;
+    font-size: 11px;
+  }
+  .estado-conexion span,
+  .estado-conexion {
+    font-size: 11px;
+  }
+}
+
+/* Las entradas dentro de una tabla no se estrechan hasta cortar su texto. */
+.tabla input.entrada-s,
+.tabla input.entrada,
+.tabla select.entrada-s {
+  min-width: 150px;
+}
