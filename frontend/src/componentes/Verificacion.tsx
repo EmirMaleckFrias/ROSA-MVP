@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import type { Afirmacion, Cobertura } from '../datos/tipos';
 import { veredictoConCobertura } from '../lib/cobertura';
-import { TIPO_AFIRMACION, VEREDICTO } from '../lib/etiquetas';
+import { TIPO_AFIRMACION, tipoAfirmacion, VEREDICTO } from '../lib/etiquetas';
 import { resumirVerificacion } from '../lib/hipotesis';
 import { IconAlert, IconCheck, IconChevronDown } from './icons';
 import { Chip } from './piezas';
@@ -55,8 +55,8 @@ export function Verificacion({ afirmaciones, cobertura = null, ocultarCitas = fa
                 <span className={`verif-veredicto tono-${v.tono}`}>
                   {etiqueta}
                   <br />
-                  <Chip tono={a.tipo === 'interpretacion' ? 'aviso' : 'borde'} title={TIPO_AFIRMACION[a.tipo].nota}>
-                    {TIPO_AFIRMACION[a.tipo].etiqueta}
+                  <Chip tono={a.tipo === 'interpretacion' ? 'aviso' : 'borde'} title={tipoAfirmacion(a.tipo).nota}>
+                    {tipoAfirmacion(a.tipo).etiqueta}
                   </Chip>
                 </span>
                 <span className="verif-texto">

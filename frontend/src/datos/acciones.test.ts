@@ -9,6 +9,7 @@ import {
   registrarProtocoloReal,
   aprobarPlan,
   bifurcarInvestigacion,
+  borrarCriterio,
   crearInvestigacion,
   decidirDataset,
   detenerCorrida,
@@ -386,5 +387,16 @@ describe('gobierno de areas', () => {
     expect(asignada.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!.corridaId).toBe(corrida.id);
     const suelta = cambiarEstadoArea(asignada, invId, 'area-1', null, 'persona', T + 1, '', '');
     expect(suelta.investigaciones.find((i) => i.id === invId)!.mision!.areas![0]!.corridaId).toBeNull();
+  });
+});
+
+describe('borrarCriterio', () => {
+  it('borra por texto y no por posicion cuando la lista cambio', () => {
+    const base = { ...estadoDeMuestra(), criteriosRevision: ['a', 'b', 'c'] };
+    // La persona veia 'b' en la posicion 1, pero el servidor ya quito 'a'.
+    const servidor = { ...base, criteriosRevision: ['b', 'c'] };
+    expect(borrarCriterio(servidor, 1, 'b').criteriosRevision).toEqual(['c']);
+    expect(borrarCriterio(servidor, 1).criteriosRevision).toEqual(['b']);
+    expect(borrarCriterio(servidor, 5, 'zzz')).toBe(servidor);
   });
 });

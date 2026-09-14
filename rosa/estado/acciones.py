@@ -1383,10 +1383,18 @@ def anadir_criterio(e: Estado, texto: str) -> bool:
     return True
 
 
-def borrar_criterio(e: Estado, indice: int) -> bool:
-    if not (0 <= indice < len(e["criteriosRevision"])):
+def borrar_criterio(e: Estado, indice: int | None = None, texto: str | None = None) -> bool:
+    """Con `texto` se borra la primera coincidencia exacta; la posicion es el
+    respaldo. Dos pestanas que borran a la vez no se llevan un criterio ajeno."""
+    lista = e["criteriosRevision"]
+    if texto is not None:
+        if texto not in lista:
+            return False
+        lista.remove(texto)
+        return True
+    if indice is None or not (0 <= indice < len(lista)):
         return False
-    del e["criteriosRevision"][indice]
+    del lista[indice]
     return True
 
 

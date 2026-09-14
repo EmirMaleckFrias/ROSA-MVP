@@ -3178,3 +3178,18 @@ mark.fuerte {
   opacity: 0.45;
   cursor: default;
 }
+
+/* Aviso de una accion rechazada por el servidor o de un dato que cambio
+   mientras se revisaba. Vive bajo la cabecera hasta que se cierra. */
+.aviso-conflicto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 20px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--aviso, #c98a1a);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--aviso, #c98a1a) 12%, transparent);
+  font-size: 13px;
+}

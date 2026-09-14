@@ -55,6 +55,26 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
     horas: String(m?.presupuesto.horas ?? 72),
   }));
   const [resp, setResp] = useState<Responsables>(() => ({ patrocinador: '', liderCientifico: '', metodos: '', datos: '', ingenieria: '', laboratorio: '', evaluacion: '', ...(m?.responsables ?? {}) }));
+  const [error, setError] = useState<string | null>(null);
+  // Si Rosa propone o cambia la mision mientras no se esta editando, el
+  // formulario se rehidrata: lo que se ve es lo que hay, no lo del primer render.
+  const firmaMision = JSON.stringify(m ?? null);
+  useEffect(() => {
+    if (editando) return;
+    setD({
+      poblacion: m?.poblacion ?? '',
+      etapa: m?.etapa ?? '',
+      celulaTejido: m?.celulaTejido ?? '',
+      mecanismo: m?.mecanismo ?? '',
+      tipoIntervencion: m?.tipoIntervencion ?? '',
+      capacidades: (m?.capacidadesLaboratorio ?? []).join('\n'),
+      llamadas: String(m?.presupuesto.llamadas ?? 1500),
+      usd: String(m?.presupuesto.usd ?? 60),
+      horas: String(m?.presupuesto.horas ?? 72),
+    });
+    setResp({ patrocinador: '', liderCientifico: '', metodos: '', datos: '', ingenieria: '', laboratorio: '', evaluacion: '', ...(m?.responsables ?? {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firmaMision, inv.id]);
   const ROLES: { k: keyof Responsables; label: string; nota: string }[] = [
     { k: 'patrocinador', label: 'Patrocinador', nota: 'Fija prioridades y autoriza recursos' },
     { k: 'liderCientifico', label: 'Lider cientifico', nota: 'Aprueba criterios cientificos e interpretaciones mayores' },
@@ -71,14 +91,22 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
     </div>
   );
   const guardar = () => {
+    const llamadas = Number(d.llamadas);
+    const usd = Number(d.usd);
+    const horas = Number(d.horas);
+    if (![llamadas, usd, horas].every((n) => Number.isFinite(n) && n > 0)) {
+      setError('El presupuesto (llamadas, USD y horas) tiene que ser un numero mayor que cero.');
+      return;
+    }
+    setError(null);
     acciones.aprobarMision(inv.id, {
       poblacion: d.poblacion,
       etapa: d.etapa,
       celulaTejido: d.celulaTejido,
       mecanismo: d.mecanismo,
       tipoIntervencion: d.tipoIntervencion,
-      capacidadesLaboratorio: d.capacidades.split('\n'),
-      presupuesto: { llamadas: Number(d.llamadas), usd: Number(d.usd), horas: Number(d.horas) },
+      capacidadesLaboratorio: d.capacidades.split('\n').map((c) => c.trim()).filter(Boolean),
+      presupuesto: { llamadas, usd, horas },
       responsables: resp,
     });
     setEditando(false);
@@ -190,6 +218,7 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
         ))}
       </div>
       <div className="acciones">
+        {error && <p className="tono-mal" role="alert" style={{ fontSize: 13 }}>{error}</p>}
         <button type="button" className="btn btn-primario" onClick={guardar}>
           Aprobar la mision
         </button>
@@ -293,6 +322,13 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
   const q = corrida.pregunta;
   const [editando, setEditando] = useState(false);
   const [f, setF] = useState<PreguntaCampana>(() => q ?? { contexto: '', etapa: '', intervencion: '', comparador: '', desenlace: '', ventana: '', unidadBiologica: '', mecanismos: '', decision: '', umbralEfecto: '', umbralResuelto: false, pasoRuta: 'mecanismo', propuestaPorRosa: false, aprobadaEn: null });
+  // Cuando Rosa formula o reformula la pregunta y nadie la esta corrigiendo,
+  // el formulario toma la version nueva.
+  const firmaPregunta = JSON.stringify(q ?? null);
+  useEffect(() => {
+    if (!editando && q) setF(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firmaPregunta, corrida.id]);
   if (q === undefined || q === null) return null;
   const campo = (k: keyof PreguntaCampana, label: string) => (
     <div className="campo" key={k}>
@@ -554,7 +590,9 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
   const planes = new Map((estado.planesAnalisis ?? []).map((p) => [p.id, p]));
   const inv = estado.investigaciones.find((i) => i.id === h.investigacionId);
   const datasets = (inv?.datasets ?? []).filter((d) => d.estado === 'aprobado' && d.procedencia?.hash);
-  const [ds, setDs] = useState(datasets[0]?.id ?? '');
+  const [dsElegido, setDs] = useState(datasets[0]?.id ?? '');
+  // Si el dataset elegido ya no esta (o al montar no habia ninguno), se usa el primero.
+  const ds = datasets.some((x) => x.id === dsElegido) ? dsElegido : datasets[0]?.id ?? '';
   const [pregunta, setPregunta] = useState('');
   const puerta = inv?.puertaReproduccion;
   const puertaOk = puerta ? puerta.estado === 'abierta' || puerta.estado === 'eximida' : false;
@@ -713,7 +751,8 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
   const puerta = inv.puertaReproduccion ?? { requeridas: 3, superadas: 0, estado: 'bloqueada' as const, eximidaPor: null, motivo: '', fecha: null };
   const reps = (estado.reproducciones ?? []).filter((r) => r.investigacionId === inv.id);
   const datasets = inv.datasets.filter((d) => d.procedencia?.hash);
-  const [ds, setDs] = useState(datasets[0]?.id ?? '');
+  const [dsElegido, setDs] = useState(datasets[0]?.id ?? '');
+  const ds = datasets.some((x) => x.id === dsElegido) ? dsElegido : datasets[0]?.id ?? '';
   const [d, setD] = useState({ referencia: '', doi: '', descripcion: '', cifraPublicada: '', valorPublicado: '', tolerancia: '0.1' });
   const [error, setError] = useState<string | null>(null);
   const tono = puerta.estado === 'abierta' ? 'ok' : puerta.estado === 'eximida' ? 'aviso' : 'mal';
@@ -1190,8 +1229,9 @@ export function Candidatas({ inv, estado, candidatas, noCandidatas }: { inv: Inv
               <a className="enlace" href={rutaDe(inv.id, 'hipotesis', h.id)}>
                 {h.titulo}
               </a>
-              <span className="meta">
+              <span className="meta" title={h.bt ? 'Elo del torneo y fuerza de Bradley-Terry (lo que ordena a las candidatas)' : undefined}>
                 {h.cluster} · Elo {h.elo}
+                {h.bt ? ` · BT ${h.bt.fuerza}` : ''}
               </span>
             </li>
           ))}

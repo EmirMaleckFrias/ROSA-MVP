@@ -186,6 +186,12 @@ export const TIPO_AFIRMACION: Record<TipoAfirmacion, { etiqueta: string; nota: s
   interpretacion: { etiqueta: 'Interpretacion', nota: 'Es una inferencia de Rosa sobre datos o literatura. Es el tipo que mas falla.' },
 };
 
+/** Etiqueta de un tipo de afirmacion aunque el servidor mande uno que esta
+ *  interfaz no conoce (version nueva del backend): no se rompe la pantalla. */
+export function tipoAfirmacion(t: string): { etiqueta: string; nota: string } {
+  return (TIPO_AFIRMACION as Record<string, { etiqueta: string; nota: string }>)[t] ?? { etiqueta: t || 'sin tipo', nota: 'Tipo de afirmacion que esta version de la interfaz no conoce.' };
+}
+
 export const TIPO_HALLAZGO: Record<TipoHallazgo, string> = {
   cita_no_sostiene: 'La cita no sostiene la afirmacion',
   doi_otro_articulo: 'El DOI resuelve a otro articulo',

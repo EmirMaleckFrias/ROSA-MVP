@@ -4,7 +4,7 @@
 // planes guardados, avisos por Slack o correo con el resumen diario, y
 // apariencia.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { sugerenciasDeAutonomia } from '../datos/acciones';
 import type { ClaseAccion, EstadoRosa, NivelAutonomia, PoliticaEsperas } from '../datos/tipos';
@@ -23,6 +23,30 @@ const CRITERIOS_INTEGRADOS = [
   'Nada se aprueba por omision: sin veredicto es "sin verificar".',
   'Una "ausencia refutada" solo vale si la busqueda del tema ha convergido.',
 ];
+
+/** Un campo de texto que guarda al salir (o con Enter), no en cada tecla:
+ *  cada guardado es una accion que viaja al servidor y queda en el registro. */
+function EntradaDiferida({ id, valor, onGuardar, tipo = 'text' }: { id: string; valor: string; onGuardar: (v: string) => void; tipo?: string }) {
+  const [v, setV] = useState(valor);
+  useEffect(() => {
+    setV(valor);
+  }, [valor]);
+  const guardar = () => {
+    if (v !== valor) onGuardar(v);
+  };
+  return (
+    <input
+      id={id}
+      type={tipo}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={guardar}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') guardar();
+      }}
+    />
+  );
+}
 
 function Recuerdo({ id, texto }: { id: string; texto: string }) {
   const [valor, setValor] = useState(texto);
@@ -50,6 +74,13 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
   const [tema, setTema] = useTema();
   const [criterio, setCriterio] = useState('');
   const [politica, setPolitica] = useState<PoliticaEsperas>(estado.politicaEsperas);
+  // Si la politica cambia en el servidor (otra pestana, otra persona), el
+  // formulario la toma; lo que se ve nunca es una copia vieja.
+  const firmaPolitica = JSON.stringify(estado.politicaEsperas);
+  useEffect(() => {
+    setPolitica(estado.politicaEsperas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firmaPolitica]);
   const avisos = estado.avisos;
   const sugerencias = sugerenciasDeAutonomia(estado);
   const inv = estado.investigaciones[0];
@@ -203,7 +234,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           {estado.criteriosRevision.map((c, i) => (
             <li key={c}>
               <span>{c}</span>
-              <button type="button" className="btn btn-fantasma btn-icono" aria-label="Quitar criterio" onClick={() => acciones.borrarCriterio(i)}>
+              <button type="button" className="btn btn-fantasma btn-icono" aria-label="Quitar criterio" onClick={() => acciones.borrarCriterio(i, c)}>
                 <IconTrash size={14} />
               </button>
             </li>
@@ -246,7 +277,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           {avisos.slack.activo && (
             <div className="campo">
               <label htmlFor="slack-canal">Canal</label>
-              <input id="slack-canal" value={avisos.slack.canal} onChange={(e) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, canal: e.target.value } })} />
+              <EntradaDiferida id="slack-canal" valor={avisos.slack.canal} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, canal: v } })} />
               <small>La conexion con Slack se hara con un boton "Conectar con Slack" cuando Rosa este en su servidor; aqui solo se elige el canal.</small>
             </div>
           )}
@@ -257,7 +288,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           {avisos.correo.activo && (
             <div className="campo">
               <label htmlFor="correo-dir">Direccion</label>
-              <input id="correo-dir" type="email" value={avisos.correo.direccion} onChange={(e) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, direccion: e.target.value } })} />
+              <EntradaDiferida id="correo-dir" tipo="email" valor={avisos.correo.direccion} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, direccion: v } })} />
             </div>
           )}
           <p className="campo-etiqueta">Avisar cuando</p>

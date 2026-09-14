@@ -4,7 +4,7 @@
 // esperan, para verlo sin abrir la pestana.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRosa } from './datos/almacen';
+import { cerrarAvisoConflicto, useAvisoConflicto, useRosa } from './datos/almacen';
 import { BarraLateral } from './componentes/BarraLateral';
 import { BusquedaGlobal } from './componentes/BusquedaGlobal';
 import { Cabecera } from './componentes/Cabecera';
@@ -36,6 +36,7 @@ const TITULO_PANTALLA = {
 
 export default function App() {
   const estado = useRosa();
+  const aviso = useAvisoConflicto();
   const [ruta] = useRuta();
   const ahora = useAhora();
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -102,7 +103,7 @@ export default function App() {
       titulo = TITULO_PANTALLA[ruta.pantalla];
       switch (ruta.pantalla) {
         case 'corrida':
-          pantalla = <Corrida inv={inv} estado={estado} ahora={ahora} irA={irA} />;
+          pantalla = <Corrida key={inv.id} inv={inv} estado={estado} ahora={ahora} irA={irA} />;
           break;
         case 'hipotesis':
           pantalla = <Hipotesis inv={inv} estado={estado} ahora={ahora} detalleId={ruta.detalleId} cajonAbierto={cajonAbierto} setCajonAbierto={setCajonAbierto} irA={irA} />;
@@ -123,7 +124,7 @@ export default function App() {
           pantalla = <Calidad inv={inv} estado={estado} ahora={ahora} />;
           break;
         case 'investigacion':
-          pantalla = <Investigacion inv={inv} estado={estado} ahora={ahora} irA={irA} />;
+          pantalla = <Investigacion key={inv.id} inv={inv} estado={estado} ahora={ahora} irA={irA} />;
           break;
       }
     }
@@ -138,6 +139,14 @@ export default function App() {
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
         <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} />
+        {aviso && (
+          <div className="aviso-conflicto" role="alert">
+            <span>{aviso.texto}</span>
+            <button type="button" className="btn btn-s" onClick={cerrarAvisoConflicto}>
+              Entendido
+            </button>
+          </div>
+        )}
         {pantalla}
       </main>
       <BusquedaGlobal estado={estado} investigacionId={inv?.id ?? null} abierta={buscando} onCerrar={() => setBuscando(false)} />

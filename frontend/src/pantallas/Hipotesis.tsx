@@ -842,6 +842,7 @@ export function Hipotesis({
             </a>
           </p>
           <Detalle
+            key={seleccionada.id}
             h={seleccionada}
             estado={estado}
             ahora={ahora}

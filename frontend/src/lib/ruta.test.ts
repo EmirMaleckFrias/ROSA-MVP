@@ -43,3 +43,10 @@ describe('formatearRuta', () => {
     expect(rutaDe('inv 1', 'corrida')).toBe('#/investigaciones/inv%201/corrida');
   });
 });
+
+describe('parsearRuta con URL rota', () => {
+  it('un porcentaje suelto no lanza: va al inicio', () => {
+    expect(parsearRuta('#/investigaciones/inv%/hipotesis')).toEqual({ tipo: 'inicio' });
+    expect(parsearRuta('#/investigaciones/%E0%A4%A/corrida')).toEqual({ tipo: 'inicio' });
+  });
+});

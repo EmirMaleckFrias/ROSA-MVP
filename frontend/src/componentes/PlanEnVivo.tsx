@@ -137,15 +137,29 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
               </span>
               <div className="paso-cuerpo">
                 <div className="paso-fila-edicion">
-                  <input className="entrada entrada-s" value={paso.titulo} onChange={(e) => onEditarPlan?.(iteracion.plan.map((p) => (p.id === paso.id ? { ...p, titulo: e.target.value } : p)))} aria-label={`Titulo del paso ${i + 1}`} />
+                  <input
+                    className="entrada entrada-s"
+                    key={`t-${paso.id}-${paso.titulo}`}
+                    defaultValue={paso.titulo}
+                    onBlur={(e) => {
+                      const t = e.target.value.trim();
+                      if (t && t !== paso.titulo) onEditarPlan?.(iteracion.plan.map((p) => (p.id === paso.id ? { ...p, titulo: t } : p)));
+                    }}
+                    aria-label={`Titulo del paso ${i + 1}`}
+                  />
                   <input
                     className="entrada entrada-s"
                     type="number"
                     min={0}
-                    value={paso.presupuesto ?? ''}
+                    key={`p-${paso.id}-${paso.presupuesto ?? ''}`}
+                    defaultValue={paso.presupuesto ?? ''}
                     placeholder="llamadas"
                     style={{ maxWidth: 110 }}
-                    onChange={(e) => onEditarPlan?.(iteracion.plan.map((p) => (p.id === paso.id ? { ...p, presupuesto: e.target.value === '' ? null : Number(e.target.value) } : p)))}
+                    onBlur={(e) => {
+                      const nuevo = e.target.value === '' ? null : Number(e.target.value);
+                      if (nuevo !== null && !(Number.isFinite(nuevo) && nuevo >= 0)) return;
+                      if (nuevo !== (paso.presupuesto ?? null)) onEditarPlan?.(iteracion.plan.map((p) => (p.id === paso.id ? { ...p, presupuesto: nuevo } : p)));
+                    }}
                     aria-label={`Presupuesto del paso ${i + 1}`}
                   />
                   <button type="button" className="btn btn-fantasma btn-icono btn-s" aria-label="Subir" disabled={i === 0} onClick={() => mover(i, -1)}>

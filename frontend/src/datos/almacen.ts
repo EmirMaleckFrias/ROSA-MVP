@@ -122,10 +122,57 @@ export function modoActual(): 'muestra' | 'servidor' {
    Conexion con el servidor
    --------------------------------------------------------------------- */
 
-function recibirRemoto(remoto: EstadoRosa): void {
+/** Version del estado del servidor que ya se pinto (llega como `id` del
+ *  evento SSE y como cabecera X-Rosa-Version en /estado). Sirve para no
+ *  pisar un estado nuevo con la respuesta tardia de una peticion vieja. */
+let versionRemota = -1;
+
+function recibirRemoto(remoto: EstadoRosa, version: number | null = null): void {
   const visita = leerVisita();
   estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
+  if (version !== null) versionRemota = version;
   notificar();
+}
+
+function versionDe(texto: string | null | undefined): number | null {
+  if (texto === null || texto === undefined || texto === '') return null;
+  const n = Number(texto);
+  return Number.isFinite(n) ? n : null;
+}
+
+/* ---------------------------------------------------------------------
+   Aviso de conflicto: una accion que el servidor rechazo o un dato que
+   cambio mientras se revisaba. Se muestra en la cabecera hasta que se cierra.
+   --------------------------------------------------------------------- */
+
+export interface AvisoConflicto {
+  texto: string;
+  en: number;
+}
+
+let avisoConflicto: AvisoConflicto | null = null;
+const oyentesAviso = new Set<() => void>();
+
+function fijarAviso(texto: string): void {
+  avisoConflicto = { texto, en: Date.now() };
+  for (const o of oyentesAviso) o();
+}
+
+export function cerrarAvisoConflicto(): void {
+  if (avisoConflicto === null) return;
+  avisoConflicto = null;
+  for (const o of oyentesAviso) o();
+}
+
+export function useAvisoConflicto(): AvisoConflicto | null {
+  return useSyncExternalStore(
+    (o) => {
+      oyentesAviso.add(o);
+      return () => oyentesAviso.delete(o);
+    },
+    () => avisoConflicto,
+    () => avisoConflicto,
+  );
 }
 
 let fuenteEventos: EventSource | null = null;
@@ -152,7 +199,13 @@ function vigilarFlujo(): void {
 async function resincronizar(): Promise<void> {
   try {
     const r = await fetch(conToken(`${API}/estado`), { cache: 'no-store', headers: cabeceras(false) });
-    if (r.ok) recibirRemoto((await r.json()) as EstadoRosa);
+    if (r.ok) {
+      const cuerpo = (await r.json()) as EstadoRosa;
+      const version = versionDe(r.headers.get('X-Rosa-Version'));
+      // Una respuesta que llega despues de que el flujo ya trajo algo mas nuevo
+      // no se pinta: el flujo va en orden, la peticion suelta no.
+      if (version === null || version >= versionRemota) recibirRemoto(cuerpo, version);
+    }
   } catch {
     if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
   }
@@ -171,7 +224,8 @@ function abrirEventos(): void {
   es.addEventListener('estado', (ev) => {
     ultimaSenal = Date.now();
     try {
-      recibirRemoto(JSON.parse((ev as MessageEvent).data) as EstadoRosa);
+      const m = ev as MessageEvent;
+      recibirRemoto(JSON.parse(m.data) as EstadoRosa, versionDe(m.lastEventId));
     } catch {
       // Un mensaje corrupto no tumba la interfaz; el siguiente lo arregla.
     }
@@ -198,13 +252,13 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
       if (!r.ok) {
         // 4xx: el servidor rechazo la accion (argumentos, permiso). No es un corte de
         // conexion: se deshace el cambio optimista volviendo a pedir el estado.
-        avisoConflicto = `El servidor no acepto la accion ${nombre} (${r.status}).`;
+        fijarAviso(`El servidor no acepto la accion "${nombre}" (${r.status}). Se recargo el estado del servidor; lo que veias como aplicado no lo estaba.`);
         void resincronizar();
         return;
       }
       const d = (await r.json().catch(() => null)) as { ok?: boolean } | null;
       if (d && d.ok === false) {
-        avisoConflicto = `El servidor no aplico la accion ${nombre}: la regla no se cumplia.`;
+        fijarAviso(`El servidor no aplico la accion "${nombre}": la regla no se cumplia (otro cambio llego antes). Se recargo el estado.`);
         void resincronizar();
       }
     })
@@ -219,20 +273,13 @@ async function enviarYComprobar(nombre: string, args: Record<string, unknown>): 
   if (modo !== 'servidor') return null;
   try {
     const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args) });
-    if (!r.ok) return null;
+    if (r.status >= 500) return null;
+    if (!r.ok) return false;
     const cuerpo = (await r.json()) as { ok: boolean };
     return cuerpo.ok;
   } catch {
     return null;
   }
-}
-
-/** Ultimo aviso de conflicto para la pantalla; se consume al leerlo. */
-let avisoConflicto: string | null = null;
-export function tomarAvisoConflicto(): string | null {
-  const a = avisoConflicto;
-  avisoConflicto = null;
-  return a;
 }
 
 /** Intenta el servidor; si no esta, arranca la muestra. Idempotente. */
@@ -347,7 +394,7 @@ export const acciones = {
     aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada));
     void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
       if (ok === false) {
-        avisoConflicto = 'La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.';
+        fijarAviso('La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.');
         void resincronizar();
       }
     });
@@ -434,10 +481,18 @@ export const acciones = {
       return r.estado;
     });
     if (id !== null) {
-      enviar('crearInvestigacion', { datos: conQuien, id_: id });
-      // Con servidor, la primera corrida arranca sola: Rosa propone el plan
-      // y lo deja esperando aprobacion.
-      enviar('iniciarCorrida', { investigacion_id: id });
+      // Con servidor, la primera corrida arranca sola: Rosa propone el plan y
+      // lo deja esperando aprobacion. Se encadena tras la respuesta de crear:
+      // dos peticiones sueltas pueden llegar al servidor en orden cambiado.
+      const invId = id;
+      void enviarYComprobar('crearInvestigacion', { datos: conQuien, id_: invId }).then((ok) => {
+        if (ok === false) {
+          fijarAviso('El servidor no creo la investigacion. Se recargo el estado.');
+          void resincronizar();
+          return;
+        }
+        enviar('iniciarCorrida', { investigacion_id: invId });
+      });
     }
     return id;
   },
@@ -509,9 +564,11 @@ export const acciones = {
     aplicar((e) => A.anadirCriterio(e, texto));
     enviar('anadirCriterio', { texto });
   },
-  borrarCriterio: (indice: number) => {
-    aplicar((e) => A.borrarCriterio(e, indice));
-    enviar('borrarCriterio', { indice });
+  /** Se borra por texto, no por posicion: si la lista cambio en el servidor
+   *  mientras se miraba, la posicion apuntaria a otro criterio. */
+  borrarCriterio: (indice: number, texto: string) => {
+    aplicar((e) => A.borrarCriterio(e, indice, texto));
+    enviar('borrarCriterio', { indice, texto });
   },
   actualizarAvisos: (avisos: Avisos) => {
     aplicar((e) => A.actualizarAvisos(e, avisos));

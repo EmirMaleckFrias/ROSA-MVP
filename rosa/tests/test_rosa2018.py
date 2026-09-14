@@ -824,3 +824,12 @@ def test_skills_con_acentos_y_crlf():
     meta, cuerpo = SK._frontmatter("---\r\nname: x\r\ndescription: y\r\n---\r\ncuerpo\r\n")
     assert meta.get("name") == "x" and cuerpo.strip() == "cuerpo"
     assert SK._sin_acentos("Expresión Diferencial") == "expresion diferencial"
+
+
+def test_borrar_criterio_por_texto():
+    from rosa.estado import acciones as A
+
+    e = {"criteriosRevision": ["a", "b", "c"]}
+    assert A.borrar_criterio(e, indice=1, texto="c") and e["criteriosRevision"] == ["a", "b"]
+    assert A.borrar_criterio(e, indice=0) and e["criteriosRevision"] == ["b"]
+    assert not A.borrar_criterio(e, texto="zzz") and not A.borrar_criterio(e, indice=7) and not A.borrar_criterio(e)

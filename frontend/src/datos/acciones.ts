@@ -1187,8 +1187,12 @@ export function anadirCriterio(estado: EstadoRosa, texto: string): EstadoRosa {
   return { ...estado, criteriosRevision: [...estado.criteriosRevision, limpio] };
 }
 
-export function borrarCriterio(estado: EstadoRosa, indice: number): EstadoRosa {
-  return { ...estado, criteriosRevision: estado.criteriosRevision.filter((_, i) => i !== indice) };
+export function borrarCriterio(estado: EstadoRosa, indice: number, texto?: string): EstadoRosa {
+  // Con texto se borra la primera coincidencia; la posicion es solo el
+  // respaldo cuando no se conoce el texto.
+  const i = texto !== undefined ? estado.criteriosRevision.indexOf(texto) : indice;
+  if (i < 0 || i >= estado.criteriosRevision.length) return estado;
+  return { ...estado, criteriosRevision: estado.criteriosRevision.filter((_, j) => j !== i) };
 }
 
 export function actualizarAvisos(estado: EstadoRosa, avisos: Avisos): EstadoRosa {

@@ -106,7 +106,7 @@ export function Artefactos({ inv, estado, ahora, detalleId }: { inv: Investigaci
   const [busqueda, setBusqueda] = useState('');
   const propios = estado.artefactos.filter((a) => a.investigacionId === inv.id);
   const seleccionado = propios.find((a) => a.id === detalleId);
-  if (seleccionado) return <DetalleArtefacto a={seleccionado} inv={inv} ahora={ahora} />;
+  if (seleccionado) return <DetalleArtefacto key={seleccionado.id} a={seleccionado} inv={inv} ahora={ahora} />;
   const q = busqueda.trim().toLowerCase();
   const visibles = propios.filter((a) => q === '' || a.nombre.toLowerCase().includes(q) || TIPO_ARTEFACTO[a.tipo].toLowerCase().includes(q)).sort((a, b) => Number(b.destacado) - Number(a.destacado));
   const fuentes: Fuente[] = [];

@@ -29,7 +29,12 @@ function esPantalla(valor: string): valor is Pantalla {
 export function parsearRuta(hash: string): Ruta {
   const limpio = hash.replace(/^#/, '').replace(/^\/+/, '').replace(/\/+$/, '');
   if (limpio === '') return { tipo: 'inicio' };
-  const partes = limpio.split('/').map((p) => decodeURIComponent(p));
+  let partes: string[];
+  try {
+    partes = limpio.split('/').map((p) => decodeURIComponent(p));
+  } catch {
+    return { tipo: 'inicio' }; // un % suelto en la URL no tumba la aplicacion
+  }
   if (partes[0] === 'nueva') return { tipo: 'nueva' };
   if (partes[0] === 'ajustes') return { tipo: 'ajustes' };
   if (partes[0] === 'investigaciones' && partes[1]) {

@@ -18,6 +18,11 @@ export function Chip({ tono, children, title }: { tono?: 'ok' | 'aviso' | 'mal' 
 /** Hora absoluta y relativa a la vez: "10 sep, 14:30 · hace 5 min". En una
  *  corrida de dias, "hace 31 min" no basta para auditar. */
 export function Momento({ t, ahora, soloRelativo = false }: { t: number; ahora: number; soloRelativo?: boolean }) {
+  if (!Number.isFinite(t) || t <= 0) {
+    // Un momento ausente o corrupto (null convertido, NaN) no puede tumbar la
+    // pantalla entera por un toISOString que lanza.
+    return <span className="momento meta">sin fecha</span>;
+  }
   const abs = fechaCorta(t);
   const rel = tiempoRelativo(t, ahora);
   return (
