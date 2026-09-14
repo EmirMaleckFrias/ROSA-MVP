@@ -49,7 +49,7 @@ function CitasDelHecho({ h }: { h: HechoMundo }) {
 
 function TarjetaHecho({ h, ahora }: { h: HechoMundo; ahora: number }) {
   return (
-    <li className="hecho">
+    <div className="hecho">
       <div className="hecho-cabecera">
         <Chip tono={h.tipo === 'hipotesis' ? 'acento' : undefined}>{TIPO_HECHO[h.tipo]}</Chip>
         {h.tema !== TIPO_HECHO[h.tipo] && <Chip tono="borde">{h.tema}</Chip>}
@@ -75,7 +75,7 @@ function TarjetaHecho({ h, ahora }: { h: HechoMundo; ahora: number }) {
         <Momento t={h.actualizadoEn} ahora={ahora} />
         {h.historial.length > 1 && ` · ${h.historial.length} movimientos`}
       </span>
-    </li>
+    </div>
   );
 }
 

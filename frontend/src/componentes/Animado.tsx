@@ -3,7 +3,8 @@
 // reducido: entonces solo hay fundidos y los numeros cambian de golpe.
 
 import { AnimatePresence, animate, motion, useMotionValue, type TargetAndTransition } from 'motion/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
+import type React from 'react';
 import { aparecer, lista, RESORTE, useMovimientoReducido } from '../lib/movimiento';
 
 /** Envuelve un bloque para que entre suavemente al montarse. */
@@ -30,16 +31,40 @@ export function ListaAnimada({ children, className, como = 'div' }: { children: 
   );
 }
 
-/** Un elemento de ListaAnimada. `salida` es lo que hace al desaparecer. */
-export function ElementoAnimado({ children, className, salida, como = 'div', layout = true }: { children: ReactNode; className?: string; salida?: TargetAndTransition; como?: 'div' | 'li' | 'a' | 'article'; layout?: boolean }) {
+/** Un elemento de ListaAnimada. `salida` es lo que hace al desaparecer.
+ *  Lleva forwardRef porque AnimatePresence en modo popLayout mide al hijo
+ *  que sale para dejarlo en su sitio mientras los demas se recolocan. */
+export const ElementoAnimado = forwardRef<HTMLElement, { children: ReactNode; className?: string; salida?: TargetAndTransition; como?: 'div' | 'li' | 'article'; layout?: boolean }>(function ElementoAnimado({ children, className, salida, como = 'div', layout = true }, ref) {
   const reducido = useMovimientoReducido();
-  const Tag = motion[como];
+  const props = {
+    className,
+    layout: reducido ? false : layout,
+    variants: reducido ? undefined : aparecer,
+    initial: reducido ? { opacity: 0 } : undefined,
+    animate: reducido ? { opacity: 1 } : undefined,
+    exit: reducido ? { opacity: 0 } : (salida ?? { opacity: 0, y: -6, transition: { duration: 0.15 } }),
+    transition: RESORTE,
+  };
+  if (como === 'li') {
+    return (
+      <motion.li ref={ref as React.Ref<HTMLLIElement>} {...props}>
+        {children}
+      </motion.li>
+    );
+  }
+  if (como === 'article') {
+    return (
+      <motion.article ref={ref as React.Ref<HTMLElement>} {...props}>
+        {children}
+      </motion.article>
+    );
+  }
   return (
-    <Tag className={className} layout={reducido ? false : layout} variants={reducido ? undefined : aparecer} initial={reducido ? { opacity: 0 } : undefined} animate={reducido ? { opacity: 1 } : undefined} exit={reducido ? { opacity: 0 } : (salida ?? { opacity: 0, y: -6, transition: { duration: 0.15 } })} transition={RESORTE}>
+    <motion.div ref={ref as React.Ref<HTMLDivElement>} {...props}>
       {children}
-    </Tag>
+    </motion.div>
   );
-}
+});
 
 /** Un numero que corre hasta su valor cuando cambia (el Elo, un recuento).
  *  El ojo sigue el cambio y entiende la direccion sin leer el signo. */
