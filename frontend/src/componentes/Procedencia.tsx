@@ -55,11 +55,11 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
               {f.riesgoSesgo.instrumento} {RIESGO_SESGO[f.riesgoSesgo.global]?.etiqueta ?? f.riesgoSesgo.global}
             </Chip>
           )}
-          {f.pagina !== null && ` · pag. ${f.pagina}`}
+          {f.pagina !== null && ` · pág. ${f.pagina}`}
           {f.retraccion !== null && (
             <>
               {' · '}
-              <span className="fuente-retractada">{f.retraccion === 'retractado' ? 'Retractado' : f.retraccion === 'preocupacion' ? 'Expresión de preocupacion' : 'Erratum'}</span>
+              <span className="fuente-retractada">{f.retraccion === 'retractado' ? 'Retractado' : f.retraccion === 'preocupacion' ? 'Expresión de preocupación' : 'Erratum'}</span>
             </>
           )}
         </span>
@@ -67,7 +67,7 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
         <span className="acciones" style={{ gap: 6 }}>
           <Chip tono="borde">{TIPO_ESTUDIO[f.tipoEstudio]}</Chip>
           <Escalera nivel={f.nivelEvidencia} />
-          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'Rosa leyo el texto completo' : 'Rosa solo leyo el resumen: la verificación vale menos'}>
+          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'Rosa leyo el texto completo' : 'Rosa solo leyó el resumen: la verificación vale menos'}>
             {f.textoCompleto ? 'texto completo' : 'solo resumen'}
           </Chip>
           <span className="meta">
@@ -153,7 +153,7 @@ export function Procedencia({
         )}
         {pestana === 'codigo' &&
           (p.codigo.trim() === '' ? (
-            <p className="meta">Esta hipótesis no ejecuto código propio.</p>
+            <p className="meta">Esta hipótesis no ejecutó código propio.</p>
           ) : (
             <>
               <p className="meta">

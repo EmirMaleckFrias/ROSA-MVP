@@ -77,11 +77,11 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
   }, [firmaMision, inv.id]);
   const ROLES: { k: keyof Responsables; label: string; nota: string }[] = [
     { k: 'patrocinador', label: 'Patrocinador', nota: 'Fija prioridades y autoriza recursos' },
-    { k: 'liderCientifico', label: 'Lider científico', nota: 'Aprueba criterios científicos e interpretaciones mayores' },
+    { k: 'liderCientifico', label: 'Líder científico', nota: 'Aprueba criterios científicos e interpretaciones mayores' },
     { k: 'metodos', label: 'Métodos', nota: 'Válida los métodos causales y estadísticos' },
     { k: 'datos', label: 'Datos', nota: 'Bioinformatica y libro de procedencia' },
-    { k: 'ingenieria', label: 'Ingenieria', nota: 'Ejecución e integridad de los registros' },
-    { k: 'laboratorio', label: 'Laboratorio', nota: 'Protocolos fisicos y calidad' },
+    { k: 'ingenieria', label: 'Ingeniería', nota: 'Ejecución e integridad de los registros' },
+    { k: 'laboratorio', label: 'Laboratorio', nota: 'Protocolos físicos y calidad' },
     { k: 'evaluacion', label: 'Evaluación', nota: 'Conjuntos reservados y comparaciones; no es quien escribe la conclusión' },
   ];
   const campo = (k: keyof typeof d, label: string, marcador: string, filas = 1) => (
@@ -239,7 +239,7 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
 export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
   const t = h.tarjeta;
   return (
-    <Seccion titulo="Tarjeta de la hipótesis" nota="El contrato mínimo para que el Killer la juzgue y un laboratorio la ejecute: diana, célula, etapa, intervención, la predicción que la refutaria y sus riesgos. Sin predicción falsable no avanza.">
+    <Seccion titulo="Tarjeta de la hipótesis" nota="El contrato mínimo para que el Killer la juzgue y un laboratorio la ejecute: diana, célula, etapa, intervención, la predicción que la refutaría y sus riesgos. Sin predicción falsable no avanza.">
       {t === null || t === undefined ? (
         <p className="meta">{t === null ? 'Rosa no pudo rellenar la tarjeta.' : 'Rosa todavía no rellena la tarjeta de esta hipótesis.'}</p>
       ) : (
@@ -345,7 +345,7 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
       acciones={
         <div className="acciones">
           {q.aprobadaEn ? <Chip tono="ok">Aprobada</Chip> : <Chip tono="aviso">Propuesta por Rosa</Chip>}
-          {!q.umbralResuelto && <Chip tono="aviso" title="No hay un valor defendible del efecto mínimo que importaria">Umbral sin resolver</Chip>}
+          {!q.umbralResuelto && <Chip tono="aviso" title="No hay un valor defendible del efecto mínimo que importaría">Umbral sin resolver</Chip>}
           <button type="button" className="btn btn-s" onClick={() => setEditando((v) => !v)}>
             {editando ? 'Cancelar' : 'Corregir'}
           </button>
@@ -425,7 +425,7 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
 export function RegistroMetodos({ metodos, ahora }: { metodos: MetodoRegistrado[] | undefined; ahora: number }) {
   const lista = metodos ?? [];
   return (
-    <Seccion detalle titulo="Registro de métodos y ensayos" nota="Cada método dice que puede evaluar, donde aplica, que necesita, como se validó y en que estado esta. La popularidad no lo hace apto; la validacion si. La puerta de reproducción marca los métodos de análisis como probados en contexto. Un predictor no confirma sus propios datos de entrenamiento.">
+    <Seccion detalle titulo="Registro de métodos y ensayos" nota="Cada método dice que puede evaluar, donde aplica, que necesita, como se validó y en que estado esta. La popularidad no lo hace apto; la validación si. La puerta de reproducción marca los métodos de análisis como probados en contexto. Un predictor no confirma sus propios datos de entrenamiento.">
       {lista.length === 0 ? (
         <p className="meta">Sin servidor no hay registro que leer.</p>
       ) : (
@@ -475,7 +475,7 @@ function FilaMetodo({ m, ahora }: { m: MetodoRegistrado; ahora: number }) {
 export function Bloqueos({ bloqueos, candidata }: { bloqueos: Hipotesis['bloqueos']; candidata: boolean | undefined }) {
   const b = bloqueos ?? [];
   if (b.length === 0) {
-    return candidata ? <Chip tono="ok" title="Sin bloqueos, el Killer la dejo avanzar y esta entre las mejores con diversidad de cluster">Candidata al laboratorio</Chip> : <Chip tono="borde" title="Sin bloqueos no compensables">Sin bloqueos</Chip>;
+    return candidata ? <Chip tono="ok" title="Sin bloqueos, el Killer la dejo avanzar y está entre las mejores con diversidad de cluster">Candidata al laboratorio</Chip> : <Chip tono="borde" title="Sin bloqueos no compensables">Sin bloqueos</Chip>;
   }
   return (
     <span className="acciones" style={{ gap: 4 }}>
@@ -554,7 +554,7 @@ export function DecisionesKiller({ h, decisiones, ahora, conjuntoDorado = [] }: 
                 <th>Decisión</th>
                 <th>Quien</th>
                 <th>Motivo</th>
-                <th>Auditoria</th>
+                <th>Auditoría</th>
               </tr>
             </thead>
             <tbody>
@@ -764,7 +764,7 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
  *  mas caro, con la cifra publicada y una tolerancia razonable. Salen de la
  *  investigacion del 11 de septiembre de 2026 (INVESTIGACION-ROSA2018.md). */
 export const REPRODUCCIONES_SUGERIDAS: { referencia: string; doi: string; descripcion: string; cifraPublicada: string; valorPublicado: number; tolerancia: number; dataset: string }[] = [
-  { referencia: 'Blalock et al., 2004 (PNAS)', doi: '10.1073/pnas.0308512100', descripcion: 'GEO GSE1297, hipocampo, 31 arrays: correlacion de la expresión de cada gen con MMSE; recall del conjunto MSigDB BLALOCK_ALZHEIMERS_DISEASE_INCIPIENT_UP al mismo umbral', cifraPublicada: 'recall del conjunto UP (fraccion recuperada)', valorPublicado: 1.0, tolerancia: 0.4, dataset: 'GSE1297' },
+  { referencia: 'Blalock et al., 2004 (PNAS)', doi: '10.1073/pnas.0308512100', descripcion: 'GEO GSE1297, hipocampo, 31 arrays: correlación de la expresión de cada gen con MMSE; recall del conjunto MSigDB BLALOCK_ALZHEIMERS_DISEASE_INCIPIENT_UP al mismo umbral', cifraPublicada: 'recall del conjunto UP (fraccion recuperada)', valorPublicado: 1.0, tolerancia: 0.4, dataset: 'GSE1297' },
   { referencia: 'Marcus et al., 2007 (OASIS-1)', doi: '10.1162/jocn.2007.19.9.1498', descripcion: 'OASIS-1, 416 sujetos: diferencia de volumen cerebral normalizado (nWBV) entre CDR 0 y CDR 0,5 o mayor; misma dirección y p < 0,01', cifraPublicada: 'p-valor de la diferencia de nWBV por CDR (menor que 0,01)', valorPublicado: 0.005, tolerancia: 1.0, dataset: 'OASIS-1' },
   { referencia: 'Gabitto et al., 2024 (SEA-AD, Nat Neurosci)', doi: '10.1038/s41593-024-01774-5', descripcion: 'SEA-AD MTG, proporciones por donante con anotaciones de los autores: número de supertipos con cambio credible frente al CPS (scCODA, probabilidad de inclusión > 0,8)', cifraPublicada: 'supertipos con cambio credible (36 de 139)', valorPublicado: 36, tolerancia: 0.2, dataset: 'SEA-AD' },
 ];
@@ -785,7 +785,7 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
       id="puerta"
       plegable
       abierta={puerta.estado !== 'abierta'}
-      resumen={<span>{puerta.estado === 'abierta' ? `Abierta: ${puerta.superadas} de ${puerta.requeridas} análisis publicados reproducidos. Rosa ya puede descubrir con datos.` : puerta.estado === 'eximida' ? `Eximida por ${puerta.eximidaPor}: ${puerta.motivo}` : `Bloqueada: ${puerta.superadas} de ${puerta.requeridas} reproducidos. Hasta abrirla, ningun análisis con datos cuenta como descubrimiento.`}</span>}
+      resumen={<span>{puerta.estado === 'abierta' ? `Abierta: ${puerta.superadas} de ${puerta.requeridas} análisis publicados reproducidos. Rosa ya puede descubrir con datos.` : puerta.estado === 'eximida' ? `Eximida por ${puerta.eximidaPor}: ${puerta.motivo}` : `Bloqueada: ${puerta.superadas} de ${puerta.requeridas} reproducidos. Hasta abrirla, ningún análisis con datos cuenta como descubrimiento.`}</span>}
       titulo="Puerta de reproducción"
       nota="Antes de descubrir nada con datos, Rosa tiene que reproducir análisis ya publicados dentro de una tolerancia fijada de antemano. Si no lo consigue, un resultado nuevo no se distingue de un error del pipeline. Una persona puede eximirla dejando el motivo; queda como cambio de política."
       acciones={
@@ -809,7 +809,7 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
           <thead>
             <tr>
               <th>Referencia</th>
-              <th>Que se reproduce</th>
+              <th>Qué se reproduce</th>
               <th className="num">Publicado</th>
               <th className="num">Obtenido</th>
               <th className="num">Tolerancia</th>
@@ -863,7 +863,7 @@ export function PuertaYReproducciones({ inv, estado, ahora }: { inv: Investigaci
             </div>
           </div>
           <div className="campo">
-            <label htmlFor="rep-desc">Que se reproduce exactamente</label>
+            <label htmlFor="rep-desc">Qué se reproduce exactamente</label>
             <textarea id="rep-desc" rows={2} value={d.descripcion} onChange={(e) => setD({ ...d, descripcion: e.target.value })} />
           </div>
           <div className="rejilla-3">
@@ -936,13 +936,13 @@ export function LibroDeProcedencia({ inv, d }: { inv: Investigacion; d: Dataset 
   const p = d.procedencia;
   const [editando, setEditando] = useState(false);
   const [f, setF] = useState(() => ({ origen: p?.origen ?? '', version: p?.version ?? '', licencia: p?.licencia ?? '', permisos: p?.permisos ?? '', cohorte: p?.cohorte ?? '', restriccionIA: p?.restriccionIA ?? '', acceso: p?.acceso ?? 'propio', usoIAAutorizado: p?.usoIAAutorizado ?? 'desconocido', sintetico: p?.sintetico ?? false, permiteLlmTerceros: p?.permiteLlmTerceros ?? false, clase: p?.clase ?? 'observacion_original', diccionario: (p?.diccionario ?? []).map((c) => ({ ...c })) }));
-  if (!p) return <p className="meta">Sin fichero: los datasets del catalogo no tienen libro de procedencia hasta que se sube el fichero.</p>;
+  if (!p) return <p className="meta">Sin fichero: los datasets del catálogo no tienen libro de procedencia hasta que se sube el fichero.</p>;
   if (!editando) {
     return (
       <div className="procedencia-ds">
         <div className="acciones">
           <Chip tono={USO_IA[p.usoIAAutorizado].tono}>{USO_IA[p.usoIAAutorizado].etiqueta}</Chip>
-          <Chip tono={p.permiteLlmTerceros ? 'aviso' : 'ok'} title="Si las filas individuales pueden salir hacia el AI Gateway. Con datos controlados esta prohibido (NIH NOT-OD-25-081).">
+          <Chip tono={p.permiteLlmTerceros ? 'aviso' : 'ok'} title="Si las filas individuales pueden salir hacia el AI Gateway. Con datos controlados está prohibido (NIH NOT-OD-25-081).">
             {p.permiteLlmTerceros ? 'Filas pueden ir al modelo' : 'Al modelo solo agregados'}
           </Chip>
           {p.sintetico && <Chip tono="aviso">Sintético: no cuenta como evidencia</Chip>}
@@ -969,7 +969,7 @@ export function LibroDeProcedencia({ inv, d }: { inv: Investigacion; d: Dataset 
           </dd>
           {p.restriccionIA && (
             <>
-              <dt>Clausula de IA del acuerdo</dt>
+              <dt>Cláusula de IA del acuerdo</dt>
               <dd className="meta">{p.restriccionIA}</dd>
             </>
           )}
@@ -1009,7 +1009,7 @@ export function LibroDeProcedencia({ inv, d }: { inv: Investigacion; d: Dataset 
         {campo('licencia', 'Licencia o condiciones de uso', 'CC-BY 4.0; Allen Terms of Use')}
         {campo('permisos', 'Permisos y acuerdo de uso (id, fecha)', 'DUC Synapse v8.2, aprobado 2026-09-01')}
         {campo('cohorte', 'Cohorte de origen', 'ADNI')}
-        {campo('restriccionIA', 'Clausula de IA del acuerdo (literal)', 'Use of AI tools must be described in your IDU')}
+        {campo('restriccionIA', 'Cláusula de IA del acuerdo (literal)', 'Use of AI tools must be described in your IDU')}
       </div>
       <div className="rejilla-3">
         <div className="campo">
@@ -1242,11 +1242,11 @@ function FilaAprendizaje({ c, ahora }: { c: CambioAprendizaje; ahora: number }) 
 export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] }) {
   const filas: { clave: string; etiqueta: string; nota: string }[] = [
     { clave: 'maxHipotesisVivas', etiqueta: 'Hipótesis vivas por misión', nota: 'Al llegar, Rosa deja de generar hasta que se decidan algunas.' },
-    { clave: 'maxEvaluacionesCostosas', etiqueta: 'Evaluaciones costosas (análisis con datos) por corrida', nota: 'Cada una gasta código, sandbox y auditoria.' },
+    { clave: 'maxEvaluacionesCostosas', etiqueta: 'Evaluaciones costosas (análisis con datos) por corrida', nota: 'Cada una gasta código, sandbox y auditoría.' },
     { clave: 'maxCandidatos', etiqueta: 'Candidatas al laboratorio por ciclo', nota: 'Entre cero y esto. Cero es un resultado válido.' },
     { clave: 'maxReformulaciones', etiqueta: 'Reformulaciones por hipótesis', nota: 'Después, se descarta en este contexto.' },
     { clave: 'reproduccionesRequeridas', etiqueta: 'Análisis publicados a reproducir antes de descubrir', nota: 'La puerta de reproducción.' },
-    { clave: 'fraccionDescartesAuditados', etiqueta: 'Fraccion de descartes del Killer auditados', nota: 'Con otro método y otra familia de modelo.' },
+    { clave: 'fraccionDescartesAuditados', etiqueta: 'Fracción de descartes del Killer auditados', nota: 'Con otro método y otra familia de modelo.' },
     { clave: 'segundosMaxEjecucion', etiqueta: 'Segundos máximos por ejecución en el sandbox', nota: 'Pasado el tiempo es un error técnico, no un resultado nulo.' },
     { clave: 'memoriaMaxEjecucionMb', etiqueta: 'Memoria máxima del sandbox (MB)', nota: '' },
     { clave: 'presupuestoUsd', etiqueta: 'Presupuesto por defecto de una misión (USD estimados)', nota: 'Se fija por misión al aprobarla.' },
@@ -1256,7 +1256,7 @@ export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] })
     { clave: 'eloK', etiqueta: 'Factor K del Elo', nota: 'Cuanto mueve un partido el Elo.' },
   ];
   return (
-    <Seccion detalle titulo="Políticas" nota="Los límites del sistema viven en el código del servidor (rosa/políticas.py), no en este estado: ningun agente puede editarlos y cada cambio es un commit que queda en la versión de Rosa de cada corrida. Aquí solo se leen.">
+    <Seccion detalle titulo="Políticas" nota="Los límites del sistema viven en el código del servidor (rosa/políticas.py), no en este estado: ningún agente puede editarlos y cada cambio es un commit que queda en la versión de Rosa de cada corrida. Aquí solo se leen.">
       {!politicas ? (
         <p className="meta">Sin servidor no hay políticas que leer.</p>
       ) : (
@@ -1279,7 +1279,7 @@ export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] })
 /** Las candidatas al laboratorio y por que las demas no lo son. */
 export function Candidatas({ inv, estado, candidatas, noCandidatas }: { inv: Investigacion; estado: EstadoRosa; candidatas: Hipotesis[]; noCandidatas: { h: Hipotesis; bloqueos: NonNullable<Hipotesis['bloqueos']>; motivo: string }[] }) {
   return (
-    <Seccion titulo="Candidatas al laboratorio" nota={`Hasta ${estado.politicas?.maxCandidatos ?? 3} por ciclo, elegidas entre las que el Killer dejo avanzar y no tienen bloqueos no compensables, por Elo y sin repetir cluster mientras haya otros. Cero candidatas es un resultado legitimo: significa abstenerse.`}>
+    <Seccion titulo="Candidatas al laboratorio" nota={`Hasta ${estado.politicas?.maxCandidatos ?? 3} por ciclo, elegidas entre las que el Killer dejo avanzar y no tienen bloqueos no compensables, por Elo y sin repetir cluster mientras haya otros. Cero candidatas es un resultado legítimo: significa abstenerse.`}>
       {candidatas.length === 0 ? <p className="meta">Hoy ninguna hipótesis cumple: Rosa se abstiene de proponer nada al laboratorio.</p> : (
         <ol className="lista-limpia">
           {candidatas.map((h) => (
@@ -1512,7 +1512,7 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
     );
   };
   return (
-    <Seccion detalle titulo="Programa, áreas, campañas y preguntas" nota="La jerarquía del plan completo: una meta amplia se reparte en áreas comparables; cada área se trabaja en campañas (corridas) con una pregunta concreta y comprobable. Aquí se ve que área tiene campaña, cual esta pausada y con que condición, y que campaña todavía no tiene pregunta.">
+    <Seccion detalle titulo="Programa, áreas, campañas y preguntas" nota="La jerarquía del plan completo: una meta amplia se reparte en áreas comparables; cada área se trabaja en campañas (corridas) con una pregunta concreta y comprobable. Aquí se ve que área tiene campaña, cual está pausada y con que condición, y que campaña todavía no tiene pregunta.">
       <ul className="arbol">
         <li>
           <strong>Programa:</strong> {m.metaAmplia || inv.objetivo}
@@ -1577,7 +1577,7 @@ export function GrafoCausalDeHipotesis({ h }: { h: Hipotesis }) {
   const etiqueta = (id: string) => g.nodos.find((n) => n.id === id)?.etiqueta ?? id;
   const tono = g.identificacion === 'identificable' ? 'ok' : g.identificacion === 'acotado' ? 'aviso' : 'mal';
   return (
-    <Seccion detalle titulo="Supuestos causales (comprobador heurístico)" nota="No es un motor causal: no hay modelo estructural, ni criterio de puerta trasera, ni descubrimiento de estructura desde datos (la literatura de 2026 dice que eso no esta listo para biología). Es un comprobador por regla de los supuestos que separan asociación de causa: la exposición X, el desenlace Y, las alternativas que planteo el Killer y quince relaciones de consenso del Alzheimer escritas a mano. Un ensayo aleatorizado cierra la identificación; sin el, hacen falta temporalidad, ajuste por confusores y replicación independiente. Lo que falta es lo que un experimento tendria que aportar, y el Killer lo recibe como una comprobación más.">
+    <Seccion detalle titulo="Supuestos causales (comprobador heurístico)" nota="No es un motor causal: no hay modelo estructural, ni criterio de puerta trasera, ni descubrimiento de estructura desde datos (la literatura de 2026 dice que eso no está listo para biología). Es un comprobador por regla de los supuestos que separan asociación de causa: la exposición X, el desenlace Y, las alternativas que planteo el Killer y quince relaciones de consenso del Alzheimer escritas a mano. Un ensayo aleatorizado cierra la identificación; sin el, hacen falta temporalidad, ajuste por confusores y replicación independiente. Lo que falta es lo que un experimento tendría que aportar, y el Killer lo recibe como una comprobación más.">
       <div className="acciones">
         <Chip tono={tono}>{IDENTIFICACION_CAUSAL[g.identificacion] ?? g.identificacion}</Chip>
         <span className="meta">{g.resumen}</span>
@@ -1688,7 +1688,7 @@ export function PanelKiller({ estado }: { estado: EstadoRosa }) {
               </span>
             </div>
             {ev.resumen.acuerdo?.decision && (
-              <p className="meta" title="Kappa de Cohen: acuerdo entre la decisión esperada y la que salio, corregido por el que se daria por azar. Landis y Koch: 0,41 a 0,60 moderado, 0,61 a 0,80 sustancial, más de 0,80 casi perfecto.">
+              <p className="meta" title="Kappa de Cohen: acuerdo entre la decisión esperada y la que salió, corregido por el que se daría por azar. Landis y Koch: 0,41 a 0,60 moderado, 0,61 a 0,80 sustancial, más de 0,80 casi perfecto.">
                 Acuerdo por decision: kappa {ev.resumen.acuerdo.decision.kappa ?? 'n/a'} ({ev.resumen.acuerdo.decision.interpretacion}, n = {ev.resumen.acuerdo.decision.n})
                 {Object.entries(ev.resumen.acuerdo.porComprobacion).map(([c, a]) => ` · ${COMPROBACION_KILLER[c] ?? c}: ${a.kappa ?? 'n/a'}`).join('')}
               </p>
@@ -1740,7 +1740,7 @@ export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | un
   return (
     <Seccion detalle titulo="Conectores a bases públicas" nota={`Cada conector envuelve una API pública con su límite de peticiones y su licencia. Cada llamada deja un registro de consulta (herramienta, argumentos, fecha, resultados, identificadores, invariante comprobada) en la hipótesis que la pidió. ${disponibles} de ${lista.length} disponibles; el resto se lista con el motivo. Una fuente que no responde es "no pude comprobar", nunca "no hay".`}>
       {lista.length === 0 ? (
-        <p className="meta">El catalogo llega del servidor al arrancar.</p>
+        <p className="meta">El catálogo llega del servidor al arrancar.</p>
       ) : (
         grupos.map((g) => (
           <details key={g} className="versiones" open={g === 'alzheimer' || g === 'directorio'}>
@@ -1751,7 +1751,7 @@ export function Conectores({ conectores }: { conectores: ConectorCatalogo[] | un
               <thead>
                 <tr>
                   <th>Fuente</th>
-                  <th>Que aporta</th>
+                  <th>Qué aporta</th>
                   <th>Límite y licencia</th>
                   <th>Estado</th>
                   <th>Usos</th>
@@ -1867,7 +1867,7 @@ export function MemoriaDelProyecto({ inv }: { inv: Investigacion }) {
   const [texto, setTexto] = useState('');
   const memoria = inv.memoria ?? [];
   return (
-    <Seccion titulo="Memoria del proyecto" nota="Hechos cortos y estables que Rosa lee en cada misión, plan y revisión: una preferencia ('solo datos públicos'), una restriccion ('no proponer ensayos con fármacos retirados'), una decisión confirmada. No es para resultados ni para copiar literatura: para eso están los hechos y los artefactos.">
+    <Seccion titulo="Memoria del proyecto" nota="Hechos cortos y estables que Rosa lee en cada misión, plan y revisión: una preferencia ('solo datos públicos'), una restricción ('no proponer ensayos con fármacos retirados'), una decisión confirmada. No es para resultados ni para copiar literatura: para eso están los hechos y los artefactos.">
       {memoria.length === 0 ? <p className="meta">Sin memoria todavía.</p> : null}
       <ul className="lista-plana">
         {memoria.map((m) => (
@@ -1908,9 +1908,9 @@ export function PreguntarALasBases({ inv, ahora }: { inv: Investigacion; ahora: 
   const [error, setError] = useState<string | null>(null);
   const preguntas = [...(inv.preguntasABases ?? [])].sort((a, b) => b.fecha - a.fecha);
   return (
-    <Seccion titulo="Preguntar a las bases" nota="Rosa responde consultando las bases públicas del catalogo, el propio proyecto y el modelo de mundo, con un bucle acotado de herramientas (elige una, lee el resultado, repite hasta seis veces). Cada dato lleva detrás la herramienta y el identificador; lo que ninguna base devolvio no se afirma. Cuesta llamadas al cerebro.">
+    <Seccion titulo="Preguntar a las bases" nota="Rosa responde consultando las bases públicas del catálogo, el propio proyecto y el modelo de mundo, con un bucle acotado de herramientas (elige una, lee el resultado, repite hasta seis veces). Cada dato lleva detrás la herramienta y el identificador; lo que ninguna base devolvio no se afirma. Cuesta llamadas al cerebro.">
       <div className="dirigir">
-        <input className="entrada" value={pregunta} placeholder="Que fármacos aprobados tocan TREM2 y en que tejidos se expresa" onChange={(e) => setPregunta(e.target.value)} aria-label="Pregunta a las bases" />
+        <input className="entrada" value={pregunta} placeholder="Qué fármacos aprobados tocan TREM2 y en que tejidos se expresa" onChange={(e) => setPregunta(e.target.value)} aria-label="Pregunta a las bases" />
         <button
           type="button"
           className="btn btn-primario"
@@ -2071,17 +2071,17 @@ export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefi
 export function Skills({ skills }: { skills: SkillCatalogo[] | undefined }) {
   const lista = skills ?? [];
   return (
-    <Seccion detalle titulo="Skills de método" nota="Un fichero de instrucciones por método (como correr una reproducción de GEO, como calcular un tamaño muestral, como hacer control de calidad de célula única). Rosa carga las que casan con el plan y las pasa al modelo junto con los modulos que el sandbox puede importar. Se añaden o cambian editando rosa/skills/; el catalogo se lee al arrancar.">
+    <Seccion detalle titulo="Skills de método" nota="Un fichero de instrucciones por método (como correr una reproducción de GEO, como calcular un tamaño muestral, como hacer control de calidad de célula única). Rosa carga las que casan con el plan y las pasa al modelo junto con los módulos que el sandbox puede importar. Se añaden o cambian editando rosa/skills/; el catálogo se lee al arrancar.">
       {lista.length === 0 ? (
-        <p className="meta">El catalogo de skills llega del servidor al arrancar.</p>
+        <p className="meta">El catálogo de skills llega del servidor al arrancar.</p>
       ) : (
         <table className="tabla">
           <thead>
             <tr>
               <th>Skill</th>
-              <th>Que hace</th>
+              <th>Qué hace</th>
               <th>Se activa con</th>
-              <th>Entorno y modulos</th>
+              <th>Entorno y módulos</th>
             </tr>
           </thead>
           <tbody>
@@ -2173,7 +2173,7 @@ export function IntegridadRegistro() {
     };
   }, []);
   return (
-    <Seccion detalle titulo="Integridad del registro" nota="Cada acción que cambia el estado queda en un registro solo de añadir, y cada fila lleva el hash de la anterior (una cadena). Si alguien borra o altera una fila, la cadena se rompe desde ahí y aquí se ve. Es la parte de ALCOA+ (atribuible, contemporaneo, original, perdurable) que se puede dar sin firma electrónica; la firma por persona queda para un destino regulado.">
+    <Seccion detalle titulo="Integridad del registro" nota="Cada acción que cambia el estado queda en un registro solo de añadir, y cada fila lleva el hash de la anterior (una cadena). Si alguien borra o altera una fila, la cadena se rompe desde ahí y aquí se ve. Es la parte de ALCOA+ (atribuible, contemporáneo, original, perdurable) que se puede dar sin firma electrónica; la firma por persona queda para un destino regulado.">
       {estado === 'cargando' ? (
         <p className="meta">Comprobando la cadena...</p>
       ) : estado === null ? (
@@ -2239,7 +2239,7 @@ export function NivelDeAutonomia({ politicas }: { politicas: EstadoRosa['politic
   const niveles = (politicas?.nivelesAutonomia as { nivel: number; nombre: string; definicion: string }[] | undefined) ?? [];
   const declarado = typeof politicas?.nivelAutonomiaDeclarado === 'number' ? politicas.nivelAutonomiaDeclarado : 2;
   return (
-    <Seccion detalle titulo="Nivel de autonomía declarado" nota="Con la escala que usa el resto del sector (Beal y Rogers 2020; la revisión de laboratorios autonomos de 2025 dice que la mayoría esta en el nivel 3 y ninguno en producción pasa del 4). Rosa opera en el nivel 2 y lo declara en cada dossier: propone hipótesis, planes y protocolos y corre análisis in silico; toda decisión que toca el mundo real la toma una persona. El dial de autonomía de arriba no sube este nivel: ajusta cuanto pregunta dentro de el.">
+    <Seccion detalle titulo="Nivel de autonomía declarado" nota="Con la escala que usa el resto del sector (Beal y Rogers 2020; la revisión de laboratorios autonomos de 2025 dice que la mayoría está en el nivel 3 y ninguno en producción pasa del 4). Rosa opera en el nivel 2 y lo declara en cada dossier: propone hipótesis, planes y protocolos y corre análisis in silico; toda decisión que toca el mundo real la toma una persona. El dial de autonomía de arriba no sube este nivel: ajusta cuanto pregunta dentro de el.">
       {niveles.length === 0 ? (
         <p className="meta">Sin servidor no hay políticas que leer.</p>
       ) : (

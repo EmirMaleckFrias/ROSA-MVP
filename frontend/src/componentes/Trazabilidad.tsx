@@ -64,8 +64,8 @@ export function Trazabilidad({ corrida, activa }: { corrida: Corrida; activa: bo
 
   return (
     <Seccion
-      detalle titulo="De la consulta a la afirmacion"
-      nota="Cada consulta, las fuentes que trajo y las afirmaciones que salieron de cada fuente con su veredicto. Una afirmacion nace sin comprobar y cambia de color cuando el juez dictamina."
+      detalle titulo="De la consulta a la afirmación"
+      nota="Cada consulta, las fuentes que trajo y las afirmaciones que salieron de cada fuente con su veredicto. Una afirmación nace sin comprobar y cambia de color cuando el juez dictamina."
       acciones={
         iteraciones.length > 1 ? (
           <div className="pestanas pestanas-s" role="tablist">
@@ -200,7 +200,7 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
             </Chip>
           )}
           {f.retraccion === 'retractado' && <Chip tono="mal">Retractado</Chip>}
-          {f.retraccion === 'preocupacion' && <Chip tono="aviso">Expresión de preocupacion</Chip>}
+          {f.retraccion === 'preocupacion' && <Chip tono="aviso">Expresión de preocupación</Chip>}
           {f.retraccion === 'erratum' && <Chip tono="aviso">Erratum</Chip>}
           <Chip tono="borde" title="Puntuación de relevancia del cribado, 0 a 10">
             relevancia {f.relevancia}

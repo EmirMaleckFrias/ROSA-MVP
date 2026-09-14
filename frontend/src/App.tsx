@@ -36,7 +36,7 @@ const TITULO_PANTALLA = {
   ranking: 'Ranking',
   panorama: 'Panorama',
   mundo: 'Modelo de mundo',
-  arbol: 'Arbol de la investigación',
+  arbol: 'Árbol de la investigación',
   artefactos: 'Artefactos',
   calidad: 'Calidad',
   investigacion: 'Objetivo y datos',

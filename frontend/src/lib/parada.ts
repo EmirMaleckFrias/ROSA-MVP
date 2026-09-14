@@ -37,7 +37,7 @@ export function textoAutomatizacion(p: CondicionAutomatizada): string {
   if (p.iteraciones !== null) medibles.push(`${p.iteraciones} iteraciones`);
   if (p.tiempo) medibles.push(`${p.tiempo} de corrida`);
   if (p.llamadas !== null) medibles.push(`${p.llamadas} llamadas`);
-  if (medibles.length === 0) return 'Rosa no puede medir esta condicion: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la mision.';
+  if (medibles.length === 0) return 'Rosa no puede medir esta condición: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la misión.';
   let frase = `Rosa para sola al llegar a ${medibles.join(' o ')} (y al agotar el presupuesto de la mision)`;
   if (p.resto) frase += `. El resto ("${p.resto.slice(0, 80)}") lo decides tu con el boton de detener`;
   return `${frase}.`;

@@ -23,12 +23,12 @@ export function avisosDelObjetivo(objetivo: string, condicionParada: string): Av
   if (o.length < 80) avisos.push({ tipo: 'corto', texto: 'El objetivo es muy corto. Rosa va a perseguir lo primero que parezca significativo: di que enfermedad, que subgrupo y que tipo de hallazgo buscas.' });
   const oraciones = o.split(/[.;]\s+/).filter((s) => s.trim().length > 0);
   const conectores = (o.match(/\by (?:tambien|ademas)\b|\bpor otro lado\b/gi) ?? []).length;
-  if (oraciones.length > 4 || conectores >= 2) avisos.push({ tipo: 'varios_objetivos', texto: 'Parece haber más de un objetivo. Edison recomienda uno solo por corrida: con varios, la busqueda se reparte y ninguno converge. Considera una investigación por objetivo, o una rama.' });
-  if (PREGUNTA_LISTA.test(o)) avisos.push({ tipo: 'respuesta_obvia', texto: 'Empieza como una pregunta de lista ("lista", "cuales son"). Eso lo responde una busqueda, no una investigación de días: pide una hipótesis o un mecanismo, no un inventario.' });
-  if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningun termino del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan serán genericas.' });
-  if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaria un resultado. el investigador clínico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipótesis lo traiga.' });
+  if (oraciones.length > 4 || conectores >= 2) avisos.push({ tipo: 'varios_objetivos', texto: 'Parece haber más de un objetivo. Edison recomienda uno solo por corrida: con varios, la búsqueda se reparte y ninguno converge. Considera una investigación por objetivo, o una rama.' });
+  if (PREGUNTA_LISTA.test(o)) avisos.push({ tipo: 'respuesta_obvia', texto: 'Empieza como una pregunta de lista ("lista", "cuales son"). Eso lo responde una búsqueda, no una investigación de días: pide una hipótesis o un mecanismo, no un inventario.' });
+  if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningún término del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan serán genéricas.' });
+  if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaría un resultado. el investigador clínico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipótesis lo traiga.' });
   if (condicionParada.trim() === '') avisos.push({ tipo: 'sin_parada', texto: 'Sin condición de parada la corrida no sabe cuando terminar y gasta hasta el tope.' });
-  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con número, no con letras). Lo demas lo decides tu con el boton Detener; añade una cifra si quieres que pare sin ti.' });
+  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con número, no con letras). Lo demás lo decides tu con el botón Detener; añade una cifra si quieres que pare sin ti.' });
   return avisos;
 }
 
@@ -54,8 +54,8 @@ export function proponerConfiguracion(objetivo: string, relevancia: string, limi
   if (/novedad|nuevo|nueva|inedit/i.test(o) || true) atributos.add('Novedad frente a Open Targets, ClinicalTrials.gov, Agora y la literatura');
   if (/biomarcador|plasma|sangre|lcr|liquido cefalorraquideo/i.test(o)) atributos.add('Testabilidad con un biomarcador medible');
   if (/cohorte|longitudinal|seguimiento|progresion/i.test(o)) atributos.add('Comprobable en una cohorte longitudinal');
-  if (/mecanismo|via|microglia|inflam/i.test(o)) atributos.add('Mecanismo explicito con diana');
-  if (/latinoamerica|dominican|argentin|fleni|antioquia|temprano|bajo coste|acceso/i.test(o)) atributos.add('Relevancia para diagnostico temprano y accesible en Latinoamerica');
+  if (/mecanismo|via|microglia|inflam/i.test(o)) atributos.add('Mecanismo explícito con diana');
+  if (/latinoamerica|dominican|argentin|fleni|antioquia|temprano|bajo coste|acceso/i.test(o)) atributos.add('Relevancia para diagnóstico temprano y accesible en Latinoamérica');
   const preferencias = [relevancia.trim(), o].filter((s) => s !== '').join(' ').slice(0, 400);
   return { preferencias, atributos: [...atributos], restricciones: [...restricciones] };
 }
@@ -73,11 +73,11 @@ export function parafrasis(objetivo: string): Parafrasis[] {
   return [
     {
       redaccion: `${o}. Prioriza mecanismos con una diana y di con que biomarcador se comprobaria cada uno.`,
-      primerasTareas: ['Buscar mecanismos y dianas en Open Targets y Agora', 'Leer revisiones recientes de neuroinflamacion y genetica', 'Proponer 3 hipotesis mecanisticas con biomarcador'],
+      primerasTareas: ['Buscar mecanismos y dianas en Open Targets y Agora', 'Leer revisiones recientes de neuroinflamación y genética', 'Proponer 3 hipótesis mecanísticas con biomarcador'],
     },
     {
       redaccion: `${o}. Prioriza asociaciones biomarcador-progresion en cohortes longitudinales, y distingue Alzheimer familiar de esporadico.`,
-      primerasTareas: ['Buscar cohortes longitudinales con biomarcadores plasmaticos seriados', 'Comparar familiar frente a esporadico en la literatura', 'Proponer 3 hipotesis de anticipacion con umbrales'],
+      primerasTareas: ['Buscar cohortes longitudinales con biomarcadores plasmáticos seriados', 'Comparar familiar frente a esporádico en la literatura', 'Proponer 3 hipótesis de anticipación con umbrales'],
     },
     {
       redaccion: `${o}. Prioriza candidatos a reposicionamiento con un biomarcador de respuesta, y comprueba primero si ya estan en ensayo.`,

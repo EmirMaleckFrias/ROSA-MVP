@@ -30,7 +30,7 @@ export function Presupuesto({ corrida, onAmpliar }: { corrida: Corrida; onAmplia
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
         <span className="meta">
           {pausada
-            ? 'Tope alcanzado: la corrida esta pausada, no muerta. Amplia el tope para seguir.'
+            ? 'Tope alcanzado: la corrida está pausada, no muerta. Amplia el tope para seguir.'
             : p.msHastaTope !== null
               ? `Al ritmo actual llegas al tope en ${formatearDuracion(p.msHastaTope)}. Una pregunta pendiente tiene prioridad sobre el tope.`
               : 'Sin ritmo medible todavía.'}

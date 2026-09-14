@@ -80,9 +80,9 @@ export function Seccion({ titulo, nota, acciones, children, detalle = false, ple
             ) : (
               titulo
             )}
-            {detalle && <span className="chip chip-borde seccion-etiqueta-detalle" title="Es información de ingenieria o de auditoria: en modo Detalle se abre sola.">detalle</span>}
+            {detalle && <span className="chip chip-borde seccion-etiqueta-detalle" title="Es información de ingeniería o de auditoría: en modo Detalle se abre sola.">detalle</span>}
             {hayAyuda && (
-              <button type="button" className="seccion-ayuda" aria-expanded={ayuda} aria-label={`Explicar ${titulo}`} title="Que es esto y que significan sus terminos" onClick={() => setAyuda((v) => !v)}>
+              <button type="button" className="seccion-ayuda" aria-expanded={ayuda} aria-label={`Explicar ${titulo}`} title="Qué es esto y que significan sus términos" onClick={() => setAyuda((v) => !v)}>
                 ?
               </button>
             )}

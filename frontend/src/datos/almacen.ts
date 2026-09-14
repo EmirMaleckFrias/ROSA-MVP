@@ -485,7 +485,7 @@ export const acciones = {
       () => {
         void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
           if (ok === false) {
-            fijarAviso('La hipótesis cambio mientras la revisabas (Rosa la reformuló). Se recargo la versión nueva; vuelve a mirarla antes de decidir.');
+            fijarAviso('La hipótesis cambio mientras la revisabas (Rosa la reformuló). Se recargó la versión nueva; vuelve a mirarla antes de decidir.');
             void resincronizar();
           }
         });
@@ -580,7 +580,7 @@ export const acciones = {
       const invId = id;
       void enviarYComprobar('crearInvestigacion', { datos: conQuien, id_: invId }).then((ok) => {
         if (ok === false) {
-          fijarAviso('El servidor no creo la investigación. Se recargo el estado.');
+          fijarAviso('El servidor no creo la investigación. Se recargó el estado.');
           void resincronizar();
           return;
         }

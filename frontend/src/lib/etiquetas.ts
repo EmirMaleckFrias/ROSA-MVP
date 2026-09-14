@@ -76,7 +76,7 @@ export const ESTADO_PASO: Record<EstadoPaso, string> = {
 };
 
 export const TIPO_PISTA: Record<TipoPista, string> = {
-  literatura: 'Busqueda de literatura',
+  literatura: 'Búsqueda de literatura',
   ensayos: 'Ensayos clínicos',
   grafo: 'Grafo de conocimiento',
   extraccion: 'Extracción de afirmaciones',
@@ -142,7 +142,7 @@ export const ESTADO_HIPOTESIS: Record<EstadoHipotesis, string> = {
   aceptada: 'Aceptada',
   descartada: 'Descartada',
   refinar: 'Por refinar',
-  aclarando: 'Rosa la esta aclarando',
+  aclarando: 'Rosa la está aclarando',
 };
 
 export const VEREDICTO: Record<Veredicto, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal'; bloquea: boolean }> = {
@@ -157,9 +157,9 @@ export const VEREDICTO: Record<Veredicto, { etiqueta: string; tono: 'ok' | 'avis
 
 export const CERTEZA_EVIDENCIA: Record<CertezaEvidencia, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string; verbo: string }> = {
   alta: { etiqueta: 'Certeza alta', tono: 'ok', nota: 'Varios estudios independientes y directos coinciden. Es muy poco probable que más investigación cambie la conclusión.', verbo: 'la evidencia indica que' },
-  moderada: { etiqueta: 'Certeza moderada', tono: 'aviso', nota: 'Evidencia consistente pero de una sola cohorte, indirecta o imprecisa. Más investigación podria cambiarla.', verbo: 'probablemente' },
+  moderada: { etiqueta: 'Certeza moderada', tono: 'aviso', nota: 'Evidencia consistente pero de una sola cohorte, indirecta o imprecisa. Más investigación podría cambiarla.', verbo: 'probablemente' },
   baja: { etiqueta: 'Certeza baja', tono: 'aviso', nota: 'Solo indicios, inferencias o estudios con limitaciones serias. Es probable que más investigación la cambie.', verbo: 'puede que' },
-  muy_baja: { etiqueta: 'Certeza muy baja', tono: 'mal', nota: 'No hay evidencia directa o es contradictoria. Cualquier estimacion es muy incierta.', verbo: 'no esta claro si' },
+  muy_baja: { etiqueta: 'Certeza muy baja', tono: 'mal', nota: 'No hay evidencia directa o es contradictoria. Cualquier estimación es muy incierta.', verbo: 'no está claro si' },
 };
 
 export const DIRECCION_EVIDENCIA: Record<DireccionEvidencia, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' }> = {
@@ -189,11 +189,11 @@ export const TIPO_AFIRMACION: Record<TipoAfirmacion, { etiqueta: string; nota: s
 /** Etiqueta de un tipo de afirmacion aunque el servidor mande uno que esta
  *  interfaz no conoce (version nueva del backend): no se rompe la pantalla. */
 export function tipoAfirmacion(t: string): { etiqueta: string; nota: string } {
-  return (TIPO_AFIRMACION as Record<string, { etiqueta: string; nota: string }>)[t] ?? { etiqueta: t || 'sin tipo', nota: 'Tipo de afirmacion que esta versión de la interfaz no conoce.' };
+  return (TIPO_AFIRMACION as Record<string, { etiqueta: string; nota: string }>)[t] ?? { etiqueta: t || 'sin tipo', nota: 'Tipo de afirmación que esta versión de la interfaz no conoce.' };
 }
 
 export const TIPO_HALLAZGO: Record<TipoHallazgo, string> = {
-  cita_no_sostiene: 'La cita no sostiene la afirmacion',
+  cita_no_sostiene: 'La cita no sostiene la afirmación',
   doi_otro_articulo: 'El DOI resuelve a otro artículo',
   valor_contradice_fuente: 'Un valor contradice la fuente',
   resultado_sin_ejecutar: 'Resultado dado por calculado sin ejecutar nada',
@@ -202,7 +202,7 @@ export const TIPO_HALLAZGO: Record<TipoHallazgo, string> = {
   entidad_distinta: 'Dato de otra entidad',
   ausencia_refutada: 'Ausencia desmentida por las fuentes',
   sobreafirmacion: 'Afirma con más seguridad de la que da la evidencia',
-  metrica_inventada: 'Metrica definida por Rosa sin definición clara',
+  metrica_inventada: 'Métrica definida por Rosa sin definición clara',
 };
 
 export const ESTADO_HALLAZGO: Record<EstadoHallazgo, string> = {
@@ -216,8 +216,8 @@ export const TIPO_REVISION: Record<TipoRevisionAutomatica, { etiqueta: string; n
   completa: { etiqueta: 'Completa', nota: 'Con literatura: supuestos de la idea y su respaldo.' },
   profunda: { etiqueta: 'Verificación profunda', nota: 'Descompone la hipótesis en supuestos y sub-supuestos y evalua cada uno.' },
   observacion: { etiqueta: 'Observación', nota: 'Si explica observaciones previas mejor que las explicaciones existentes.' },
-  simulacion: { etiqueta: 'Simulación', nota: 'Simula el mecanismo o el experimento paso a paso para encontrar donde fallaria.' },
-  torneo: { etiqueta: 'Torneo', nota: 'Que se le criticó en los debates con sus rivales.' },
+  simulacion: { etiqueta: 'Simulación', nota: 'Simula el mecanismo o el experimento paso a paso para encontrar donde fallaría.' },
+  torneo: { etiqueta: 'Torneo', nota: 'Qué se le criticó en los debates con sus rivales.' },
 };
 
 export const ESTADO_SUPUESTO: Record<EstadoSupuesto, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'neutro' }> = {
@@ -242,7 +242,7 @@ export const TIPO_ESTUDIO: Record<TipoEstudio, string> = {
   caso_control: 'Casos y controles',
   transversal: 'Transversal',
   serie_de_casos: 'Serie de casos',
-  preclinico: 'Preclinico (animal)',
+  preclinico: 'Preclínico (animal)',
   in_vitro: 'In vitro',
   revision_narrativa: 'Revisión narrativa',
   registro: 'Registro o informe institucional',
@@ -250,11 +250,11 @@ export const TIPO_ESTUDIO: Record<TipoEstudio, string> = {
 };
 
 export const NIVEL_EVIDENCIA: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: 'Nivel 1: preclinico o in vitro',
+  1: 'Nivel 1: preclínico o in vitro',
   2: 'Nivel 2: opinión, revisión narrativa o serie de casos',
   3: 'Nivel 3: observacional (cohorte, casos y controles)',
   4: 'Nivel 4: ensayo aleatorizado o registro regulatorio',
-  5: 'Nivel 5: revisión sistemática o metaanalisis',
+  5: 'Nivel 5: revisión sistemática o metaanálisis',
 };
 
 export const CLASIFICACION_CITA: Record<ClasificacionCita, string> = {
@@ -265,7 +265,7 @@ export const CLASIFICACION_CITA: Record<ClasificacionCita, string> = {
 
 export const ESTADO_HECHO: Record<EstadoHecho, string> = {
   sabido: 'Lo que se sabe',
-  abierto: 'Lo que esta abierto',
+  abierto: 'Lo que está abierto',
   descartado: 'Lo que se descarto',
 };
 
@@ -307,16 +307,16 @@ export const ETAPA_DECISION: Record<EtapaDecision, string> = {
 
 export const COMPROBACION_KILLER: Record<string, string> = {
   citas_reales: 'Las citas resuelven a una fuente real',
-  fidelidad_evidencia: 'La fuente dice lo que la afirmacion dice',
-  supuestos: 'Ningun supuesto necesario esta contradicho',
+  fidelidad_evidencia: 'La fuente dice lo que la afirmación dice',
+  supuestos: 'Ningún supuesto necesario está contradicho',
   independencia_cohortes: 'Replicación en cohortes distintas',
   direccion_evidencia: 'La evidencia va en la dirección del enunciado',
   identificadores_resuelven: 'La diana resuelve a identificadores estables (Ensembl, UniProt)',
   unidades: 'Las cifras comparadas están en la misma unidad',
   fuente_primaria: 'Hay fuentes con datos propios, no solo citas',
   direccion_causal: 'La dirección causal tiene temporalidad y alternativa',
-  falsabilidad: 'Hay una observación medible que la refutaria',
-  novedad: 'Novedad comprobada con busqueda',
+  falsabilidad: 'Hay una observación medible que la refutaría',
+  novedad: 'Novedad comprobada con búsqueda',
   factibilidad: 'Existe cohorte, ensayo o técnica para comprobarla',
   redundancia: 'No repite lo ya sabido ni otra hipótesis viva',
   sesgo_evidencia: 'La evidencia no tiene un riesgo de sesgo serio',
@@ -353,7 +353,7 @@ export const CLASE_EVIDENCIA: Record<ClaseEvidencia, { etiqueta: string; nota: s
   derivado: { etiqueta: 'Derivado', nota: 'Calculado a partir de otros datos por código auditado.' },
   literatura: { etiqueta: 'Literatura', nota: 'Lo que afirma una fuente publicada.' },
   prediccion: { etiqueta: 'Predicción', nota: 'Salida de un modelo o dato sintético. Nunca cuenta como observación.' },
-  conocimiento_operativo: { etiqueta: 'Conocimiento operativo', nota: 'Lo que el laboratorio sabe y no esta publicado (protocolos, lotes, artefactos). No se mezcla con la literatura ni cuenta como observación.' },
+  conocimiento_operativo: { etiqueta: 'Conocimiento operativo', nota: 'Lo que el laboratorio sabe y no está publicado (protocolos, lotes, artefactos). No se mezcla con la literatura ni cuenta como observación.' },
 };
 
 export const ESTADO_EJECUCION: Record<Ejecucion['estado'], { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' | 'acento' }> = {
@@ -395,13 +395,13 @@ export const RESULTADO_LABORATORIO: Record<ResultadoLaboratorio, { etiqueta: str
   apoyo_reproducido: { etiqueta: 'Apoyo reproducido', tono: 'ok', nota: 'Efecto en la dirección predicha, controles válidos, criterio cumplido.' },
   negativo_interpretable: { etiqueta: 'Negativo interpretable', tono: 'mal', nota: 'Controles válidos y potencia suficiente: el resultado va en contra.' },
   inconcluso: { etiqueta: 'Inconcluso', tono: 'aviso', nota: 'Controles válidos pero potencia insuficiente o intervalo que cruza el efecto mínimo.' },
-  fallo_tecnico: { etiqueta: 'Fallo técnico', tono: 'borde', nota: 'El ensayo no se ejecuto como se prerregistro o un control fallo. No toca la hipótesis.' },
-  toxicidad_inviabilidad: { etiqueta: 'Toxicidad o inviabilidad', tono: 'mal', nota: 'El modelo no tolero la intervención o no hubo exposición en el tejido.' },
+  fallo_tecnico: { etiqueta: 'Fallo técnico', tono: 'borde', nota: 'El ensayo no se ejecutó como se prerregistro o un control fallo. No toca la hipótesis.' },
+  toxicidad_inviabilidad: { etiqueta: 'Toxicidad o inviabilidad', tono: 'mal', nota: 'El modelo no toleró la intervención o no hubo exposición en el tejido.' },
   correccion_contexto: { etiqueta: 'Corrección de contexto', tono: 'aviso', nota: 'El efecto existe pero en otra variable, tejido, etapa o población: nace una hipótesis derivada.' },
 };
 
 export const NIVEL_APRENDIZAJE: Record<NivelAprendizaje, { etiqueta: string; nota: string }> = {
-  1: { etiqueta: 'Nivel 1: creencias', nota: 'Que cree Rosa de cada hipótesis. Automático y registrado; reversible reabriendo la hipótesis.' },
+  1: { etiqueta: 'Nivel 1: creencias', nota: 'Qué cree Rosa de cada hipótesis. Automático y registrado; reversible reabriendo la hipótesis.' },
   2: { etiqueta: 'Nivel 2: como razona', nota: 'Criterios de revisión y programas optimizados. Rosa propone, se evalua sobre el conjunto reservado y una persona promueve o revierte.' },
   3: { etiqueta: 'Nivel 3: políticas', nota: 'Los límites del sistema. Solo los cambia una persona, en el código o eximiendo una puerta con motivo.' },
 };
@@ -474,7 +474,7 @@ export const TIPO_EVENTO: Record<TipoEvento, string> = {
   analisis: 'Análisis con datos',
   aprendizaje: 'Aprendizaje',
   mision: 'Misión',
-  dependencias: 'Recalculo por cambio de fuente',
+  dependencias: 'Recálculo por cambio de fuente',
 };
 
 export const PASO_RUTA: Record<PasoRutaTerapeutica, { etiqueta: string; orden: number }> = {
@@ -501,7 +501,7 @@ export const TIPO_METODO: Record<MetodoRegistrado['tipo'], string> = {
   predictor: 'Predictor',
   recurso_datos: 'Recurso de datos',
   ensayo_laboratorio: 'Ensayo de laboratorio',
-  busqueda: 'Busqueda y recuperacion',
+  busqueda: 'Búsqueda y recuperación',
   revision: 'Revisión y verificación',
 };
 
@@ -538,16 +538,16 @@ export const GRUPO_CONECTOR: Record<string, string> = {
   genes_ontologias: 'Genes y ontologías',
   variantes: 'Variantes',
   genetica_humana: 'Genética humana',
-  genomica_clinica: 'Genomica clínica',
+  genomica_clinica: 'Genómica clínica',
   expresion: 'Expresión',
-  regulacion: 'Regulacion',
+  regulacion: 'Regulación',
   proteinas: 'Anotación de proteínas',
   estructuras: 'Estructuras e interacciones',
   rna: 'RNA',
-  omicas: 'Archivos omicos',
+  omicas: 'Archivos ómicos',
   cancer: 'Modelos de cáncer',
   quimica: 'Química',
-  regulatorio: 'Regulacion de fármacos',
+  regulatorio: 'Regulación de fármacos',
   farmacos: 'Fármacos y dianas',
   enriquecimiento: 'Enriquecimiento de conjuntos de genes',
   literatura: 'Literatura',
@@ -567,7 +567,7 @@ export const ESTADO_CONECTOR: Record<string, { etiqueta: string; tono: 'ok' | 'a
 };
 
 export const CLASE_HALLAZGO_REGISTRO: Record<string, string> = {
-  calculo_no_ejecutado: 'Calculo que no se ejecuto',
+  calculo_no_ejecutado: 'Cálculo que no se ejecutó',
   contradiccion_con_registro: 'Contradice el registro',
   cita_sin_soporte: 'Cita sin soporte',
   identificador_no_coincide: 'Identificador que no coincide',

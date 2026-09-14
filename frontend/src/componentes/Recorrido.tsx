@@ -39,7 +39,7 @@ export const PASOS: { titulo: string; texto: string; pista: string; etapa: numbe
   {
     titulo: 'Donde mirar y como moverse',
     texto: 'Calidad mide si el juez acierta y cuanto cuesta cada decisión. Ajustes tiene el dial de autonomía, las políticas y la integridad del registro. Objetivo y datos guarda la misión, los datasets con su libro de procedencia y lo que sabe el laboratorio.',
-    pista: 'Cmd K (o Ctrl K) busca en toda la investigación. Este recorrido vuelve desde el boton ? de la cabecera.',
+    pista: 'Cmd K (o Ctrl K) busca en toda la investigación. Este recorrido vuelve desde el botón ? de la cabecera.',
     etapa: null,
   },
 ];

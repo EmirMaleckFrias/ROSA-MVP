@@ -27,7 +27,7 @@ const PANTALLAS: { clave: Pantalla; etiqueta: string; icono: (p: { size?: number
   { clave: 'ranking', etiqueta: 'Ranking', icono: IconTrophy },
   { clave: 'panorama', etiqueta: 'Panorama', icono: IconGlobe },
   { clave: 'mundo', etiqueta: 'Modelo de mundo', icono: IconLayers },
-  { clave: 'arbol', etiqueta: 'Arbol', icono: IconTree },
+  { clave: 'arbol', etiqueta: 'Árbol', icono: IconTree },
   { clave: 'artefactos', etiqueta: 'Artefactos', icono: IconDocument },
   { clave: 'calidad', etiqueta: 'Calidad', icono: IconGauge },
   { clave: 'investigacion', etiqueta: 'Objetivo y datos', icono: IconUsers },

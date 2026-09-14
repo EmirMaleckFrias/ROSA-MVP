@@ -128,30 +128,54 @@ fuera de la ventana y scroll horizontal de la pagina. Deja capturas de
 pagina completa y `informe.json` en `frontend/auditoria/` (fuera de git).
 Correrla despues de cualquier cambio de estilos; el objetivo es cero.
 
-## Tildes en los textos visibles
+## Tildes y ñ en los textos visibles
 
-Los textos de la interfaz llevan tilde. `python3 scripts/acentuar.py`
-(desde `frontend/`) recorre `src/` con un diccionario cerrado de palabras
-(`PALABRAS`, conservando mayusculas) y acentua solo lo que se ve: texto JSX
-entre etiquetas, atributos de texto (`titulo`, `nota`, `placeholder`,
-`aria-label`, `title`...), cadenas largas que empiezan por mayuscula y los
-valores de los diccionarios de etiquetas (`lib/etiquetas.ts`,
-`lib/glosario.ts`...). No toca identificadores, claves, rutas, clases ni
-valores que se comparan con el servidor (`'sistematica'`, `'vacio'`: si el
-script los acentuara, `tsc` lo avisa porque son tipos literales). Las palabras
-que cambian de significado con la tilde (esta/está, como/cómo, que/qué,
-solo/sólo, paso/pasó) quedan fuera a proposito, y tambien las que son
-sustantivo o verbo segun la tilde (valido/validó, critico/criticó,
-publico/publicó, cortes/cortés): la primera pasada convirtio "se le critico"
-en "se le crítico" y "cambian los cortes" en "cambian los cortés", asi que
-esas se escriben a mano. Las palabras con ñ van en el mismo diccionario
-(campaña, pestaña, añadir, señal, diseño, compañero...). En `datos/muestra.ts`,
-`datos/simulacion.ts`, `datos/acciones.ts` y `datos/almacen.ts` se acentua
-cualquier cadena con un espacio y sin pinta de codigo (eventos, avisos, datos
-de muestra); una clave o una ruta nunca llevan espacio. Los textos que genera
-el backend en Python (eventos, dossier, pistas) no pasan por este script: alli
-las mismas palabras viven en claves, expresiones regulares y textos, y hace
-falta una pasada aparte con mas cuidado.
+Todo texto en castellano de la interfaz lleva tilde y ñ (regla de Emir del
+14 de septiembre de 2026: "acostúmbrate desde ahora a poner tilde y ñ a
+todas las palabras que lo tengan"). Los textos nuevos se escriben ya
+acentuados; `python3 scripts/acentuar.py` (desde `frontend/`) es la revisión.
+
+Qué hace el script. Recorre `src/` con un diccionario cerrado de palabras
+(`PALABRAS`, conservando mayúsculas) más cuatro reglas: toda palabra en
+-ción singular lleva tilde; tras "¿" los interrogativos (qué, cómo, dónde,
+cuándo, cuál, quién, cuánto) la llevan, y también "Qué" y "Cómo" al empezar
+una cadena salvo que siga un artículo, un demostrativo o una mayúscula ("Que
+el efecto sea independiente" es completivo); "esta" pasa a "está" solo cuando
+le sigue un participio conocido, un gerundio o una palabra de estado (en,
+por, ya, listo, pausada...), nunca un sustantivo ("esta corrida" se queda);
+"aun" pasa a "aún" salvo en "aun así". Un texto que parece inglés (the, of,
+and, with) no se toca: los títulos de artículos de la muestra siguen como
+están.
+
+Dónde mira. Texto JSX entre etiquetas, atributos de texto (`titulo`, `nota`,
+`placeholder`, `aria-label`, `title`...), plantillas con texto (nunca las de
+`className`, `id`, `key`, rutas), cadenas largas que empiezan por mayúscula
+y, en todos los `.ts` de `lib/` y `datos/` salvo `tipos.ts`, cualquier cadena
+con un espacio y sin pinta de código (una clave, una ruta o un valor que se
+compara con el servidor nunca llevan espacio). No toca identificadores,
+clases CSS ni valores literales de tipo (`'sistematica'`, `'vacio'`: `tsc`
+avisa si los acentuara).
+
+Qué queda fuera a propósito. Las palabras que cambian de sentido con la
+tilde y no se resuelven por contexto simple: como/cómo y que/qué en medio de
+una frase, solo, si/sí, paso/pasó, cambio/cambió, valido/validó,
+critico/criticó, publico/publicó, cortes/cortés, este/esté. Esas se escriben
+a mano (y una pasada temprana las estropeó: "se le crítico", "los cortés").
+Los textos que genera el backend en Python (eventos, dossier, pistas,
+frases GRADE) no pasan por este script: allí las mismas palabras viven en
+claves, expresiones regulares y textos, y necesitan una pasada aparte.
+
+Cómo se completó el diccionario. Cada palabra visible se pasó por un
+diccionario de frecuencias del castellano (`pyspellchecker`, en el venv del
+backend): las que solo existen con tilde entraron directamente y las que
+existen de las dos formas se revisaron por contexto. El diccionario va en
+líneas cortas a propósito: Python 3.9 falla con "Non-UTF-8 code" en líneas de
+miles de caracteres con tildes.
+
+Guardas. `src/clases.test.ts` falla si una clase del JSX lleva caracteres
+fuera de ASCII o no existe en `styles.css` (la primera pasada convirtió
+`seccion` en `sección` y los estilos desaparecieron). La auditoría visual
+revisa cualquier título, no solo los que están dentro de una sección.
 
 ## Si una pantalla falla al pintarse
 

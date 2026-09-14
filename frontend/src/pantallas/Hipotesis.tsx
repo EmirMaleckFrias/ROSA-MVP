@@ -162,7 +162,7 @@ function FormularioHipotesis({ inv, onCerrar, irA }: { inv: Investigacion; onCer
         e.preventDefault();
         const id = acciones.proponerHipotesis(inv.id, d);
         if (id === null) {
-          setError('Faltan el título, el enunciado, o el biomarcador o la cohorte con que se comprobaria. Sin comprobación no entra al torneo.');
+          setError('Faltan el título, el enunciado, o el biomarcador o la cohorte con que se comprobaría. Sin comprobación no entra al torneo.');
           return;
         }
         irA(rutaDe(inv.id, 'hipotesis', id));
@@ -277,7 +277,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </label>
       </div>
 
-      <p className="meta">Selecciona un tramo del texto para comentarlo. Los comentarios se agrupan y salen juntos a Rosa. Los verbos en ambar afirman más de lo que la evidencia suele dar.</p>
+      <p className="meta">Selecciona un tramo del texto para comentarlo. Los comentarios se agrupan y salen juntos a Rosa. Los verbos en ámbar afirman más de lo que la evidencia suele dar.</p>
 
       {ancla && (
         <NuevoComentario
@@ -310,7 +310,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <TextoConFuertes texto={h.mecanismo} campo="mecanismo" />
       </Seccion>
 
-      <Seccion titulo="Como se comprobaria" nota="Siempre con biomarcador, cohorte y diseño: es lo que el investigador clínico principal necesita para juzgarla.">
+      <Seccion titulo="Cómo se comprobaría" nota="Siempre con biomarcador, cohorte y diseño: es lo que el investigador clínico principal necesita para juzgarla.">
         <dl className="comprobacion texto-comentable" data-campo="comprobacion">
           <dt>Biomarcador</dt>
           <dd>{h.comprobacion.biomarcador}</dd>
@@ -321,7 +321,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </dl>
       </Seccion>
 
-      <Seccion titulo="Relevancia frente a significancia" nota="Kosmos confunde lo estadisticamente significativo con lo cientificamente valioso. Aquí son dos escalas: Rosa justifica la relevancia para el objetivo y tu la votas.">
+      <Seccion titulo="Relevancia frente a significancia" nota="Kosmos confunde lo estadísticamente significativo con lo científicamente valioso. Aquí son dos escalas: Rosa justifica la relevancia para el objetivo y tu la votas.">
         <div className="rejilla-2">
           <div className="tarjeta">
             <p className="campo-etiqueta">Evidencia estadística</p>
@@ -417,7 +417,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
-      <Seccion titulo="Verificación" nota="Cada afirmacion contrastada con su fuente, con su tipo (dato, literatura, interpretación). Lo bloqueante impide aceptar.">
+      <Seccion titulo="Verificación" nota="Cada afirmación contrastada con su fuente, con su tipo (dato, literatura, interpretación). Lo bloqueante impide aceptar.">
         <Verificacion afirmaciones={h.afirmaciones} cobertura={cobertura} ocultarCitas={aCiegas} onVerTrayectoria={(_, celda) => onAbrirProcedencia('codigo', celda)} />
       </Seccion>
 
@@ -455,7 +455,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       </Seccion>
 
       {h.partidos.length > 0 && (
-        <Seccion detalle titulo="Partidos del torneo" nota="Contra quien, quien gano y por que. Un Elo con pocos partidos dice poco.">
+        <Seccion detalle titulo="Partidos del torneo" nota="Contra quien, quien ganó y por que. Un Elo con pocos partidos dice poco.">
           <table className="tabla">
             <thead>
               <tr>
@@ -522,7 +522,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       )}
 
       {h.experimento && (
-        <Seccion titulo="Experimento propuesto" nota="El traspaso al laboratorio: protocolo, ensayo y criterios de exito y refutación fijados de antemano. Al asignarlo a un laboratorio queda prerregistrado: la hipótesis y el protocolo se congelan con fecha en un artefacto, antes de que exista ningun dato. Los datos vuelven para que Rosa actualice su conclusión.">
+        <Seccion titulo="Experimento propuesto" nota="El traspaso al laboratorio: protocolo, ensayo y criterios de éxito y refutación fijados de antemano. Al asignarlo a un laboratorio queda prerregistrado: la hipótesis y el protocolo se congelan con fecha en un artefacto, antes de que exista ningún dato. Los datos vuelven para que Rosa actualice su conclusión.">
           <div className="tarjeta seccion">
             <div className="experimento-bloque">
               <h4>Protocolo</h4>
@@ -543,11 +543,11 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             {(h.experimento.confirma || h.experimento.refuta) && (
               <div className="conclusion-columnas">
                 <div className="experimento-bloque criterio-ok">
-                  <h4>La confirmaria</h4>
+                  <h4>La confirmaría</h4>
                   <p>{h.experimento.confirma}</p>
                 </div>
                 <div className="experimento-bloque criterio-mal">
-                  <h4>La refutaria</h4>
+                  <h4>La refutaría</h4>
                   <p>{h.experimento.refuta}</p>
                 </div>
               </div>
@@ -576,7 +576,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             )}
             {h.experimento.decisionQueCambia && (
               <div className="experimento-bloque">
-                <h4>Que decisión cambia con el resultado</h4>
+                <h4>Qué decisión cambia con el resultado</h4>
                 <p>{h.experimento.decisionQueCambia}</p>
               </div>
             )}
@@ -671,7 +671,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </div>
                 <div className="campo">
                   <label htmlFor="exp-analisis">Que analisis quieres (ademas de los criterios prerregistrados)</label>
-                  <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteracion, por grupo genético" onChange={(e) => setAnalisis(e.target.value)} />
+                  <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteración, por grupo genético" onChange={(e) => setAnalisis(e.target.value)} />
                 </div>
                 <div className="acciones">
                   <button
@@ -770,7 +770,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
               <Confirmar
                 etiqueta="No puedo juzgar"
                 pregunta="Di que te impide juzgarla (ambigua, falta contexto, no reproducible). Rosa la aclara y vuelve a la cola marcada como aclarada."
-                pedirTexto={{ etiqueta: 'Que falta', marcador: 'No queda claro si habla de PSEN1 o de todo el Alzheimer familiar' }}
+                pedirTexto={{ etiqueta: 'Qué falta', marcador: 'No queda claro si habla de PSEN1 o de todo el Alzheimer familiar' }}
                 onConfirmar={(m) => decidir('no_puedo_juzgar', m)}
               />
               <Confirmar
@@ -795,7 +795,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <Seccion
         titulo="Dossier para el laboratorio"
-        nota="El expediente con el que la hipótesis sale al laboratorio, en siete partes: si va o no y por que (bloqueos), la hipótesis completa con su versión, la evidencia con procedencia, los análisis con datos, las decisiones, el protocolo prerregistrado y que se aprende con cada resultado. Se arma sin ningun modelo, con lo que hay en el estado."
+        nota="El expediente con el que la hipótesis sale al laboratorio, en siete partes: si va o no y por que (bloqueos), la hipótesis completa con su versión, la evidencia con procedencia, los análisis con datos, las decisiones, el protocolo prerregistrado y que se aprende con cada resultado. Se arma sin ningún modelo, con lo que hay en el estado."
         acciones={
           <button type="button" className="btn btn-s" disabled={estado.conexion === 'muestra'} onClick={() => acciones.generarDossier(h.id)}>
             {h.dossierArtefactoId ? 'Regenerar dossier' : 'Generar dossier'}
@@ -920,12 +920,12 @@ export function Hipotesis({
       {proponiendo && <FormularioHipotesis inv={inv} onCerrar={() => setProponiendo(false)} irA={irA} />}
       {visibles.length === 0 ? (
         filtro === 'laboratorio' ? (
-          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'Rosa le propone un experimento: protocolo, ensayo, controles y criterios de exito y refutación.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y Rosa los juzga contra lo prerregistrado.']}>
+          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'Rosa le propone un experimento: protocolo, ensayo, controles y criterios de éxito y refutación.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y Rosa los juzga contra lo prerregistrado.']}>
             Aqui apareceran las hipotesis que lleguen a ese tramo.
           </Vacio>
         ) : (
         <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavía no hay hipótesis'} pasos={propias.length === 0 ? ['Rosa busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, Rosa genera hipótesis y el Killer las juzga; las que quedan aparecen aquí, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
-          {propias.length > 0 ? 'Rosa no tiene hipótesis esperando tu revisión en esta investigación. Con "Todas" ves las ya decididas.' : 'También puedes proponer una tu con el boton de arriba: pasa por el mismo Killer.'}
+          {propias.length > 0 ? 'Rosa no tiene hipótesis esperando tu revisión en esta investigación. Con "Todas" ves las ya decididas.' : 'También puedes proponer una tu con el botón de arriba: pasa por el mismo Killer.'}
         </Vacio>
         )
       ) : (

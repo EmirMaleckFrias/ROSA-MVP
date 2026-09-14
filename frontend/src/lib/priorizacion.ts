@@ -19,12 +19,12 @@ export const ETIQUETA_BLOQUEO: Record<Bloqueo, string> = {
 };
 
 export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
-  trazabilidad_insuficiente: 'No hay afirmaciones sostenidas por su fuente, o alguna afirmacion esta bloqueada (cita que no resuelve, dato de otra entidad, ausencia desmentida).',
-  datos_no_autorizados: 'Algun análisis uso un dataset sin contrato aprobado o sin autorizacion de uso con IA.',
+  trazabilidad_insuficiente: 'No hay afirmaciones sostenidas por su fuente, o alguna afirmación está bloqueada (cita que no resuelve, dato de otra entidad, ausencia desmentida).',
+  datos_no_autorizados: 'Algún análisis uso un dataset sin contrato aprobado o sin autorización de uso con IA.',
   analisis_invalido: 'El auditor independiente (Killer II) dio por no válido el último análisis con datos.',
-  sin_experimento_interpretable: 'El experimento no dice que resultado la confirmaria y cual la refutaria.',
+  sin_experimento_interpretable: 'El experimento no dice que resultado la confirmaría y cual la refutaría.',
   descartada_por_killer: 'El Killer o una persona la descarto en este contexto.',
-  fuente_retractada: 'Una de sus fuentes esta retractada.',
+  fuente_retractada: 'Una de sus fuentes está retractada.',
 };
 
 type Estado = Pick<EstadoRosa, 'investigaciones' | 'planesAnalisis' | 'ejecuciones' | 'hipotesis'>;

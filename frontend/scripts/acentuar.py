@@ -13,8 +13,90 @@ import sys
 from pathlib import Path
 
 PALABRAS = {
+    # Tercera tanda (14 de septiembre): verbos en pasado y futuro sin forma ambigua, adverbios, -sion, vocabulario biomedico
+    "crecio": "creció", "perdio": "perdió", "gano": "ganó", "salio": "salió", "aprobo": "aprobó", "recargo": "recargó",
+    "actualizo": "actualizó", "detecto": "detectó", "verifico": "verificó", "abrio": "abrió", "leyo": "leyó", "agoto": "agotó",
+    "ejecuto": "ejecutó", "estaran": "estarán", "tendran": "tendrán", "podran": "podrán", "haran": "harán", "veran": "verán",
+    "daran": "darán", "aparecera": "aparecerá", "vendra": "vendrá", "saldra": "saldrá", "llegara": "llegará", "seguira": "seguirá",
+    "pedira": "pedirá", "abrira": "abrirá", "empezara": "empezará", "esperara": "esperará", "recibira": "recibirá", "reanudara": "reanudará",
+    "parara": "parará", "quiza": "quizá", "ojala": "ojalá", "dificilmente": "difícilmente", "clinicamente": "clínicamente", "tipicamente": "típicamente",
+    "fisiologico": "fisiológico", "fisiologica": "fisiológica", "inmunologico": "inmunológico", "inmunologica": "inmunológica", "histologico": "histológico", "metodologico": "metodológico",
+    "metodologica": "metodológica", "epidemiologico": "epidemiológico", "epidemiologica": "epidemiológica", "radiologico": "radiológico", "radiologica": "radiológica", "tecnologico": "tecnológico",
+    "tecnologica": "tecnológica", "psicologico": "psicológico", "ontologico": "ontológico", "etiologico": "etiológico", "etiologia": "etiología", "sintomatico": "sintomático",
+    "sintomatica": "sintomática", "asintomatico": "asintomático", "asintomatica": "asintomática", "traumatico": "traumático", "genomicas": "genómicas", "genomicos": "genómicos",
+    "transcriptomica": "transcriptómica", "metabolomica": "metabolómica", "proteomicas": "proteómicas", "reido": "reído", "traida": "traída", "traidos": "traídos",
+    "traidas": "traídas", "reunion": "reunión", "cancion": "canción", "razon": "razón", "corazon": "corazón", "patron": "patrón",
+    "expansion": "expansión", "suspension": "suspensión", "concision": "concisión", "ocasion": "ocasión", "invasion": "invasión", "evasion": "evasión",
+    "colision": "colisión", "inmersion": "inmersión", "excursion": "excursión", "propulsion": "propulsión", "expulsion": "expulsión", "mansion": "mansión",
+    "ascension": "ascensión", "aprension": "aprensión", "persuasion": "persuasión", "disuasion": "disuasión", "cesion": "cesión", "escision": "escisión",
+    "incision": "incisión", "adaptacion": "adaptación", "mayusculas": "mayúsculas", "mayuscula": "mayúscula", "minusculas": "minúsculas", "minuscula": "minúscula",
+    "nitrogeno": "nitrógeno", "fosforo": "fósforo", "hematies": "hematíes", "macrofago": "macrófago", "macrofagos": "macrófagos", "axon": "axón",
+    "nucleotido": "nucleótido", "nucleotidos": "nucleótidos", "aminoacido": "aminoácido", "aminoacidos": "aminoácidos", "peptido": "péptido", "peptidos": "péptidos",
+    "lipido": "lípido", "lipidos": "lípidos", "glucidos": "glúcidos", "cation": "catión", "anion": "anión", "proton": "protón",
+    "electron": "electrón", "neutron": "neutrón", "atomo": "átomo", "atomos": "átomos", "antigeno": "antígeno", "antigenos": "antígenos",
+    "organulo": "orgánulo", "organulos": "orgánulos", "organo": "órgano", "organos": "órganos", "higado": "hígado", "rinon": "riñón",
+    "rinones": "riñones", "pulmon": "pulmón", "estomago": "estómago", "pancreas": "páncreas", "medula": "médula", "hipofisis": "hipófisis",
+    "linfatico": "linfático", "linfatica": "linfática", "oseo": "óseo", "osea": "ósea", "oseos": "óseos", "oseas": "óseas",
+    "cardiaca": "cardíaca", "cutaneo": "cutáneo", "cutanea": "cutánea", "autonomo": "autónomo", "autonoma": "autónoma", "simpatico": "simpático",
+    "parasimpatico": "parasimpático", "talamo": "tálamo", "hipotalamo": "hipotálamo", "amigdala": "amígdala", "mesencefalo": "mesencéfalo", "diencefalo": "diencéfalo",
+    "telencefalo": "telencéfalo", "lobulo": "lóbulo", "lobulos": "lóbulos", "ventriculo": "ventrículo", "ventriculos": "ventrículos", "liquor": "licor",
+    "cefalorraquideos": "cefalorraquídeos", "raquideo": "raquídeo", "craneo": "cráneo", "vertebra": "vértebra", "vertebras": "vértebras", "femur": "fémur",
+    "perone": "peroné", "humero": "húmero", "cubito": "cúbito", "clavicula": "clavícula", "escapula": "escápula", "esternon": "esternón",
+    "musculos": "músculos", "tendon": "tendón", "cartilago": "cartílago", "articulacion": "articulación",
+    # Segunda tanda (14 de septiembre): lo que quedaba tras revisar cada palabra visible con un diccionario de frecuencias
+    "afirmacion": "afirmación", "ningun": "ningún", "busqueda": "búsqueda", "arbol": "árbol", "arboles": "árboles", "catalogo": "catálogo",
+    "catalogos": "catálogos", "inhibicion": "inhibición", "preocupacion": "preocupación", "inflamacion": "inflamación", "neuroinflamacion": "neuroinflamación", "anticipacion": "anticipación",
+    "propagacion": "propagación", "alteracion": "alteración", "monografia": "monografía", "monografias": "monografías", "boton": "botón", "metrica": "métrica",
+    "metricas": "métricas", "validacion": "validación", "compilacion": "compilación", "exito": "éxito", "demas": "demás", "union": "unión",
+    "sanguineo": "sanguíneo", "sanguinea": "sanguínea", "liquido": "líquido", "liquidos": "líquidos", "cefalorraquideo": "cefalorraquídeo", "metabolico": "metabólico",
+    "metabolica": "metabólica", "metabolicos": "metabólicos", "metabolicas": "metabólicas", "algun": "algún", "ingenieria": "ingeniería", "clausula": "cláusula",
+    "clausulas": "cláusulas", "fraccion": "fracción", "redaccion": "redacción", "compensacion": "compensación", "liberacion": "liberación", "formacion": "formación",
+    "caida": "caída", "caidas": "caídas", "periferica": "periférica", "periferico": "periférico", "perifericos": "periféricos", "perifericas": "periféricas",
+    "hepatica": "hepática", "hepatico": "hepático", "correlacion": "correlación", "discusion": "discusión", "legitima": "legítima", "legitimo": "legítimo",
+    "implicitamente": "implícitamente", "modulacion": "modulación", "toxica": "tóxica", "toxico": "tóxico", "presion": "presión", "vacunacion": "vacunación",
+    "periodo": "período", "periodos": "períodos", "farmacologica": "farmacológica", "farmacologico": "farmacológico", "item": "ítem", "items": "ítems",
+    "demostracion": "demostración", "restriccion": "restricción", "contemporaneo": "contemporáneo", "contemporanea": "contemporánea", "autorizacion": "autorización", "estimacion": "estimación",
+    "recuperacion": "recuperación", "regulacion": "regulación", "comite": "comité", "duracion": "duración", "raton": "ratón", "parafrasis": "paráfrasis",
+    "alli": "allí", "comun": "común", "computo": "cómputo", "ambar": "ámbar", "cientificamente": "científicamente", "friccion": "fricción",
+    "preclinico": "preclínico", "preclinica": "preclínica", "preclinicos": "preclínicos", "preclinicas": "preclínicas", "autosomico": "autosómico", "autosomica": "autosómica",
+    "autosomicos": "autosómicos", "autosomicas": "autosómicas", "mecanistica": "mecanística", "mecanistico": "mecanístico", "mecanisticas": "mecanísticas", "mecanisticos": "mecanísticos",
+    "tauopatias": "tauopatías", "tauopatia": "tauopatía", "hiperfosforilacion": "hiperfosforilación", "sinaptica": "sináptica", "sinaptico": "sináptico", "sinapticas": "sinápticas",
+    "sinapticos": "sinápticos", "proteomica": "proteómica", "genomica": "genómica", "multiomica": "multiómica", "omicos": "ómicos", "omicas": "ómicas",
+    "lipidico": "lipídico", "lipidica": "lipídica", "lipidicos": "lipídicos", "lipidicas": "lipídicas", "sinergica": "sinérgica", "sinergico": "sinérgico",
+    "hematoencefalica": "hematoencefálica", "multietnica": "multiétnica", "genericas": "genéricas", "genericos": "genéricos", "generica": "genérica", "generico": "genérico",
+    "latinoamerica": "Latinoamérica", "sobreafirmacion": "sobreafirmación", "secuenciacion": "secuenciación", "optimizacion": "optimización", "estadisticamente": "estadísticamente", "metaanalisis": "metaanálisis",
+    "estandar": "estándar", "lider": "líder", "modulos": "módulos", "modulo": "módulo", "astrocitica": "astrocítica", "glia": "glía",
+    "microglia": "microglía", "astroglia": "astroglía", "dinamicas": "dinámicas", "dinamicos": "dinámicos", "electrica": "eléctrica", "fisicos": "físicos",
+    "biologicas": "biológicas", "biologicos": "biológicos", "fisiologia": "fisiología", "inmunologia": "inmunología", "histologia": "histología", "terminologia": "terminología",
+    "teorias": "teorías", "comprobaria": "comprobaría", "refutaria": "refutaría", "frenaria": "frenaría", "daria": "daría", "confirmaria": "confirmaría",
+    "romperia": "rompería", "explicaria": "explicaría", "aportaria": "aportaría", "anticiparia": "anticiparía", "subiria": "subiría", "bajaria": "bajaría",
+    "importaria": "importaría", "tendria": "tendría", "podria": "podría", "podrian": "podrían", "fallaria": "fallaría", "ensenaria": "enseñaría",
+    "propondria": "propondría", "habria": "habría", "veria": "vería", "habia": "había", "habian": "habían", "queria": "quería",
+    "deberia": "debería", "deberian": "deberían", "serian": "serían", "seria": "sería", "tendrian": "tendrían", "haria": "haría",
+    "harian": "harían", "estaria": "estaría", "estarian": "estarían", "llegaria": "llegaría", "cambiaria": "cambiaría", "quedaria": "quedaría",
+    "tenia": "tenía", "tenian": "tenían", "venia": "venía", "sabia": "sabía", "sabian": "sabían", "decia": "decía",
+    "salia": "salía", "rapidos": "rápidos", "rapidas": "rápidas", "faciles": "fáciles", "dificiles": "difíciles", "pag": "pág",
+    "sintactica": "sintáctica", "toxicos": "tóxicos", "toxicas": "tóxicas", "axonico": "axónico", "glucido": "glúcido", "nucleo": "núcleo",
+    "nucleos": "núcleos", "deposito": "depósito", "depositos": "depósitos", "indices": "índices", "enfasis": "énfasis", "maximas": "máximas",
+    "minimas": "mínimas", "optimo": "óptimo", "optima": "óptima", "proximos": "próximos", "proximas": "próximas", "tipico": "típico",
+    "tipica": "típica", "identicos": "idénticos", "identicas": "idénticas", "organico": "orgánico", "inorganico": "inorgánico", "sistemico": "sistémico",
+    "sistemica": "sistémica", "quimicos": "químicos", "quimicas": "químicas", "graficos": "gráficos", "graficas": "gráficas", "especifico": "específico",
+    "angulo": "ángulo", "angulos": "ángulos", "rotulo": "rótulo", "capitulos": "capítulos", "vehiculo": "vehículo", "calculos": "cálculos",
+    "recalculo": "recálculo", "supero": "superó", "tolero": "toleró", "medico": "médico", "vinculo": "vínculo", "validas": "válidas",
+    "calculo": "cálculo", "perdida": "pérdida", "perdidas": "pérdidas", "auditoria": "auditoría", "auditorias": "auditorías", "termino": "término",
+    "terminos": "términos",
     # Palabras con ñ (14 de septiembre, segunda pasada)
-    "pestana": "pestaña", "pestanas": "pestañas", "senala": "señala", "senalan": "señalan", "senalar": "señalar", "senalado": "señalado", "senalada": "señalada", "senalados": "señalados", "senaladas": "señaladas", "ensenado": "enseñado", "ensenada": "enseñada", "ensene": "enseñe", "anadiendo": "añadiendo", "anadio": "añadió", "anadiste": "añadiste", "anadimos": "añadimos", "anaden": "añaden", "anadira": "añadirá", "anadirlo": "añadirlo", "anadirla": "añadirla", "resena": "reseña", "resenas": "reseñas", "contrasena": "contraseña", "contrasenas": "contraseñas", "manana": "mañana", "companera": "compañera", "companeros": "compañeros", "companeras": "compañeras", "disenar": "diseñar", "disenado": "diseñado", "disenada": "diseñada", "disenados": "diseñados", "disenadas": "diseñadas", "extrano": "extraño", "extrana": "extraña", "extranos": "extraños", "extranas": "extrañas", "engano": "engaño", "enganoso": "engañoso", "enganosa": "engañosa", "enganosos": "engañosos", "enganosas": "engañosas", "dueno": "dueño", "duena": "dueña", "nino": "niño", "ninos": "niños", "nina": "niña", "ninas": "niñas", "sueno": "sueño", "cumpleanos": "cumpleaños", "otono": "otoño", "danado": "dañado", "danada": "dañada", "danar": "dañar", "punado": "puñado", "tamanos": "tamaños", "pequenez": "pequeñez", "ensenanza": "enseñanza", "antano": "antaño", "desempeno": "desempeño", "empeno": "empeño", "panuelo": "pañuelo",
+    "pestana": "pestaña", "pestanas": "pestañas", "senala": "señala", "senalan": "señalan", "senalar": "señalar", "senalado": "señalado",
+    "senalada": "señalada", "senalados": "señalados", "senaladas": "señaladas", "ensenado": "enseñado", "ensenada": "enseñada", "ensene": "enseñe",
+    "anadiendo": "añadiendo", "anadio": "añadió", "anadiste": "añadiste", "anadimos": "añadimos", "anaden": "añaden", "anadira": "añadirá",
+    "anadirlo": "añadirlo", "anadirla": "añadirla", "resena": "reseña", "resenas": "reseñas", "contrasena": "contraseña", "contrasenas": "contraseñas",
+    "manana": "mañana", "companera": "compañera", "companeros": "compañeros", "companeras": "compañeras", "disenar": "diseñar", "disenado": "diseñado",
+    "disenada": "diseñada", "disenados": "diseñados", "disenadas": "diseñadas", "extrano": "extraño", "extrana": "extraña", "extranos": "extraños",
+    "extranas": "extrañas", "engano": "engaño", "enganoso": "engañoso", "enganosa": "engañosa", "enganosos": "engañosos", "enganosas": "engañosas",
+    "dueno": "dueño", "duena": "dueña", "nino": "niño", "ninos": "niños", "nina": "niña", "ninas": "niñas",
+    "sueno": "sueño", "cumpleanos": "cumpleaños", "otono": "otoño", "danado": "dañado", "danada": "dañada", "danar": "dañar",
+    "punado": "puñado", "tamanos": "tamaños", "pequenez": "pequeñez", "ensenanza": "enseñanza", "antano": "antaño", "desempeno": "desempeño",
+    "empeno": "empeño", "panuelo": "pañuelo",
     # -cion / -sion
     "hipotesis": "hipótesis", "investigacion": "investigación", "iteracion": "iteración", "decision": "decisión", "revision": "revisión",
     "verificacion": "verificación", "extraccion": "extracción", "comprobacion": "comprobación", "informacion": "información", "poblacion": "población",
@@ -82,7 +164,9 @@ PALABRAS = {
     "matematico": "matemático", "matematica": "matemática", "electronico": "electrónico", "electronica": "electrónica", "cronico": "crónico", "cronica": "crónica",
     "sintoma": "síntoma", "sintomas": "síntomas", "diagnostico": "diagnóstico", "diagnostica": "diagnóstica", "pronostico": "pronóstico", "pronostica": "pronóstica",
     "terapeutico": "terapéutico", "terapeutica": "terapéutica", "terapeuticos": "terapéuticos", "terapeuticas": "terapéuticas", "patologico": "patológico",
-    "patologica": "patológica", "neurologico": "neurológico", "neurologica": "neurológica", "cognitivo": "cognitivo", "amiloide": "amiloide",     "vinculos": "vínculos", "parrafo": "párrafo", "parrafos": "párrafos", "sabado": "sábado", "miercoles": "miércoles", "credito": "crédito",     "proposito": "propósito", "propositos": "propósitos", "hipotetico": "hipotético", "hipotetica": "hipotética", "sistematico": "sistemático", "sistematica": "sistemática",
+    "patologica": "patológica", "neurologico": "neurológico", "neurologica": "neurológica", "cognitivo": "cognitivo", "amiloide": "amiloide", "vinculos": "vínculos",
+    "parrafo": "párrafo", "parrafos": "párrafos", "sabado": "sábado", "miercoles": "miércoles", "credito": "crédito", "proposito": "propósito",
+    "propositos": "propósitos", "hipotetico": "hipotético", "hipotetica": "hipotética", "sistematico": "sistemático", "sistematica": "sistemática",
     "sistematicas": "sistemáticas", "aleatorio": "aleatorio", "electrico": "eléctrico", "atomico": "atómico", "dinamico": "dinámico", "dinamica": "dinámica",
     "semantico": "semántico", "semantica": "semántica", "esporadico": "esporádico", "esporadica": "esporádica", "periodico": "periódico", "periodica": "periódica",
     "cardiaco": "cardíaco", "basico": "básico", "basica": "básica", "basicos": "básicos", "basicas": "básicas", "practicas": "prácticas", "practicos": "prácticos",
@@ -142,7 +226,43 @@ def acentuar_texto(texto: str) -> str:
             return base[0].upper() + base[1:]
         return base
 
-    return PATRON.sub(rep, texto)
+    # Un texto en ingles (titulos de articulos en los datos de muestra) no se
+    # toca: "revision" o "decision" alli no llevan tilde.
+    if _INGLES.search(texto) and not _CASTELLANO.search(texto):
+        return texto
+    texto = PATRON.sub(rep, texto)
+    # Toda palabra castellana en -cion singular lleva tilde; el plural (-ciones)
+    # no, y no hay palabras inglesas en -cion, asi que la regla es segura.
+    texto = _CION.sub(lambda m: m.group(1) + "ción", texto)
+    # Interrogativos: tras "¿" siempre llevan tilde; "Que" y "Como" al empezar
+    # una cadena son casi siempre pregunta indirecta ("Que toca hacer",
+    # "Como crecio") en la interfaz de Rosa.
+    texto = _INTERROGATIVO.sub(lambda m: m.group(1) + INTERROGATIVOS[m.group(2).lower()] if m.group(2)[0].islower() else m.group(1) + INTERROGATIVOS[m.group(2).lower()].capitalize(), texto)
+    # ... salvo cuando sigue un articulo, un demostrativo, una mayuscula o una
+    # cifra: "Que el efecto sea independiente" es un "que" completivo.
+    texto = re.sub(r"^(Que|Como)(?=\s+(?![A-Z0-9]|(?:el|la|los|las|un|una|unos|unas|este|esta|estos|estas|ese|esa|esos|esas|eso|esto|aquel|aquella|lo|si)\b))", lambda m: "Qué" if m.group(1) == "Que" else "Cómo", texto)
+    # esta/está: si le sigue un participio, un gerundio, un adverbio o una
+    # preposicion de estado, es el verbo.
+    texto = _ESTA.sub(lambda m: ("Está" if m.group(1)[0].isupper() else "está") + m.group(2), texto)
+    # aun/aún: "aun asi" es la unica forma sin tilde que aparece en la interfaz.
+    texto = re.sub(r"\b([Aa])un\b(?!\s+as[ií]\b)", lambda m: m.group(1) + "ún", texto)
+    return texto
+
+
+INTERROGATIVOS = {"que": "qué", "como": "cómo", "donde": "dónde", "cuando": "cuándo", "cual": "cuál", "cuales": "cuáles", "quien": "quién", "quienes": "quiénes", "cuanto": "cuánto", "cuanta": "cuánta", "cuantos": "cuántos", "cuantas": "cuántas"}
+_INTERROGATIVO = re.compile(r"(¿\s*)(que|como|donde|cuando|cual|cuales|quien|quienes|cuanto|cuanta|cuantos|cuantas)\b", re.IGNORECASE)
+_ESTA = re.compile(
+    r"\b([Ee]sta)(\s+(?:"
+    r"(?:bloquead|retractad|marcad|pausad|aprobad|sellad|congelad|conectad|desconectad|detenid|resuelt|ocupad|prohibid|publicad|registrad|verificad|comprobad|sostenid|refutad|descartad|aceptad|asignad|cerrad|abiert|agotad|alcanzad|cubiert|definid|fijad|calibrad|terminad|acabad|hech|dispuest|apagad|encendid|rot|escrit|previst|vist|dich|muert|descrit|contradich|list|activ|vac[ií]|llen|complet|viv)[oa]s?"
+    r"|(?:pendiente|pendientes|disponible|disponibles|libre|libres|claro|clara|mejor|peor|igual|entre|bajo|sobre|encima|debajo|junto|justo|siempre|tan|en|por|a|de|para|con|sin|ya|aqu[ií]|ah[ií]|bien|mal|fuera|dentro|arriba|abajo|m[aá]s|muy|casi|todav[ií]a|a[uú]n|ahora|lejos|cerca|al)"
+    r"|[a-záéíóúñ]+(?:ando|iendo|yendo)"
+    r")\b)"
+)
+
+
+_CION = re.compile(r"\b([A-Za-z]{2,})cion\b")
+_INGLES = re.compile(r"\b(the|of|and|with|for|from|into|between|among|versus)\b")
+_CASTELLANO = re.compile(r"\b(el|la|los|las|de|del|que|y|en|con|para|por|una|un|se|es|al|lo|sin|como)\b")
 
 
 ATRIBUTOS = ("titulo", "nota", "placeholder", "aria-label", "title", "etiqueta", "label", "texto", "explicacion", "definicion", "pista", "descripcion", "resumen", "sub")
@@ -248,8 +368,9 @@ def main() -> None:
         if despues != antes:
             f.write_text(despues)
             cambiados += 1
-    for nombre in ("datos/muestra.ts", "datos/simulacion.ts", "datos/acciones.ts", "datos/almacen.ts"):
-        f = raiz / nombre
+    for f in sorted(list((raiz / "lib").glob("*.ts")) + list((raiz / "datos").glob("*.ts"))):
+        if f.name.endswith(".test.ts") or f.name == "tipos.ts":
+            continue
         antes = f.read_text()
         despues = acentuar_cadenas_ts(antes)
         if despues != antes:

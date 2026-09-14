@@ -45,12 +45,12 @@ export interface Grafo {
 export const NOMBRE_TIPO: Record<TipoNodo, string> = {
   objetivo: 'Objetivo',
   rama: 'Cluster de mecanismo',
-  area: 'Area del programa',
+  area: 'Área del programa',
   hipotesis: 'Hipotesis',
   hecho: 'Hecho del modelo de mundo',
   pregunta: 'Pregunta abierta',
   fuente: 'Fuente',
-  entidad: 'Entidad canonica',
+  entidad: 'Entidad canónica',
   experimento: 'Experimento en el laboratorio',
 };
 
@@ -59,7 +59,7 @@ export const NOMBRE_ENLACE: Record<TipoEnlace, string> = {
   cita: 'cita',
   respalda: 'respalda',
   entidad: 'nombra',
-  causal: 'relacion causal',
+  causal: 'relación causal',
   rival: 'rival en el torneo',
   experimento: 'se prueba en',
 };

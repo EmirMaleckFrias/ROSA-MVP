@@ -26,7 +26,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Panorama de la investigación</h2>
-          <p>La síntesis por encima de las hipótesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que Rosa le ensenaria a el investigador clínico principal primero.</p>
+          <p>La síntesis por encima de las hipótesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que Rosa le enseñaría a el investigador clínico principal primero.</p>
         </div>
         <button type="button" className="btn" onClick={exportarAims} disabled={hipotesis.length === 0}>
           Exportar como Specific Aims
@@ -56,7 +56,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
                   </ul>
                 </div>
                 <div>
-                  <p className="campo-etiqueta">Que investigar</p>
+                  <p className="campo-etiqueta">Qué investigar</p>
                   <ul className="lista-limpia" style={{ fontSize: 13, marginTop: 6 }}>
                     {d.queInvestigar.map((h) => (
                       <li key={h}>{h}</li>

@@ -146,7 +146,7 @@ export function Artefactos({ inv, estado, ahora, detalleId }: { inv: Investigaci
         </button>
       </div>
       {visibles.length === 0 ? (
-        <Vacio titulo="Sin artefactos">Nada coincide con la busqueda.</Vacio>
+        <Vacio titulo="Sin artefactos">Nada coincide con la búsqueda.</Vacio>
       ) : (
         <div className="artefactos-rejilla">
           {visibles.map((a) => {

@@ -158,7 +158,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       </div>
 
       {coberturas.length > 0 && (
-        <Seccion detalle titulo="Cobertura de la busqueda por tema" nota={`Cuanto de lo relevante se estima encontrado (curva de descubrimiento). Por debajo del ${Math.round(COBERTURA_MINIMA * 100)} % una "ausencia refutada" se degrada a "sin verificar".`}>
+        <Seccion detalle titulo="Cobertura de la búsqueda por tema" nota={`Cuanto de lo relevante se estima encontrado (curva de descubrimiento). Por debajo del ${Math.round(COBERTURA_MINIMA * 100)} % una "ausencia refutada" se degrada a "sin verificar".`}>
           <div className="coberturas">
             {coberturas.map((c) => {
               const faltan = faltanParaCobertura(c, 0.9);
@@ -179,7 +179,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                     {Number.isFinite(faltan) && faltan > 0 && ` · unos ${faltan} más para el 90 %`}
                   </span>
                   {baja && (
-                    <button type="button" className="btn btn-s" onClick={() => corrida && acciones.dirigirCorrida(corrida.id, `Extender la busqueda del tema "${c.tema}" hasta el 90 % de cobertura (unos ${Number.isFinite(faltan) ? faltan : 'muchos'} artículos más)`)} disabled={!corrida}>
+                    <button type="button" className="btn btn-s" onClick={() => corrida && acciones.dirigirCorrida(corrida.id, `Extender la búsqueda del tema "${c.tema}" hasta el 90 % de cobertura (unos ${Number.isFinite(faltan) ? faltan : 'muchos'} artículos más)`)} disabled={!corrida}>
                       Extender busqueda
                     </button>
                   )}
@@ -199,7 +199,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
           <input
             className="entrada"
             value={pregunta}
-            placeholder="Que se sabe del cociente p-tau217/Abeta42"
+            placeholder="Qué se sabe del cociente p-tau217/Abeta42"
             onChange={(e) => setPregunta(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') setRespuesta(preguntarAlModeloDeMundo(estado.hechos, inv.id, pregunta, fuentesPorId));
@@ -243,7 +243,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       </Seccion>
 
       {vista === 'cambios' ? (
-        <Seccion titulo="Que cambio desde tu última visita" nota="Movimientos entre sabido, abierto y descartado, con quien los decidió y por que.">
+        <Seccion titulo="Qué cambió desde tu última visita" nota="Movimientos entre sabido, abierto y descartado, con quien los decidió y por que.">
           {movimientos.length === 0 ? (
             <p className="meta">Nada se movio desde tu última visita.</p>
           ) : (

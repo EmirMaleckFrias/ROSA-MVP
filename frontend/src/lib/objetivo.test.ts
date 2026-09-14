@@ -28,7 +28,7 @@ describe('proponerConfiguracion', () => {
   it('saca restricciones de los limites y del texto, y atributos de las palabras clave', () => {
     const c = proponerConfiguracion(INVESTIGACION.objetivo, INVESTIGACION.relevancia, INVESTIGACION.limites);
     expect(c.restricciones).toEqual(expect.arrayContaining(INVESTIGACION.limites));
-    expect(c.atributos).toEqual(expect.arrayContaining(['Testabilidad con un biomarcador medible', 'Comprobable en una cohorte longitudinal', 'Mecanismo explicito con diana']));
+    expect(c.atributos).toEqual(expect.arrayContaining(['Testabilidad con un biomarcador medible', 'Comprobable en una cohorte longitudinal', 'Mecanismo explícito con diana']));
     expect(c.preferencias.startsWith(INVESTIGACION.relevancia)).toBe(true);
   });
   it('con texto vacio devuelve la novedad como unico atributo', () => {

@@ -16,12 +16,12 @@ import { ACCION_ESPERA, ALCANCE, CLASE_ACCION, NIVEL_AUTONOMIA, TIPO_PERMISO } f
 import { useTema, type Tema } from '../lib/theme';
 
 const CRITERIOS_INTEGRADOS = [
-  'Toda afirmacion lleva una cita que resuelve a la página exacta del dato.',
+  'Toda afirmación lleva una cita que resuelve a la página exacta del dato.',
   'Un identificador (NCT, DOI, PMID) que no aparece en el fragmento citado no se sostiene.',
   'Un dato de otra entidad (otro fármaco, cohorte, estudio) se marca aunque la cifra sea real.',
   'Una declaración de ausencia desmentida por el corpus se bloquea.',
   'Nada se aprueba por omisión: sin veredicto es "sin verificar".',
-  'Una "ausencia refutada" solo vale si la busqueda del tema ha convergido.',
+  'Una "ausencia refutada" solo vale si la búsqueda del tema ha convergido.',
 ];
 
 /** Un campo de texto que guarda al salir (o con Enter), no en cada tecla:
@@ -95,7 +95,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </div>
 
-      <Seccion titulo="Autonomía por clase de acción" nota="Que puede hacer Rosa sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea friccion sin seguridad.">
+      <Seccion titulo="Autonomía por clase de acción" nota="Qué puede hacer Rosa sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea fricción sin seguridad.">
         <table className="tabla">
           <thead>
             <tr>
@@ -125,7 +125,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Que pasa con una decisión que nadie toma" nota="En una corrida de días la cola envejece. Esto lo decide una persona, nunca la interfaz por accidente.">
+      <Seccion titulo="Qué pasa con una decisión que nadie toma" nota="En una corrida de días la cola envejece. Esto lo decide una persona, nunca la interfaz por accidente.">
         <div className="tarjeta seccion">
           <div className="rejilla-3">
             <div className="campo">
@@ -312,7 +312,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           {avisos.cuando.resumenDiario && ejemploDigest !== '' && (
             <div>
-              <p className="campo-etiqueta">Así se veria hoy</p>
+              <p className="campo-etiqueta">Así se vería hoy</p>
               <pre className="registro">{ejemploDigest}</pre>
             </div>
           )}
@@ -332,7 +332,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </Seccion>
 
-      <Seccion detalle titulo="Modelos de Rosa" nota="Piezas intercambiables dentro de Rosa, todas por el AI Gateway de Vercel. Se cambian por la metrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
+      <Seccion detalle titulo="Modelos de Rosa" nota="Piezas intercambiables dentro de Rosa, todas por el AI Gateway de Vercel. Se cambian por la métrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
         <table className="tabla">
           <tbody>
             <tr>

@@ -18,9 +18,9 @@ import { rutaDe } from '../lib/ruta';
  *  desidentificacion y comite. */
 const CATALOGO: { nombre: string; descripcion: string; acceso: 'abierto' | 'controlado'; tamanoMb: number; columnas: number; clasificacion: Dataset['clasificacion'] }[] = [
   { nombre: 'NIAGADS GenomicsDB (GWAS)', descripcion: '69 conjuntos de estadísticas GWAS, 150 millones de variantes anotadas.', acceso: 'abierto', tamanoMb: 2_400, columnas: 12, clasificacion: 'publico' },
-  { nombre: 'ADSP (WGS/WES)', descripcion: 'Secuenciacion completa del Alzheimer Disease Sequencing Project.', acceso: 'controlado', tamanoMb: 900_000, columnas: 40, clasificacion: 'personas' },
+  { nombre: 'ADSP (WGS/WES)', descripcion: 'Secuenciación completa del Alzheimer Disease Sequencing Project.', acceso: 'controlado', tamanoMb: 900_000, columnas: 40, clasificacion: 'personas' },
   { nombre: 'SEA-AD (Allen Institute)', descripcion: 'Single-nucleus de corteza en envejecimiento y Alzheimer.', acceso: 'abierto', tamanoMb: 18_000, columnas: 30, clasificacion: 'publico' },
-  { nombre: 'ROSMAP (vía AD Knowledge Portal)', descripcion: 'Cohortes longitudinales con multiomica; acuerdo de uso en Synapse.', acceso: 'controlado', tamanoMb: 45_000, columnas: 120, clasificacion: 'personas' },
+  { nombre: 'ROSMAP (vía AD Knowledge Portal)', descripcion: 'Cohortes longitudinales con multiómica; acuerdo de uso en Synapse.', acceso: 'controlado', tamanoMb: 45_000, columnas: 120, clasificacion: 'personas' },
   { nombre: 'ssREAD', descripcion: 'Atlas de single-cell y espacial de Alzheimer.', acceso: 'abierto', tamanoMb: 12_000, columnas: 25, clasificacion: 'publico' },
   { nombre: 'OASIS-4', descripcion: 'Imagen y clínica longitudinal.', acceso: 'controlado', tamanoMb: 60_000, columnas: 80, clasificacion: 'personas' },
   { nombre: 'GEO (expresión, RNA-Seq)', descripcion: 'Conjuntos de expresión públicos, por accession.', acceso: 'abierto', tamanoMb: 500, columnas: 20, clasificacion: 'publico' },
@@ -106,13 +106,13 @@ function QueToca({ inv, corridas, irA }: { inv: Inv; corridas: EstadoRosa['corri
   const tareas: { texto: string; accion: () => void; etiqueta: string }[] = [];
   if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'Rosa propuso la misión (población, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la misión' });
   if (pendientes > 0) tareas.push({ texto: `${pendientes} ${pendientes === 1 ? 'dataset espera' : 'datasets esperan'} que completes su libro de procedencia y lo apruebes.`, accion: () => ir('datos'), etiqueta: 'Ver los datos' });
-  if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproducción esta bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningun análisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
+  if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproducción está bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningún análisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
   if (corridas.length === 0) tareas.push({ texto: 'Esta investigación no tiene corridas: Rosa todavía no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
   return (
     <div className={`quetoca ${tareas.length === 0 ? 'quetoca-vacio' : ''}`} role="status">
       <strong>{tareas.length === 0 ? 'Nada te espera aquí.' : tareas.length === 1 ? 'Te espera una cosa:' : `Te esperan ${tareas.length} cosas:`}</strong>
       {tareas.length === 0 ? (
-        <span className="meta"> El objetivo, la misión y los datos están en orden. Lo demas de esta pantalla es consulta.</span>
+        <span className="meta"> El objetivo, la misión y los datos están en orden. Lo demás de esta pantalla es consulta.</span>
       ) : (
         <ul>
           {tareas.map((t) => (
@@ -177,7 +177,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           <p style={{ whiteSpace: 'pre-wrap' }}>{inv.objetivo}</p>
         </div>
         <div className="tarjeta seccion">
-          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Que cuenta como relevante</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Qué cuenta como relevante</h3>
           <p>{inv.relevancia || 'Sin definir. Rosa perseguira todo lo que parezca significativo.'}</p>
         </div>
         <div className="tarjeta seccion">
@@ -288,7 +288,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         nota="Antes de una corrida larga, la comprobación de datos: columnas sin diccionario, valores centinela y nombres duplicados contaminaron horas de una corrida de Kosmos. Nada se aprueba con esos contadores en rojo."
         acciones={
           <button type="button" className="btn btn-s" onClick={() => setVerCatalogo((v) => !v)}>
-            {verCatalogo ? 'Ocultar catalogo' : 'Catalogo de datos del Alzheimer'}
+            {verCatalogo ? 'Ocultar catálogo' : 'Catálogo de datos del Alzheimer'}
           </button>
         }
       >
@@ -302,7 +302,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
             <thead>
               <tr>
                 <th>Conjunto</th>
-                <th>Que es</th>
+                <th>Qué es</th>
                 <th>Acceso</th>
                 <th className="num">Tamaño</th>
                 <th></th>
@@ -359,7 +359,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
                 <th>Estado</th>
                 <th>Empezó</th>
                 <th className="num">Iteraciones</th>
-                <th className="num">Duracion</th>
+                <th className="num">Duración</th>
                 <th className="num">Llamadas</th>
                 <th>Cierre</th>
               </tr>

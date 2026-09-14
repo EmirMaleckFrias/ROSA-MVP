@@ -273,7 +273,7 @@ describe('comentarios', () => {
 describe('meta-revision y modelo de mundo', () => {
   it('inyectar una debilidad la convierte en criterio una sola vez', () => {
     const e1 = inyectarDebilidad(estadoDeMuestra(), 'cor-3', 'deb-1');
-    expect(e1.criteriosRevision.at(-1)).toMatch(/barrera hematoencefalica/);
+    expect(e1.criteriosRevision.at(-1)).toMatch(/barrera hematoencefálica/);
     expect(inyectarDebilidad(e1, 'cor-3', 'deb-1')).toBe(e1);
     // deb-3 ya estaba inyectada en la muestra.
     const e0 = estadoDeMuestra();
@@ -341,7 +341,7 @@ describe('protocolo real y enmiendas fechadas', () => {
     const x = conEnmienda.hipotesis.find((h) => h.id === id)!.experimento!;
     expect(x.ensayo).toContain('20 %');
     expect(x.enmiendas).toHaveLength(1);
-    expect(x.enmiendas?.[0]?.antes).toContain('Tiempo hasta la primera alteracion');
+    expect(x.enmiendas?.[0]?.antes).toContain('Tiempo hasta la primera alteración');
     expect(x.enmiendas?.[0]?.quien).toBe('persona');
   });
   it('el protocolo real exige asignacion y texto; con resultado ya evaluado lo borra para reevaluar', () => {

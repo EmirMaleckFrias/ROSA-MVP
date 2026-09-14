@@ -38,7 +38,7 @@ export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, on
         <button type="button" className="btn btn-fantasma btn-icono" aria-label="Buscar (Cmd+K)" onClick={onBuscar}>
           <IconSearch size={15} />
         </button>
-        <div className="segmentos segmentos-modo" role="group" aria-label="Modo de la interfaz" title="Sencillo: lo que decides tu, con la ingenieria plegada. Detalle: todo abierto.">
+        <div className="segmentos segmentos-modo" role="group" aria-label="Modo de la interfaz" title="Sencillo: lo que decides tu, con la ingeniería plegada. Detalle: todo abierto.">
           <button type="button" aria-pressed={modo === 'sencillo'} onClick={() => fijarModo('sencillo')}>
             Sencillo
           </button>
@@ -47,7 +47,7 @@ export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, on
           </button>
         </div>
         {onAyuda && (
-          <button type="button" className="btn btn-fantasma btn-icono" aria-label="Ver el recorrido de Rosa" title="Como funciona Rosa, en cinco pasos" onClick={onAyuda}>
+          <button type="button" className="btn btn-fantasma btn-icono" aria-label="Ver el recorrido de Rosa" title="Cómo funciona Rosa, en cinco pasos" onClick={onAyuda}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>?</span>
           </button>
         )}

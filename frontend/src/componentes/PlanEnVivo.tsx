@@ -179,7 +179,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
                   </button>
                 </div>
                 {paso.detalle !== '' && <p className="paso-detalle">{paso.detalle}</p>}
-                {paso.valorDecision ? <p className="paso-detalle paso-valor" title="Que decisión cambia según el resultado de este paso (valor de decisión)">Decide: {paso.valorDecision}</p> : null}
+                {paso.valorDecision ? <p className="paso-detalle paso-valor" title="Qué decisión cambia según el resultado de este paso (valor de decisión)">Decide: {paso.valorDecision}</p> : null}
               </div>
             </li>
           ))}

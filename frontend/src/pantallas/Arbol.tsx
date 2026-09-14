@@ -297,7 +297,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
-        <Vacio titulo="El arbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya esta.', 'Cuando Rosa busque literatura y verifique afirmaciones, apareceran los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
+        <Vacio titulo="El árbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya esta.', 'Cuando Rosa busque literatura y verifique afirmaciones, apareceran los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
           Aqui se ve toda la investigacion conectada: que sostiene a que, que comparte una entidad con que, y que rivaliza con que.
         </Vacio>
       </div>
@@ -313,11 +313,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <AvisoMuestra conexion={estado.conexion} />
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
-          <h2>Arbol de la investigación</h2>
+          <h2>Árbol de la investigación</h2>
           <p>El objetivo es el tronco; las ramas, los clusters con varias hipotesis; las hojas, las hipotesis; alrededor, lo que las sostiene. Pasa el raton por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demas lo siguen). Las etiquetas pequenas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
         </div>
         <div className="acciones">
-          <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el arbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el arbol" />
+          <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
           <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); setVista({ x: 0, y: 0, k: 1 }); }}>
             Plegar todo
           </button>
@@ -328,7 +328,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       </div>
 
       <div className="grafo-marco">
-        <svg ref={svgRef} className="grafo" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Arbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
+        <svg ref={svgRef} className="grafo" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Árbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
           <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
             {enlacesVisibles.map((e) => {
               const a = posiciones.get(e.de)!;

@@ -18,7 +18,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
   const [titulo, setTitulo] = useState('');
   const [objetivo, setObjetivo] = useState('');
   const [relevancia, setRelevancia] = useState('');
-  const [limites, setLimites] = useState('Solo literatura publicada y bases curadas: sin datos de pacientes.\nIgnorar artículos retractados o con expresión de preocupacion.');
+  const [limites, setLimites] = useState('Solo literatura publicada y bases curadas: sin datos de pacientes.\nIgnorar artículos retractados o con expresión de preocupación.');
   const [parada, setParada] = useState('');
   const [revisores, setRevisores] = useState('');
   const [heredar, setHeredar] = useState<string>('');
@@ -73,7 +73,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         </div>
         <div className="campo">
           <label htmlFor="n-objetivo">Objetivo</label>
-          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Que quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigación." />
+          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Qué quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigación." />
           {objetivo.trim() !== '' && avisos.length > 0 && (
             <ul className="avisos-objetivo" aria-label="Avisos sobre el objetivo">
               {avisos.map((a) => (
@@ -86,9 +86,9 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
           {objetivo.trim() !== '' && avisos.length === 0 && <small className="tono-ok">El objetivo tiene contexto, comprobación y una sola dirección.</small>}
         </div>
         <div className="campo">
-          <label htmlFor="n-relevancia">Que cuenta como relevante</label>
-          <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipótesis mecanistica, una asociación biomarcador-progresión, un candidato a reposicionamiento..." />
-          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si esta vacío, Rosa perseguira todo lo que parezca significativo.</small>
+          <label htmlFor="n-relevancia">Qué cuenta como relevante</label>
+          <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipótesis mecanística, una asociación biomarcador-progresión, un candidato a reposicionamiento..." />
+          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si está vacío, Rosa perseguira todo lo que parezca significativo.</small>
         </div>
         <div className="campo">
           <label htmlFor="n-limites">Limites (uno por linea)</label>
@@ -158,10 +158,10 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
 
         <Seccion
           titulo="Sensibilidad al fraseo"
-          nota="Edison admite que las direcciones de Kosmos cambian con la redaccion del objetivo. Antes de gastar, mira que primeras tareas propondria Rosa con tres redacciones."
+          nota="Edison admite que las direcciones de Kosmos cambian con la redacción del objetivo. Antes de gastar, mira que primeras tareas propondría Rosa con tres redacciones."
           acciones={
             <button type="button" className="btn btn-s" disabled={objetivo.trim() === ''} onClick={() => setVerParafrasis((v) => !v)}>
-              {verParafrasis ? 'Ocultar' : 'Probar tres parafrasis'}
+              {verParafrasis ? 'Ocultar' : 'Probar tres paráfrasis'}
             </button>
           }
         >
@@ -196,7 +196,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
                 </option>
               ))}
             </select>
-            <small>Rosa arranca sabiendo lo que ya se supo, se abrio y se descarto en esa investigación.</small>
+            <small>Rosa arranca sabiendo lo que ya se supo, se abrió y se descarto en esa investigación.</small>
           </div>
         )}
 

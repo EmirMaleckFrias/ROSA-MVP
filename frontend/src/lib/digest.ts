@@ -49,15 +49,15 @@ export function digest(estado: EstadoRosa, investigacionId: string, ahora: numbe
   const corrida = estado.corridas.filter((c) => c.investigacionId === investigacionId).sort((a, b) => b.numero - a.numero)[0];
 
   const lineas: string[] = [];
-  if (iteraciones > 0) lineas.push(plural(iteraciones, 'iteracion terminada', 'iteraciones terminadas'));
-  if (hipotesisNuevas > 0) lineas.push(plural(hipotesisNuevas, 'hipotesis nueva en la cola', 'hipotesis nuevas en la cola'));
+  if (iteraciones > 0) lineas.push(plural(iteraciones, 'iteración terminada', 'iteraciones terminadas'));
+  if (hipotesisNuevas > 0) lineas.push(plural(hipotesisNuevas, 'hipótesis nueva en la cola', 'hipótesis nuevas en la cola'));
   const ranking = eventos.filter((e) => e.tipo === 'ranking_cambio');
   if (ranking.length > 0) lineas.push(ranking[0]!.texto);
-  if (decisiones > 0) lineas.push(plural(decisiones, 'decision registrada', 'decisiones registradas'));
+  if (decisiones > 0) lineas.push(plural(decisiones, 'decisión registrada', 'decisiones registradas'));
   if (incidencias > 0) lineas.push(plural(incidencias, 'incidencia que necesita respuesta', 'incidencias que necesitan respuesta'));
   if (esperan.total > 0) {
     const edad = esperan.masAntiguaMs > 60_000 ? ` (la mas antigua lleva ${formatearDuracion(esperan.masAntiguaMs)})` : '';
-    lineas.push(`${plural(esperan.total, 'decision espera', 'decisiones esperan')} tu respuesta${edad}`);
+    lineas.push(`${plural(esperan.total, 'decisión espera', 'decisiones esperan')} tu respuesta${edad}`);
   }
   if (corrida) {
     const pct = Math.round((corrida.gasto.llamadas / corrida.presupuesto.limiteLlamadas) * 100);

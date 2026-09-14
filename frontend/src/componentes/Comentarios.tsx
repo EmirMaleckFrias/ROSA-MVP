@@ -56,7 +56,7 @@ export function NuevoComentario({ ancla, onGuardar, onCancelar }: { ancla: Ancla
         className="entrada"
         value={nota}
         maxLength={TOPE}
-        placeholder="Que quieres decirle a Rosa sobre este tramo"
+        placeholder="Qué quieres decirle a Rosa sobre este tramo"
         onChange={(e) => setNota(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && nota.trim() !== '') {

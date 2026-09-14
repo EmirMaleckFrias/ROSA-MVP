@@ -70,10 +70,10 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
       },
       {
         tipo: 'literatura',
-        titulo: 'Preprints sobre GFAP y microglia',
+        titulo: 'Preprints sobre GFAP y microglía',
         fuente: 'bioRxiv y medRxiv',
         lineas: [
-          { tipo: 'accion', texto: 'API de bioRxiv: GFAP microglia Alzheimer, últimos 12 meses', consulta: { base: 'bioRxiv API', parametros: '/details/biorxiv/2025-09-01/2026-09-10 + filtro GFAP microglia', resultados: '4 preprints' } },
+          { tipo: 'accion', texto: 'API de bioRxiv: GFAP microglía Alzheimer, últimos 12 meses', consulta: { base: 'bioRxiv API', parametros: '/details/biorxiv/2025-09-01/2026-09-10 + filtro GFAP microglia', resultados: '4 preprints' } },
           { tipo: 'resultado', texto: '4 preprints; 1 ya publicado, se toma la versión publicada' },
         ],
         resumenFinal: '4 preprints',
@@ -111,7 +111,7 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
     ],
   },
   {
-    titulo: 'Verificar cada afirmacion',
+    titulo: 'Verificar cada afirmación',
     detalle: 'Deterministas, triaje de Sonnet 5, juez Opus 5',
     presupuesto: 30,
     pistas: [
@@ -142,7 +142,7 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
           { tipo: 'accion', texto: 'GraphQL Open Targets: GFAP, NEFL x Alzheimer', consulta: { base: 'Open Targets GraphQL', parametros: 'target(GFAP, NEFL) associatedDiseases(EFO_0000249)', resultados: 'GFAP 0,18; NEFL 0,22' } },
           { tipo: 'resultado', texto: 'GFAP asociación 0,18 (biomarcador, no diana); NEFL 0,22' },
           { tipo: 'accion', texto: 'ClinicalTrials.gov: GFAP AND NfL AND APOE4 como desenlace' },
-          { tipo: 'resultado', texto: 'Ningun ensayo con ese orden temporal como desenlace: novedad plausible' },
+          { tipo: 'resultado', texto: 'Ningún ensayo con ese orden temporal como desenlace: novedad plausible' },
         ],
         resumenFinal: 'Sin ensayo ni diana previa: novedad plausible',
       },
@@ -232,12 +232,12 @@ function hipotesisSimulada(investigacionId: string, iteracion: number, ahora: nu
     rivales: ['hip-4'],
     novedad: {
       openTargets: { estado: 'evidencia_previa', detalle: 'GFAP y NEFL con asociación débil como biomarcadores' },
-      ensayos: { estado: 'sin_ensayo', detalle: 'Ningun ensayo usa la brecha GFAP-NfL como desenlace', nct: null },
+      ensayos: { estado: 'sin_ensayo', detalle: 'Ningún ensayo usa la brecha GFAP-NfL como desenlace', nct: null },
       agora: { estado: 'no_nominada', detalle: 'No aplica: no es una diana' },
       precedente: { estado: 'parcial', detalle: 'Dos cohortes describen GFAP temprano; ninguna mide la brecha con NfL como predictor.' },
     },
     afirmaciones: [
-      { texto: 'La microglia atenuada en R47H y APOE4 deja a la astroglia como respuesta compensatoria.', cita: `[${f.referencia}, pag. ${f.pagina}]`, veredicto: 'parcial', motivo: 'La fuente sugiere la compensacion; no la mide.', entidadDistinta: false, tipo: 'interpretacion', trayectoria: null },
+      { texto: 'La microglía atenuada en R47H y APOE4 deja a la astroglía como respuesta compensatoria.', cita: `[${f.referencia}, pag. ${f.pagina}]`, veredicto: 'parcial', motivo: 'La fuente sugiere la compensación; no la mide.', entidadDistinta: false, tipo: 'interpretacion', trayectoria: null },
     ],
     procedencia: {
       mensajes: [{ id: nuevoId('m'), de: 'rosa', texto: 'Hipótesis generada por la simulación de la interfaz a partir de la pregunta abierta sobre NfL y GFAP.', creadoEn: ahora }],
@@ -426,7 +426,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
       const detalle = propias.length > 0 ? propias.map((p) => p.resumen).join(' · ') : enCurso.detalle;
       plan = plan.map((p) =>
         p.id === enCurso.id
-          ? { ...p, estado: todasFallaron ? 'fallido' : 'hecho', detalle, motivoFallo: todasFallaron ? 'Ninguna de sus pistas termino: ' + propias.map((x) => x.resumen).join('; ') : null }
+          ? { ...p, estado: todasFallaron ? 'fallido' : 'hecho', detalle, motivoFallo: todasFallaron ? 'Ninguna de sus pistas término: ' + propias.map((x) => x.resumen).join('; ') : null }
           : p,
       );
     }

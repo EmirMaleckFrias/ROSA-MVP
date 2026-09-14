@@ -234,7 +234,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
               <strong>{formatearCompacto(corrida.gasto.tokensSalida)}</strong>
               <span>tokens de salida</span>
             </div>
-            <div className="gasto-item" title="Cuanto del contexto del cerebro esta ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras días.">
+            <div className="gasto-item" title="Cuanto del contexto del cerebro está ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras días.">
               <strong>{formatearPorcentaje(contextoPct)}</strong>
               <span>
                 contexto ocupado · {corrida.contexto.compactaciones} {corrida.contexto.compactaciones === 1 ? 'compactacion' : 'compactaciones'}
@@ -320,7 +320,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       )}
 
       {procesosVivos.length > 0 && (
-        <Seccion detalle titulo="Computo en marcha" nota="Cada proceso vivo. Detenerlo con una indicación se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
+        <Seccion detalle titulo="Cómputo en marcha" nota="Cada proceso vivo. Detenerlo con una indicación se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
           <table className="tabla">
             <thead>
               <tr>
@@ -360,11 +360,11 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       <Trazabilidad corrida={corrida} activa={estado.conexion !== 'muestra'} />
 
       <Seccion
-        detalle titulo="Busqueda de la corrida"
-        nota="El flujo de la busqueda (identificados, cribados, leídos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
+        detalle titulo="Búsqueda de la corrida"
+        nota="El flujo de la búsqueda (identificados, cribados, leídos a texto completo, usados) y las consultas exactas con fecha: la estrategia reproducible que pide cualquier revisor."
         acciones={
           <div className="acciones">
-            <button type="button" className="btn btn-s" title="Descarga el flujo en PRISMA 2020 (variables oficiales del diagrama, items 6, 7, 8, 16a y 16b), la extensión para revisiones vivas y la declaración de la IA usada, en JSON y en Markdown. Sin ningun modelo: sale del registro." onClick={() => void acciones.exportarPrisma(corrida.id)}>
+            <button type="button" className="btn btn-s" title="Descarga el flujo en PRISMA 2020 (variables oficiales del diagrama, ítems 6, 7, 8, 16a y 16b), la extensión para revisiones vivas y la declaración de la IA usada, en JSON y en Markdown. Sin ningún modelo: sale del registro." onClick={() => void acciones.exportarPrisma(corrida.id)}>
               Exportar PRISMA 2020
             </button>
             <button type="button" className="btn btn-fantasma btn-s" onClick={() => setVerBusqueda((v) => !v)}>

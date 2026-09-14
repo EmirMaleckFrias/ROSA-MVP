@@ -11,7 +11,7 @@ import { Momento, Seccion } from './piezas';
 export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: ResumenLlano | null | undefined; numero: number; abierta?: boolean }) {
   if (resumen === undefined) return null;
   return (
-    <Seccion titulo={`Que encontró Rosa en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada termino técnico definido al final. El detalle con citas, veredictos y pistas esta más abajo.">
+    <Seccion titulo={`Qué encontró Rosa en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada término técnico definido al final. El detalle con citas, veredictos y pistas está más abajo.">
       {resumen === null ? (
         <p className="meta">Rosa no pudo escribir el resumen de esta iteracion (el modelo no respondio). El resumen tecnico esta en las iteraciones anteriores.</p>
       ) : (
@@ -28,17 +28,17 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
             </div>
           )}
           <div className="llano-bloque">
-            <h4>Que queria averiguar Rosa</h4>
+            <h4>Qué quería averiguar Rosa</h4>
             <p>{resumen.queBuscaba}</p>
           </div>
           {resumen.queHizo && (
             <div className="llano-bloque">
-              <h4>Que hizo</h4>
+              <h4>Qué hizo</h4>
               <p>{resumen.queHizo}</p>
             </div>
           )}
           <div className="llano-bloque">
-            <h4>Que encontró</h4>
+            <h4>Qué encontró</h4>
             <ul>
               {resumen.queEncontro.map((t, i) => (
                 <li key={i}>{t}</li>
@@ -53,7 +53,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
           )}
           {resumen.cambios.length > 0 && (
             <div className="llano-bloque">
-              <h4>Que cambio desde la iteración anterior</h4>
+              <h4>Qué cambió desde la iteración anterior</h4>
               <ul>
                 {resumen.cambios.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -63,7 +63,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
           )}
           {resumen.quePropone.length > 0 && (
             <div className="llano-bloque">
-              <h4>Que propone comprobar</h4>
+              <h4>Qué propone comprobar</h4>
               <ul>
                 {resumen.quePropone.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -72,11 +72,11 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
             </div>
           )}
           <div className="llano-bloque">
-            <h4>Que falta</h4>
+            <h4>Qué falta</h4>
             <p>{resumen.queFalta}</p>
           </div>
           <div className="llano-bloque llano-accion">
-            <h4>Que te toca</h4>
+            <h4>Qué te toca</h4>
             <p>{resumen.queTeToca}</p>
           </div>
           <p className="meta">
@@ -191,17 +191,17 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
         </div>
         <div className="conclusion-columnas">
           <div className="llano-bloque llano-accion">
-            <h4>Subiria la certeza si</h4>
+            <h4>Subiría la certeza si</h4>
             <p>{conclusion.subiria}</p>
           </div>
           <div className="llano-bloque llano-accion">
-            <h4>Bajaria si</h4>
+            <h4>Bajaría si</h4>
             <p>{conclusion.bajaria}</p>
           </div>
         </div>
         {conclusion.noComprobado.length > 0 && (
           <div className="llano-bloque">
-            <h4>Que no pudimos comprobar</h4>
+            <h4>Qué no pudimos comprobar</h4>
             <ul>
               {conclusion.noComprobado.map((t, i) => (
                 <li key={i} className="meta">
