@@ -233,7 +233,9 @@ export interface Posicion {
   fijo?: boolean;
 }
 
-const LARGO: Record<TipoEnlace, number> = { rama: 170, cita: 80, respalda: 95, entidad: 85, causal: 130, rival: 190, experimento: 100 };
+// Longitudes de reposo de los enlaces. Más largas que el ancho de una
+// etiqueta media (unas 120 unidades) para que dos nodos unidos no se monten.
+const LARGO: Record<TipoEnlace, number> = { rama: 230, cita: 110, respalda: 140, entidad: 130, causal: 170, rival: 240, experimento: 150 };
 
 /** Anchura aproximada de la etiqueta de un nodo (en unidades del lienzo), para
  *  que las fuerzas dejen sitio al texto y no solo al circulo. */
@@ -335,6 +337,12 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
       b.vy -= dy * f;
     }
   }
+  // Separación de etiquetas por posición (restricción, no fuerza): si dos
+  // cajas de texto se solapan, ambos nodos se desplazan una fracción del
+  // solape por el eje donde el solape es menor. Actúa aunque la energía sea
+  // casi cero, así que las etiquetas acaban legibles también en reposo, y al
+  // ser un desplazamiento acotado no puede disparar el árbol.
+  separarEtiquetas(g, ids, posiciones, alfa);
   // Gravedad y movimiento.
   for (const id of ids) {
     const p = posiciones.get(id)!;
@@ -355,3 +363,49 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
     p.y += p.vy;
   }
 }
+
+/** Caja de la etiqueta de un nodo en unidades del lienzo: centrada en x, del
+ *  borde superior del círculo al final de la segunda línea de texto. */
+export function cajaEtiqueta(n: NodoArbol, p: { x: number; y: number }): { x0: number; x1: number; y0: number; y1: number } {
+  const w = Math.min(anchoEtiqueta(n), 180) + 10;
+  return { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - 16, y1: p.y + 36 };
+}
+
+const FRACCION_SEPARACION = 0.18;
+
+function separarEtiquetas(g: Grafo, ids: string[], posiciones: Map<string, Posicion>, alfa: number): void {
+  // Con el árbol caliente se separa deprisa; casi en reposo, despacio, para
+  // que un árbol denso sin sitio para todas las etiquetas no tiemble.
+  const fraccion = FRACCION_SEPARACION * Math.min(1, Math.max(0.25, alfa / 0.12));
+  const conTexto = ids.filter((id) => g.porId.get(id)?.tipo !== 'fuente');
+  for (let i = 0; i < conTexto.length; i++) {
+    const na = g.porId.get(conTexto[i]!)!;
+    const a = posiciones.get(conTexto[i]!)!;
+    for (let j = i + 1; j < conTexto.length; j++) {
+      const nb = g.porId.get(conTexto[j]!)!;
+      const b = posiciones.get(conTexto[j]!)!;
+      const ca = cajaEtiqueta(na, a);
+      const cb = cajaEtiqueta(nb, b);
+      const ox = Math.min(ca.x1, cb.x1) - Math.max(ca.x0, cb.x0);
+      const oy = Math.min(ca.y1, cb.y1) - Math.max(ca.y0, cb.y0);
+      if (ox <= 0 || oy <= 0) continue;
+      const libres = (a.fijo ? 0 : 1) + (b.fijo ? 0 : 1);
+      if (libres === 0) continue;
+      // Por el eje de menor solape; en horizontal las etiquetas son anchas,
+      // así que ante la duda se separan en vertical.
+      const horizontal = ox < oy * 0.6;
+      const paso = (horizontal ? ox : oy) * fraccion;
+      const dir = horizontal ? Math.sign(a.x - b.x || 1) : Math.sign(a.y - b.y || 1);
+      const cada = paso / libres;
+      if (!a.fijo) {
+        if (horizontal) a.x += dir * cada;
+        else a.y += dir * cada;
+      }
+      if (!b.fijo) {
+        if (horizontal) b.x -= dir * cada;
+        else b.y -= dir * cada;
+      }
+    }
+  }
+}
+

@@ -66,6 +66,17 @@ function montarGrande() {
   return { g, visibles, pos };
 }
 
+/** Mayor desplazamiento de un nodo entre dos instantáneas: lo que el ojo ve. */
+function desplazamientoMax(antes: Map<string, [number, number]>, pos: Map<string, Posicion>): number {
+  let m = 0;
+  for (const [id, [x, y]] of antes) {
+    const p = pos.get(id)!;
+    m = Math.max(m, Math.hypot(p.x - x, p.y - y));
+  }
+  return m;
+}
+const instantanea = (pos: Map<string, Posicion>) => new Map([...pos.entries()].map(([id, p]) => [id, [p.x, p.y] as [number, number]]));
+
 const velocidadMax = (pos: Map<string, Posicion>, salvo?: string) => Math.max(...[...pos.entries()].filter(([id]) => id !== salvo).map(([, p]) => Math.hypot(p.vx, p.vy)));
 
 describe('estabilidad del árbol', () => {
@@ -99,10 +110,12 @@ describe('estabilidad del árbol', () => {
     let alfa = 0.35;
     let fotogramas = 0;
     while (fotogramas < 200) {
+      const antes = instantanea(pos);
       for (let k = 0; k < 2; k++) paso(g, visibles, pos, alfa);
       alfa = Math.max(0.02, alfa * 0.975);
       fotogramas++;
-      if (velocidadMax(pos) < 0.5) break;
+      // Menos de una unidad por fotograma (menos de un píxel al zoom normal) es reposo.
+      if (desplazamientoMax(antes, pos) < 1) break;
     }
     expect(fotogramas).toBeLessThan(200);
   });
@@ -125,12 +138,16 @@ describe('estabilidad del árbol', () => {
     p.fijo = false;
     let alfa = 0.35;
     let fotogramas = 0;
+    let ultimo = Infinity;
     while (fotogramas < 300) {
+      const antes = instantanea(pos);
       for (let k = 0; k < 2; k++) paso(g, visibles, pos, alfa);
       alfa = Math.max(0.02, alfa * 0.975);
       fotogramas++;
-      if (velocidadMax(pos) < 0.5) break;
+      ultimo = desplazamientoMax(antes, pos);
+      if (ultimo < 1) break;
     }
+    console.log(`grande: asentado en ${fotogramas} fotogramas (último desplazamiento ${ultimo.toFixed(2)})`);
     expect(fotogramas).toBeLessThan(300);
     for (const q of pos.values()) expect(Number.isFinite(q.x) && Number.isFinite(q.y)).toBe(true);
   });

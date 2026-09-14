@@ -218,3 +218,15 @@ unidades por paso). `lib/arbol.estabilidad.test.ts` arrastra un nodo con todo
 desplegado en el árbol de muestra y en uno sintético de 250 nodos: la
 velocidad máxima de los vecinos bajó de 27 a 31 unidades por paso a 9,5 a
 11,8, y el árbol se asienta en unos cien fotogramas al soltar.
+
+Legibilidad. Con eso el árbol dejó de temblar, pero las etiquetas seguían
+montándose unas sobre otras ("¿no consideras que están DEMASIADO pegados?").
+Dos cambios más: los enlaces son más largos que una etiqueta media (cita
+110, entidad 130, respalda 140, rama 230 unidades) y hay una restricción de
+posición, `separarEtiquetas`, que en cada paso desplaza una fracción del
+solape a los dos nodos cuyas cajas de texto se pisan, por el eje de menor
+solape (ante la duda, en vertical, porque las etiquetas son anchas). Al ser
+un desplazamiento acotado no puede disparar nada, y actúa también casi en
+reposo (más despacio, para que un árbol denso sin sitio no tiemble).
+`lib/arbol.solapes.test.ts` cuenta los pares de etiquetas solapadas en el
+árbol de muestra desplegado del todo: de 7 a 0.
