@@ -87,6 +87,15 @@ describe('la aplicacion montada en el cliente', () => {
       expect(raiz.textContent, pantalla).not.toContain('Esta investigacion no existe');
       document.body.innerHTML = '';
     }
+    // En el arbol, pulsar una esfera abre su panel con las conexiones.
+    const arbol = await montar(rutaDe(inv.id, 'arbol'));
+    const esfera = arbol.querySelector<SVGGElement>('.grafo-nodo.grafo-hipotesis');
+    expect(esfera).toBeTruthy();
+    await act(async () => {
+      esfera!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    });
+    expect(arbol.querySelector('.grafo-panel')?.textContent).toContain('Conectado con');
+    document.body.innerHTML = '';
     // La etapa Laboratorio del hilo tiene su propia vista, distinta de la cola.
     const lab = await montar(rutaDe(inv.id, 'hipotesis', 'laboratorio'));
     expect(lab.querySelector('h2')?.textContent).toBe('Laboratorio');

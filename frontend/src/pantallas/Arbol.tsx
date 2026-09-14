@@ -219,8 +219,9 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   }, []);
   const empezarArrastre = (e: React.PointerEvent) => {
     const nodo = (e.target as Element).closest('.grafo-nodo') as SVGGElement | null;
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     if (nodo) {
+      // Sin capturar el puntero: si el SVG lo captura, el navegador manda el
+      // clic al SVG y la esfera nunca recibe onClick (no se abria el panel).
       const id = nodo.getAttribute('data-id');
       const p = id ? posiciones.get(id) : undefined;
       if (id && p) {
@@ -229,6 +230,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       }
       return;
     }
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y };
   };
   const mover = (e: React.PointerEvent) => {
