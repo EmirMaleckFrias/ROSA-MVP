@@ -57,7 +57,7 @@ function tokenAcceso(): string | null {
 /** Cabeceras de toda escritura: X-Rosa marca que viene de la interfaz (una
  *  pagina ajena no puede mandarla sin que el navegador la bloquee) y el token
  *  si existe. */
-function cabeceras(json = true): Record<string, string> {
+export function cabeceras(json = true): Record<string, string> {
   const h: Record<string, string> = { 'X-Rosa': '1' };
   if (json) h['Content-Type'] = 'application/json';
   const t = tokenAcceso();

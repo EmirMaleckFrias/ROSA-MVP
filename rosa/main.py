@@ -75,7 +75,7 @@ async def principal() -> None:
         with contextlib.suppress(NotImplementedError):
             bucle.add_signal_handler(s, parar)
 
-    print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, version {almacen.version})")
+    print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
     await asyncio.gather(servidor.serve(), supervisor.correr())
     # Apagado ordenado: primero las tareas del bucle y el espejo, despues SQLite.
     await espejo.parar()

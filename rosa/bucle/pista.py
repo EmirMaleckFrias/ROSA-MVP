@@ -1,9 +1,9 @@
-"""Una pista: la transcripcion en vivo de una tarea del bucle.
+"""Una pista: la transcripción en vivo de una tarea del bucle.
 
-Cada pista pertenece a un paso del plan y escribe lineas (accion, resultado,
+Cada pista pertenece a un paso del plan y escribe líneas (acción, resultado,
 nota, error) que la pantalla de corrida muestra al momento. Al cerrar, deja
-un resumen de una linea y los milisegundos que tardo. Todo pasa por el
-almacen para que cada linea llegue por SSE.
+un resumen de una línea y los milisegundos que tardo. Todo pasa por el
+almacen para que cada línea llegue por SSE.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ class Pista:
             self.volcar()
 
     def volcar(self) -> None:
-        """Persiste las lineas pendientes en una sola mutacion."""
+        """Persiste las líneas pendientes en una sola mutación."""
         pendientes = list(self.__dict__.get("_buffer", []))
         if not pendientes:
             return

@@ -59,19 +59,19 @@ def _recortar_valor(v: Any, texto_max: int, lista_max: int) -> Any:
 
 
 def _recortar(datos: dict[str, Any], bytes_: int) -> dict[str, Any]:
-    """Una entidad mayor que el limite de Convex: se recortan textos y listas
-    a cualquier profundidad, cada vez mas, hasta caber; si ni asi cabe,
-    queda solo la identidad con la nota. Siempre devuelve algo bajo el limite."""
+    """Una entidad mayor que el límite de Convex: se recortan textos y listas
+    a cualquier profundidad, cada vez más, hasta caber; si ni así cabe,
+    queda solo la identidad con la nota. Siempre devuelve algo bajo el límite."""
     for texto_max, lista_max in ((20_000, 60), (4_000, 30), (800, 12), (200, 5)):
         out = _recortar_valor(datos, texto_max, lista_max)
-        out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el limite de Convex; el original esta en el servidor de Rosa"}
+        out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el límite de Convex; el original está en el servidor de Rosa"}
         if len(json.dumps(out, ensure_ascii=False, default=str).encode("utf-8")) <= MAX_BYTES_DOC:
             return out
     return {k: datos.get(k) for k in ("id", "investigacionId", "titulo", "nombre", "estado") if k in datos} | {"_truncadoEspejo": {"bytesOriginales": bytes_, "nota": "Entidad demasiado grande para el espejo incluso recortada"}}
 
 
 def entidades_de(estado: dict[str, Any]) -> list[dict[str, Any]]:
-    """Las entidades publicas del estado como filas del espejo."""
+    """Las entidades públicas del estado como filas del espejo."""
     filas: list[dict[str, Any]] = []
     limpio = _limpiar_para_cliente(estado)
     for col in COLECCIONES:

@@ -28,7 +28,7 @@ from rosa.fuentes.base import FuenteNoDisponible, NoEncontrado
 
 @dataclass
 class Resultado:
-    """Lo que devuelve la funcion de un conector."""
+    """Lo que devuelve la función de un conector."""
 
     datos: Any
     n: int
@@ -71,7 +71,7 @@ PERMISOS: dict[str, str] = {}
 
 
 def conector(nombre: str, fuente: str, descripcion: str, aporta: str, esquema: dict[str, Any], licencia: str, limite: str, url_doc: str, clave: str = "no", grupo: str = "otros"):
-    """Decorador que registra la funcion en el catalogo."""
+    """Decorador que registra la función en el catálogo."""
 
     def envolver(fn: Callable[..., Awaitable[Resultado]]):
         REGISTRO[nombre] = Conector(nombre, fuente, descripcion, aporta, esquema, fn, licencia, limite, url_doc, clave, grupo=grupo)
@@ -87,7 +87,7 @@ async def _no_disponible(**_: Any) -> Resultado:
 def inerte(nombre: str, fuente: str, descripcion: str, aporta: str, estado: str, motivo: str, url_doc: str, grupo: str, licencia: str = "") -> None:
     """Un conector que existe en Claude Science pero que Rosa no puede usar
     hoy (cuenta de pago, sin API, licencia, fichero local). Queda en el
-    catalogo con su motivo para que se vea que falta y por que."""
+    catálogo con su motivo para que se vea que falta y por que."""
     REGISTRO[nombre] = Conector(nombre, fuente, descripcion, aporta, {"type": "object", "properties": {}}, _no_disponible, licencia, "", url_doc, "si" if estado == "requiere_cuenta" else "no", estado=estado, motivo=motivo, grupo=grupo)
 
 
@@ -99,7 +99,7 @@ async def consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle
     """Ejecuta un conector y devuelve (registro de consulta, datos). Nunca
     lanza por fallo de la fuente: el registro lleva `error` y datos es None.
     El nombre de la herramienta va posicional para no chocar con argumentos
-    de los conectores que tambien se llaman `nombre`."""
+    de los conectores que también se llaman `nombre`."""
     nombre = herramienta
     c = REGISTRO[nombre]
     reg = nueva_consulta(nombre, argumentos)
@@ -132,5 +132,5 @@ async def consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle
 
 
 def catalogo() -> list[dict[str, Any]]:
-    """El catalogo tal como lo ve la interfaz: sin la funcion."""
+    """El catálogo tal como lo ve la interfaz: sin la función."""
     return [{"nombre": c.nombre, "fuente": c.fuente, "grupo": c.grupo, "descripcion": c.descripcion, "aporta": c.aporta, "argumentos": list(c.esquema.get("properties", {}).keys()), "licencia": c.licencia, "limite": c.limite, "urlDoc": c.url_doc, "clave": c.clave, "estado": c.estado, "motivo": c.motivo, "permiso": PERMISOS.get(c.nombre, "permitir"), "usos": c.usos, "errores": c.errores, "ultimoUso": c.ultimo_uso} for c in REGISTRO.values()]

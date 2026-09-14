@@ -1,9 +1,9 @@
-"""La version del arnes: que Rosa exacta produjo cada corrida.
+"""La versión del arnes: que Rosa exacta produjo cada corrida.
 
-El paper de Zitnik y colaboradores (2026) pide que una auditoria pueda saber,
-para cada hipotesis, con que version del modelo y que configuracion del
-arnes se genero. Los modelos ya quedan registrados por llamada; esto anade
-el codigo: el commit de git y un hash de las firmas DSPy (los contratos de
+El paper de Zitnik y colaboradores (2026) pide que una auditoría pueda saber,
+para cada hipótesis, con que versión del modelo y que configuración del
+arnes se genero. Los modelos ya quedan registrados por llamada; esto añade
+el código: el commit de git y un hash de las firmas DSPy (los contratos de
 cada paso), que es lo que GEPA cambia al optimizar.
 """
 

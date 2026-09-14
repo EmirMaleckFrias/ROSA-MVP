@@ -39,31 +39,31 @@ class ExtraerAfirmaciones(dspy.Signature):
     dadas. No anadas nada que el fragmento no diga. No inventes cifras."""
 
     fragmento: str = dspy.InputField()
-    fuente: str = dspy.InputField(desc="referencia corta, por ejemplo 'Cohorte clinica, 2025'")
+    fuente: str = dspy.InputField(desc="referencia corta, por ejemplo 'Cohorte clínica, 2025'")
     pagina: int = dspy.InputField()
-    afirmaciones: list[str] = dspy.OutputField(desc="una afirmacion por elemento, cada una con su cita al final")
+    afirmaciones: list[str] = dspy.OutputField(desc="una afirmación por elemento, cada una con su cita al final")
 
 
 def ejemplos() -> tuple[list[dspy.Example], list[dspy.Example]]:
     datos = [
         {
             "fragmento": "El cociente p-tau217/Abeta42 en plasma alcanzo una precision comparable a la PET de tau. En el subgrupo autosomico dominante la señal se anticipo varios años a los sintomas.",
-            "fuente": "Cohorte clinica, 2025",
+            "fuente": "Cohorte clínica, 2025",
             "pagina": 7,
         },
         {
-            "fragmento": "Se identificaron 158 agentes en 192 ensayos activos: 36 en fase 3, 84 en fase 2 y 45 en fase 1. Las dianas de inflamacion pasaron del 6 % al 20 % del pipeline.",
+            "fragmento": "Se identificaron 158 agentes en 192 ensayos activos: 36 en fase 3, 84 en fase 2 y 45 en fase 1. Las dianas de inflamación pasaron del 6 % al 20 % del pipeline.",
             "fuente": "Cummings et al., 2026",
             "pagina": 4,
         },
         {
-            "fragmento": "La variante R47H de TREM2 reduce la union a ligandos lipidicos y atenua la respuesta microglial ante las placas. En portadores de APOE4 el efecto se acumula.",
-            "fuente": "Revision TREM2 y APOE, 2025",
+            "fragmento": "La variante R47H de TREM2 reduce la unión a ligandos lipídicos y atenua la respuesta microglial ante las placas. En portadores de APOE4 el efecto se acumula.",
+            "fuente": "Revisión TREM2 y APOE, 2025",
             "pagina": 12,
         },
         {
-            "fragmento": "La activacion de NLRP3 en microglia induce la liberacion de IL-1beta y motas de ASC. La inhibicion de NLRP3 en modelos murinos redujo la patologia de tau.",
-            "fuente": "Revision neuroinflamacion, 2024",
+            "fragmento": "La activación de NLRP3 en microglía induce la liberación de IL-1beta y motas de ASC. La inhibición de NLRP3 en modelos murinos redujo la patología de tau.",
+            "fuente": "Revisión neuroinflamación, 2024",
             "pagina": 5,
         },
         {
@@ -82,7 +82,7 @@ def ejemplos() -> tuple[list[dspy.Example], list[dspy.Example]]:
 
 
 def metrica(gold, pred, trace=None, pred_name=None, pred_trace=None, program_trace=None):
-    """Puntuacion 0..1 y feedback textual: el contrato de citas del RAG.
+    """Puntuación 0..1 y feedback textual: el contrato de citas del RAG.
 
     Es la firma que GEPA espera. El feedback es lo que el reflexivo lee para
     proponer prompts mejores; por eso dice exactamente que fallo.
@@ -90,7 +90,7 @@ def metrica(gold, pred, trace=None, pred_name=None, pred_trace=None, program_tra
     afirmaciones = [a.strip() for a in (pred.afirmaciones or []) if a and a.strip()]
     problemas: list[str] = []
     if not afirmaciones:
-        return dspy.Prediction(score=0.0, feedback="No devolvio ninguna afirmacion. Debe devolver al menos una por frase factual del fragmento.")
+        return dspy.Prediction(score=0.0, feedback="No devolvió ninguna afirmación. Debe devolver al menos una por frase factual del fragmento.")
 
     cifras_fragmento = set(PATRON_CIFRA.findall(gold.fragmento))
     correctas = 0
@@ -104,11 +104,11 @@ def metrica(gold, pred, trace=None, pred_name=None, pred_trace=None, program_tra
             problemas.append(f"La fuente de la cita es {fuente!r} y debia ser {gold.fuente!r}: {a!r}")
             continue
         if pagina != gold.pagina:
-            problemas.append(f"La pagina de la cita es {pagina} y debia ser {gold.pagina}: {a!r}")
+            problemas.append(f"La página de la cita es {pagina} y debia ser {gold.pagina}: {a!r}")
             continue
         inventadas = set(PATRON_CIFRA.findall(a[: m.start()])) - cifras_fragmento
         if inventadas:
-            problemas.append(f"Cifras que no estan en el fragmento ({', '.join(sorted(inventadas))}): {a!r}")
+            problemas.append(f"Cifras que no están en el fragmento ({', '.join(sorted(inventadas))}): {a!r}")
             continue
         correctas += 1
 
@@ -151,7 +151,7 @@ def main() -> int:
     )
     optimizado = optimizador.compile(programa, trainset=trainset, valset=valset)
     despues = evaluar(optimizado)
-    print(f"Despues: {despues}")
+    print(f"Después: {despues}")
 
     instruccion = optimizado.signature.instructions
     print("\nInstruccion optimizada por GEPA:\n" + instruccion[:800])

@@ -69,9 +69,9 @@ def todas() -> list[dict[str, Any]]:
 
 
 def para_texto(texto: str, maximo: int = 3, contexto: str = "analisis") -> list[dict[str, Any]]:
-    """Las skills del contexto (analisis, literatura, mision) cuyas palabras
-    de activacion aparecen como palabras completas en el texto, las mas
-    coincidentes primero. Palabra completa: 'area' no se activa con 'lineal'."""
+    """Las skills del contexto (análisis, literatura, misión) cuyas palabras
+    de activación aparecen como palabras completas en el texto, las más
+    coincidentes primero. Palabra completa: 'área' no se activa con 'lineal'."""
     t = _sin_acentos(texto or "")
     puntuadas = []
     for s in todas():

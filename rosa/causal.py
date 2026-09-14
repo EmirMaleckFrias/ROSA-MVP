@@ -26,21 +26,21 @@ TIPOS_ARISTA = ("supuesto", "inferencia_con_evidencia", "base_curada")
 # con el marco del que salen. Son contexto para el grafo, no verdad revelada:
 # entran como aristas base_curada y se ven como tales.
 BASE_CURADA: list[dict[str, str]] = [
-    {"de": "APOE4", "a": "amiloide", "contexto": "Portar APOE4 adelanta y aumenta el deposito de amiloide (genetica de riesgo; marco ATN de Jack 2018)"},
-    {"de": "amiloide", "a": "tau", "contexto": "La patologia amiloide precede y facilita la propagacion de tau (cascada amiloide; marco ATN)"},
-    {"de": "tau", "a": "neurodegeneracion", "contexto": "La tau patologica se asocia a la perdida neuronal y sinaptica (marco ATN, N)"},
-    {"de": "neurodegeneracion", "a": "cognicion", "contexto": "La neurodegeneracion precede al deterioro cognitivo medible"},
+    {"de": "APOE4", "a": "amiloide", "contexto": "Portar APOE4 adelanta y aumenta el depósito de amiloide (genética de riesgo; marco ATN de Jack 2018)"},
+    {"de": "amiloide", "a": "tau", "contexto": "La patología amiloide precede y facilita la propagación de tau (cascada amiloide; marco ATN)"},
+    {"de": "tau", "a": "neurodegeneracion", "contexto": "La tau patológica se asocia a la pérdida neuronal y sináptica (marco ATN, N)"},
+    {"de": "neurodegeneracion", "a": "cognicion", "contexto": "La neurodegeneración precede al deterioro cognitivo medible"},
     {"de": "amiloide", "a": "GFAP", "contexto": "El GFAP en plasma sube con la carga amiloide (reactividad astrocitaria)"},
-    {"de": "neurodegeneracion", "a": "NfL", "contexto": "El NfL en plasma marca dano axonal, sea cual sea la causa: no es especifico de Alzheimer"},
-    {"de": "tau", "a": "p-tau181", "contexto": "El p-tau181 en plasma refleja la patologia tau y amiloide"},
-    {"de": "edad", "a": "amiloide", "contexto": "La edad es la causa comun mas fuerte de casi todo lo que se mide en Alzheimer"},
-    {"de": "edad", "a": "neurodegeneracion", "contexto": "La edad causa perdida neuronal tambien sin Alzheimer"},
+    {"de": "neurodegeneracion", "a": "NfL", "contexto": "El NfL en plasma marca daño axonal, sea cual sea la causa: no es específico de Alzheimer"},
+    {"de": "tau", "a": "p-tau181", "contexto": "El p-tau181 en plasma refleja la patología tau y amiloide"},
+    {"de": "edad", "a": "amiloide", "contexto": "La edad es la causa común más fuerte de casi todo lo que se mide en Alzheimer"},
+    {"de": "edad", "a": "neurodegeneracion", "contexto": "La edad causa pérdida neuronal también sin Alzheimer"},
     {"de": "edad", "a": "NfL", "contexto": "El NfL sube con la edad sin enfermedad"},
     {"de": "edad", "a": "GFAP", "contexto": "El GFAP sube con la edad sin enfermedad"},
-    {"de": "funcion renal", "a": "NfL", "contexto": "La funcion renal cambia las concentraciones plasmaticas de NfL y p-tau"},
-    {"de": "funcion renal", "a": "p-tau181", "contexto": "La funcion renal cambia las concentraciones plasmaticas de NfL y p-tau"},
-    {"de": "neuroinflamacion", "a": "GFAP", "contexto": "La activacion glial sube el GFAP"},
-    {"de": "amiloide", "a": "neuroinflamacion", "contexto": "El amiloide activa microglia y astrocitos"},
+    {"de": "función renal", "a": "NfL", "contexto": "La función renal cambia las concentraciones plasmáticas de NfL y p-tau"},
+    {"de": "función renal", "a": "p-tau181", "contexto": "La función renal cambia las concentraciones plasmáticas de NfL y p-tau"},
+    {"de": "neuroinflamacion", "a": "GFAP", "contexto": "La activación glial sube el GFAP"},
+    {"de": "amiloide", "a": "neuroinflamacion", "contexto": "El amiloide activa microglía y astrocitos"},
 ]
 
 # Sinonimos para reconocer los nodos de la base en texto libre.
@@ -54,7 +54,7 @@ _SINONIMOS: dict[str, str] = {
     r"\bgfap\b|astrocit": "GFAP",
     r"\bnfl\b|neurofilament": "NfL",
     r"\bedad\b|\bage\b|aging|envejec": "edad",
-    r"renal|kidney|egfr|creatinin": "funcion renal",
+    r"renal|kidney|egfr|creatinin": "función renal",
     r"inflam|microglia|trem2|nlrp3|citoquin|cytokin": "neuroinflamacion",
 }
 
@@ -81,7 +81,7 @@ CANONICOS: dict[str, str] = {
     "GFAP": "HGNC:4235",
     "NfL": "HGNC:7739",
     "edad": "NCIT:C25150",
-    "funcion renal": "UBERON:0002113",
+    "función renal": "UBERON:0002113",
     "neuroinflamacion": "GO:0150076",
 }
 
@@ -104,7 +104,7 @@ def _clasificar_alternativa(texto: str) -> str:
 
 
 def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: bool | None, ahora: int) -> dict[str, Any]:
-    """El grafo local de una hipotesis y su identificacion. Determinista: con
+    """El grafo local de una hipótesis y su identificación. Determinista: con
     los mismos textos sale lo mismo, y se puede leer por que."""
     t = h.get("tarjeta") or {}
     comp = h.get("comprobacion") or {}
@@ -123,7 +123,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         nodos.append({"id": "Y", "etiqueta": y, "rol": "desenlace"})
     if x and y:
         con_evidencia = any(x.lower()[:12] in a.get("texto", "").lower() and y.lower()[:12] in a.get("texto", "").lower() for a in afs)
-        aristas.append({"de": "X", "a": "Y", "tipo": "inferencia_con_evidencia" if con_evidencia else "supuesto", "contexto": "Lo que afirma la hipotesis" + (" (con afirmaciones sostenidas que nombran las dos cosas)" if con_evidencia else " (ninguna afirmacion sostenida nombra las dos cosas a la vez)")})
+        aristas.append({"de": "X", "a": "Y", "tipo": "inferencia_con_evidencia" if con_evidencia else "supuesto", "contexto": "Lo que afirma la hipótesis" + (" (con afirmaciones sostenidas que nombran las dos cosas)" if con_evidencia else " (ninguna afirmación sostenida nombra las dos cosas a la vez)")})
     # Alternativas del Killer como nodos tipados.
     clases: dict[str, list[str]] = {}
     for i, alt in enumerate(alternativas[:4]):
@@ -136,7 +136,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         elif clase in ("confusor", "seleccion"):
             for destino in ("X", "Y"):
                 if any(n["id"] == destino for n in nodos):
-                    aristas.append({"de": nid, "a": destino, "tipo": "supuesto", "contexto": "Causa comun planteada por el Killer" if clase == "confusor" else "Sesgo de seleccion planteado por el Killer"})
+                    aristas.append({"de": nid, "a": destino, "tipo": "supuesto", "contexto": "Causa común planteada por el Killer" if clase == "confusor" else "Sesgo de selección planteado por el Killer"})
         elif clase == "artefacto" and y:
             aristas.append({"de": nid, "a": "Y", "tipo": "supuesto", "contexto": "Artefacto de medida planteado por el Killer"})
     # Base curada: las relaciones de consenso que tocan X o Y, y las causas comunes conocidas.
@@ -167,33 +167,33 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
     faltantes: list[str] = []
     if not x or not y:
         identificacion = "sin_resolver"
-        faltantes.append("La tarjeta no fija " + ("la exposicion o intervencion" if not x else "el desenlace o biomarcador") + ": sin X y Y no hay efecto que identificar")
+        faltantes.append("La tarjeta no fija " + ("la exposición o intervención" if not x else "el desenlace o biomarcador") + ": sin X y Y no hay efecto que identificar")
     elif _ALEATORIO.search(textos) and t.get("direccion") not in (None, "", "sin_intervencion"):
         identificacion = "identificable"
-        cumplidos.append("Hay evidencia de intervencion aleatorizada: confusores y causa inversa quedan controlados por diseño")
+        cumplidos.append("Hay evidencia de intervención aleatorizada: confusores y causa inversa quedan controlados por diseño")
     else:
         # Temporalidad (contra la causa inversa).
         if _TEMPORALIDAD.search(textos):
             cumplidos.append("Temporalidad: hay evidencia longitudinal o de precedencia de X sobre Y")
         elif _GENETICO.search(x) or ((bx | set(nodos_base_en(enunciado))) & {"APOE4"}):
-            cumplidos.append("La exposicion es genetica: Y no puede causar X (la causa inversa queda excluida)")
+            cumplidos.append("La exposición es genética: Y no puede causar X (la causa inversa queda excluida)")
         else:
-            faltantes.append("Temporalidad: ninguna afirmacion sostenida muestra que X se midio antes que Y" + (" (el Killer planteo causa inversa)" if "causa_inversa" in clases else ""))
+            faltantes.append("Temporalidad: ninguna afirmación sostenida muestra que X se midio antes que Y" + (" (el Killer planteo causa inversa)" if "causa_inversa" in clases else ""))
         # Confusores (los del Killer y las causas comunes de la base).
-        nombrados = clases.get("confusor", []) + [f"causa comun conocida: {c}" for c in causas_comunes]
+        nombrados = clases.get("confusor", []) + [f"causa común conocida: {c}" for c in causas_comunes]
         if _AJUSTE.search(textos):
-            cumplidos.append("Ajuste: la evidencia declara ajuste o estratificacion por covariables" + (f"; confusores planteados: {'; '.join(nombrados)[:200]}" if nombrados else ""))
+            cumplidos.append("Ajuste: la evidencia declara ajuste o estratificación por covariables" + (f"; confusores planteados: {'; '.join(nombrados)[:200]}" if nombrados else ""))
         else:
-            faltantes.append("Confusion: la evidencia no declara ajuste por " + ("; ".join(nombrados)[:200] if nombrados else "posibles causas comunes"))
+            faltantes.append("Confusión: la evidencia no declara ajuste por " + ("; ".join(nombrados)[:200] if nombrados else "posibles causas comunes"))
         # Artefacto y seleccion (replicacion independiente).
         if independencia_pasa or _REPLICA.search(textos):
-            cumplidos.append("Replicacion independiente: el efecto se vio en mas de una cohorte o plataforma")
+            cumplidos.append("Replicación independiente: el efecto se vio en más de una cohorte o plataforma")
         else:
-            faltantes.append("Replicacion: sin cohorte independiente no se separa el efecto de un artefacto de medida o de seleccion" + (f" ({'; '.join(clases.get('artefacto', []) + clases.get('seleccion', []))[:160]})" if clases.get("artefacto") or clases.get("seleccion") else ""))
+            faltantes.append("Replicación: sin cohorte independiente no se separa el efecto de un artefacto de medida o de selección" + (f" ({'; '.join(clases.get('artefacto', []) + clases.get('seleccion', []))[:160]})" if clases.get("artefacto") or clases.get("seleccion") else ""))
         identificacion = "identificable" if not faltantes else ("acotado" if cumplidos else "sin_resolver")
     resumen = {
-        "identificable": "El efecto que afirma la hipotesis se puede estimar con la evidencia que tiene, bajo los supuestos listados.",
-        "acotado": f"El efecto esta acotado: {len(cumplidos)} de {len(cumplidos) + len(faltantes)} supuestos cumplidos; faltan {len(faltantes)}. Lo que falta es lo que un experimento o un dataset tendria que aportar.",
+        "identificable": "El efecto que afirma la hipótesis se puede estimar con la evidencia que tiene, bajo los supuestos listados.",
+        "acotado": f"El efecto esta acotado: {len(cumplidos)} de {len(cumplidos) + len(faltantes)} supuestos cumplidos; faltan {len(faltantes)}. Lo que falta es lo que un experimento o un dataset tendría que aportar.",
         "sin_resolver": "No se puede decir nada del efecto causal con lo que hay: faltan los nodos o todos los supuestos.",
     }[identificacion]
     for n in nodos:
@@ -224,7 +224,7 @@ def registrar_relacion(e: dict[str, Any], h: dict[str, Any], grafo: dict[str, An
         return
     rels = e.setdefault("relaciones", [])
     existente = next((r for r in rels if r.get("hipotesisId") == h["id"]), None)
-    nueva = {"id": existente["id"] if existente else f"rel-{h['id']}", "investigacionId": h["investigacionId"], "de": ex, "a": ey, "tipo": xy["tipo"], "contexto": f"Hipotesis '{h.get('titulo', '')[:80]}' (v{h.get('version', 1)}): {grafo.get('identificacion')}", "hipotesisId": h["id"], "actualizadoEn": ahora}
+    nueva = {"id": existente["id"] if existente else f"rel-{h['id']}", "investigacionId": h["investigacionId"], "de": ex, "a": ey, "tipo": xy["tipo"], "contexto": f"Hipótesis '{h.get('titulo', '')[:80]}' (v{h.get('version', 1)}): {grafo.get('identificacion')}", "hipotesisId": h["id"], "actualizadoEn": ahora}
     if existente:
         existente.update(nueva)
     else:

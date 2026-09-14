@@ -40,13 +40,13 @@ URL = f"http://{config.HOST}:{config.PUERTO}"
 # Que decision se espera para cada fallo plantado y que comprobacion deberia
 # fallar. `esperadas` admite varias decisiones cuando la regla las permite.
 FALLOS: dict[str, dict[str, Any]] = {
-    "original": {"esperadas": None, "comprobacion": None, "descripcion": "La hipotesis tal como esta: se compara con la decision real que tomo el Killer"},
-    "cifra_alterada": {"esperadas": ("descartar_en_contexto",), "comprobacion": "fidelidad_evidencia", "descripcion": "Una cifra de una afirmacion multiplicada por 10 (o la direccion invertida) sin tocar el pasaje citado"},
-    "prediccion_vaga": {"esperadas": ("reformular",), "comprobacion": "falsabilidad", "descripcion": "La prediccion falsable sustituida por una frase que ninguna observacion podria refutar"},
+    "original": {"esperadas": None, "comprobacion": None, "descripcion": "La hipótesis tal como esta: se compara con la decisión real que tomo el Killer"},
+    "cifra_alterada": {"esperadas": ("descartar_en_contexto",), "comprobacion": "fidelidad_evidencia", "descripcion": "Una cifra de una afirmación multiplicada por 10 (o la dirección invertida) sin tocar el pasaje citado"},
+    "prediccion_vaga": {"esperadas": ("reformular",), "comprobacion": "falsabilidad", "descripcion": "La predicción falsable sustituida por una frase que ninguna observación podría refutar"},
     "causal_sin_temporalidad": {"esperadas": ("reformular",), "comprobacion": "direccion_causal", "descripcion": "El enunciado afirma causalidad directa con evidencia solo transversal"},
     "misma_cohorte": {"esperadas": ("avanzar", "suspender"), "comprobacion": "independencia_cohortes", "descripcion": "Todas las fuentes marcadas como la misma cohorte: debe avanzar con aviso, no descartar"},
     "supuesto_contradicho": {"esperadas": ("descartar_en_contexto",), "comprobacion": "supuestos", "descripcion": "Un supuesto necesario marcado como contradicho por la evidencia"},
-    "gris_parcial": {"esperadas": ("avanzar", "suspender", "reformular"), "comprobacion": None, "descripcion": "Un pasaje recortado que solo sostiene a medias la afirmacion (veredicto parcial): no debe descartar"},
+    "gris_parcial": {"esperadas": ("avanzar", "suspender", "reformular"), "comprobacion": None, "descripcion": "Un pasaje recortado que solo sostiene a medias la afirmación (veredicto parcial): no debe descartar"},
 }
 
 
@@ -55,8 +55,8 @@ def _con_numero(texto: str) -> re.Match | None:
 
 
 def plantar(h: dict[str, Any], fallo: str) -> dict[str, Any] | None:
-    """Una copia de la hipotesis con el fallo plantado, o None si no se puede
-    plantar en esta hipotesis (por ejemplo, sin cifras que alterar)."""
+    """Una copia de la hipótesis con el fallo plantado, o None si no se puede
+    plantar en esta hipótesis (por ejemplo, sin cifras que alterar)."""
     x = copy.deepcopy(h)
     t = x.get("tarjeta") or {}
     afs = x.get("afirmaciones", [])
@@ -75,21 +75,21 @@ def plantar(h: dict[str, Any], fallo: str) -> dict[str, Any] | None:
         for a in sostenidas:
             if K.direccion_de(a["texto"]) == "sube":
                 a["texto"] = re.sub(r"\b(increas\w*|higher|elevat\w*|aument\w*|mayor|sube)\b", "decreased", a["texto"], count=1, flags=re.I)
-                a["_plantado"] = "direccion invertida"
+                a["_plantado"] = "dirección invertida"
                 return x
             if K.direccion_de(a["texto"]) == "baja":
                 a["texto"] = re.sub(r"\b(decreas\w*|lower|reduc\w*|disminu\w*|menor|baja)\b", "increased", a["texto"], count=1, flags=re.I)
-                a["_plantado"] = "direccion invertida"
+                a["_plantado"] = "dirección invertida"
                 return x
         return None
     if fallo == "prediccion_vaga":
         if not t:
             return None
-        t["prediccionFalsable"] = "El biomarcador estara relacionado de alguna manera con la progresion de la enfermedad en algunos pacientes"
+        t["prediccionFalsable"] = "El biomarcador estará relacionado de alguna manera con la progresión de la enfermedad en algunos pacientes"
         return x
     if fallo == "causal_sin_temporalidad":
         bio = (x.get("comprobacion") or {}).get("biomarcador") or t.get("diana") or "el biomarcador"
-        x["enunciado"] = f"{bio} causa directamente el deterioro cognitivo en esta poblacion; no es un marcador sino el mecanismo. " + x["enunciado"]
+        x["enunciado"] = f"{bio} causa directamente el deterioro cognitivo en esta población; no es un marcador sino el mecanismo. " + x["enunciado"]
         x["titulo"] = f"{bio} es la causa directa del deterioro"
         for a in afs:
             a["texto"] = re.sub(r"longitudinal|prospective|prospectivo|follow-up|seguimiento|baseline|preced\w*", "cross-sectional", a["texto"], flags=re.I)
@@ -105,7 +105,7 @@ def plantar(h: dict[str, Any], fallo: str) -> dict[str, Any] | None:
         return x
     if fallo == "supuesto_contradicho":
         bio = (x.get("comprobacion") or {}).get("biomarcador") or t.get("diana") or "la medida"
-        x.setdefault("supuestos", []).append({"id": "sup-plantado", "texto": f"{bio} se mide de forma comparable entre las cohortes citadas (misma plataforma y preanalitica)", "estado": "contradicho", "evidencia": "Las cohortes citadas usan plataformas distintas y no hay calibracion cruzada: las cifras no son comparables", "necesario": True})
+        x.setdefault("supuestos", []).append({"id": "sup-plantado", "texto": f"{bio} se mide de forma comparable entre las cohortes citadas (misma plataforma y preanalitica)", "estado": "contradicho", "evidencia": "Las cohortes citadas usan plataformas distintas y no hay calibración cruzada: las cifras no son comparables", "necesario": True})
         return x
     if fallo == "gris_parcial":
         for a in sostenidas:
@@ -180,8 +180,8 @@ def _resultado(rev, deterministas: list[dict[str, str]], h: dict[str, Any], juez
 
 
 def evaluar_caso(fallo: str, esperado: dict[str, Any], real: str | None, r: dict[str, Any]) -> dict[str, Any]:
-    """Detectado: la decision cae en las esperadas y, si hay comprobacion
-    objetivo, esa comprobacion la marco alguien (juez o determinista) como falla."""
+    """Detectado: la decisión cae en las esperadas y, si hay comprobación
+    objetivo, esa comprobación la marco alguien (juez o determinista) como falla."""
     por_nombre = {c["comprobacion"]: c["resultado"] for c in r["comprobaciones"]}
     juez_por_nombre = {c["comprobacion"]: c["resultado"] for c in r["delJuez"]}
     comp = esperado["comprobacion"]
@@ -196,7 +196,7 @@ def evaluar_caso(fallo: str, esperado: dict[str, Any], real: str | None, r: dict
 
 
 def acuerdo_del_panel(resultados: list[dict[str, Any]]) -> dict[str, Any]:
-    """Kappa por decision y por comprobacion sobre los casos del panel."""
+    """Kappa por decisión y por comprobación sobre los casos del panel."""
     from rosa import acuerdo as AC
 
     esperadas, reales = [], []
@@ -237,7 +237,7 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
     candidatas.sort(key=lambda h: (0 if h.get("decisionKiller") == "avanzar" else 1 if h.get("decisionKiller") in (None, "suspender") else 2, -len(h.get("afirmaciones", []))))
     elegidas = candidatas[:n_hipotesis]
     if not elegidas:
-        raise SystemExit("No hay hipotesis con tarjeta y afirmaciones sostenidas en el estado; el panel necesita hipotesis reales")
+        raise SystemExit("No hay hipótesis con tarjeta y afirmaciones sostenidas en el estado; el panel necesita hipótesis reales")
     modelos = cargar_modelos()
     dspy.configure(lm=modelos.cerebro)
     programas = Programas()
@@ -247,7 +247,7 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
             v = plantar(h, f)
             if v is not None:
                 casos.append((h, f, v))
-    print(f"{len(elegidas)} hipotesis, {len(casos)} casos; juez {modelos.juez.model}", file=sys.stderr)
+    print(f"{len(elegidas)} hipótesis, {len(casos)} casos; juez {modelos.juez.model}", file=sys.stderr)
     sem = asyncio.Semaphore(paralelo)
     resultados: list[dict[str, Any]] = []
 

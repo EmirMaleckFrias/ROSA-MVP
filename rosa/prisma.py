@@ -82,7 +82,7 @@ def flujo_prisma2020(corrida: dict[str, Any], fuentes: dict[str, dict[str, Any]]
         "other_sought_reports": 0,
         "other_notretrieved_reports": 0,
         "dbr_assessed": len(leidas),
-        "dbr_excluded": {"sin afirmaciones usadas en ninguna hipotesis": len(no_usadas)} if no_usadas else {},
+        "dbr_excluded": {"sin afirmaciones usadas en ninguna hipótesis": len(no_usadas)} if no_usadas else {},
         "other_assessed": 0,
         "other_excluded": {},
         "new_studies": len(usadas),
@@ -90,8 +90,8 @@ def flujo_prisma2020(corrida: dict[str, Any], fuentes: dict[str, dict[str, Any]]
         "total_studies": len(usadas),
         "total_reports": len(usadas),
         "_notas": {
-            "records_excluded_por_automatizacion": "El cribado por relevancia lo hace un modelo de lenguaje (ver traIce); todos los excluidos en esa caja los excluyo la herramienta automatica.",
-            "excluded_other": "Fuentes retractadas segun Crossref, apartadas antes de leerlas.",
+            "records_excluded_por_automatizacion": "El cribado por relevancia lo hace un modelo de lenguaje (ver traIce); todos los excluidos en esa caja los excluyo la herramienta automática.",
+            "excluded_other": "Fuentes retractadas según Crossref, apartadas antes de leerlas.",
             "textoCompleto": len(con_texto),
             "excluidosConMotivo": len(excluidos),
         },
@@ -108,7 +108,7 @@ def _hash_prompt(cls: Any) -> str:
 
 
 def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str, Any]], ahora: int) -> dict[str, Any]:
-    """Flujo, items rellenables, extension viva y declaracion de IA, mas el
+    """Flujo, ítems rellenables, extensión viva y declaración de IA, más el
     Markdown listo para pegar en un manuscrito."""
     from rosa import acuerdo_dorado as ACU
     from rosa.modulos import firmas as F
@@ -136,7 +136,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
         "6_fuentes_de_informacion": [{"base": base, "consultas": x["consultas"], "resultados": x["resultados"], "ultimaBusqueda": _fecha(x["ultima"])} for base, x in sorted(por_base.items())],
         "7_estrategias_de_busqueda": [{"base": q.get("base"), "consulta": q.get("consulta"), "fecha": _fecha(q.get("fecha")), "resultados": q.get("resultados"), "iteracion": q.get("iteracion"), "tema": q.get("tema")} for q in consultas],
         "8_proceso_de_seleccion": {
-            "quienCriba": "Un modelo de lenguaje (rol volumen) puntua de 0 a 10 cada titulo y resumen frente a las preguntas abiertas; se conserva lo que llega al umbral. Ninguna persona criba registro a registro; las personas revisan las hipotesis y sus afirmaciones despues.",
+            "quienCriba": "Un modelo de lenguaje (rol volumen) puntua de 0 a 10 cada título y resumen frente a las preguntas abiertas; se conserva lo que llega al umbral. Ninguna persona criba registro a registro; las personas revisan las hipótesis y sus afirmaciones después.",
             "revisoresIndependientes": 0,
             "herramientasAutomatizacion": [f"Rosa {arnes.get('commit') if isinstance(arnes, dict) else ''} (cribado por relevancia con {', '.join(modelos_cribado) or 'modelo de volumen'}; umbral {politicas.RELEVANCIA_MINIMA} de 10)"],
         },
@@ -146,7 +146,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
     vigila = inv.get("vigilarLiteraturaHasta")
     lsr = {
         "esRevisionViva": bool(vigila and vigila > ahora),
-        "L1_calendario": ("Rosa vuelve a buscar en cada iteracion de la corrida y, al cerrarla, vigila la literatura hasta " + _fecha(vigila)) if vigila else "Sin vigilancia programada: la busqueda se repite en cada iteracion mientras la corrida esta viva.",
+        "L1_calendario": ("Rosa vuelve a buscar en cada iteración de la corrida y, al cerrarla, vigila la literatura hasta " + _fecha(vigila)) if vigila else "Sin vigilancia programada: la búsqueda se repite en cada iteración mientras la corrida está viva.",
         "L2_cambios_de_metodos": [c for c in e.get("aprendizaje", []) if c.get("investigacionId") == inv.get("id") and c.get("nivel", 0) >= 2][-10:],
         "L3_cambios_de_resultados": {"iteraciones": len([it for it in e.get("iteraciones", []) if it.get("corridaId") == corrida["id"]]), "hechosNuevosUltimaIteracion": None},
         "L4_autores_por_version": {"personas": inv.get("revisores", []), "sistema": arnes},
@@ -154,7 +154,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
     traice = {
         "referencia": "PRISMA-trAIce (Holst y otros, JMIR AI 2025;4:e80247), propuesta no endosada por el ejecutivo PRISMA; se rellena por transparencia",
         "M2_modelos": {"cribado": modelos_cribado, "verificacion_y_killer": modelos_juez, "accesoPor": "AI Gateway de Vercel (endpoint compatible con OpenAI)", "versionDeRosa": arnes},
-        "M4_entrenamiento": "Modelos comerciales; datos de entrenamiento no publicos. Rosa no los ajusta; solo optimiza sus prompts con GEPA y registra cada compilacion.",
+        "M4_entrenamiento": "Modelos comerciales; datos de entrenamiento no públicos. Rosa no los ajusta; solo optimiza sus prompts con GEPA y registra cada compilación.",
         "M6_prompts": {"cribado": {"firma": "PuntuarRelevancia", "hash": _hash_prompt(F.PuntuarRelevancia)}, "verificacion": {"firma": "JuzgarAfirmacion", "hash": _hash_prompt(getattr(F, "JuzgarAfirmacion", None))}, "killer": {"firma": "MatarHipotesis", "hash": _hash_prompt(F.MatarHipotesis)}, "nota": "El texto completo de cada firma esta en rosa/modulos/firmas.py en el commit indicado; el hash identifica la version."},
         "M7_umbrales": {"relevanciaMinima": politicas.RELEVANCIA_MINIMA, "escala": "0 a 10"},
         "M8_revision_humana": {"decisionesDelKiller": len(de_killer), "decisionesDePersonas": len(de_persona), "proporcionRevisadaPorPersonas": round(len(de_persona) / len(de_killer), 3) if de_killer else None, "descartesAuditadosPorOtroModelo": politicas.FRACCION_DESCARTES_AUDITADOS},
@@ -166,20 +166,20 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
 
 
 def _markdown(inv: dict[str, Any], corrida: dict[str, Any], flujo: dict[str, Any], items: dict[str, Any], lsr: dict[str, Any], traice: dict[str, Any], ahora: int) -> str:
-    L = [f"# Flujo de busqueda PRISMA 2020: {inv.get('titulo', '')}", "", f"Corrida {corrida['id']}, generado el {_fecha(ahora)} por Rosa desde su registro (sin ningun modelo). PRISMA 2020 (Page y otros, BMJ 2021); revisiones vivas segun PRISMA-LSR (BMJ 2024); declaracion de IA segun la propuesta PRISMA-trAIce (JMIR AI 2025).", ""]
-    L += ["## Item 6. Fuentes de informacion y fecha de la ultima busqueda", ""]
-    L += [f"- {x['base']}: {x['consultas']} consultas, {x['resultados']} registros, ultima busqueda {x['ultimaBusqueda']}" for x in items["6_fuentes_de_informacion"]] or ["- Sin consultas registradas"]
-    L += ["", "## Item 7. Estrategias de busqueda completas", ""]
-    L += [f"- [{q['fecha']}] {q['base']}: `{q['consulta']}` ({q['resultados']} resultados; iteracion {q['iteracion']}, tema: {q['tema']})" for q in items["7_estrategias_de_busqueda"]] or ["- Ninguna"]
-    L += ["", "## Item 8. Proceso de seleccion", "", items["8_proceso_de_seleccion"]["quienCriba"], "", "Herramientas de automatizacion: " + "; ".join(items["8_proceso_de_seleccion"]["herramientasAutomatizacion"])]
-    L += ["", "## Item 16a. Flujo (variables del diagrama PRISMA 2020)", "", "| Caja | n |", "|---|---|"]
+    L = [f"# Flujo de búsqueda PRISMA 2020: {inv.get('titulo', '')}", "", f"Corrida {corrida['id']}, generado el {_fecha(ahora)} por Rosa desde su registro (sin ningún modelo). PRISMA 2020 (Page y otros, BMJ 2021); revisiones vivas según PRISMA-LSR (BMJ 2024); declaración de IA según la propuesta PRISMA-trAIce (JMIR AI 2025).", ""]
+    L += ["## Ítem 6. Fuentes de información y fecha de la última búsqueda", ""]
+    L += [f"- {x['base']}: {x['consultas']} consultas, {x['resultados']} registros, última búsqueda {x['ultimaBusqueda']}" for x in items["6_fuentes_de_informacion"]] or ["- Sin consultas registradas"]
+    L += ["", "## Ítem 7. Estrategias de búsqueda completas", ""]
+    L += [f"- [{q['fecha']}] {q['base']}: `{q['consulta']}` ({q['resultados']} resultados; iteración {q['iteracion']}, tema: {q['tema']})" for q in items["7_estrategias_de_busqueda"]] or ["- Ninguna"]
+    L += ["", "## Ítem 8. Proceso de selección", "", items["8_proceso_de_seleccion"]["quienCriba"], "", "Herramientas de automatización: " + "; ".join(items["8_proceso_de_seleccion"]["herramientasAutomatizacion"])]
+    L += ["", "## Ítem 16a. Flujo (variables del diagrama PRISMA 2020)", "", "| Caja | n |", "|---|---|"]
     for k in ("database_results", "register_results", "duplicates", "excluded_other", "records_screened", "records_excluded", "dbr_sought_reports", "dbr_notretrieved_reports", "dbr_assessed", "new_studies"):
         L.append(f"| {k} | {flujo[k]} |")
     if flujo["dbr_excluded"]:
         L += [f"| dbr_excluded: {k} | {v} |" for k, v in flujo["dbr_excluded"].items()]
     L += ["", flujo["_notas"]["records_excluded_por_automatizacion"]]
-    L += ["", f"## Item 16b. Excluidos en el cribado con motivo ({len(items['16b_excluidos_con_motivo'])})", ""]
+    L += ["", f"## Ítem 16b. Excluidos en el cribado con motivo ({len(items['16b_excluidos_con_motivo'])})", ""]
     L += [f"- {x.get('referencia', '?')} (relevancia {x.get('relevancia', '?')}/10): {x.get('motivo', '')}" for x in items["16b_excluidos_con_motivo"][:120]] or ["- Ninguno registrado"]
-    L += ["", "## Revision viva (PRISMA-LSR)", "", f"- L1: {lsr['L1_calendario']}", f"- L3: {lsr['L3_cambios_de_resultados']['iteraciones']} iteraciones en esta corrida", f"- L4: personas {', '.join(lsr['L4_autores_por_version']['personas']) or 'sin declarar'}; sistema {json.dumps(lsr['L4_autores_por_version']['sistema'], ensure_ascii=False)}"]
-    L += ["", "## Declaracion de la IA usada (PRISMA-trAIce)", "", f"- Modelos de cribado: {', '.join(traice['M2_modelos']['cribado']) or 'sin llamadas registradas'}; verificacion y Killer: {', '.join(traice['M2_modelos']['verificacion_y_killer']) or 'sin llamadas registradas'}; acceso por {traice['M2_modelos']['accesoPor']}", f"- Prompts: {json.dumps(traice['M6_prompts'], ensure_ascii=False)}", f"- Umbral de inclusion automatica: relevancia >= {traice['M7_umbrales']['relevanciaMinima']} de 10", f"- Revision humana: {traice['M8_revision_humana']['decisionesDePersonas']} decisiones de personas sobre {traice['M8_revision_humana']['decisionesDelKiller']} del Killer; {int(traice['M8_revision_humana']['descartesAuditadosPorOtroModelo'] * 100)} % de los descartes auditados por otro modelo", f"- Acuerdo con personas: kappa global {traice['M9_acuerdo_con_personas']['kappaGlobal']} sobre {traice['M9_acuerdo_con_personas']['conjuntoDorado']} etiquetas del conjunto dorado", f"- {traice['R1_flujo_distingue_ia_y_humano']}"]
+    L += ["", "## Revisión viva (PRISMA-LSR)", "", f"- L1: {lsr['L1_calendario']}", f"- L3: {lsr['L3_cambios_de_resultados']['iteraciones']} iteraciones en esta corrida", f"- L4: personas {', '.join(lsr['L4_autores_por_version']['personas']) or 'sin declarar'}; sistema {json.dumps(lsr['L4_autores_por_version']['sistema'], ensure_ascii=False)}"]
+    L += ["", "## Declaración de la IA usada (PRISMA-trAIce)", "", f"- Modelos de cribado: {', '.join(traice['M2_modelos']['cribado']) or 'sin llamadas registradas'}; verificación y Killer: {', '.join(traice['M2_modelos']['verificacion_y_killer']) or 'sin llamadas registradas'}; acceso por {traice['M2_modelos']['accesoPor']}", f"- Prompts: {json.dumps(traice['M6_prompts'], ensure_ascii=False)}", f"- Umbral de inclusion automatica: relevancia >= {traice['M7_umbrales']['relevanciaMinima']} de 10", f"- Revisión humana: {traice['M8_revision_humana']['decisionesDePersonas']} decisiones de personas sobre {traice['M8_revision_humana']['decisionesDelKiller']} del Killer; {int(traice['M8_revision_humana']['descartesAuditadosPorOtroModelo'] * 100)} % de los descartes auditados por otro modelo", f"- Acuerdo con personas: kappa global {traice['M9_acuerdo_con_personas']['kappaGlobal']} sobre {traice['M9_acuerdo_con_personas']['conjuntoDorado']} etiquetas del conjunto dorado", f"- {traice['R1_flujo_distingue_ia_y_humano']}"]
     return "\n".join(L)

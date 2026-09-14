@@ -61,7 +61,7 @@ def presupuesto_ok(almacen, corrida_id: str, iteracion: int | None = None) -> bo
 
 def _entrada_de_esta_llamada(candidatos: list[dict[str, Any]], entradas: dict[str, Any] | None) -> dict[str, Any] | None:
     """La entrada del historial de DSPy cuyos `messages` (o `prompt`) coinciden
-    con los de la llamada que termina. Se recorre de la mas nueva a la mas vieja."""
+    con los de la llamada que termina. Se recorre de la más nueva a la más vieja."""
     if not entradas:
         return None
     mensajes = entradas.get("messages")

@@ -75,7 +75,7 @@ def identificadores_de(texto: str) -> set[str]:
 
 
 def es_ausencia_pura(texto: str) -> bool:
-    """Casa con una formula de abstencion y no afirma nada de su cosecha."""
+    """Casa con una fórmula de abstención y no afirma nada de su cosecha."""
     if not any(p.search(texto) for p in FORMULAS_ABSTENCION):
         return False
     if SEGUNDA_CLAUSULA.search(texto):
@@ -102,18 +102,18 @@ TERMINOS_DOMINIO_BASE = {"alzheimer", "parkinson", "demencia", "dementia", "ad",
 
 
 def terminos_del_dominio(objetivo: str = "", extra: set[str] | None = None) -> set[str]:
-    """Las palabras del objetivo de la investigacion (y las de base) que no
-    cuentan como identificadores en una declaracion de ausencia."""
+    """Las palabras del objetivo de la investigación (y las de base) que no
+    cuentan como identificadores en una declaración de ausencia."""
     palabras = {t.lower() for t in re.findall(r"[A-Za-z][\w\-]{2,}", objetivo or "")}
     return TERMINOS_DOMINIO_BASE | palabras | (extra or set())
 
 
 def expresiones_identificadoras(texto: str, excluir: set[str] | None = None) -> set[str]:
-    """Identificadores de verdad para la comprobacion de ausencia refutada:
-    siglas (GFAP, ADNI), codigos y tokens con digitos (NCT0123, p-tau217,
-    GSE1297) y nombres de farmaco por sufijo INN (lecanemab). Una palabra
+    """Identificadores de verdad para la comprobación de ausencia refutada:
+    siglas (GFAP, ADNI), códigos y tokens con digitos (NCT0123, p-tau217,
+    GSE1297) y nombres de fármaco por sufijo INN (lecanemab). Una palabra
     capitalizada suelta ("Alzheimer", "Sin") no es un identificador: castigaba
-    justo la abstencion honesta que el diseno quiere premiar."""
+    justo la abstención honesta que el diseño quiere premiar."""
     excluir = {x.lower() for x in (excluir or set())} | TERMINOS_DOMINIO_BASE
     salida = set()
     for tok in re.findall(r"[A-Za-z0-9][\w\-/]{1,}", texto):
@@ -130,7 +130,7 @@ def expresiones_identificadoras(texto: str, excluir: set[str] | None = None) -> 
 
 def pasaje_en_texto(pasaje: str, texto: str) -> bool:
     """El pasaje citado tiene que estar entero en la fuente, no solo sus diez
-    primeras palabras (asi no pasa un comienzo real con una continuacion
+    primeras palabras (así no pasa un comienzo real con una continuación
     inventada). Se normalizan espacios, guiones y comillas, y se tolera un
     fallo local: de las ventanas de 10 palabras con paso 5, puede faltar una
     (una errata del extractor no tumba una cita real)."""
@@ -192,7 +192,7 @@ def comprobar_determinista(texto: str, cita: str, fragmento_citado: str | None, 
     if not cita or not cita.strip():
         if es_ausencia_pura(texto):
             return _ausencia(texto, alcance, excluir)
-        return Resultado("sin_cita", "La afirmacion no lleva cita.")
+        return Resultado("sin_cita", "La afirmación no lleva cita.")
     frag = resolver_cita(cita, fragmentos)
     if frag is None:
         return Resultado("cita_no_resuelve", f"La cita {cita} no apunta a ninguna fuente ni localizador conocidos.")
@@ -218,24 +218,24 @@ def comprobar_determinista(texto: str, cita: str, fragmento_citado: str | None, 
     if presentes:
         pistas.append(f"Cifras presentes en el fragmento: {', '.join(presentes)}")
     if ausentes:
-        pistas.append(f"Cifras de la afirmacion que NO aparecen en el fragmento: {', '.join(ausentes)}")
+        pistas.append(f"Cifras de la afirmación que NO aparecen en el fragmento: {', '.join(ausentes)}")
     if ids_afirmacion:
         pistas.append(f"Identificadores comprobados: {', '.join(sorted(ids_afirmacion))}")
     return Resultado("sin_verificar", "Pendiente del juez.", pistas="; ".join(pistas) or "Sin cifras ni identificadores.", necesita_juez=True, fragmento=frag)
 
 
 def _ausencia(texto: str, alcance: list[Fragmento], excluir: set[str] | None = None) -> Resultado:
-    """Una declaracion de ausencia: se refuta si el identificador ausente si
-    esta en algun fragmento del alcance. 'No pude comprobar' no se refuta, y
-    los terminos del dominio (la enfermedad, la cohorte del objetivo) no
+    """Una declaración de ausencia: se refuta si el identificador ausente si
+    está en algún fragmento del alcance. 'No pude comprobar' no se refuta, y
+    los términos del dominio (la enfermedad, la cohorte del objetivo) no
     cuentan como identificadores."""
     if FORMULA_NO_COMPROBADO.search(texto):
-        return Resultado("sostenida", "Declaracion honesta de comprobacion no hecha; no se juzga contra las fuentes.")
+        return Resultado("sostenida", "Declaración honesta de comprobación no hecha; no se juzga contra las fuentes.")
     for expr in expresiones_identificadoras(texto, excluir):
         for f in alcance:
             if frase_contigua_en(expr, f.texto):
-                return Resultado("ausencia_refutada", f"Declara ausente '{expr}', que aparece en {f.referencia} ({f.localizador}). La busqueda no llego.", fragmento=f)
-    return Resultado("sostenida", "Declaracion de ausencia sin contradiccion en el alcance.")
+                return Resultado("ausencia_refutada", f"Declara ausente '{expr}', que aparece en {f.referencia} ({f.localizador}). La búsqueda no llegó.", fragmento=f)
+    return Resultado("sostenida", "Declaración de ausencia sin contradicción en el alcance.")
 
 
 def fidelidad(veredictos: list[str]) -> float | None:
@@ -250,9 +250,9 @@ def bloquea(veredicto: str) -> bool:
 
 
 def texto_abstencion(motivo: str) -> str:
-    """Los tres textos de abstencion, y solo estos."""
+    """Los tres textos de abstención, y solo estos."""
     return {
         "sin_respaldo": "no encuentro respaldo suficiente",
         "reloj": "no pude comprobar la respuesta en el tiempo disponible",
-        "juez": "la comprobacion no estuvo disponible",
+        "juez": "la comprobación no estuvo disponible",
     }[motivo]

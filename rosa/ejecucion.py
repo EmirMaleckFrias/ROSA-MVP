@@ -118,10 +118,10 @@ def runtime_disponible(sintetico: bool) -> tuple[str, str]:
     if _container_disponible():
         return "container", ""
     if sintetico and PERMITIR_LOCAL_SINTETICO:
-        return "local_sintetico", "Sin Docker ni Apple container: aislamiento blando local, permitido solo porque el dataset es sintetico"
-    motivo = "Sin runtime de aislamiento: enciende Docker Desktop (o instala Apple container) para ejecutar analisis con datos reales."
+        return "local_sintetico", "Sin Docker ni Apple container: aislamiento blando local, permitido solo porque el dataset es sintético"
+    motivo = "Sin runtime de aislamiento: enciende Docker Desktop (o instala Apple container) para ejecutar análisis con datos reales."
     if sintetico:
-        motivo = "Sin runtime de aislamiento y la politica no permite ejecucion local."
+        motivo = "Sin runtime de aislamiento y la política no permite ejecución local."
     return "ninguno", motivo
 
 
@@ -139,7 +139,7 @@ def _asegurar_imagen(runtime: str, entorno: str = "tabular") -> str | None:
             return f"No se pudo construir la imagen del sandbox: {r.stderr[-800:]}"
         return None
     except subprocess.TimeoutExpired:
-        return "La construccion de la imagen del sandbox tardo mas de 30 minutos"
+        return "La construcción de la imagen del sandbox tardo más de 30 minutos"
     except Exception as ex:  # noqa: BLE001
         return f"No se pudo preparar la imagen del sandbox: {ex}"
 
@@ -228,12 +228,12 @@ def _parsear(salida: str) -> tuple[dict[str, str], dict[str, str], dict[str, str
             continue
         m = re.match(r"^NO_EVALUABLE\s*(.*)$", l)
         if m and no_evaluable is None:
-            no_evaluable = m.group(1).strip() or "El script marco el analisis como no evaluable"
+            no_evaluable = m.group(1).strip() or "El script marco el análisis como no evaluable"
     return resultados, baseline, control, no_evaluable
 
 
 def versiones_imagen(runtime: str, entorno: str = "tabular") -> list[dict[str, str]]:
-    """Las versiones de los paquetes de la imagen, leidas una vez por proceso
+    """Las versiones de los paquetes de la imagen, leídas una vez por proceso
     (el registro de procedencia exige el entorno exacto de cada artefacto)."""
     imagen = IMAGENES.get(entorno, IMAGENES["tabular"])[0]
     if imagen in _VERSIONES:
@@ -261,7 +261,7 @@ def _paquetes(runtime: str) -> list[dict[str, str]]:
 
 
 def _cola(ruta: Path, maximo: int) -> str:
-    """Los ultimos `maximo` bytes de un fichero de salida, como texto."""
+    """Los últimos `máximo` bytes de un fichero de salida, como texto."""
     try:
         tam = ruta.stat().st_size
         with open(ruta, "rb") as f:
@@ -353,7 +353,7 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
             if runtime in ("docker", "container") and nombre_contenedor:
                 # Matar al cliente no mata el contenedor: se para y se borra por nombre.
                 subprocess.run([runtime, "rm", "-f", nombre_contenedor], capture_output=True, text=True, timeout=30)
-            return Resultado(estado="tiempo_agotado", runtime=runtime, salida=_cola(f_out, 4000), error=f"Tiempo agotado tras {tiempo} s. Es un error tecnico, no un resultado nulo.", duracion_s=round(time.monotonic() - inicio, 1))
+            return Resultado(estado="tiempo_agotado", runtime=runtime, salida=_cola(f_out, 4000), error=f"Tiempo agotado tras {tiempo} s. Es un error técnico, no un resultado nulo.", duracion_s=round(time.monotonic() - inicio, 1))
         duracion = round(time.monotonic() - inicio, 1)
         # Se parsea la salida completa (hasta 50 MB; un script puede imprimir mucho
         # antes de la cifra final) y se guarda recortada.
@@ -362,7 +362,7 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
         salida = stdout[-12000:]
         error = _cola(f_err, 4000)
         if r.returncode != 0:
-            return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error=error or f"Codigo de salida {r.returncode}", codigo_salida=r.returncode, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
+            return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error=error or f"Código de salida {r.returncode}", codigo_salida=r.returncode, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
         if not resultados and not no_evaluable:
             return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error="El script termino sin imprimir ninguna linea RESULTADO ni NO_EVALUABLE: no cumplio el contrato de salida.", codigo_salida=0, duracion_s=duracion, paquetes=_paquetes(runtime))
         return Resultado(estado="completado", runtime=runtime, salida=salida, error=error, codigo_salida=0, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
@@ -379,22 +379,22 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
 
 def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resultado) -> list[dict[str, str]]:
     """Lo que se puede comprobar sin juez: semilla, fuga por ajuste antes de
-    partir, variables del plan presentes en el codigo, baseline y control
+    partir, variables del plan presentes en el código, baseline y control
     presentes, n por grupo, multiplicidad."""
     c: list[dict[str, str]] = []
     tiene_semilla = bool(re.search(r"random_state|\.seed\(|default_rng\(|ROSA_SEMILLA", codigo))
-    c.append({"comprobacion": "semilla", "resultado": "pasa" if tiene_semilla else "falla", "detalle": "El codigo fija la semilla" if tiene_semilla else "El codigo no fija ninguna semilla: no es repetible"})
+    c.append({"comprobacion": "semilla", "resultado": "pasa" if tiene_semilla else "falla", "detalle": "El código fija la semilla" if tiene_semilla else "El código no fija ninguna semilla: no es repetible"})
     pos_fit = codigo.find(".fit(")
     pos_split = codigo.find("train_test_split(")
     if pos_split != -1 and pos_fit != -1 and pos_fit < pos_split:
         c.append({"comprobacion": "fuga_de_datos", "resultado": "falla", "detalle": "Hay un ajuste (.fit) antes de partir en entrenamiento y prueba: posible fuga"})
     elif re.search(r"(StandardScaler|MinMaxScaler|SimpleImputer)\(\)\.fit_transform\(", codigo) and pos_split != -1:
-        c.append({"comprobacion": "fuga_de_datos", "resultado": "no_comprobable", "detalle": "Hay un escalado o imputacion global; revisar si se ajusto solo con el entrenamiento"})
+        c.append({"comprobacion": "fuga_de_datos", "resultado": "no_comprobable", "detalle": "Hay un escalado o imputación global; revisar si se ajusto solo con el entrenamiento"})
     else:
-        c.append({"comprobacion": "fuga_de_datos", "resultado": "pasa" if pos_split != -1 else "no_aplica", "detalle": "Sin ajuste antes de partir" if pos_split != -1 else "No hay particion entrenamiento y prueba en este analisis"})
+        c.append({"comprobacion": "fuga_de_datos", "resultado": "pasa" if pos_split != -1 else "no_aplica", "detalle": "Sin ajuste antes de partir" if pos_split != -1 else "No hay partición entrenamiento y prueba en este análisis"})
     variables = [re.sub(r"\s*\(.*\)$", "", v).strip() for v in plan.get("variables", [])]
     faltan = [v for v in variables if v and v.split()[0] not in codigo]
-    c.append({"comprobacion": "coincide_con_plan", "resultado": "pasa" if not faltan else "falla", "detalle": "Todas las variables del plan aparecen en el codigo" if not faltan else "Variables del plan que no aparecen en el codigo: " + ", ".join(faltan[:6])})
+    c.append({"comprobacion": "coincide_con_plan", "resultado": "pasa" if not faltan else "falla", "detalle": "Todas las variables del plan aparecen en el código" if not faltan else "Variables del plan que no aparecen en el código: " + ", ".join(faltan[:6])})
     tiene_base = bool(res.baseline)
     tiene_control = bool(res.control)
     c.append({"comprobacion": "baseline_y_control", "resultado": "pasa" if (tiene_base and tiene_control) else ("no_aplica" if res.no_evaluable else "falla"), "detalle": f"Baseline: {'si' if tiene_base else 'no'}. Control negativo: {'si' if tiene_control else 'no'}"})
@@ -406,10 +406,10 @@ def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resulta
             except ValueError:
                 pass
     if ns:
-        c.append({"comprobacion": "tamano_muestral", "resultado": "falla" if min(ns) < 5 else "pasa", "detalle": f"n minimo por grupo {min(ns):g}" + (" (menos de 5)" if min(ns) < 5 else "")})
+        c.append({"comprobacion": "tamano_muestral", "resultado": "falla" if min(ns) < 5 else "pasa", "detalle": f"n mínimo por grupo {min(ns):g}" + (" (menos de 5)" if min(ns) < 5 else "")})
     else:
         c.append({"comprobacion": "tamano_muestral", "resultado": "no_comprobable", "detalle": "El codigo no imprimio n por grupo (RESULTADO n_...)"})
     pvalores = [k for k in res.resultados if re.search(r"^p(_|val|$)", k, re.I)]
     corrige = bool(re.search(r"bonferroni|holm|fdr|multipletests|benjamini", codigo, re.I)) or "una sola" in (plan.get("correccionMultiplicidad") or "").lower()
-    c.append({"comprobacion": "multiplicidad", "resultado": "pasa" if (len(pvalores) <= 1 or corrige) else "falla", "detalle": f"{len(pvalores)} p-valores impresos; correccion en el codigo: {'si' if corrige else 'no'}"})
+    c.append({"comprobacion": "multiplicidad", "resultado": "pasa" if (len(pvalores) <= 1 or corrige) else "falla", "detalle": f"{len(pvalores)} p-valores impresos; corrección en el código: {'si' if corrige else 'no'}"})
     return c

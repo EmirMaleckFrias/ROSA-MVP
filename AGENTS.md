@@ -83,6 +83,14 @@ sin aprobar por un humano.
 - Las citas resuelven a la pagina exacta. Un desfase de una pagina es un
   fallo grave.
 - Sin guiones largos (U+2014) en codigo, comentarios ni interfaz.
+- Todo texto en castellano lleva sus tildes y sus ñ (regla de Emir, 14 de
+  septiembre de 2026): cadenas de la interfaz, textos que genera el backend,
+  docstrings, documentación, mensajes de commit y respuestas. Los
+  identificadores (variables, claves, clases CSS, rutas, valores que se
+  comparan con el servidor) se quedan sin acento. Revisión:
+  `python3 scripts/acentuar.py` en `frontend/` y `python3 scripts/acentuar_py.py`
+  en la raíz; las palabras que cambian de sentido con la tilde se deciden a
+  mano por contexto.
 - Antes de cada commit, escanear `sk-proj-`, `sb_secret_`, `vcp_`, `vck_`,
   `github_pat_`, `ghp_`, `eyJhbGci`, `eyJ2MiI6`, `ntn_`, `secret_`, `GOCSPX-`.
 - Commit y push al cerrar cada bloque de trabajo, sin esperar a que se pida

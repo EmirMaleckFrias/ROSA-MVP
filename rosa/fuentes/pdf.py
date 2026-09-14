@@ -1,6 +1,6 @@
-"""PDF por pagina con PyMuPDF. La pagina es la del visor (1-indexada) y,
+"""PDF por página con PyMuPDF. La página es la del visor (1-indexada) y,
 antes de emitir una cita, se comprueba que el fragmento aparece literalmente
-en esa pagina: un desfase de una pagina es un fallo grave.
+en esa página: un desfase de una página es un fallo grave.
 """
 
 from __future__ import annotations
@@ -68,8 +68,8 @@ def _normalizar(s: str) -> str:
 
 
 def fragmento_en_pagina(ruta: Path, fragmento: str, pagina: int) -> bool:
-    """Comprobacion literal: las primeras 12 palabras del fragmento aparecen
-    en el texto de esa pagina (normalizando espacios)."""
+    """Comprobación literal: las primeras 12 palabras del fragmento aparecen
+    en el texto de esa página (normalizando espacios)."""
     palabras = _normalizar(fragmento).split(" ")
     aguja = " ".join(palabras[:12])
     if not aguja:

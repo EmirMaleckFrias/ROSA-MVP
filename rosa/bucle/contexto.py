@@ -1,7 +1,7 @@
 """Del estado al texto que leen los modelos.
 
-Cada funcion toma partes del estado y las convierte en texto compacto y
-numerado, para que las firmas puedan citar "afirmacion 7" o "hipotesis
+Cada función toma partes del estado y las convierte en texto compacto y
+numerado, para que las firmas puedan citar "afirmación 7" o "hipótesis
 hip-x". Nada de esto llama a un modelo.
 """
 
@@ -16,7 +16,7 @@ from rosa import politicas
 def modelo_de_mundo(hechos: list[dict[str, Any]], investigacion_id: str, maximo: int = 60) -> str:
     propios = [h for h in hechos if h["investigacionId"] == investigacion_id]
     if not propios:
-        return "Vacio: es la primera iteracion. No hay hechos sabidos ni preguntas abiertas todavia."
+        return "Vacío: es la primera iteración. No hay hechos sabidos ni preguntas abiertas todavía."
     orden = {"abierto": 0, "sabido": 1, "descartado": 2}
     propios.sort(key=lambda h: (orden.get(h["estado"], 3), h["prioridad"]))
     lineas = []
@@ -30,22 +30,22 @@ def modelo_de_mundo(hechos: list[dict[str, Any]], investigacion_id: str, maximo:
 def preguntas_abiertas(hechos: list[dict[str, Any]], investigacion_id: str, objetivo: str, maximo: int = 8) -> str:
     abiertas = sorted([h for h in hechos if h["investigacionId"] == investigacion_id and h["estado"] == "abierto"], key=lambda h: h["prioridad"])
     if not abiertas:
-        return f"Sin preguntas abiertas todavia. El objetivo es: {objetivo}"
+        return f"Sin preguntas abiertas todavía. El objetivo es: {objetivo}"
     return "\n".join(f"{i + 1}. {h['enunciado']}" for i, h in enumerate(abiertas[:maximo]))
 
 
 def afirmaciones_sostenidas(afirmaciones: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
     """Texto numerado de las afirmaciones sostenidas o parciales, y la lista
-    en ese mismo orden para resolver indices."""
+    en ese mismo orden para resolver índices."""
     validas = [a for a in afirmaciones if a["veredicto"] in ("sostenida", "parcial")]
     lineas = [f"{i + 1}. ({a['tipo']}{', parcial' if a['veredicto'] == 'parcial' else ''}) {a['texto']} {a['cita']}" for i, a in enumerate(validas)]
-    return ("\n".join(lineas) if lineas else "Ninguna afirmacion sostenida todavia."), validas
+    return ("\n".join(lineas) if lineas else "Ninguna afirmación sostenida todavía."), validas
 
 
 def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str, maximo: int | None = None, con_descartadas: int | None = None) -> str:
-    """Las hipotesis vivas de la investigacion, por Elo, con tope; de las
-    descartadas solo las ultimas (su motivo evita repetirlas). Sin tope, el
-    prompt del Killer crecia con cada iteracion."""
+    """Las hipótesis vivas de la investigación, por Elo, con tope; de las
+    descartadas solo las últimas (su motivo evita repetirlas). Sin tope, el
+    prompt del Killer crecia con cada iteración."""
     maximo = politicas.MAX_HIPOTESIS_EN_CONTEXTO if maximo is None else maximo
     con_descartadas = politicas.MAX_DESCARTADAS_EN_CONTEXTO if con_descartadas is None else con_descartadas
     propias = [h for h in hipotesis if h["investigacionId"] == investigacion_id]
@@ -65,13 +65,13 @@ def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str,
             nota = f" pide refinar: {ult['nota']}" if ult else ""
         lineas.append(f"- {h['id']} [{h['estado']}, elo {h['elo']}] {h['titulo']}{nota}")
     if omitidas > 0:
-        lineas.append(f"- ({omitidas} hipotesis mas no se listan por tope de contexto)")
+        lineas.append(f"- ({omitidas} hipótesis más no se listan por tope de contexto)")
     return "\n".join(lineas)
 
 
 def hipotesis_texto(h: dict[str, Any]) -> str:
     c = h["comprobacion"]
-    return f"Titulo: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobacion: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}\nCluster: {h['cluster']}"
+    return f"Título: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobacion: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}\nCluster: {h['cluster']}"
 
 
 def hipotesis_para_torneo(h: dict[str, Any]) -> str:
@@ -123,8 +123,8 @@ def plan_ejecutado(iteracion: dict[str, Any]) -> str:
 
 
 def inferir_tipo_paso(paso: dict[str, Any]) -> str:
-    """Un paso editado o anadido por la investigadora no trae `tipo`; se
-    infiere del titulo. Si no se reconoce, se trata como indicacion."""
+    """Un paso editado o añadido por la investigadora no trae `tipo`; se
+    infiere del título. Si no se reconoce, se trata como indicación."""
     if paso.get("tipo"):
         return paso["tipo"]
     if paso.get("indicacionHumana"):
@@ -156,7 +156,7 @@ def inferir_tipo_paso(paso: dict[str, Any]) -> str:
 
 
 def terminos_clave(texto: str, maximo: int = 6) -> list[str]:
-    """Palabras del dominio para consultas rapidas: siglas, genes, y palabras
+    """Palabras del dominio para consultas rápidas: siglas, genes, y palabras
     largas que no sean conectores."""
     parar = {"sobre", "entre", "hasta", "desde", "para", "como", "cuando", "donde", "porque", "aunque", "mientras", "antes", "despues", "portadores", "pacientes", "personas", "estudio", "nivel", "niveles", "plasma", "cambio", "cambios"}
     vistos: list[str] = []
@@ -171,21 +171,21 @@ def terminos_clave(texto: str, maximo: int = 6) -> list[str]:
 
 
 def hipotesis_vivas(hipotesis: list[dict[str, Any]], investigacion_id: str, maximo: int = 8) -> str:
-    """Las hipotesis en competencia con su estado de creencia, para que el
-    plan y las consultas elijan lo que las discrimina: que evidencia subiria
-    o bajaria su certeza, y de que dependen mas."""
+    """Las hipótesis en competencia con su estado de creencia, para que el
+    plan y las consultas elijan lo que las discrimina: que evidencia subiría
+    o bajaría su certeza, y de que dependen más."""
     vivas = [h for h in hipotesis if h["investigacionId"] == investigacion_id and h["estado"] not in ("descartada",)]
     if not vivas:
-        return "Ninguna todavia."
+        return "Ninguna todavía."
     vivas.sort(key=lambda h: -h["elo"])
     lineas = []
     for h in vivas[:maximo]:
         k = h.get("conclusion") or {}
-        lineas.append(f"- {h['id']} [{h['estado']}, elo {h['elo']}, certeza {k.get('certeza', 'sin conclusion')}, direccion {k.get('direccion', '?')}] {h['titulo']}")
+        lineas.append(f"- {h['id']} [{h['estado']}, elo {h['elo']}, certeza {k.get('certeza', 'sin conclusion')}, dirección {k.get('direccion', '?')}] {h['titulo']}")
         if k:
-            lineas.append(f"    depende mas de: {k.get('loMasFragil', '')}")
-            lineas.append(f"    subiria si: {k.get('subiria', '')}")
-            lineas.append(f"    bajaria si: {k.get('bajaria', '')}")
+            lineas.append(f"    depende más de: {k.get('loMasFragil', '')}")
+            lineas.append(f"    subiría si: {k.get('subiria', '')}")
+            lineas.append(f"    bajaría si: {k.get('bajaria', '')}")
     return "\n".join(lineas)
 
 

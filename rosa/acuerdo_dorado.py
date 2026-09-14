@@ -29,8 +29,8 @@ def casos_de(e: dict[str, Any], comprobacion: str | None = None) -> list[dict[st
 
 
 def acuerdo_dorado(e: dict[str, Any]) -> dict[str, Any]:
-    """Acuerdo juez-humano: global y por comprobacion. Las categorias son las
-    tres del veredicto; como no estan ordenadas, kappa sin ponderar."""
+    """Acuerdo juez-humano: global y por comprobación. Las categorías son las
+    tres del veredicto; como no están ordenadas, kappa sin ponderar."""
     casos = casos_de(e)
     salida: dict[str, Any] = {"casos": len(casos), "global": None, "porComprobacion": {}, "porModelo": {}}
     if not casos:
@@ -50,9 +50,9 @@ def acuerdo_dorado(e: dict[str, Any]) -> dict[str, Any]:
 
 
 def acierto_por_tipo(e: dict[str, Any]) -> dict[str, float | None]:
-    """Acierto del verificador por tipo de afirmacion (dato, literatura,
-    interpretacion), medido contra las afirmaciones que una persona revisó
-    (`veredictoHumano` en la afirmacion). None donde no hay revisiones."""
+    """Acierto del verificador por tipo de afirmación (dato, literatura,
+    interpretación), medido contra las afirmaciones que una persona revisó
+    (`veredictoHumano` en la afirmación). None donde no hay revisiones."""
     salida: dict[str, float | None] = {"dato": None, "literatura": None, "interpretacion": None}
     cuentas: dict[str, list[bool]] = {k: [] for k in salida}
     for h in e.get("hipotesis", []):
@@ -67,7 +67,7 @@ def acierto_por_tipo(e: dict[str, Any]) -> dict[str, float | None]:
 
 
 def caida_de_acuerdo(anterior: dict[str, Any] | None, actual: dict[str, Any] | None, umbral: float = 0.15) -> str | None:
-    """Si el kappa global bajo mas que `umbral` entre dos mediciones, el motivo
+    """Si el kappa global bajo más que `umbral` entre dos mediciones, el motivo
     para avisar; si no, None."""
     if not anterior or not actual:
         return None

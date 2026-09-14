@@ -11,7 +11,7 @@ from rosa.estado.almacen import Almacen
 
 def _ctx():
     al = Almacen(Path(tempfile.mkdtemp()) / "t.db")
-    al.aplicar("crearInvestigacion", {"datos": {"titulo": "T", "objetivo": "O", "condicionParada": "1 iteracion"}, "id_": "inv"})
+    al.aplicar("crearInvestigacion", {"datos": {"titulo": "T", "objetivo": "O", "condicionParada": "1 iteración"}, "id_": "inv"})
     cid = al.aplicar("iniciarCorrida", {"investigacion_id": "inv"})
     return al, Ctx(al, None, None, cid, "inv", "", 1)
 

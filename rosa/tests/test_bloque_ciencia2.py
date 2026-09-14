@@ -1,4 +1,4 @@
-"""Ontologias, coste por decision, RO-Crate, politica de contexto y nivel de autonomia."""
+"""Ontologías, coste por decisión, RO-Crate, política de contexto y nivel de autonomía."""
 
 import json
 import zipfile
@@ -94,6 +94,6 @@ def test_rocrate_con_prov_y_sello():
 def test_nivel_de_autonomia_declarado_y_politicas():
     assert politicas.NIVEL_AUTONOMIA_DECLARADO == 2
     t = politicas.nivel_autonomia_texto()
-    assert "Nivel 2 de 5" in t and "Autonomia parcial" in t
+    assert "Nivel 2 de 5" in t and "Autonomía parcial" in t
     r = politicas.resumen()
     assert r["nivelAutonomiaDeclarado"] == 2 and len(r["nivelesAutonomia"]) == 6 and r["tarifaHoraRevisionUsd"] > 0

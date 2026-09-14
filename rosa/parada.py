@@ -22,8 +22,8 @@ _LLAMADAS = re.compile(r"(\d+)\s*llamadas?")
 
 def partes_automatizadas(texto: str) -> dict[str, Any]:
     """{iteraciones, tiempo, llamadas, resto, automatizada}. `resto` es lo que
-    queda de la condicion una vez quitadas las partes medibles; si no esta
-    vacio, esa parte la decide una persona."""
+    queda de la condición una vez quitadas las partes medibles; si no está
+    vacío, esa parte la decide una persona."""
     t = (texto or "").lower()
     salida: dict[str, Any] = {"iteraciones": None, "tiempo": None, "llamadas": None, "resto": "", "automatizada": False}
     resto = t
@@ -60,8 +60,8 @@ def texto_automatizacion(partes: dict[str, Any]) -> str:
     if partes.get("llamadas") is not None:
         medibles.append(f"{partes['llamadas']} llamadas")
     if not medibles:
-        return "Rosa no puede medir esta condicion: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la mision."
-    frase = "Rosa para sola al llegar a " + " o ".join(medibles) + " (y al agotar el presupuesto de la mision)"
+        return "Rosa no puede medir esta condición: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la misión."
+    frase = "Rosa para sola al llegar a " + " o ".join(medibles) + " (y al agotar el presupuesto de la misión)"
     if partes.get("resto"):
-        frase += f'. El resto ("{partes["resto"][:80]}") lo decides tu con el boton de detener'
+        frase += f'. El resto ("{partes["resto"][:80]}") lo decides tu con el botón de detener'
     return frase + "."

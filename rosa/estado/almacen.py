@@ -123,8 +123,8 @@ class Almacen:
 
     def _serializar(self) -> tuple[str, list[str]]:
         """El JSON del estado y las claves de primer nivel que cambiaron desde
-        la ultima escritura. Se serializa por clave (mismo coste que entero) para
-        poder decir en el registro que toco cada mutacion del bucle."""
+        la última escritura. Se serializa por clave (mismo coste que entero) para
+        poder decir en el registro que toco cada mutación del bucle."""
         partes = {k: json.dumps(v, ensure_ascii=False) for k, v in self.estado.items()}
         anteriores = getattr(self, "_partes", {})
         cambiaron = [k for k, v in partes.items() if anteriores.get(k) != v] + [k for k in anteriores if k not in partes]
@@ -150,7 +150,7 @@ class Almacen:
 
     def mutar(self, fn: Callable[[dict[str, Any]], Any], nombre: str = "bucle", args: dict | None = None) -> Any:
         """Aplica `fn(estado)` bajo el cerrojo. Si devuelve algo distinto de
-        False, sube la version, guarda y avisa."""
+        False, sube la versión, guarda y avisa."""
         with self._lock:
             try:
                 resultado = fn(self.estado)
@@ -191,9 +191,9 @@ class Almacen:
             self._avisar()
             return resultado
 
-    def aplicar(self, nombre: str, args: dict[str, Any]) -> Any:
-        """Una accion de la interfaz por nombre (ver ACCIONES). Devuelve el
-        resultado del reducer; lanza KeyError si la accion no existe."""
+    def aplicar(self, nombre: str, args: dict[str, Any], *, actor: str | None = None) -> Any:
+        """Una acción de la interfaz por nombre (ver ACCIONES). Devuelve el
+        resultado del reducer; lanza KeyError si la acción no existe."""
         fn, con_ahora = ACCIONES[nombre]
         kwargs = dict(args)
         # El sello de tiempo lo pone el servidor: las decisiones, permisos y enmiendas
@@ -203,11 +203,21 @@ class Almacen:
             kwargs["ahora"] = P.ahora_ms()
         elif con_ahora and "ahora" not in kwargs:
             kwargs["ahora"] = P.ahora_ms()
-        return self.mutar(lambda e: fn(e, **kwargs), nombre, args)
+        def aplicar_con_autoria(e):
+            anteriores = {tabla: {x['id'] for x in e[tabla]} for tabla in ('investigaciones', 'corridas')}
+            resultado = fn(e, **kwargs)
+            if actor and resultado is not False:
+                for tabla in anteriores:
+                    for x in e[tabla]:
+                        if x['id'] not in anteriores[tabla]:
+                            x['_correoResponsable'] = actor
+            return resultado
+
+        return self.mutar(aplicar_con_autoria, nombre, args)
 
     def verificar_cadena(self) -> dict[str, Any]:
         """Recorre el registro y recalcula cada eslabon. Devuelve cuantas filas
-        hay, cuantas estan encadenadas (las anteriores al encadenado no llevan
+        hay, cuantas están encadenadas (las anteriores al encadenado no llevan
         hash y se cuentan aparte) y la primera rotura si la hay."""
         with self._lock:
             filas = self._con.execute("SELECT seq, t, nombre, args, resultado, version, hash, hash_anterior FROM acciones ORDER BY seq").fetchall()
@@ -335,9 +345,9 @@ def _migrar(estado: dict[str, Any]) -> None:
 
 
 def _migrar_rosa2018(estado: dict[str, Any]) -> None:
-    """Campos de septiembre de 2026 (mision, tarjeta, versiones, decisiones,
+    """Campos de septiembre de 2026 (misión, tarjeta, versiones, decisiones,
     puerta, procedencia de datasets) en estados guardados antes. Las
-    politicas se refrescan siempre desde el codigo: no viven en el estado."""
+    políticas se refrescan siempre desde el código: no viven en el estado."""
     estado["politicas"] = P._politicas()
     if not estado.get("metodos"):
         estado["metodos"] = P.metodos_iniciales()
@@ -405,8 +415,8 @@ def _migrar_rosa2018(estado: dict[str, Any]) -> None:
 
 
 def _migrar_experimentos(estado: dict[str, Any]) -> None:
-    """Los experimentos del primer esquema (protocolo en un parrafo, criterios
-    dentro del ensayo) se regeneran si aun no se asignaron. Los ya
+    """Los experimentos del primer esquema (protocolo en un párrafo, criterios
+    dentro del ensayo) se regeneran si aún no se asignaron. Los ya
     prerregistrados no se tocan: el prerregistro es inmutable."""
     for h in estado.get("hipotesis", []):
         x = h.get("experimento")
@@ -416,8 +426,8 @@ def _migrar_experimentos(estado: dict[str, Any]) -> None:
 
 
 def _migrar_conclusiones(estado: dict[str, Any]) -> None:
-    """Las conclusiones escritas con el primer esquema (grado unico, sin
-    certeza, direccion ni factores) se retiran para que el bucle las
+    """Las conclusiones escritas con el primer esquema (grado único, sin
+    certeza, dirección ni factores) se retiran para que el bucle las
     reescriba con el esquema GRADE."""
     for h in estado.get("hipotesis", []):
         c = h.get("conclusion")
@@ -432,8 +442,8 @@ def _migrar_conclusiones(estado: dict[str, Any]) -> None:
 
 
 def _migrar_fragmentos(estado: dict[str, Any]) -> None:
-    """Las hipotesis anteriores al 10 de septiembre de 2026 no llevaban el
-    pasaje literal en cada afirmacion; se recupera de las afirmaciones de la
+    """Las hipótesis anteriores al 10 de septiembre de 2026 no llevaban el
+    pasaje literal en cada afirmación; se recupera de las afirmaciones de la
     corrida por su cita y texto."""
     for h in estado.get("hipotesis", []):
         if all("fragmento" in a for a in h.get("afirmaciones", [])):
@@ -449,9 +459,9 @@ def _migrar_fragmentos(estado: dict[str, Any]) -> None:
 
 def _migrar_consultas(estado: dict[str, Any]) -> None:
     """Ajustes a estados guardados por versiones anteriores de Rosa. Cada uno
-    es idempotente. Hoy: las consultas de busqueda anteriores al 10 de
-    septiembre de 2026 no llevaban `iteracion`; se infiere por la fecha dentro
-    de la ventana de cada iteracion de su corrida."""
+    es idempotente. Hoy: las consultas de búsqueda anteriores al 10 de
+    septiembre de 2026 no llevaban `iteración`; se infiere por la fecha dentro
+    de la ventana de cada iteración de su corrida."""
     for c in estado.get("corridas", []):
         its = sorted([i for i in estado.get("iteraciones", []) if i["corridaId"] == c["id"]], key=lambda i: i["numero"])
         for q in c.get("busqueda", {}).get("consultas", []):

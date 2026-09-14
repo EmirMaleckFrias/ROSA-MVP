@@ -46,11 +46,11 @@ INSTRUMENTOS: dict[str, dict[str, Any]] = {
         "fuente": "https://www.riskofbias.info/welcome/rob-2-0-tool",
         "aplica_a": ("ensayo_aleatorizado",),
         "dominios": [
-            {"id": "D1", "nombre": "Proceso de aleatorizacion", "preguntas": [_p("1.1", "Was the allocation sequence random?"), _p("1.2", "Was the allocation sequence concealed until participants were enrolled and assigned to interventions?"), _p("1.3", "Did baseline differences between intervention groups suggest a problem with the randomization process?", True)]},
-            {"id": "D2", "nombre": "Desviaciones de la intervencion prevista", "preguntas": [_p("2.1", "Were participants aware of their assigned intervention during the trial?", True), _p("2.2", "Were carers and people delivering the interventions aware of participants' assigned intervention during the trial?", True), _p("2.3", "Were there deviations from the intended intervention that arose because of the trial context?", True), _p("2.4", "Were these deviations likely to have affected the outcome?", True), _p("2.6", "Was an appropriate analysis used to estimate the effect of assignment to intervention?")]},
+            {"id": "D1", "nombre": "Proceso de aleatorización", "preguntas": [_p("1.1", "Was the allocation sequence random?"), _p("1.2", "Was the allocation sequence concealed until participants were enrolled and assigned to interventions?"), _p("1.3", "Did baseline differences between intervention groups suggest a problem with the randomization process?", True)]},
+            {"id": "D2", "nombre": "Desviaciones de la intervención prevista", "preguntas": [_p("2.1", "Were participants aware of their assigned intervention during the trial?", True), _p("2.2", "Were carers and people delivering the interventions aware of participants' assigned intervention during the trial?", True), _p("2.3", "Were there deviations from the intended intervention that arose because of the trial context?", True), _p("2.4", "Were these deviations likely to have affected the outcome?", True), _p("2.6", "Was an appropriate analysis used to estimate the effect of assignment to intervention?")]},
             {"id": "D3", "nombre": "Datos de desenlace faltantes", "preguntas": [_p("3.1", "Were data for this outcome available for all, or nearly all, participants randomized?"), _p("3.2", "Is there evidence that the result was not biased by missing outcome data?"), _p("3.3", "Could missingness in the outcome depend on its true value?", True)]},
-            {"id": "D4", "nombre": "Medicion del desenlace", "preguntas": [_p("4.1", "Was the method of measuring the outcome inappropriate?", True), _p("4.2", "Could measurement or ascertainment of the outcome have differed between intervention groups?", True), _p("4.3", "Were outcome assessors aware of the intervention received by study participants?", True), _p("4.4", "Could assessment of the outcome have been influenced by knowledge of intervention received?", True)]},
-            {"id": "D5", "nombre": "Seleccion del resultado comunicado", "preguntas": [_p("5.1", "Were the data that produced this result analysed in accordance with a pre-specified analysis plan that was finalized before unblinded outcome data were available for analysis?"), _p("5.2", "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements within the outcome domain?", True), _p("5.3", "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible analyses of the data?", True)]},
+            {"id": "D4", "nombre": "Medición del desenlace", "preguntas": [_p("4.1", "Was the method of measuring the outcome inappropriate?", True), _p("4.2", "Could measurement or ascertainment of the outcome have differed between intervention groups?", True), _p("4.3", "Were outcome assessors aware of the intervention received by study participants?", True), _p("4.4", "Could assessment of the outcome have been influenced by knowledge of intervention received?", True)]},
+            {"id": "D5", "nombre": "Selección del resultado comunicado", "preguntas": [_p("5.1", "Were the data that produced this result analysed in accordance with a pre-specified analysis plan that was finalized before unblinded outcome data were available for analysis?"), _p("5.2", "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements within the outcome domain?", True), _p("5.3", "Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible analyses of the data?", True)]},
         ],
     },
     "robins_i": {
@@ -60,11 +60,11 @@ INSTRUMENTOS: dict[str, dict[str, Any]] = {
         "aplica_a": ("cohorte", "caso_control", "transversal", "serie_de_casos"),
         "dominios": [
             {"id": "D1", "nombre": "Confusion", "preguntas": [_p("1.1", "Is there potential for confounding of the effect of the exposure or intervention in this study?", True), _p("1.2", "Did the authors use an appropriate analysis method that controlled for all the important confounding domains?"), _p("1.3", "Were confounding domains that were controlled for measured validly and reliably by the variables available in this study?")]},
-            {"id": "D2", "nombre": "Seleccion de participantes", "preguntas": [_p("2.1", "Was selection of participants into the study (or into the analysis) based on participant characteristics observed after the start of exposure?", True), _p("2.2", "Do start of follow-up and start of exposure coincide for most participants?"), _p("2.3", "Were adjustment techniques used that are likely to correct for the presence of selection biases?")]},
-            {"id": "D3", "nombre": "Clasificacion de la exposicion", "preguntas": [_p("3.1", "Were exposure or intervention groups clearly defined?"), _p("3.2", "Was the information used to define exposure groups recorded at the start of the exposure?"), _p("3.3", "Could classification of exposure status have been affected by knowledge of the outcome or risk of the outcome?", True)]},
+            {"id": "D2", "nombre": "Selección de participantes", "preguntas": [_p("2.1", "Was selection of participants into the study (or into the analysis) based on participant characteristics observed after the start of exposure?", True), _p("2.2", "Do start of follow-up and start of exposure coincide for most participants?"), _p("2.3", "Were adjustment techniques used that are likely to correct for the presence of selection biases?")]},
+            {"id": "D3", "nombre": "Clasificación de la exposición", "preguntas": [_p("3.1", "Were exposure or intervention groups clearly defined?"), _p("3.2", "Was the information used to define exposure groups recorded at the start of the exposure?"), _p("3.3", "Could classification of exposure status have been affected by knowledge of the outcome or risk of the outcome?", True)]},
             {"id": "D4", "nombre": "Datos faltantes", "preguntas": [_p("4.1", "Were outcome data available for all, or nearly all, participants?"), _p("4.2", "Were participants excluded due to missing data on exposure status or confounders?", True), _p("4.3", "Was the proportion of participants and reasons for missing data similar across exposure groups?")]},
-            {"id": "D5", "nombre": "Medicion del desenlace", "preguntas": [_p("5.1", "Could the outcome measure have been influenced by knowledge of the exposure received?", True), _p("5.2", "Were outcome assessors aware of the exposure received by study participants?", True), _p("5.3", "Were the methods of outcome assessment comparable across exposure groups?")]},
-            {"id": "D6", "nombre": "Seleccion del resultado comunicado", "preguntas": [_p("6.1", "Is the reported effect estimate likely to be selected, on the basis of the results, from multiple outcome measurements within the outcome domain?", True), _p("6.2", "Is the reported effect estimate likely to be selected, on the basis of the results, from multiple analyses of the exposure-outcome relationship?", True), _p("6.3", "Is the reported effect estimate likely to be selected, on the basis of the results, from different subgroups?", True)]},
+            {"id": "D5", "nombre": "Medición del desenlace", "preguntas": [_p("5.1", "Could the outcome measure have been influenced by knowledge of the exposure received?", True), _p("5.2", "Were outcome assessors aware of the exposure received by study participants?", True), _p("5.3", "Were the methods of outcome assessment comparable across exposure groups?")]},
+            {"id": "D6", "nombre": "Selección del resultado comunicado", "preguntas": [_p("6.1", "Is the reported effect estimate likely to be selected, on the basis of the results, from multiple outcome measurements within the outcome domain?", True), _p("6.2", "Is the reported effect estimate likely to be selected, on the basis of the results, from multiple analyses of the exposure-outcome relationship?", True), _p("6.3", "Is the reported effect estimate likely to be selected, on the basis of the results, from different subgroups?", True)]},
         ],
     },
     "quadas2": {
@@ -73,9 +73,9 @@ INSTRUMENTOS: dict[str, dict[str, Any]] = {
         "fuente": "https://www.bristol.ac.uk/media-library/sites/quadas/migrated/documents/quadas2.pdf",
         "aplica_a": ("diagnostico",),
         "dominios": [
-            {"id": "D1", "nombre": "Seleccion de pacientes", "preguntas": [_p("1.1", "Was a consecutive or random sample of patients enrolled?"), _p("1.2", "Was a case-control design avoided?"), _p("1.3", "Did the study avoid inappropriate exclusions?")]},
-            {"id": "D2", "nombre": "Prueba indice", "preguntas": [_p("2.1", "Were the index test results interpreted without knowledge of the results of the reference standard?"), _p("2.2", "If a threshold was used, was it pre-specified?")]},
-            {"id": "D3", "nombre": "Estandar de referencia", "preguntas": [_p("3.1", "Is the reference standard likely to correctly classify the target condition?"), _p("3.2", "Were the reference standard results interpreted without knowledge of the results of the index test?")]},
+            {"id": "D1", "nombre": "Selección de pacientes", "preguntas": [_p("1.1", "Was a consecutive or random sample of patients enrolled?"), _p("1.2", "Was a case-control design avoided?"), _p("1.3", "Did the study avoid inappropriate exclusions?")]},
+            {"id": "D2", "nombre": "Prueba índice", "preguntas": [_p("2.1", "Were the index test results interpreted without knowledge of the results of the reference standard?"), _p("2.2", "If a threshold was used, was it pre-specified?")]},
+            {"id": "D3", "nombre": "Estándar de referencia", "preguntas": [_p("3.1", "Is the reference standard likely to correctly classify the target condition?"), _p("3.2", "Were the reference standard results interpreted without knowledge of the results of the index test?")]},
             {"id": "D4", "nombre": "Flujo y tiempos", "preguntas": [_p("4.1", "Was there an appropriate interval between index test and reference standard?"), _p("4.2", "Did all patients receive a reference standard?"), _p("4.3", "Did patients receive the same reference standard?"), _p("4.4", "Were all patients included in the analysis?")]},
         ],
     },
@@ -86,9 +86,9 @@ INSTRUMENTOS: dict[str, dict[str, Any]] = {
         "aplica_a": ("revision_sistematica",),
         "dominios": [
             {"id": "D1", "nombre": "Criterios de elegibilidad", "preguntas": [_p("1.1", "Did the review adhere to pre-defined objectives and eligibility criteria?"), _p("1.2", "Were the eligibility criteria appropriate for the review question?"), _p("1.3", "Were eligibility criteria unambiguous?"), _p("1.4", "Were all restrictions in eligibility criteria based on study characteristics appropriate?"), _p("1.5", "Were any restrictions in eligibility criteria based on sources of information appropriate?")]},
-            {"id": "D2", "nombre": "Identificacion y seleccion de estudios", "preguntas": [_p("2.1", "Did the search include an appropriate range of databases/electronic sources for published and unpublished reports?"), _p("2.2", "Were methods additional to database searching used to identify relevant reports?"), _p("2.3", "Were the terms and structure of the search strategy likely to retrieve as many eligible studies as possible?"), _p("2.4", "Were restrictions based on date, publication format, or language appropriate?"), _p("2.5", "Were efforts made to minimise error in selection of studies?")]},
-            {"id": "D3", "nombre": "Recogida de datos y valoracion", "preguntas": [_p("3.1", "Were efforts made to minimise error in data collection?"), _p("3.2", "Were sufficient study characteristics available for both review authors and readers to be able to interpret the results?"), _p("3.3", "Were all relevant study results collected for use in the synthesis?"), _p("3.4", "Was risk of bias (or methodological quality) formally assessed using appropriate criteria?"), _p("3.5", "Were efforts made to minimise error in risk of bias assessment?")]},
-            {"id": "D4", "nombre": "Sintesis y hallazgos", "preguntas": [_p("4.1", "Did the synthesis include all studies that it should?"), _p("4.2", "Were all pre-defined analyses reported or departures explained?"), _p("4.3", "Was the synthesis appropriate given the nature and similarity in the research questions, study designs and outcomes across included studies?"), _p("4.4", "Was between-study variation (heterogeneity) minimal or addressed in the synthesis?"), _p("4.5", "Were the findings robust, e.g. as demonstrated through funnel plot or sensitivity analyses?"), _p("4.6", "Were biases in primary studies minimal or addressed in the synthesis?")]},
+            {"id": "D2", "nombre": "Identificación y selección de estudios", "preguntas": [_p("2.1", "Did the search include an appropriate range of databases/electronic sources for published and unpublished reports?"), _p("2.2", "Were methods additional to database searching used to identify relevant reports?"), _p("2.3", "Were the terms and structure of the search strategy likely to retrieve as many eligible studies as possible?"), _p("2.4", "Were restrictions based on date, publication format, or language appropriate?"), _p("2.5", "Were efforts made to minimise error in selection of studies?")]},
+            {"id": "D3", "nombre": "Recogida de datos y valoración", "preguntas": [_p("3.1", "Were efforts made to minimise error in data collection?"), _p("3.2", "Were sufficient study characteristics available for both review authors and readers to be able to interpret the results?"), _p("3.3", "Were all relevant study results collected for use in the synthesis?"), _p("3.4", "Was risk of bias (or methodological quality) formally assessed using appropriate criteria?"), _p("3.5", "Were efforts made to minimise error in risk of bias assessment?")]},
+            {"id": "D4", "nombre": "Síntesis y hallazgos", "preguntas": [_p("4.1", "Did the synthesis include all studies that it should?"), _p("4.2", "Were all pre-defined analyses reported or departures explained?"), _p("4.3", "Was the synthesis appropriate given the nature and similarity in the research questions, study designs and outcomes across included studies?"), _p("4.4", "Was between-study variation (heterogeneity) minimal or addressed in the synthesis?"), _p("4.5", "Were the findings robust, e.g. as demonstrated through funnel plot or sensitivity analyses?"), _p("4.6", "Were biases in primary studies minimal or addressed in the synthesis?")]},
         ],
     },
     "syrcle": {
@@ -97,15 +97,15 @@ INSTRUMENTOS: dict[str, dict[str, Any]] = {
         "fuente": "https://doi.org/10.1186/1471-2288-14-43",
         "aplica_a": ("preclinico",),
         "dominios": [
-            {"id": "D1", "nombre": "Generacion de la secuencia", "preguntas": [_p("1", "Was the allocation sequence adequately generated and applied?")]},
+            {"id": "D1", "nombre": "Generación de la secuencia", "preguntas": [_p("1", "Was the allocation sequence adequately generated and applied?")]},
             {"id": "D2", "nombre": "Caracteristicas basales", "preguntas": [_p("2", "Were the groups similar at baseline or were they adjusted for confounders in the analysis?")]},
-            {"id": "D3", "nombre": "Ocultacion de la asignacion", "preguntas": [_p("3", "Was the allocation adequately concealed?")]},
+            {"id": "D3", "nombre": "Ocultación de la asignación", "preguntas": [_p("3", "Was the allocation adequately concealed?")]},
             {"id": "D4", "nombre": "Alojamiento aleatorio", "preguntas": [_p("4", "Were the animals randomly housed during the experiment?")]},
             {"id": "D5", "nombre": "Cegamiento de cuidadores e investigadores", "preguntas": [_p("5", "Were the caregivers and/or investigators blinded from knowledge which intervention each animal received during the experiment?")]},
-            {"id": "D6", "nombre": "Evaluacion aleatoria del desenlace", "preguntas": [_p("6", "Were animals selected at random for outcome assessment?")]},
+            {"id": "D6", "nombre": "Evaluación aleatoria del desenlace", "preguntas": [_p("6", "Were animals selected at random for outcome assessment?")]},
             {"id": "D7", "nombre": "Cegamiento del evaluador", "preguntas": [_p("7", "Was the outcome assessor blinded?")]},
             {"id": "D8", "nombre": "Datos incompletos", "preguntas": [_p("8", "Were incomplete outcome data adequately addressed?")]},
-            {"id": "D9", "nombre": "Comunicacion selectiva", "preguntas": [_p("9", "Are reports of the study free of selective outcome reporting?")]},
+            {"id": "D9", "nombre": "Comunicación selectiva", "preguntas": [_p("9", "Are reports of the study free of selective outcome reporting?")]},
             {"id": "D10", "nombre": "Otras fuentes de sesgo", "preguntas": [_p("10", "Was the study apparently free of other problems that could result in high risk of bias?")]},
         ],
     },
@@ -115,9 +115,9 @@ _DIAGNOSTICO = re.compile(r"\b(sensitivit|specificit|AUC|ROC|diagnostic accuracy
 
 
 def instrumento_para(tipo_estudio: str | None, texto: str = "") -> str | None:
-    """El instrumento que corresponde al diseno. Un estudio de exactitud
-    diagnostica se reconoce por su vocabulario (sensibilidad, AUC) sea el
-    diseno que sea. Revisiones narrativas y "otro" no tienen instrumento."""
+    """El instrumento que corresponde al diseño. Un estudio de exactitud
+    diagnóstica se reconoce por su vocabulario (sensibilidad, AUC) sea el
+    diseño que sea. Revisiones narrativas y "otro" no tienen instrumento."""
     if texto and _DIAGNOSTICO.search(texto) and tipo_estudio not in ("revision_sistematica", "preclinico", "in_vitro"):
         return "quadas2"
     for clave, ins in INSTRUMENTOS.items():
@@ -143,7 +143,7 @@ def texto_preguntas(clave: str) -> str:
 
 def _normalizar(respuesta: str) -> str:
     r = (respuesta or "").strip().upper().replace(".", "")
-    alias = {"YES": "Y", "SI": "Y", "PROBABLY YES": "PY", "PROBABLEMENTE SI": "PY", "NO": "N", "PROBABLY NO": "PN", "PROBABLEMENTE NO": "PN", "NO INFORMATION": "NI", "SIN INFORMACION": "NI", "NA": "NI", "N/A": "NI"}
+    alias = {"YES": "Y", "SI": "Y", "PROBABLY YES": "PY", "PROBABLEMENTE SI": "PY", "NO": "N", "PROBABLY NO": "PN", "PROBABLEMENTE NO": "PN", "NO INFORMATION": "NI", "SIN INFORMACIÓN": "NI", "NA": "NI", "N/A": "NI"}
     r = alias.get(r, r)
     return r if r in RESPUESTAS else "NI"
 
@@ -177,12 +177,12 @@ def juzgar_dominio(dominio: dict[str, Any], respuestas: dict[str, str]) -> tuple
         return "bajo", "todas las preguntas del dominio van en el sentido de bajo riesgo"
     if exponen >= 1.5 or exponen > total / 2:
         return "alto", "respuestas en el sentido del riesgo: " + ", ".join(detalle)
-    return "algunas_dudas", ("respuestas en el sentido del riesgo: " + ", ".join(detalle) + "; " if detalle else "") + (f"{sin_info} preguntas sin informacion en el texto" if sin_info else "")
+    return "algunas_dudas", ("respuestas en el sentido del riesgo: " + ", ".join(detalle) + "; " if detalle else "") + (f"{sin_info} preguntas sin información en el texto" if sin_info else "")
 
 
 def juicio_global(juicios: list[str]) -> str:
     """Regla de RoB 2 (Tabla 3): bajo si todos bajos; alto si alguno alto o si
-    hay dudas en varios dominios (aqui, tres o mas); algunas dudas en lo demas."""
+    hay dudas en varios dominios (aquí, tres o más); algunas dudas en lo demás."""
     reales = [j for j in juicios if j != "no_aplica"]
     if not reales:
         return "no_aplica"
@@ -221,7 +221,7 @@ def comprobacion_sesgo(fuentes: list[dict[str, Any]]) -> dict[str, str]:
     si no hay ninguna evaluada."""
     evaluadas = [f for f in fuentes if isinstance(f.get("riesgoSesgo"), dict) and f["riesgoSesgo"].get("global") not in (None, "no_aplica")]
     if not evaluadas:
-        return {"comprobacion": "sesgo_evidencia", "resultado": "no_comprobable", "detalle": "Ninguna fuente primaria tiene todavia riesgo de sesgo evaluado por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE)."}
+        return {"comprobacion": "sesgo_evidencia", "resultado": "no_comprobable", "detalle": "Ninguna fuente primaria tiene todavía riesgo de sesgo evaluado por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE)."}
     cuenta = {"bajo": 0, "algunas_dudas": 0, "alto": 0}
     for f in evaluadas:
         cuenta[f["riesgoSesgo"]["global"]] = cuenta.get(f["riesgoSesgo"]["global"], 0) + 1
@@ -233,11 +233,11 @@ def comprobacion_sesgo(fuentes: list[dict[str, Any]]) -> dict[str, str]:
 
 
 def texto_para_grade(fuentes: list[dict[str, Any]]) -> str:
-    """Una linea para el juez de la conclusion GRADE: cuantas fuentes con cada
+    """Una línea para el juez de la conclusión GRADE: cuantas fuentes con cada
     riesgo, para que el factor 'riesgo de sesgo' salga del instrumento."""
     evaluadas = [f for f in fuentes if isinstance(f.get("riesgoSesgo"), dict) and f["riesgoSesgo"].get("global") not in (None, "no_aplica")]
     if not evaluadas:
-        return "Riesgo de sesgo por instrumento: sin evaluar todavia."
+        return "Riesgo de sesgo por instrumento: sin evaluar todavía."
     cuenta: dict[str, int] = {}
     for f in evaluadas:
         cuenta[f["riesgoSesgo"]["global"]] = cuenta.get(f["riesgoSesgo"]["global"], 0) + 1

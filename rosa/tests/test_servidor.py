@@ -1,5 +1,5 @@
 """Guardias del servidor: cabecera X-Rosa en las escrituras, acciones internas,
-cuerpos invalidos, hosts permitidos, ruta estatica sin salto de directorio."""
+cuerpos inválidos, hosts permitidos, ruta estática sin salto de directorio."""
 
 import tempfile
 from pathlib import Path

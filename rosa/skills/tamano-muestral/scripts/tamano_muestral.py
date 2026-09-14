@@ -16,7 +16,7 @@ def _z(p: float) -> float:
 
 def continuo(delta: float, sigma: float, alfa: float = 0.05, potencia: float = 0.8, sigma2: float | None = None, abandono: float = 0.0, bilateral: bool = True) -> dict[str, float]:
     """n por grupo para detectar una diferencia de medias `delta` con
-    desviacion `sigma` (y `sigma2` en el segundo grupo si difiere)."""
+    desviación `sigma` (y `sigma2` en el segundo grupo si difiere)."""
     if delta == 0 or sigma <= 0:
         raise ValueError("delta distinto de cero y sigma positiva")
     za = _z(1 - alfa / 2) if bilateral else _z(1 - alfa)

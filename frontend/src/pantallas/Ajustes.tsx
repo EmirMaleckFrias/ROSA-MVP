@@ -14,6 +14,7 @@ import { Conectores, EspejoConvex, IntegridadRegistro, NivelDeAutonomia, Politic
 import { digest, digestComoTexto } from '../lib/digest';
 import { ACCION_ESPERA, ALCANCE, CLASE_ACCION, NIVEL_AUTONOMIA, TIPO_PERMISO } from '../lib/etiquetas';
 import { useTema, type Tema } from '../lib/theme';
+import { Correo } from '../componentes/Correo';
 
 const CRITERIOS_INTEGRADOS = [
   'Toda afirmación lleva una cita que resuelve a la página exacta del dato.',
@@ -287,7 +288,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
             <input type="checkbox" checked={avisos.correo.activo} onChange={(e) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, activo: e.target.checked } })} />
             Correo
           </label>
-          {avisos.correo.activo && (
+          {(
             <div className="campo">
               <label htmlFor="correo-dir">Dirección</label>
               <EntradaDiferida id="correo-dir" tipo="email" valor={avisos.correo.direccion} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, direccion: v } })} />
@@ -300,7 +301,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.permisoPendiente} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, permisoPendiente: e.target.checked } })} />
-            Rosa espera un permiso o tiene una incidencia
+            Rosa espera un plan, un permiso o tiene una incidencia
           </label>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.corridaDetenida} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, corridaDetenida: e.target.checked } })} />
@@ -308,15 +309,16 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.resumenDiario} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, resumenDiario: e.target.checked } })} />
-            Resumen diario "mientras no estabas"
+            Resumen diario de estado (contadores y enlace)
           </label>
           {avisos.cuando.resumenDiario && ejemploDigest !== '' && (
             <div>
-              <p className="campo-etiqueta">Así se vería hoy</p>
+              <p className="campo-etiqueta">Resumen ampliado solo en Rosa; el correo no incluye estos detalles</p>
               <pre className="registro">{ejemploDigest}</pre>
             </div>
           )}
         </div>
+        <Correo servidor={estado.conexion.modo === 'servidor'} />
       </Seccion>
 
       <Seccion titulo="Apariencia">

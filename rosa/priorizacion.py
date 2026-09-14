@@ -25,7 +25,7 @@ BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutad
 
 
 def _bloqueo(nombre: str) -> str:
-    """Solo se emiten bloqueos de la lista canonica de politicas."""
+    """Solo se emiten bloqueos de la lista canónica de políticas."""
     assert nombre in politicas.BLOQUEOS, nombre
     return nombre
 
@@ -62,7 +62,7 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
 
 
 def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = None) -> list[dict[str, Any]]:
-    """Las hipotesis que hoy irian al laboratorio, en orden. Solo las que el
+    """Las hipótesis que hoy irian al laboratorio, en orden. Solo las que el
     Killer dejo avanzar, sin bloqueos, con diversidad por cluster."""
     maximo = maximo if maximo is not None else politicas.MAX_CANDIDATOS_LABORATORIO
     vivas = [h for h in e["hipotesis"] if h["investigacionId"] == investigacion_id and h["estado"] not in ("descartada",) and h.get("decisionKiller") == "avanzar" and not bloqueos_de(e, h)]
@@ -82,8 +82,8 @@ def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = No
 
 
 def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
-    """Recalcula bloqueos y candidatas de toda la investigacion y devuelve
-    los ids de las candidatas. El bucle lo llama al cerrar cada iteracion."""
+    """Recalcula bloqueos y candidatas de toda la investigación y devuelve
+    los ids de las candidatas. El bucle lo llama al cerrar cada iteración."""
     for h in e["hipotesis"]:
         if h["investigacionId"] == investigacion_id:
             h["bloqueos"] = bloqueos_de(e, h)
@@ -96,7 +96,7 @@ def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
 
 
 def cohortes_de(h: dict[str, Any]) -> list[str]:
-    """Cohortes distintas entre las fuentes de la hipotesis. Dos articulos de
+    """Cohortes distintas entre las fuentes de la hipótesis. Dos artículos de
     la misma cohorte son una sola evidencia."""
     vistas: list[str] = []
     for f in h.get("procedencia", {}).get("fuentes", []):

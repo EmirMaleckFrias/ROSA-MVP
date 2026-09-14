@@ -28,7 +28,7 @@ query ($id: String!, $enf: [String!]) {
 
 def _sin_errores(cuerpo: Any) -> dict[str, Any]:
     """GraphQL devuelve los errores con HTTP 200 y `data` nulo: eso es "no pude
-    comprobar", no un resultado vacio ni un AttributeError."""
+    comprobar", no un resultado vacío ni un AttributeError."""
     if not isinstance(cuerpo, dict):
         raise FuenteNoDisponible("Open Targets: respuesta sin forma de objeto")
     if cuerpo.get("errors"):
@@ -38,7 +38,7 @@ def _sin_errores(cuerpo: Any) -> dict[str, Any]:
 
 async def asociacion_alzheimer(simbolo: str) -> dict[str, Any]:
     """{simbolo, ensembl, puntuacion (0 a 1 o None), tipos: {datatype: score}}.
-    puntuacion None con `encontrado` True significa "sin asociacion registrada"."""
+    puntuación None con `encontrado` True significa "sin asociación registrada"."""
     r = await pedir("POST", URL, _limitador, json={"query": _BUSCAR, "variables": {"q": simbolo}})
     cuerpo = _sin_errores(json_de(r))
     hits = (((cuerpo.get("data") or {}).get("search") or {}).get("hits")) or []

@@ -1,4 +1,4 @@
-"""Lo que Rosa tomo de la revision de 14 de septiembre de 2026 (huecos de un
+"""Lo que Rosa tomo de la revisión de 14 de septiembre de 2026 (huecos de un
 AI scientist profesional): riesgo de sesgo por instrumento, PRISMA 2020,
 ensayo en seco, conocimiento operativo."""
 
@@ -92,10 +92,10 @@ def test_prisma_2020_desde_el_estado():
     f = r["flujo"]
     assert f["database_results"] == 120 and f["register_results"] == 4 and f["records_screened"] == 12 and f["records_excluded"] == 4
     assert f["dbr_sought_reports"] == 8 and f["dbr_assessed"] == 6 and f["new_studies"] == 2 and f["excluded_other"] == 1
-    assert f["dbr_excluded"] == {"sin afirmaciones usadas en ninguna hipotesis": 4}
+    assert f["dbr_excluded"] == {"sin afirmaciones usadas en ninguna hipótesis": 4}
     assert r["prisma"] == "2020" and "PRISMA 2026" not in r["markdown"].split("no existe")[0]
     assert r["traIce"]["M2_modelos"]["cribado"] == ["anthropic/claude-sonnet-5"] and r["traIce"]["M7_umbrales"]["relevanciaMinima"] == 5
-    assert "## Item 16a" in r["markdown"] and "records_screened | 12" in r["markdown"] and "otra enfermedad" in r["markdown"]
+    assert "## Ítem 16a" in r["markdown"] and "records_screened | 12" in r["markdown"] and "otra enfermedad" in r["markdown"]
     assert len(r["items"]["16b_excluidos_con_motivo"]) == 4
 
 

@@ -6,7 +6,7 @@ Tres rutas y nada mas, porque el frontend ya sabe hacer el resto:
 - `GET /api/eventos`: Server-Sent Events. Cada vez que el estado cambia, el
   servidor manda la instantanea completa con `id` igual a la version. El
   navegador reconecta solo si se corta.
-- `POST /api/acciones/{nombre}`: una accion de la interfaz con sus
+- `POST /api/acciones/{nombre}`: una acción de la interfaz con sus
   argumentos en JSON. Devuelve `{ok, resultado, version}`.
 
 Ademas `GET /api/llamadas/{corridaId}` da las ultimas llamadas a modelos y,
@@ -42,7 +42,7 @@ HOSTS_LOCALES = ("127.0.0.1", "localhost", "::1")
 
 
 async def _leer_acotado(fichero: UploadFile, maximo: int) -> bytes:
-    """Lee una subida por trozos y corta en cuanto pasa el maximo, antes de
+    """Lee una subida por trozos y corta en cuanto pasa el máximo, antes de
     cargarla entera en memoria."""
     declarado = fichero.size
     if declarado is not None and declarado > maximo:
@@ -61,7 +61,7 @@ async def _leer_acotado(fichero: UploadFile, maximo: int) -> bytes:
 
 
 def token_interno() -> str:
-    """Un secreto por instalacion, en un fichero fuera de git, para las
+    """Un secreto por instalación, en un fichero fuera de git, para las
     acciones internas (el panel del Killer lo lee del mismo disco)."""
     ruta = config.RAIZ / "datos" / "_token_interno"
     ruta.parent.mkdir(parents=True, exist_ok=True)
@@ -77,7 +77,18 @@ def crear_app(almacen: Almacen) -> FastAPI:
         # Arranque: el almacen conoce el bucle de eventos para despertar a los
         # suscriptores del SSE desde el hilo del bucle de investigacion.
         almacen.enganchar_bucle(asyncio.get_running_loop())
-        yield
+        from rosa.correo import Correo
+
+        correo = Correo(almacen)
+        app.state.correo = correo
+        tarea = asyncio.create_task(correo.correr())
+        try:
+            yield
+        finally:
+            tarea.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tarea
+            correo.cerrar()
 
     app = FastAPI(title="Rosa", version="0.1", lifespan=_vida)
     app.state.almacen = almacen
@@ -110,6 +121,34 @@ def crear_app(almacen: Almacen) -> FastAPI:
     async def estado() -> JSONResponse:
         return JSONResponse(content=almacen.instantanea(), headers={"Cache-Control": "no-store", "X-Rosa-Version": str(almacen.version)})
 
+    @app.get("/api/correo")
+    async def correo_estado():
+        return JSONResponse(app.state.correo.estado(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/correo/configuracion")
+    async def correo_configuracion(request: Request):
+        cuerpo = bytearray()
+        async for parte in request.stream():
+            cuerpo.extend(parte)
+            if len(cuerpo) > 4096:
+                raise HTTPException(413, "Configuración demasiado grande")
+        try:
+            cambios = json.loads(cuerpo)
+            if not isinstance(cambios, dict):
+                raise ValueError("Se espera un objeto de configuración")
+            resultado = app.state.correo.configurar(cambios)
+        except (ValueError, UnicodeDecodeError) as ex:
+            raise HTTPException(400, str(ex)) from None
+        return JSONResponse(resultado, headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/correo/prueba")
+    async def correo_prueba():
+        try:
+            id_ = app.state.correo.prueba()
+        except ValueError as ex:
+            raise HTTPException(400, str(ex)) from None
+        return {"ok": True, "id": id_}
+
     @app.get("/api/eventos")
     async def eventos(request: Request) -> EventSourceResponse:
         cola = almacen.suscribir()
@@ -140,14 +179,14 @@ def crear_app(almacen: Almacen) -> FastAPI:
     @app.post("/api/acciones/{nombre}")
     async def accion(nombre: str, request: Request) -> dict[str, Any]:
         if nombre not in ACCIONES:
-            raise HTTPException(404, f"Accion desconocida: {nombre}")
+            raise HTTPException(404, f"Acción desconocida: {nombre}")
         if nombre in ACCIONES_INTERNAS and not secrets.compare_digest(request.headers.get("x-rosa-interno", ""), app.state.token_interno):
             raise HTTPException(403, f"{nombre} solo la aplica el servidor de Rosa")
         if "application/json" not in request.headers.get("content-type", ""):
             raise HTTPException(415, "Los argumentos van como application/json")
         cuerpo = await request.body()
         if len(cuerpo) > MAX_CUERPO_ACCION:
-            raise HTTPException(413, f"El cuerpo de una accion no puede pasar de {MAX_CUERPO_ACCION // 1000} kB")
+            raise HTTPException(413, f"El cuerpo de una acción no puede pasar de {MAX_CUERPO_ACCION // 1000} kB")
         try:
             args = json.loads(cuerpo or b"{}")
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -158,7 +197,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
             resultado = almacen.aplicar(nombre, args)
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, IndexError) as ex:
             # El almacen ya deshizo la mutacion a medias; el cliente recibe un 400 con el motivo.
-            raise HTTPException(400, f"Argumentos invalidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")
+            raise HTTPException(400, f"Argumentos inválidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")
         if nombre == "asignarExperimento" and resultado is not False and isinstance(args.get("hipotesis_id"), str):
             # El prerregistro recien congelado se sella con un tercero, fuera de la peticion.
             asyncio.get_running_loop().create_task(_sellar_prerregistro(args["hipotesis_id"]))
@@ -166,7 +205,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     async def _sellar_prerregistro(hipotesis_id: str) -> dict[str, Any]:
         """Sella el artefacto de prerregistro (RFC 3161, dos o tres autoridades)
-        y lo registra en la hipotesis. Nunca lanza: el fallo queda en el estado."""
+        y lo registra en la hipótesis. Nunca lanza: el fallo queda en el estado."""
         from rosa import sello as S
 
         h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
@@ -181,14 +220,14 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.post("/api/hipotesis/{hipotesis_id}/sellar")
     async def sellar(hipotesis_id: str) -> dict[str, Any]:
-        """Boton "Sellar con un tercero": pide (o repite) el sello del prerregistro."""
+        """Botón "Sellar con un tercero": pide (o repite) el sello del prerregistro."""
         return await _sellar_prerregistro(hipotesis_id)
 
     @app.get("/api/corridas/{corrida_id}/prisma")
     async def prisma_de(corrida_id: str) -> dict[str, Any]:
-        """El flujo de busqueda en PRISMA 2020 (variables oficiales del diagrama,
-        items 6, 7, 8, 16a y 16b), la extension viva y la declaracion de la IA,
-        con el Markdown listo para un manuscrito. Sin ningun modelo."""
+        """El flujo de búsqueda en PRISMA 2020 (variables oficiales del diagrama,
+        ítems 6, 7, 8, 16a y 16b), la extensión viva y la declaración de la IA,
+        con el Markdown listo para un manuscrito. Sin ningún modelo."""
         from rosa import prisma as PRISMA
 
         def armar() -> dict[str, Any] | None:
@@ -205,9 +244,9 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.get("/api/investigaciones/{investigacion_id}/costes")
     async def costes(investigacion_id: str) -> dict[str, Any]:
-        """Coste por decision de una investigacion: dolares del modelo mas horas
-        de revision humana a la tarifa declarada; por dossier, por candidata y
-        por decision; y la tendencia por iteracion."""
+        """Coste por decisión de una investigación: dólares del modelo más horas
+        de revisión humana a la tarifa declarada; por dossier, por candidata y
+        por decisión; y la tendencia por iteración."""
         from rosa import costes as C
 
         def armar() -> dict[str, Any] | None:
@@ -219,12 +258,12 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         r = await asyncio.to_thread(armar)
         if r is None:
-            raise HTTPException(404, "Investigacion desconocida")
+            raise HTTPException(404, "Investigación desconocida")
         return r
 
     @app.get("/api/hipotesis/{hipotesis_id}/rocrate")
     async def rocrate_de(hipotesis_id: str) -> Response:
-        """El expediente de la hipotesis como RO-Crate (zip) con procedencia
+        """El expediente de la hipótesis como RO-Crate (zip) con procedencia
         W3C PROV: verificable con herramientas de terceros, sin Rosa."""
         from rosa import rocrate as RC
 
@@ -237,7 +276,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         datos = await asyncio.to_thread(armar)
         if datos is None:
-            raise HTTPException(404, "Hipotesis desconocida")
+            raise HTTPException(404, "Hipótesis desconocida")
         return Response(content=datos, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="rosa-{hipotesis_id}.crate.zip"', "Cache-Control": "no-store"})
 
     @app.get("/api/registro/integridad")
@@ -247,7 +286,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.get("/api/calidad/acuerdo")
     async def acuerdo_jueces() -> dict[str, Any]:
-        """Acuerdo juez-humano del conjunto dorado, por comprobacion."""
+        """Acuerdo juez-humano del conjunto dorado, por comprobación."""
         from rosa import acuerdo_dorado as ACU
 
         return ACU.acuerdo_dorado(almacen.instantanea())
@@ -272,7 +311,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
         if not h or not h.get("experimento"):
-            raise HTTPException(404, "Hipotesis sin experimento propuesto")
+            raise HTTPException(404, "Hipótesis sin experimento propuesto")
         contenido = await _leer_acotado(fichero, D.MAX_BYTES)
         tamano = len(contenido)
         try:
@@ -296,7 +335,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         inv = next((i for i in almacen.estado["investigaciones"] if i["id"] == investigacion_id), None)
         if not inv:
-            raise HTTPException(404, "Investigacion desconocida")
+            raise HTTPException(404, "Investigación desconocida")
         contenido = await _leer_acotado(fichero, D.MAX_BYTES)
         tamano = len(contenido)
         dataset_id = P.nuevo_id("ds")
@@ -337,7 +376,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.post("/api/investigaciones/{investigacion_id}/preguntar")
     async def preguntar_con_herramientas(investigacion_id: str, cuerpo: dict[str, Any]) -> dict[str, Any]:
-        """Una pregunta con herramientas (conectores, busqueda en el proyecto,
+        """Una pregunta con herramientas (conectores, búsqueda en el proyecto,
         modelo de mundo) hecha por una persona desde la interfaz. Corre un
         ReAct acotado con el cerebro y guarda la respuesta con sus consultas."""
         from rosa import herramientas as H
@@ -347,7 +386,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         inv = next((i for i in almacen.estado["investigaciones"] if i["id"] == investigacion_id), None)
         pregunta = str(cuerpo.get("pregunta", "")).strip()
         if not inv or not pregunta:
-            raise HTTPException(400, "Falta la pregunta o la investigacion")
+            raise HTTPException(400, "Falta la pregunta o la investigación")
         quien = str(cuerpo.get("quien", "persona"))[:80]
         hoy = time.strftime("%Y-%m-%d")
         cont = app.state.preguntas_hoy
@@ -364,7 +403,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
                 r["pregunta"], r["quien"], r["error"] = pregunta[:2000], quien, None
             except Exception as ex:  # noqa: BLE001
                 print(f"preguntar con herramientas fallo: {type(ex).__name__}: {str(ex)[:300]}", file=sys.stderr)
-                r = {"pregunta": pregunta[:2000], "quien": quien, "respuesta": "", "limites": "", "herramientas": [], "consultas": [], "iteraciones": 0, "error": "El modelo o una herramienta no respondieron; el detalle esta en el registro del servidor"}
+                r = {"pregunta": pregunta[:2000], "quien": quien, "respuesta": "", "limites": "", "herramientas": [], "consultas": [], "iteraciones": 0, "error": "El modelo o una herramienta no respondieron; el detalle está en el registro del servidor"}
         almacen.aplicar("registrarPreguntaBases", {"investigacion_id": investigacion_id, "pregunta": r})
         return {"ok": r.get("error") is None, "resultado": {k: v for k, v in r.items() if k != "consultas"} | {"consultas": len(r.get("consultas", []))}, "version": almacen.version}
 

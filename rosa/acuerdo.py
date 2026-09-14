@@ -1,15 +1,15 @@
 """Acuerdo entre dos evaluadores: kappa de Cohen, kappa ponderado, AC1 de Gwet.
 
 Sirve para saber si el juez (o el Killer entero) acierta frente a una persona
-cualificada, por tipo de comprobacion y no como promedio global. Kappa
+cualificada, por tipo de comprobación y no como promedio global. Kappa
 corrige el acuerdo por el que se esperaria por azar; el ponderado (pesos
-lineales) trata las categorias ordenadas (bajo, algunas dudas, alto) de modo
+lineales) trata las categorías ordenadas (bajo, algunas dudas, alto) de modo
 que equivocarse en un escalon cuesta menos que en dos. AC1 de Gwet resiste la
-paradoja de kappa cuando una categoria domina (casi todo "acierta"), y se
+paradoja de kappa cuando una categoría domina (casi todo "acierta"), y se
 reporta al lado, no en su lugar. Todo es determinista y sin dependencias.
 
 Referencias: Cohen 1960 y 1968; Landis y Koch 1977 (los tramos de
-interpretacion, que ellos mismos llamaron arbitrarios); Gwet 2008.
+interpretación, que ellos mismos llamaron arbitrarios); Gwet 2008.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def intervalo_bootstrap(a: Sequence[Any], b: Sequence[Any], categorias: Sequence
 
 def acuerdo(a: Sequence[Any], b: Sequence[Any], categorias: Sequence[Any] | None = None, ordenadas: bool = False) -> dict[str, Any]:
     """Todo junto, listo para guardar: n, acuerdo bruto, kappa (ponderado si
-    las categorias son ordenadas), AC1, IC bootstrap, matriz e interpretacion."""
+    las categorías son ordenadas), AC1, IC bootstrap, matriz e interpretación."""
     n = len(a)
     if n == 0:
         return {"n": 0, "bruto": None, "kappa": None, "ac1": None, "ic95": None, "matriz": None, "interpretacion": "sin datos", "ponderado": ordenadas}

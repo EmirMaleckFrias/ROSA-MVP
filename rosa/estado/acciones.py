@@ -133,7 +133,7 @@ def dirigir_corrida(e: Estado, corrida_id: str, texto: str) -> bool:
     it = iteracion_actual_de(e, c)
     if not it:
         return False
-    paso = P.nuevo_paso("Indicacion de la investigadora", limpio, None, humano=True)
+    paso = P.nuevo_paso("Indicación de la investigadora", limpio, None, humano=True)
     idx = next((i for i, p in enumerate(it["plan"]) if p["estado"] == "en_curso"), -1)
     it["plan"].insert(len(it["plan"]) if idx == -1 else idx + 1, paso)
     return True
@@ -166,17 +166,17 @@ def aprobar_plan(e: Estado, iteracion_id: str, ahora: int, quien: str = "Investi
         if inv and inv.get("mision") and not inv["mision"].get("aprobadaEn"):
             inv["mision"]["aprobadaEn"] = ahora
             inv["mision"]["aprobadaPor"] = quien
-            con_evento(e, inv["id"], "mision", "Mision aprobada junto con el primer plan", f"#/investigaciones/{inv['id']}/investigacion", ahora)
+            con_evento(e, inv["id"], "mision", "Misión aprobada junto con el primer plan", f"#/investigaciones/{inv['id']}/investigacion", ahora)
         # La pregunta de la campana, si Rosa la formulo, queda aprobada con el plan.
         if c.get("pregunta") and not c["pregunta"].get("aprobadaEn"):
             c["pregunta"]["aprobadaEn"] = ahora
-        con_evento(e, c["investigacionId"], "corrida_estado", f"Plan de la iteracion {it['numero']} aprobado", None, ahora)
+        con_evento(e, c["investigacionId"], "corrida_estado", f"Plan de la iteración {it['numero']} aprobado", None, ahora)
     return True
 
 
 def actualizar_pregunta(e: Estado, corrida_id: str, pregunta: dict, quien: str, ahora: int) -> bool:
-    """La persona corrige la pregunta de la campana. Cambiarla despues de
-    empezar deja rastro en el registro; la version anterior se conserva en
+    """La persona corrige la pregunta de la campaña. Cambiarla después de
+    empezar deja rastro en el registro; la versión anterior se conserva en
     el historial de la propia pregunta."""
     c = corrida_de(e, corrida_id)
     if not c or not isinstance(pregunta, dict):
@@ -198,8 +198,8 @@ def actualizar_pregunta(e: Estado, corrida_id: str, pregunta: dict, quien: str, 
 
 
 def actualizar_metodo(e: Estado, metodo_id: str, cambios: dict, quien: str, ahora: int) -> bool:
-    """El registro de metodos lo edita una persona (validacion, estado,
-    contextos, responsable). Retirar o restringir un metodo es una decision
+    """El registro de métodos lo edita una persona (validación, estado,
+    contextos, responsable). Retirar o restringir un método es una decisión
     con nombre y fecha."""
     m = _buscar(e.get("metodos", []), metodo_id)
     if not m or not isinstance(cambios, dict):
@@ -212,7 +212,7 @@ def actualizar_metodo(e: Estado, metodo_id: str, cambios: dict, quien: str, ahor
             m[k] = [str(x).strip() for x in cambios[k] if str(x).strip()]
     if cambios.get("estado") in ("propuesto", "implementado", "probado_en_contexto", "restringido", "retirado"):
         if cambios["estado"] != m["estado"]:
-            e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Metodo '{m['nombre'][:60]}': de {m['estado']} a {cambios['estado']}", f"metodo:{metodo_id}", "promovido", quien, ahora))
+            e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Método '{m['nombre'][:60]}': de {m['estado']} a {cambios['estado']}", f"metodo:{metodo_id}", "promovido", quien, ahora))
         m["estado"] = cambios["estado"]
     m["actualizadoEn"] = ahora
     return True
@@ -266,7 +266,7 @@ def volver_a_iteracion(e: Estado, iteracion_id: str, que: str, ahora: int) -> bo
     nueva = P.nueva_iteracion(c["id"], numero, ahora, plan, origen["presupuesto"]["limite"])
     if actual and actual["terminadaEn"] is None:
         actual["terminadaEn"] = ahora
-        actual["resumen"] = actual["resumen"] or f"Cerrada al volver a la iteracion {origen['numero']}"
+        actual["resumen"] = actual["resumen"] or f"Cerrada al volver a la iteración {origen['numero']}"
     e["iteraciones"].append(nueva)
     if que in ("mundo", "ambos"):
         limite = origen["terminadaEn"]
@@ -274,7 +274,7 @@ def volver_a_iteracion(e: Estado, iteracion_id: str, que: str, ahora: int) -> bo
     c["iteracionActual"] = numero
     if c["estado"] in ("en_marcha", "esperando_plan"):
         c["estado"] = "esperando_plan"
-    con_evento(e, c["investigacionId"], "corrida_estado", f"Se volvio a la iteracion {origen['numero']} ({que}); la {numero} espera tu aprobacion del plan", None, ahora)
+    con_evento(e, c["investigacionId"], "corrida_estado", f"Se volvió a la iteración {origen['numero']} ({que}); la {numero} espera tu aprobación del plan", None, ahora)
     return True
 
 
@@ -391,8 +391,8 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
                 "id": f"he-{hipotesis_id}",
                 "investigacionId": h["investigacionId"],
                 "tipo": "hipotesis",
-                "tema": "Revision humana",
-                "enunciado": f"Hipotesis aceptada para perseguir: {h['titulo']}" if aceptar else h["titulo"],
+                "tema": "Revisión humana",
+                "enunciado": f"Hipótesis aceptada para perseguir: {h['titulo']}" if aceptar else h["titulo"],
                 "estado": "abierto" if aceptar else "descartado",
                 "origen": "inferencia",
                 "procedencia": [{"fuenteId": f["id"], "referencia": f["referencia"], "pagina": f["pagina"]} for f in h["procedencia"]["fuentes"]],
@@ -406,7 +406,7 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
     textos = {
         "aceptar": f"Aceptada: {h['titulo']}",
         "descartar": f"Descartada: {h['titulo']}",
-        "refinar": f"Pedida refinacion: {h['titulo']}",
+        "refinar": f"Pedida refinación: {h['titulo']}",
         "reabrir": f"Reabierta: {h['titulo']}",
         "no_puedo_juzgar": f'Marcada como "no puedo juzgar": {h["titulo"]}',
     }
@@ -417,7 +417,7 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
         if segundos_revision is not None:
             d["segundosRevision"] = round(float(segundos_revision), 1)  # carga de revision: la metrica que pide el plan
     if accion == "refinar" and etapa == "persona":
-        h["_reformularPedida"] = nota_limpia or "La persona pidio refinarla"  # el bucle la reformula como version nueva
+        h["_reformularPedida"] = nota_limpia or "La persona pidió refinarla"  # el bucle la reformula como version nueva
     if accion == "reabrir":
         h["decisionKiller"] = None
         h["_revisionPedida"] = True
@@ -426,8 +426,8 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
 
 
 def evaluar_aprendizaje(e: Estado, cambio_id: str, ahora: int) -> bool:
-    """Pedir la evaluacion de un cambio de nivel 2 sobre el conjunto
-    reservado (las hipotesis con decision humana). El bucle la hace."""
+    """Pedir la evaluación de un cambio de nivel 2 sobre el conjunto
+    reservado (las hipótesis con decisión humana). El bucle la hace."""
     c = _buscar(e.get("aprendizaje", []), cambio_id)
     if not c or c["nivel"] != 2 or c["estado"] not in ("propuesto", "evaluado") or c["tipo"] != "criterio":
         return False
@@ -442,7 +442,7 @@ def evaluar_aprendizaje(e: Estado, cambio_id: str, ahora: int) -> bool:
 
 def registrar_decision(e: Estado, h: dict, etapa: str, decision: str, motivo: str, quien: str, ahora: int, comprobaciones: list[dict] | None = None, que_haria_falta: str = "") -> dict:
     if etapa.startswith("killer") and decision not in politicas.DECISIONES_KILLER:
-        raise ValueError(f"decision del Killer fuera de la politica: {decision}")
+        raise ValueError(f"decisión del Killer fuera de la política: {decision}")
     d = P.nueva_decision(h["investigacionId"], h["id"], h.get("version", 1), etapa, decision, motivo, quien, ahora, comprobaciones, que_haria_falta)
     # Cuanto contexto habia al decidir: sirve para vigilar si la calidad de las
     # decisiones cae cuando crece el modelo de mundo (context rot).
@@ -465,8 +465,8 @@ def recalcular_bloqueos(e: Estado, h: dict) -> list[str]:
 
 
 def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, ahora: int) -> bool:
-    """La persona aprueba la mision (corrigiendo lo que quiera). Los campos
-    vacios se quedan vacios: la mision aprobada es lo que se ve, no lo que
+    """La persona aprueba la misión (corrigiendo lo que quiera). Los campos
+    vacíos se quedan vacíos: la misión aprobada es lo que se ve, no lo que
     Rosa propuso."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv or not isinstance(mision, dict):
@@ -499,13 +499,13 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
     c = ultima_corrida_de(e, investigacion_id)
     if c and c["estado"] not in ("detenida", "terminada") and c["presupuesto"]["limiteLlamadas"] != nueva["presupuesto"]["llamadas"] and nueva["presupuesto"]["llamadas"] > c["gasto"]["llamadas"]:
         c["presupuesto"]["limiteLlamadas"] = nueva["presupuesto"]["llamadas"]
-    con_evento(e, investigacion_id, "mision", f"Mision aprobada por {quien}", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+    con_evento(e, investigacion_id, "mision", f"Misión aprobada por {quien}", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
     return True
 
 
 def resolver_hallazgo_registro(e: Estado, iteracion_id: str, hallazgo_id: str, estado: str, respuesta: str, quien: str, ahora: int) -> bool:
     """Una persona atiende o descarta un hallazgo del revisor de registro,
-    con su respuesta. Si no queda ninguno abierto, la revision pasa a limpia."""
+    con su respuesta. Si no queda ninguno abierto, la revisión pasa a limpia."""
     it = _buscar(e["iteraciones"], iteracion_id)
     if not it or not it.get("revisionRegistro") or estado not in ("atendido", "descartado", "abierto"):
         return False
@@ -523,7 +523,7 @@ def resolver_hallazgo_registro(e: Estado, iteracion_id: str, hallazgo_id: str, e
 def fijar_permiso_conector(e: Estado, nombre: str, nivel: str, quien: str, ahora: int) -> bool:
     """Permiso por conector: permitir, solo cuando una persona pregunta, o
     bloquear. Queda en el estado y en el proceso (la capa de conectores lo
-    lee en cada llamada). Es una decision de politica: va al aprendizaje."""
+    lee en cada llamada). Es una decisión de política: va al aprendizaje."""
     from rosa.conectores import REGISTRO
     from rosa.conectores.base import NIVELES_PERMISO, PERMISOS
 
@@ -543,7 +543,7 @@ def fijar_permiso_conector(e: Estado, nombre: str, nivel: str, quien: str, ahora
 
 def anadir_memoria(e: Estado, investigacion_id: str, texto: str, quien: str, ahora: int) -> bool:
     """Memoria del proyecto (como la memoria de Claude Science): hechos
-    cortos y estables que Rosa lee en cada mision (preferencias, restricciones,
+    cortos y estables que Rosa lee en cada misión (preferencias, restricciones,
     decisiones confirmadas). Los escribe y borra una persona; nunca resultados
     ni copias de literatura."""
     inv = _buscar(e["investigaciones"], investigacion_id)
@@ -564,8 +564,8 @@ def quitar_memoria(e: Estado, investigacion_id: str, memoria_id: str) -> bool:
 
 
 def registrar_pregunta_bases(e: Estado, investigacion_id: str, pregunta: dict, ahora: int) -> bool:
-    """La respuesta de una pregunta con herramientas entra a la investigacion
-    con sus consultas, para que se vea de donde salio cada dato."""
+    """La respuesta de una pregunta con herramientas entra a la investigación
+    con sus consultas, para que se vea de donde salió cada dato."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv or not isinstance(pregunta, dict) or not pregunta.get("pregunta"):
         return False
@@ -574,7 +574,7 @@ def registrar_pregunta_bases(e: Estado, investigacion_id: str, pregunta: dict, a
 
 
 def registrar_evaluacion(e: Estado, evaluacion: dict, quien: str, ahora: int) -> bool:
-    """Un panel de evaluacion del sistema (por ahora, el panel del Killer con
+    """Un panel de evaluación del sistema (por ahora, el panel del Killer con
     fallos plantados) entra al estado como registro con fecha: resumen,
     detalle por tipo de fallo y los casos. Sirve para comparar versiones del
     prompt o del modelo con la misma prueba. Si el modelo del juez cambio
@@ -586,16 +586,16 @@ def registrar_evaluacion(e: Estado, evaluacion: dict, quien: str, ahora: int) ->
     reg = {"id": P.nuevo_id("eval"), "tipo": evaluacion["tipo"], "fecha": int(evaluacion.get("fecha") or ahora), "quien": quien.strip() or "persona", "resumen": evaluacion["resumen"], "porFallo": evaluacion.get("porFallo") or {}, "fallos": evaluacion.get("fallos") or {}, "casos": list(evaluacion.get("casos") or [])[:400]}
     e.setdefault("evaluaciones", []).append(reg)
     r = reg["resumen"]
-    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Panel del Killer: deteccion {r.get('tasaDeteccion')}, abstencion {r.get('abstencion')}, sobre-matanza en gris {r.get('sobreMatanzaGris')} ({r.get('casos')} casos, {r.get('usd')} USD)", f"evaluacion:{reg['id']}", "promovido", quien, ahora))
+    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Panel del Killer: detección {r.get('tasaDeteccion')}, abstención {r.get('abstencion')}, sobre-matanza en gris {r.get('sobreMatanzaGris')} ({r.get('casos')} casos, {r.get('usd')} USD)", f"evaluacion:{reg['id']}", "promovido", quien, ahora))
     avisos = []
     if anterior and anterior["resumen"].get("juez") and r.get("juez") and anterior["resumen"]["juez"] != r["juez"]:
         avisos.append(f"el modelo del juez cambio de {anterior['resumen']['juez']} a {r['juez']}")
     ka = ((anterior or {}).get("resumen", {}).get("acuerdo") or {}).get("decision") or {}
     kb = (r.get("acuerdo") or {}).get("decision") or {}
     if ka.get("kappa") is not None and kb.get("kappa") is not None and ka["kappa"] - kb["kappa"] > 0.15:
-        avisos.append(f"el acuerdo por decision bajo de kappa {ka['kappa']} a {kb['kappa']}")
+        avisos.append(f"el acuerdo por decisión bajo de kappa {ka['kappa']} a {kb['kappa']}")
     if anterior and anterior["resumen"].get("tasaDeteccion") is not None and r.get("tasaDeteccion") is not None and anterior["resumen"]["tasaDeteccion"] - r["tasaDeteccion"] > 0.15:
-        avisos.append(f"la deteccion bajo de {anterior['resumen']['tasaDeteccion']} a {r['tasaDeteccion']}")
+        avisos.append(f"la detección bajo de {anterior['resumen']['tasaDeteccion']} a {r['tasaDeteccion']}")
     if avisos:
         e.setdefault("incidencias", []).append({"id": P.nuevo_id("inc"), "corridaId": None, "tipo": "calibracion_juez", "titulo": "El panel del Killer cambio respecto al anterior", "detalle": "; ".join(avisos) + ". Revisa antes de confiar en las decisiones nuevas.", "estado": "pendiente", "creadaEn": ahora, "resueltaEn": None, "resolucion": None, "opciones": ["revisar", "aceptar"]})
     return True
@@ -685,10 +685,10 @@ ESTADOS_AREA = ("propuesta", "elegida", "pausada", "sin_explorar")
 
 
 def cambiar_estado_area(e: Estado, investigacion_id: str, area_id: str, estado: str | None, quien: str, ahora: int, condicion_reapertura: str = "", corrida_id: str | None = None, motivo: str = "") -> bool:
-    """Las areas del programa las gobierna una persona: elegir, pausar con la
-    condicion que la reabriria, reabrir, dejar sin explorar, o asignarla a una
-    campana (corrida) concreta. Cada cambio queda con fecha, autor y motivo en
-    el historial del area, porque decidir que NO se investiga es una decision
+    """Las áreas del programa las gobierna una persona: elegir, pausar con la
+    condición que la reabriria, reabrir, dejar sin explorar, o asignarla a una
+    campaña (corrida) concreta. Cada cambio queda con fecha, autor y motivo en
+    el historial del área, porque decidir que NO se investiga es una decisión
     tan auditable como la contraria (plan completo, etapa B)."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv or not inv.get("mision"):
@@ -716,17 +716,17 @@ def cambiar_estado_area(e: Estado, investigacion_id: str, area_id: str, estado: 
             return False
         if (corrida_id or None) != a.get("corridaId"):
             a["corridaId"] = corrida_id or None
-            a.setdefault("historial", []).append({"fecha": ahora, "de": a["estado"], "a": a["estado"], "quien": quien.strip() or "persona", "motivo": (f"asignada a la campana {c['numero']}" if c else "desasignada de su campana")})
+            a.setdefault("historial", []).append({"fecha": ahora, "de": a["estado"], "a": a["estado"], "quien": quien.strip() or "persona", "motivo": (f"asignada a la campaña {c['numero']}" if c else "desasignada de su campaña")})
             cambio = True
     if cambio:
-        con_evento(e, investigacion_id, "mision", f"Area '{a['titulo'][:60]}': {a['estado'].replace('_', ' ')}" + (f" (campana {c['numero']})" if corrida_id and c else ""), f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+        con_evento(e, investigacion_id, "mision", f"Área '{a['titulo'][:60]}': {a['estado'].replace('_', ' ')}" + (f" (campaña {c['numero']})" if corrida_id and c else ""), f"#/investigaciones/{investigacion_id}/investigacion", ahora)
     return cambio
 
 
 def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str, motivo: str, ahora: int) -> bool:
-    """Una version nueva de la hipotesis. La anterior se guarda entera en
+    """Una versión nueva de la hipótesis. La anterior se guarda entera en
     `versiones`; la nueva vuelve a la cola como propuesta y el Killer la
-    juzga otra vez. Si ya agoto las reformulaciones de la politica, devuelve
+    juzga otra vez. Si ya agotó las reformulaciones de la política, devuelve
     False: quien llama la descarta en este contexto."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h or not isinstance(cambios, dict):
@@ -756,16 +756,16 @@ def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str
     h["candidata"] = False
     h.pop("_reformularPedida", None)
     h["_revisionPedida"] = True
-    h["hallazgos"] = [x for x in h["hallazgos"] if x["estado"] != "abierto"] + [{**x, "estado": "atendido", "respuestaDeRosa": f"Atendido en la version {version + 1}: {motivo.strip()[:200]}"} for x in h["hallazgos"] if x["estado"] == "abierto"]
-    h["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "reformulada", "nota": f"Version {version + 1}: {motivo.strip()[:300]}", "aCiegas": False})
-    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} version {version + 1} ({quien}): {motivo.strip()[:120]}")
-    con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Reformulada (version {version + 1}): {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    h["hallazgos"] = [x for x in h["hallazgos"] if x["estado"] != "abierto"] + [{**x, "estado": "atendido", "respuestaDeRosa": f"Atendido en la versión {version + 1}: {motivo.strip()[:200]}"} for x in h["hallazgos"] if x["estado"] == "abierto"]
+    h["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "reformulada", "nota": f"Versión {version + 1}: {motivo.strip()[:300]}", "aCiegas": False})
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} versión {version + 1} ({quien}): {motivo.strip()[:120]}")
+    con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Reformulada (versión {version + 1}): {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     recalcular_bloqueos(e, h)
     return True
 
 
 def eximir_puerta(e: Estado, investigacion_id: str, motivo: str, quien: str, ahora: int) -> bool:
-    """Saltarse la puerta de reproduccion es una excepcion de politica: la
+    """Saltarse la puerta de reproducción es una excepción de política: la
     firma una persona, con motivo, y queda en el registro de aprendizaje
     como cambio de nivel 3."""
     inv = _buscar(e["investigaciones"], investigacion_id)
@@ -776,8 +776,8 @@ def eximir_puerta(e: Estado, investigacion_id: str, motivo: str, quien: str, aho
     if puerta["estado"] == "eximida":
         return False
     puerta.update(estado="eximida", eximidaPor=quien, motivo=texto, fecha=ahora)
-    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(investigacion_id, 3, "politica", f"Puerta de reproduccion eximida: {texto}", "puertaReproduccion", "aplicado", quien, ahora))
-    con_evento(e, investigacion_id, "aprendizaje", f"Puerta de reproduccion eximida por {quien}: {texto[:120]}", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+    e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(investigacion_id, 3, "politica", f"Puerta de reproducción eximida: {texto}", "puertaReproduccion", "aplicado", quien, ahora))
+    con_evento(e, investigacion_id, "aprendizaje", f"Puerta de reproducción eximida por {quien}: {texto[:120]}", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
     return True
 
 
@@ -789,12 +789,12 @@ def cerrar_puerta(e: Estado, investigacion_id: str, quien: str, ahora: int) -> b
     if puerta["estado"] != "eximida":
         return False
     puerta.update(estado="abierta" if puerta["superadas"] >= puerta["requeridas"] else "bloqueada", eximidaPor=None, motivo="", fecha=ahora)
-    con_evento(e, investigacion_id, "aprendizaje", f"Puerta de reproduccion vuelta a exigir por {quien}", None, ahora)
+    con_evento(e, investigacion_id, "aprendizaje", f"Puerta de reproducción vuelta a exigir por {quien}", None, ahora)
     return True
 
 
 def anadir_reproduccion(e: Estado, investigacion_id: str, dataset_id: str, datos: dict, ahora: int) -> str | bool:
-    """Registrar un analisis publicado que hay que reproducir: referencia,
+    """Registrar un análisis publicado que hay que reproducir: referencia,
     cifra publicada, valor y tolerancia. Se fija antes de ejecutar; el bucle
     lo corre y marca superada o fallida."""
     inv = _buscar(e["investigaciones"], investigacion_id)
@@ -821,13 +821,13 @@ def anadir_reproduccion(e: Estado, investigacion_id: str, dataset_id: str, datos
     )
     e.setdefault("reproducciones", []).append(r)
     inv.setdefault("puertaReproduccion", P.puerta_reproduccion())
-    con_evento(e, investigacion_id, "analisis", f"Reproduccion registrada: {r['referencia']} ({r['descripcion'][:80]})", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+    con_evento(e, investigacion_id, "analisis", f"Reproducción registrada: {r['referencia']} ({r['descripcion'][:80]})", f"#/investigaciones/{investigacion_id}/investigacion", ahora)
     return r["id"]
 
 
 def pedir_analisis(e: Estado, hipotesis_id: str, dataset_id: str, pregunta: str, ahora: int) -> bool:
-    """Pedir a Rosa un analisis in silico de la hipotesis sobre un dataset
-    aprobado y fijado por hash. El bucle congela el plan, escribe el codigo,
+    """Pedir a Rosa un análisis in silico de la hipótesis sobre un dataset
+    aprobado y fijado por hash. El bucle congela el plan, escribe el código,
     lo ejecuta en el sandbox y lo audita."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h:
@@ -838,14 +838,14 @@ def pedir_analisis(e: Estado, hipotesis_id: str, dataset_id: str, pregunta: str,
     if h.get("_analisisPedido"):
         return False
     h["_analisisPedido"] = {"datasetId": dataset_id, "pregunta": pregunta.strip(), "pedidoEn": ahora}
-    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "investigadora", "texto": f"Analisis pedido sobre {ds['nombre']}: {pregunta.strip() or 'aplicar la prediccion falsable de la hipotesis'}", "creadoEn": ahora})
-    con_evento(e, h["investigacionId"], "analisis", f"Analisis in silico pedido sobre {ds['nombre']}: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "investigadora", "texto": f"Análisis pedido sobre {ds['nombre']}: {pregunta.strip() or 'aplicar la prediccion falsable de la hipotesis'}", "creadoEn": ahora})
+    con_evento(e, h["investigacionId"], "analisis", f"Análisis in silico pedido sobre {ds['nombre']}: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 
 
 def promover_aprendizaje(e: Estado, cambio_id: str, quien: str, ahora: int) -> bool:
     """Promover un cambio de nivel 2 (criterio o programa). Solo una persona.
-    Un criterio promovido entra a los criterios de revision; un programa
+    Un criterio promovido entra a los criterios de revisión; un programa
     promovido se carga en el siguiente arranque (el servidor mueve el fichero)."""
     c = _buscar(e.get("aprendizaje", []), cambio_id)
     if not c or c["nivel"] != 2 or c["estado"] not in ("propuesto", "evaluado"):
@@ -878,8 +878,8 @@ def revertir_aprendizaje(e: Estado, cambio_id: str, quien: str, motivo: str, aho
 
 def generar_dossier(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> str | bool:
     """El Wet-Lab Dossier: se arma de forma determinista con lo que hay en el
-    estado (sin modelo) y se guarda como artefacto. Si la hipotesis tiene
-    bloqueos, el dossier los pone en la primera pagina en vez de esconderlos."""
+    estado (sin modelo) y se guarda como artefacto. Si la hipótesis tiene
+    bloqueos, el dossier los pone en la primera página en vez de esconderlos."""
     from rosa.dossier import texto_dossier
 
     h = _buscar(e["hipotesis"], hipotesis_id)
@@ -896,8 +896,8 @@ def generar_dossier(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> str
     corpus = RR.corpus_del_registro(e, h["investigacionId"], None, corrida, hipotesis=h)
     runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("hipotesisId") == h["id"])
     hallazgos = RR.comprobaciones_deterministas(contenido, corpus, None, runs_ok if RR._EJECUCION.search(contenido) else 1)
-    contenido += "\n\n## Revision del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipotesis.")
-    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Version {h.get('version', 1)} de la hipotesis; {len(h.get('bloqueos', []))} bloqueos; revision del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1)}, "revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
+    contenido += "\n\n## Revision del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipótesis.")
+    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Versión {h.get('version', 1)} de la hipótesis; {len(h.get('bloqueos', []))} bloqueos; revisión del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1)}, "revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
     h["dossierArtefactoId"] = art_id
     h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} dossier generado por {quien}")
     con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Dossier para el laboratorio generado: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)
@@ -923,15 +923,15 @@ def votar_relevancia(e: Estado, hipotesis_id: str, voto: str) -> bool:
 
 
 def solicitar_revision(e: Estado, hipotesis_id: str, ahora: int) -> bool:
-    """Deja constancia de la peticion; el bucle hace la revision real y
+    """Deja constancia de la petición; el bucle hace la revisión real y
     sustituye este resumen provisional."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h:
         return False
     h["ultimaRevisionAutomatica"] = ahora
     h.setdefault("_revisionPedida", True)
-    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": "Revision pedida por la investigadora. Rosa la hara en cuanto tenga el modelo libre.", "creadoEn": ahora})
-    con_evento(e, h["investigacionId"], "revision_automatica", f"Revision pedida sobre: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": "Revisión pedida por la investigadora. Rosa la hará en cuanto tenga el modelo libre.", "creadoEn": ahora})
+    con_evento(e, h["investigacionId"], "revision_automatica", f"Revisión pedida sobre: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 
 
@@ -942,7 +942,7 @@ def replicar_hipotesis(e: Estado, hipotesis_id: str, total: int, ahora: int) -> 
     h["replicacion"] = {"total": total, "hechas": 0, "sostienen": 0, "contradicen": 0, "estado": "en_curso", "empezadaEn": ahora}
     h["revisiones"].append({"fecha": ahora, "quien": "Investigadora", "accion": "replicada", "nota": f"{total} trayectorias independientes", "aCiegas": False})
     h["coste"]["analisis"] = h["coste"]["analisis"] + total * 1.2
-    con_evento(e, h["investigacionId"], "revision_automatica", f"Replicacion x{total} lanzada sobre: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    con_evento(e, h["investigacionId"], "revision_automatica", f"Replicación x{total} lanzada sobre: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 
 
@@ -969,20 +969,20 @@ def proponer_hipotesis(e: Estado, investigacion_id: str, datos: dict, quien: str
     )
     if id_:
         h["id"] = id_
-    h["procedencia"] = P.procedencia_vacia(f"Hipotesis propuesta por {quien}. Rosa la revisara y la metera al torneo en la siguiente iteracion.", ahora)
+    h["procedencia"] = P.procedencia_vacia(f"Hipótesis propuesta por {quien}. Rosa la revisara y la metera al torneo en la siguiente iteración.", ahora)
     h["procedencia"]["mensajes"][0]["de"] = "investigadora"
-    h["procedencia"]["registro"] = [f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} hipotesis humana añadida por {quien}"]
+    h["procedencia"]["registro"] = [f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} hipótesis humana añadida por {quien}"]
     e["hipotesis"].append(h)
-    con_evento(e, investigacion_id, "hipotesis_nueva", f"Hipotesis propuesta por {quien}: {h['titulo']}", f"#/investigaciones/{investigacion_id}/hipotesis/{h['id']}", ahora)
+    con_evento(e, investigacion_id, "hipotesis_nueva", f"Hipótesis propuesta por {quien}: {h['titulo']}", f"#/investigaciones/{investigacion_id}/hipotesis/{h['id']}", ahora)
     return h["id"]
 
 
 def asignar_experimento(e: Estado, hipotesis_id: str, laboratorio: str, ahora: int | None = None) -> bool:
-    """Asignar el experimento a un laboratorio lo prerregistra: hipotesis,
-    protocolo, criterio de exito y de refutacion quedan congelados con fecha
-    en un artefacto inmutable, antes de que exista ningun dato. Es lo que pide
-    el prerregistro (OSF, AsPredicted) y la revision de Zitnik 2026 para
-    poder reportar despues que fraccion de lo probado se sostuvo."""
+    """Asignar el experimento a un laboratorio lo prerregistra: hipótesis,
+    protocolo, criterio de éxito y de refutación quedan congelados con fecha
+    en un artefacto inmutable, antes de que exista ningún dato. Es lo que pide
+    el prerregistro (OSF, AsPredicted) y la revisión de Zitnik 2026 para
+    poder reportar después que fracción de lo probado se sostuvo."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     lab = laboratorio.strip()
     if not h or not lab or not h["experimento"]:
@@ -998,7 +998,7 @@ def asignar_experimento(e: Estado, hipotesis_id: str, laboratorio: str, ahora: i
         x["prerregistradoEn"] = ahora
         x["prerregistroArtefactoId"] = art_id
         x["versionPrerregistrada"] = h.get("version", 1)  # el resultado probara esta version
-        h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} prerregistro congelado al asignar a {lab} (version {h.get('version', 1)})")
+        h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} prerregistro congelado al asignar a {lab} (versión {h.get('version', 1)})")
         con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Experimento prerregistrado y asignado a {lab}: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)
     return True
 
@@ -1011,9 +1011,9 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
     lineas = [
         f"# Prerregistro: {h['titulo']}",
         "",
-        f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')}. Asignado a: {laboratorio}. Hipotesis {h['id']} version {h.get('version', 1)}, iteracion {h['iteracion']}, prerregistrada el {datetime.fromtimestamp((h.get('prerregistradaEn') or h.get('creadaEn') or ahora) / 1000).strftime('%d/%m/%Y')}. El resultado del laboratorio probara esta version; si la hipotesis cambia despues, se comprobara la compatibilidad.",
+        f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')}. Asignado a: {laboratorio}. Hipótesis {h['id']} versión {h.get('version', 1)}, iteración {h['iteracion']}, prerregistrada el {datetime.fromtimestamp((h.get('prerregistradaEn') or h.get('creadaEn') or ahora) / 1000).strftime('%d/%m/%Y')}. El resultado del laboratorio probara esta versión; si la hipótesis cambia después, se comprobara la compatibilidad.",
         "",
-        "## Hipotesis (no se modifica despues de esta fecha)",
+        "## Hipótesis (no se modifica después de esta fecha)",
         h["enunciado"],
         "",
         "## Mecanismo propuesto",
@@ -1034,15 +1034,15 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
         x["costeEstimado"],
     ]
     if x.get("controles") or x.get("tamanoMuestral") or x.get("alternativa"):
-        lineas += ["", "## Controles, tamaño muestral y alternativa", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamaño muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Explicacion alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}"]
+        lineas += ["", "## Controles, tamaño muestral y alternativa", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamaño muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Explicación alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}"]
     if x.get("decisionQueCambia"):
-        lineas += ["", "## Que decision cambia con el resultado", x["decisionQueCambia"]]
+        lineas += ["", "## Que decisión cambia con el resultado", x["decisionQueCambia"]]
     if x.get("analisisPedido"):
-        lineas += ["", "## Analisis sobre datos existentes", x["analisisPedido"]]
+        lineas += ["", "## Análisis sobre datos existentes", x["analisisPedido"]]
     if k:
-        lineas += ["", "## Estado de la evidencia al prerregistrar", f"Certeza: {k.get('certeza')}. Direccion: {k.get('direccion')}.", k.get("enunciado", ""), f"Subiria la certeza si: {k.get('subiria', '')}", f"Bajaria si: {k.get('bajaria', '')}"]
+        lineas += ["", "## Estado de la evidencia al prerregistrar", f"Certeza: {k.get('certeza')}. Dirección: {k.get('direccion')}.", k.get("enunciado", ""), f"Subiría la certeza si: {k.get('subiria', '')}", f"Bajaría si: {k.get('bajaria', '')}"]
     if arnes:
-        lineas += ["", "## Version de Rosa", f"Commit {arnes.get('commit')}, firmas {arnes.get('firmas')}, programas optimizados: {arnes.get('optimizados')}."]
+        lineas += ["", "## Versión de Rosa", f"Commit {arnes.get('commit')}, firmas {arnes.get('firmas')}, programas optimizados: {arnes.get('optimizados')}."]
     lineas += ["", "Lo que se analice fuera de este registro se reporta como exploratorio, separado de lo prerregistrado."]
     return "\n".join(lineas)
 
@@ -1051,8 +1051,8 @@ CAMPOS_ENMENDABLES = ("protocolo", "ensayo", "controles", "tamanoMuestral", "con
 
 
 def enmendar_experimento(e: Estado, hipotesis_id: str, campo: str, despues: str, motivo: str, quien: str, ahora: int) -> bool:
-    """Una enmienda fechada del prerregistro (plan completo, seccion 3): se
-    puede cambiar el protocolo o los criterios despues de congelarlos, pero
+    """Una enmienda fechada del prerregistro (plan completo, sección 3): se
+    puede cambiar el protocolo o los criterios después de congelarlos, pero
     queda escrito que, cuando, quien y por que, con el texto anterior al
     lado. Sin fecha de prerregistro no hay nada que enmendar: se edita. Con
     datos ya evaluados no se enmienda: los criterios ya se aplicaron."""
@@ -1075,9 +1075,9 @@ def enmendar_experimento(e: Estado, hipotesis_id: str, campo: str, despues: str,
 def registrar_protocolo_real(e: Estado, hipotesis_id: str, protocolo_real: dict, quien: str, ahora: int) -> bool:
     """Lo que el laboratorio hizo de verdad, separado de lo que se planeo:
     protocolo ejecutado, desviaciones respecto al prerregistro e identidad de
-    las muestras (lote, linea celular, cohorte, fechas). El juez lo lee al
-    evaluar los datos: una desviacion que toca el criterio convierte el
-    resultado en fallo tecnico o lo limita, no lo maquilla."""
+    las muestras (lote, línea celular, cohorte, fechas). El juez lo lee al
+    evaluar los datos: una desviación que toca el criterio convierte el
+    resultado en fallo técnico o lo limita, no lo maquilla."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h or not h.get("experimento") or not isinstance(protocolo_real, dict):
         return False
@@ -1181,9 +1181,9 @@ def enviar_comentarios(e: Estado, hipotesis_id: str, mensaje: str, quien: str, a
 
 
 def inyectar_debilidad(e: Estado, corrida_id: str, debilidad_id: str, quien: str = "Investigadora", ahora: int | None = None) -> bool:
-    """Inyectar una debilidad como criterio de revision cambia como razona
+    """Inyectar una debilidad como criterio de revisión cambia como razona
     Rosa: es un cambio de nivel 2 que la persona promueve directamente al
-    pulsar el boton, y queda en el registro de aprendizaje."""
+    pulsar el botón, y queda en el registro de aprendizaje."""
     c = corrida_de(e, corrida_id)
     if not c:
         return False
@@ -1206,13 +1206,13 @@ def inyectar_debilidad(e: Estado, corrida_id: str, debilidad_id: str, quien: str
 
 
 def recomprobar_retracciones(e: Estado, investigacion_id: str, ahora: int) -> bool:
-    """Marca la peticion; el bucle consulta Crossref de verdad y actualiza
-    `retraccion` y `retraccionComprobadaEn` en cada fuente."""
+    """Marca la petición; el bucle consulta Crossref de verdad y actualiza
+    `retracción` y `retraccionComprobadaEn` en cada fuente."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv:
         return False
     inv["_recomprobarRetracciones"] = ahora
-    con_evento(e, investigacion_id, "retraccion", "Recomprobacion de retractaciones pedida (Crossref y Retraction Watch)", None, ahora)
+    con_evento(e, investigacion_id, "retraccion", "Recomprobación de retractaciones pedida (Crossref y Retraction Watch)", None, ahora)
     return True
 
 
@@ -1321,9 +1321,9 @@ def anadir_dataset(e: Estado, investigacion_id: str, dataset: dict, id_: str | N
 
 
 def actualizar_procedencia_dataset(e: Estado, investigacion_id: str, dataset_id: str, procedencia: dict) -> bool:
-    """La persona completa el libro de procedencia: origen, version,
-    licencia, permisos, uso de IA autorizado, sintetico, cohorte, clase. El
-    hash y el diccionario los fija el servidor al subir el fichero y aqui no
+    """La persona completa el libro de procedencia: origen, versión,
+    licencia, permisos, uso de IA autorizado, sintético, cohorte, clase. El
+    hash y el diccionario los fija el servidor al subir el fichero y aquí no
     se pueden cambiar."""
     ds = _dataset(e, investigacion_id, dataset_id)
     if not ds or not isinstance(procedencia, dict):
@@ -1414,11 +1414,11 @@ def destacar_artefacto(e: Estado, artefacto_id: str) -> bool:
 
 
 def procedencia_artefacto(**partes: Any) -> dict[str, Any]:
-    """Las cinco pestanas de procedencia de una version (como en Claude
-    Science): mensajes (de donde salio: pistas, decisiones, eventos), codigo
-    (el script que la produjo), registroEjecucion (lo que de verdad corrio:
+    """Las cinco pestañas de procedencia de una versión (como en Claude
+    Science): mensajes (de donde salió: pistas, decisiones, eventos), código
+    (el script que la produjo), registroEjecución (lo que de verdad corrió:
     ejecuciones con estado y cifras), entorno (imagen y versiones de
-    paquetes, modelos usados) y revision (los hallazgos del revisor). Lo que
+    paquetes, modelos usados) y revisión (los hallazgos del revisor). Lo que
     no aplica queda None, no se inventa."""
     base = {"mensajes": None, "codigo": None, "registroEjecucion": None, "entorno": None, "revision": None}
     base.update({k: v for k, v in partes.items() if k in base})
@@ -1426,8 +1426,8 @@ def procedencia_artefacto(**partes: Any) -> dict[str, Any]:
 
 
 def guardar_artefacto(e: Estado, investigacion_id: str, nombre: str, tipo: str, contenido: str, resumen: str, iteracion: int, ahora: int, id_: str | None = None, procedencia: dict | None = None) -> str:
-    """Mismo nombre en la misma investigacion = version nueva (no se
-    sobrescribe). Cada version lleva su procedencia en cinco pestanas."""
+    """Mismo nombre en la misma investigación = versión nueva (no se
+    sobrescribe). Cada versión lleva su procedencia en cinco pestañas."""
     version = {"n": 1, "creadaEn": ahora, "resumen": resumen, "contenido": contenido, "iteracion": iteracion, "procedencia": procedencia_artefacto(**(procedencia or {}))}
     existente = next((a for a in e["artefactos"] if a["investigacionId"] == investigacion_id and a["nombre"] == nombre), None)
     if existente:
@@ -1488,8 +1488,8 @@ def anadir_criterio(e: Estado, texto: str) -> bool:
 
 
 def borrar_criterio(e: Estado, indice: int | None = None, texto: str | None = None) -> bool:
-    """Con `texto` se borra la primera coincidencia exacta; la posicion es el
-    respaldo. Dos pestanas que borran a la vez no se llevan un criterio ajeno."""
+    """Con `texto` se borra la primera coincidencia exacta; la posición es el
+    respaldo. Dos pestañas que borran a la vez no se llevan un criterio ajeno."""
     lista = e["criteriosRevision"]
     if texto is not None:
         if texto not in lista:
@@ -1555,7 +1555,7 @@ def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | 
     c = P.nueva_corrida(investigacion_id, (ultima["numero"] + 1) if ultima else 1, ahora, limite)
     e["corridas"].append(c)
     if inv.get("estado") == "cerrada":
-        con_evento(e, investigacion_id, "corrida_estado", "Investigacion reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)
+        con_evento(e, investigacion_id, "corrida_estado", "Investigación reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     inv["estado"] = "activa"
-    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteracion 1", f"#/investigaciones/{investigacion_id}/corrida", ahora)
+    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteración 1", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     return c["id"]

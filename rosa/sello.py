@@ -42,7 +42,7 @@ SEGUNDOS = 30
 
 
 def hash_canonico(contenido: str | bytes | dict | list) -> str:
-    """SHA-256 en hexadecimal. Un dict o lista se serializa en JSON canonico
+    """SHA-256 en hexadecimal. Un dict o lista se serializa en JSON canónico
     (claves ordenadas, sin espacios) para que el hash no dependa del orden."""
     if isinstance(contenido, (dict, list)):
         datos = json.dumps(contenido, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -70,7 +70,7 @@ def _peticion(hash_hex: str, nonce: int) -> bytes:
 
 def leer_token(tsr_der: bytes) -> dict[str, Any]:
     """Los campos del TSTInfo de una respuesta DER: estado, hora firmada
-    (genTime), numero de serie, politica, hash sellado y nonce."""
+    (genTime), número de serie, política, hash sellado y nonce."""
     resp, _ = decoder.decode(tsr_der, asn1Spec=rfc3161.TimeStampResp())
     estado = int(resp["status"]["status"])
     if estado not in (0, 1):
@@ -156,7 +156,7 @@ def comando_verificacion(hash_hex: str, fichero_tsr: str = "sello.tsr", ca: str 
 
 
 def texto_para_registro(sello: dict[str, Any]) -> str:
-    """Una linea legible para el registro de procedencia y el dossier."""
+    """Una línea legible para el registro de procedencia y el dossier."""
     if not sello.get("ok"):
         return f"sello externo no conseguido ({sello.get('error') or 'sin respuesta'}); el hash {sello.get('hash', '')[:16]} queda registrado para reintentar"
     testigos = ", ".join(f"{s['tsa']} (serie {s['serial']}, {s['genTime']})" for s in sello["sellos"] if s["ok"])

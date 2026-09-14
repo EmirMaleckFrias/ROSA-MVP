@@ -1,4 +1,4 @@
-"""Segunda auditoria (14 de septiembre): lo que Codex encontro y lo que se arreglo.
+"""Segunda auditoría (14 de septiembre): lo que Codex encontró y lo que se arreglo.
 Cada prueba reproduce el fallo descrito antes de comprobar el arreglo."""
 
 import base64
@@ -57,7 +57,7 @@ def test_c4_el_juez_no_borra_una_cifra_fuera_del_pasaje():
     assert K.decidir(_pasan(*[n for n in BASE if n != "fidelidad_evidencia"]) + [f["fidelidad_evidencia"]], True, 1)[0] == "suspender"
     # Pero el juez si puede confirmar la sospecha (falla), y si puede resolver una novedad que la base no respondio.
     assert {c["comprobacion"]: c["resultado"] for c in K.fusionar(det, [{"comprobacion": "fidelidad_evidencia", "resultado": "falla", "detalle": "inventada"}])}["fidelidad_evidencia"] == "no_comprobable" or True
-    det2 = [{"comprobacion": "novedad", "resultado": "no_comprobable", "detalle": "OpenAlex no respondio"}]
+    det2 = [{"comprobacion": "novedad", "resultado": "no_comprobable", "detalle": "OpenAlex no respondió"}]
     assert {c["comprobacion"]: c["resultado"] for c in K.fusionar(det2, [{"comprobacion": "novedad", "resultado": "pasa", "detalle": "no hay nada igual"}])}["novedad"] == "pasa"
 
 
@@ -65,10 +65,10 @@ def test_c4_el_juez_no_borra_una_cifra_fuera_del_pasaje():
 def test_c3_abstencion_con_alzheimer_no_es_ausencia_refutada():
     frags = [V.Fragmento(fuente_id="f1", referencia="Smith 2020", localizador="p. 3", encabezado="", texto="In Alzheimer disease cohorts, plasma GFAP rose before NfL. NCT01234567 enrolled 300 patients.")]
     texto = "No hay evidencia publicada de que este efecto se mantenga en Alzheimer."
-    r = V._ausencia(texto, frags, V.terminos_del_dominio("Alzheimer en poblacion dominicana"))
+    r = V._ausencia(texto, frags, V.terminos_del_dominio("Alzheimer en población dominicana"))
     assert r.veredicto == "sostenida"
     # Un identificador de verdad ausente y presente en el corpus si se refuta.
-    r2 = V._ausencia("No hay ningun ensayo registrado como NCT01234567 sobre esto.", frags, set())
+    r2 = V._ausencia("No hay ningún ensayo registrado como NCT01234567 sobre esto.", frags, set())
     assert r2.veredicto == "ausencia_refutada"
     assert "Alzheimer" not in V.expresiones_identificadoras("Sin evidencia en Alzheimer sobre Lecanemab y GFAP") and {"GFAP", "Lecanemab"} <= V.expresiones_identificadoras("Sin evidencia en Alzheimer sobre Lecanemab y GFAP")
 
@@ -230,7 +230,7 @@ def test_h02_deriva_del_juez_deja_incidencia():
     peor = {**base, "resumen": {**base["resumen"], "juez": "anthropic/claude-opus-5.1", "tasaDeteccion": 0.6, "acuerdo": {"decision": {"kappa": 0.4}}}}
     assert A.registrar_evaluacion(e, peor, "panel", 2)
     inc = [i for i in e["incidencias"] if i["tipo"] == "calibracion_juez"]
-    assert len(inc) == 1 and "cambio de" in inc[0]["detalle"] and "kappa" in inc[0]["detalle"] and "deteccion bajo" in inc[0]["detalle"]
+    assert len(inc) == 1 and "cambio de" in inc[0]["detalle"] and "kappa" in inc[0]["detalle"] and "detección bajo" in inc[0]["detalle"]
 
 
 # M3: la misma fuente con y sin DOI es una.

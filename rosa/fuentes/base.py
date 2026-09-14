@@ -20,20 +20,20 @@ from rosa import config
 
 
 class FuenteNoDisponible(RuntimeError):
-    """La fuente no respondio o respondio con error. No significa "no hay"."""
+    """La fuente no respondió o respondió con error. No significa "no hay"."""
 
 
 class NoEncontrado(FuenteNoDisponible):
-    """La fuente respondio 404: el identificador no existe alli. Es la unica
-    respuesta de error que si significa "no esta" (y no cuenta como caida)."""
+    """La fuente respondió 404: el identificador no existe allí. Es la única
+    respuesta de error que si significa "no esta" (y no cuenta como caída)."""
 
 
 _COMPARTIDOS: dict[str, "Limitador"] = {}
 
 
 def compartido(clave: str, por_segundo: float) -> "Limitador":
-    """Un limitador por host compartido entre modulos: PubMed, ClinVar y GEO
-    pegan al mismo E-utilities, y el limite es por IP, no por modulo."""
+    """Un limitador por host compartido entre módulos: PubMed, ClinVar y GEO
+    pegan al mismo E-utilities, y el límite es por IP, no por módulo."""
     if clave not in _COMPARTIDOS:
         _COMPARTIDOS[clave] = Limitador(por_segundo)
     return _COMPARTIDOS[clave]
@@ -81,7 +81,7 @@ async def cerrar() -> None:
 
 
 async def pedir(metodo: str, url: str, limitador: Limitador, *, intentos: int = 3, **kwargs: Any) -> httpx.Response:
-    """GET o POST con limite de tasa y reintentos. Lanza FuenteNoDisponible."""
+    """GET o POST con límite de tasa y reintentos. Lanza FuenteNoDisponible."""
     ultimo: Exception | None = None
     for intento in range(intentos):
         await limitador.esperar()
@@ -109,7 +109,7 @@ async def pedir(metodo: str, url: str, limitador: Limitador, *, intentos: int = 
 
 
 def referencia_corta(autores: list[str], anio: int | None) -> str:
-    """"Cohorte clinica, 2025" a partir de la lista de apellidos."""
+    """"Cohorte clínica, 2025" a partir de la lista de apellidos."""
     if not autores:
         return f"Sin autor, {anio}" if anio else "Sin autor"
     primero = autores[0].split(",")[0].split(" ")[-1] if " " in autores[0] and "," not in autores[0] else autores[0].split(",")[0]

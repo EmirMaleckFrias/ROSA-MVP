@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 
 PALABRAS = {
+    "busquedas": "búsquedas", "consulto": "consultó", "retomo": "retomó",
+    # Cuarta tanda: verbos de los eventos del backend
+    "alcanzo": "alcanzó", "altero": "alteró", "devolvio": "devolvió", "reintento": "reintentó", "reparo": "reparó", "congelo": "congeló", "comprobo": "comprobó", "autorizo": "autorizó", "denego": "denegó",
     # Tercera tanda (14 de septiembre): verbos en pasado y futuro sin forma ambigua, adverbios, -sion, vocabulario biomedico
     "crecio": "creció", "perdio": "perdió", "gano": "ganó", "salio": "salió", "aprobo": "aprobó", "recargo": "recargó",
     "actualizo": "actualizó", "detecto": "detectó", "verifico": "verificó", "abrio": "abrió", "leyo": "leyó", "agoto": "agotó",

@@ -1,1 +1,1 @@
-"""Rosa: el bucle de investigacion del Alzheimer (DSPy + GEPA)."""
+"""Rosa: el bucle de investigación del Alzheimer (DSPy + GEPA)."""

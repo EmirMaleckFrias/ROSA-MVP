@@ -39,10 +39,10 @@ def nuevo_id(prefijo: str) -> str:
 CLASES_ACCION = ["buscar_literatura", "correr_analisis", "gastar_grande", "escribir_modelo_mundo", "descartar_hipotesis", "contactar_laboratorio"]
 
 CRITERIOS_INICIALES = [
-    "Distinguir 'no esta en los documentos' de 'no pude comprobar'.",
-    "Una cifra sin cita a pagina exacta no se afirma.",
-    "Marcar como interpretacion lo que la fuente no dice literalmente.",
-    "Si el dato es de otra entidad (otro farmaco, cohorte o estudio), no se atribuye.",
+    "Distinguir 'no está en los documentos' de 'no pude comprobar'.",
+    "Una cifra sin cita a página exacta no se afirma.",
+    "Marcar como interpretación lo que la fuente no dice literalmente.",
+    "Si el dato es de otra entidad (otro fármaco, cohorte o estudio), no se atribuye.",
 ]
 
 TIPOS_REVISION = ["inicial", "completa", "profunda", "observacion", "simulacion", "torneo"]
@@ -73,7 +73,7 @@ def casos_de_control() -> list[dict[str, Any]]:
 
 
 def estado_inicial() -> dict[str, Any]:
-    """Un estado vacio pero completo: sin investigaciones, con los ajustes por
+    """Un estado vacío pero completo: sin investigaciones, con los ajustes por
     defecto y los casos de control reales."""
     return {
         "conexion": "en_linea",
@@ -100,7 +100,7 @@ def estado_inicial() -> dict[str, Any]:
         "gepa": [],
         "memoria": [],
         "planesGuardados": [
-            {"id": "plan-novedad", "nombre": "Comprobacion de novedad estandar", "pasos": ["Open Targets", "ClinicalTrials.gov v2", "Precedente en literatura (OpenAlex)"], "vecesUsado": 0, "exitos": 0},
+            {"id": "plan-novedad", "nombre": "Comprobación de novedad estándar", "pasos": ["Open Targets", "ClinicalTrials.gov v2", "Precedente en literatura (OpenAlex)"], "vecesUsado": 0, "exitos": 0},
         ],
         "criteriosRevision": list(CRITERIOS_INICIALES),
         "avisos": {
@@ -235,14 +235,14 @@ def procedencia_vacia(mensaje: str, ahora: int, codigo: str = "", registro: list
 
 def novedad_pendiente() -> dict[str, Any]:
     return {
-        "openTargets": {"estado": "sin_evidencia", "detalle": "No comprobado todavia"},
-        "ensayos": {"estado": "sin_ensayo", "detalle": "No comprobado todavia", "nct": None},
+        "openTargets": {"estado": "sin_evidencia", "detalle": "No comprobado todavía"},
+        "ensayos": {"estado": "sin_ensayo", "detalle": "No comprobado todavía", "nct": None},
         # Conectores (11 de septiembre de 2026): genetica humana, farmacos y datos publicos.
-        "genetica": {"estado": "no_comprobado", "detalle": "No comprobado todavia"},
-        "farmacos": {"estado": "no_comprobado", "detalle": "No comprobado todavia"},
-        "datosPublicos": {"estado": "no_comprobado", "detalle": "No comprobado todavia", "series": []},
-        "agora": {"estado": "no_nominada", "detalle": "No comprobado: Agora no tiene API publica estable. No se afirma ausencia."},
-        "precedente": {"estado": "sin_precedente", "detalle": "No comprobado todavia"},
+        "genetica": {"estado": "no_comprobado", "detalle": "No comprobado todavía"},
+        "farmacos": {"estado": "no_comprobado", "detalle": "No comprobado todavía"},
+        "datosPublicos": {"estado": "no_comprobado", "detalle": "No comprobado todavía", "series": []},
+        "agora": {"estado": "no_nominada", "detalle": "No comprobado: Agora no tiene API pública estable. No se afirma ausencia."},
+        "precedente": {"estado": "sin_precedente", "detalle": "No comprobado todavía"},
     }
 
 
@@ -264,9 +264,9 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "rivales": [],
         "novedad": novedad_pendiente(),
         "afirmaciones": [],
-        "procedencia": procedencia_vacia("Hipotesis generada por Rosa.", ahora),
+        "procedencia": procedencia_vacia("Hipótesis generada por Rosa.", ahora),
         "hallazgos": [],
-        "revisiones": [{"fecha": ahora, "quien": config.QUIEN_ROSA, "accion": "propuesta", "nota": f"Iteracion {iteracion}", "aCiegas": False}],
+        "revisiones": [{"fecha": ahora, "quien": config.QUIEN_ROSA, "accion": "propuesta", "nota": f"Iteración {iteracion}", "aCiegas": False}],
         "creadaEn": ahora,
         "iteracion": iteracion,
         "origen": "rosa",
@@ -387,20 +387,20 @@ def nuevo_metodo(nombre: str, tipo: str, evalua: str, ahora: int, **campos: Any)
 
 
 def metodos_iniciales() -> list[dict[str, Any]]:
-    """El registro de metodos con lo que Rosa ya tiene (plan completo,
-    seccion 5). Cada entrada dice que evalua, donde aplica, como se valido y
+    """El registro de métodos con lo que Rosa ya tiene (plan completo,
+    sección 5). Cada entrada dice que evalua, donde aplica, como se valido y
     en que estado esta. Lo probado en contexto lo marca la puerta de
-    reproduccion; lo demas empieza en 'implementado'."""
+    reproducción; lo demás empieza en 'implementado'."""
     t = ahora_ms()
     return [
-        nuevo_metodo("Busqueda bibliografica (PubMed, Europe PMC, preprints)", "busqueda", "Que literatura existe sobre una pregunta; cobertura estimada por tema", t, contextos=["literatura biomedica en ingles y español"], exclusiones=["texto completo sin acceso abierto"], entradas="consultas booleanas", salidas="fuentes con resumen y, si hay, texto completo por pagina", validacion="Cobertura estimada con curva 1 - exp(-n/tau); sin evaluacion independiente todavia", fallosConocidos="Una fuente que no responde no es 'no hay'", version="rosa/fuentes", coste="1 llamada por articulo cribado", responsable="ingenieria"),
-        nuevo_metodo("Verificador de afirmaciones (deterministas + juez Opus 5)", "revision", "Si un fragmento citado sostiene una afirmacion; entidad distinta; ausencia refutada", t, contextos=["afirmaciones con cita a fragmento literal"], entradas="afirmacion, fragmento, pistas normalizadas", salidas="veredicto TRASPASO 4.1", validacion="17 casos de control del RAG anterior, sin aprobar por humano", fallosConocidos="Interpretaciones: 58 % de acierto en Kosmos; aqui se marcan aparte", version="rosa/verificador.py", coste="1 llamada por afirmacion que va al juez", responsable="metodos"),
-        nuevo_metodo("Hypothesis Killer (lista fija + decision por regla)", "revision", "Si una hipotesis avanza, se reformula, se suspende o se descarta en contexto", t, contextos=["hipotesis con tarjeta y afirmaciones verificadas"], entradas="hipotesis, afirmaciones, supuestos, comprobaciones deterministas", salidas="decision con comprobaciones y auditoria muestreada", validacion="Pendiente: panel de prueba con fallos plantados (ver PLAN-ROSA2018.md)", fallosConocidos="Sesgo de autoridad y de posicion en jueces LLM; se ocultan recuentos de citas", version="rosa/killer.py", coste="1 a 3 llamadas por hipotesis", responsable="metodos"),
-        nuevo_metodo("Comparacion de dos grupos (t de Welch o Mann-Whitney) con baseline y control barajado", "analisis", "Diferencia de una medida continua entre dos grupos independientes", t, contextos=["datos tabulares con una columna de grupo y una medida"], exclusiones=["medidas repetidas", "mas de dos grupos sin correccion"], entradas="CSV con columna de grupo y medida", salidas="RESULTADO estadistico, p, IC, n por grupo; BASELINE; CONTROL", validacion="Sin probar en contexto hasta superar la puerta de reproduccion", fallosConocidos="p grande con n pequeno no es 'sin efecto'", version="sandbox rosa-sandbox:1 (pandas, scipy, statsmodels)", coste="1 evaluacion costosa", responsable="metodos", estado="implementado"),
-        nuevo_metodo("Correlacion y regresion simple con permutacion", "analisis", "Asociacion entre dos medidas continuas, ajustada por confusores declarados", t, contextos=["datos tabulares"], exclusiones=["causalidad: solo asociacion"], entradas="CSV", salidas="coeficiente, p por permutacion con reajuste, IC", validacion="Sin probar en contexto hasta la puerta", fallosConocidos="Asociacion repetida no es causa", version="sandbox rosa-sandbox:1", coste="1 evaluacion costosa", responsable="metodos"),
-        nuevo_metodo("Reproduccion de analisis publicado (GSE1297, OASIS-1, SEA-AD)", "analisis", "Si el pipeline reproduce una cifra publicada dentro de tolerancia", t, contextos=["datasets publicos del Alzheimer"], entradas="dataset con hash, referencia, cifra publicada, tolerancia congelada", salidas="superada o fallida; error tecnico aparte", validacion="Es la validacion de los demas metodos de analisis", version="rosa/bucle/analisis.py", coste="1 evaluacion por reproduccion", responsable="metodos"),
-        nuevo_metodo("Open Targets, ClinicalTrials.gov y OpenAlex (novedad)", "recurso_datos", "Si una diana, un ensayo o una idea ya existen", t, contextos=["genes y proteinas humanas", "ensayos registrados"], entradas="simbolo de gen, terminos", salidas="asociacion, ensayos, precedente", validacion="APIs publicas; sin evaluacion propia", fallosConocidos="Sin respuesta no es ausencia", version="rosa/fuentes", coste="llamadas HTTP", responsable="ingenieria"),
-        nuevo_metodo("Modelos de lenguaje por el AI Gateway (Astra cerebro, Opus 5 juez, Sonnet 5 volumen)", "predictor", "Propuestas de plan, hipotesis, extraccion y juicio; nunca confirmacion independiente", t, contextos=["texto biomedico"], exclusiones=["Claude Fable 5.1: filtros de doble uso en biologia"], entradas="firmas DSPy", salidas="campos tipados", validacion="Metricas del juez contra decisiones humanas (pantalla Calidad)", fallosConocidos="Un predictor no confirma sus propios datos de entrenamiento; acuerdo entre modelos no es evidencia", version="gateway", coste="por token", responsable="ingenieria"),
+        nuevo_metodo("Búsqueda bibliográfica (PubMed, Europe PMC, preprints)", "busqueda", "Qué literatura existe sobre una pregunta; cobertura estimada por tema", t, contextos=["literatura biomédica en inglés y español"], exclusiones=["texto completo sin acceso abierto"], entradas="consultas booleanas", salidas="fuentes con resumen y, si hay, texto completo por página", validacion="Cobertura estimada con curva 1 - exp(-n/tau); sin evaluacion independiente todavia", fallosConocidos="Una fuente que no responde no es 'no hay'", version="rosa/fuentes", coste="1 llamada por artículo cribado", responsable="ingenieria"),
+        nuevo_metodo("Verificador de afirmaciones (deterministas + juez Opus 5)", "revision", "Si un fragmento citado sostiene una afirmación; entidad distinta; ausencia refutada", t, contextos=["afirmaciones con cita a fragmento literal"], entradas="afirmación, fragmento, pistas normalizadas", salidas="veredicto TRASPASO 4.1", validacion="17 casos de control del RAG anterior, sin aprobar por humano", fallosConocidos="Interpretaciones: 58 % de acierto en Kosmos; aquí se marcan aparte", version="rosa/verificador.py", coste="1 llamada por afirmación que va al juez", responsable="metodos"),
+        nuevo_metodo("Hypothesis Killer (lista fija + decisión por regla)", "revision", "Si una hipótesis avanza, se reformula, se suspende o se descarta en contexto", t, contextos=["hipótesis con tarjeta y afirmaciones verificadas"], entradas="hipótesis, afirmaciones, supuestos, comprobaciones deterministas", salidas="decisión con comprobaciones y auditoría muestreada", validacion="Pendiente: panel de prueba con fallos plantados (ver PLAN-ROSA2018.md)", fallosConocidos="Sesgo de autoridad y de posición en jueces LLM; se ocultan recuentos de citas", version="rosa/killer.py", coste="1 a 3 llamadas por hipótesis", responsable="metodos"),
+        nuevo_metodo("Comparación de dos grupos (t de Welch o Mann-Whitney) con baseline y control barajado", "analisis", "Diferencia de una medida continua entre dos grupos independientes", t, contextos=["datos tabulares con una columna de grupo y una medida"], exclusiones=["medidas repetidas", "más de dos grupos sin corrección"], entradas="CSV con columna de grupo y medida", salidas="RESULTADO estadístico, p, IC, n por grupo; BASELINE; CONTROL", validacion="Sin probar en contexto hasta superar la puerta de reproducción", fallosConocidos="p grande con n pequeño no es 'sin efecto'", version="sandbox rosa-sandbox:1 (pandas, scipy, statsmodels)", coste="1 evaluación costosa", responsable="metodos", estado="implementado"),
+        nuevo_metodo("Correlación y regresión simple con permutación", "analisis", "Asociación entre dos medidas continuas, ajustada por confusores declarados", t, contextos=["datos tabulares"], exclusiones=["causalidad: solo asociación"], entradas="CSV", salidas="coeficiente, p por permutación con reajuste, IC", validacion="Sin probar en contexto hasta la puerta", fallosConocidos="Asociación repetida no es causa", version="sandbox rosa-sandbox:1", coste="1 evaluación costosa", responsable="metodos"),
+        nuevo_metodo("Reproducción de análisis publicado (GSE1297, OASIS-1, SEA-AD)", "analisis", "Si el pipeline reproduce una cifra publicada dentro de tolerancia", t, contextos=["datasets públicos del Alzheimer"], entradas="dataset con hash, referencia, cifra publicada, tolerancia congelada", salidas="superada o fallida; error técnico aparte", validacion="Es la validación de los demás métodos de análisis", version="rosa/bucle/analisis.py", coste="1 evaluación por reproducción", responsable="metodos"),
+        nuevo_metodo("Open Targets, ClinicalTrials.gov y OpenAlex (novedad)", "recurso_datos", "Si una diana, un ensayo o una idea ya existen", t, contextos=["genes y proteínas humanas", "ensayos registrados"], entradas="símbolo de gen, términos", salidas="asociación, ensayos, precedente", validacion="APIs públicas; sin evaluación propia", fallosConocidos="Sin respuesta no es ausencia", version="rosa/fuentes", coste="llamadas HTTP", responsable="ingenieria"),
+        nuevo_metodo("Modelos de lenguaje por el AI Gateway (Astra cerebro, Opus 5 juez, Sonnet 5 volumen)", "predictor", "Propuestas de plan, hipótesis, extracción y juicio; nunca confirmación independiente", t, contextos=["texto biomédico"], exclusiones=["Claude Fable 5.1: filtros de doble uso en biologia"], entradas="firmas DSPy", salidas="campos tipados", validacion="Métricas del juez contra decisiones humanas (pantalla Calidad)", fallosConocidos="Un predictor no confirma sus propios datos de entrenamiento; acuerdo entre modelos no es evidencia", version="gateway", coste="por token", responsable="ingenieria"),
     ]
 
 
@@ -415,7 +415,7 @@ def tarjeta_vacia() -> dict[str, Any]:
 
 
 def version_de(h: dict[str, Any], ahora: int, quien: str, motivo: str) -> dict[str, Any]:
-    """Instantanea de la hipotesis tal como esta, para guardarla antes de reformular."""
+    """Instantanea de la hipótesis tal como esta, para guardarla antes de reformular."""
     return {
         "n": h.get("version", 1),
         "fecha": ahora,
@@ -482,7 +482,7 @@ def nuevo_plan_analisis(investigacion_id: str, hipotesis_id: str | None, dataset
 
 
 def hash_plan(plan: dict[str, Any]) -> str:
-    """sha256 del plan canonico (sin id ni fechas): si cambia una variable o
+    """sha256 del plan canónico (sin id ni fechas): si cambia una variable o
     la prueba, cambia el hash y es otro plan."""
     import hashlib
 

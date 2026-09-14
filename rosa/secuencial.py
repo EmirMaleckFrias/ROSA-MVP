@@ -43,8 +43,8 @@ def p_de(resultados: dict[str, str]) -> float | None:
 
 
 def agregar(ejecuciones: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """La evidencia acumulada de las ejecuciones validas (auditoria valida)
-    de una hipotesis. None si ninguna aporta p-valor."""
+    """La evidencia acumulada de las ejecuciones válidas (auditoría válida)
+    de una hipótesis. None si ninguna aporta p-valor."""
     validas = [x for x in ejecuciones if (x.get("auditoria") or {}).get("veredicto") == "valido" and x.get("estado") == "completado"]
     # Solo cuenta una prueba por (datos, plan): repetir el mismo analisis sobre los
     # mismos datos no es evidencia nueva. Se conserva la ultima.

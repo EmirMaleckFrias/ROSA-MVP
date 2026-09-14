@@ -1,5 +1,5 @@
 """Unpaywall: el enlace legal al PDF en acceso abierto de un DOI.
-`GET /v2/{doi}?email=` sin clave; 100000 llamadas al dia como cortesia."""
+`GET /v2/{doi}?email=` sin clave; 100000 llamadas al día como cortesia."""
 
 from __future__ import annotations
 

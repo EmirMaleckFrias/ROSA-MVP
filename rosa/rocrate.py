@@ -99,8 +99,8 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         prov["agent"][f"rosa:modelo-{rol}"] = {"prov:type": {"$": "prov:SoftwareAgent", "type": "xsd:QName"}, "rosa:modelo": modelo, "rosa:rol": rol}
 
     # La hipotesis y su expediente.
-    fichero("hipotesis.json", json.dumps(_limpio(h), ensure_ascii=False, indent=1).encode("utf-8"), "application/json", {"description": f"Hipotesis {h['id']} version {h.get('version', 1)} tal como esta en el estado de Rosa"})
-    fichero("dossier.md", texto_dossier(e, h, inv, corrida, ahora).encode("utf-8"), "text/markdown", {"description": "Dossier para el laboratorio, generado sin ningun modelo desde el estado"})
+    fichero("hipotesis.json", json.dumps(_limpio(h), ensure_ascii=False, indent=1).encode("utf-8"), "application/json", {"description": f"Hipótesis {h['id']} versión {h.get('version', 1)} tal como está en el estado de Rosa"})
+    fichero("dossier.md", texto_dossier(e, h, inv, corrida, ahora).encode("utf-8"), "text/markdown", {"description": "Dossier para el laboratorio, generado sin ningún modelo desde el estado"})
     fichero("decisiones.json", json.dumps(_limpio(decisiones), ensure_ascii=False, indent=1).encode("utf-8"), "application/json")
     buf = io.StringIO()
     w = csv.writer(buf)
@@ -115,7 +115,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         aid = f"#decision-{i}"
         es_persona = d.get("etapa") == "persona"
         agente = next((f"#persona-{j}" for j, p in enumerate(personas) if p == d.get("quien")), "#rosa") if es_persona else "#rosa"
-        grafo.append({"@id": aid, "@type": "CreateAction" if not es_persona else "AssessAction", "name": f"Decision {d.get('etapa')}: {d.get('decision')} (version {d.get('version')})", "description": (d.get("motivo") or "")[:500], "instrument": {"@id": "#rosa" if not es_persona else "#rosa"} if not es_persona else {"@id": "#modelo-juez"}, "agent": {"@id": agente}, "object": {"@id": "hipotesis.json"}, "result": {"@id": "decisiones.json"}, "endTime": _iso(d.get("fecha")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus"}})
+        grafo.append({"@id": aid, "@type": "CreateAction" if not es_persona else "AssessAction", "name": f"Decisión {d.get('etapa')}: {d.get('decision')} (versión {d.get('version')})", "description": (d.get("motivo") or "")[:500], "instrument": {"@id": "#rosa" if not es_persona else "#rosa"} if not es_persona else {"@id": "#modelo-juez"}, "agent": {"@id": agente}, "object": {"@id": "hipotesis.json"}, "result": {"@id": "decisiones.json"}, "endTime": _iso(d.get("fecha")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus"}})
         if not es_persona:
             grafo[-1]["instrument"] = {"@id": "#modelo-juez"}
         acciones.append({"@id": aid})
@@ -125,7 +125,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
 
     # Ejecuciones in silico: codigo, resultado y el dataset referenciado por hash.
     for i, run in enumerate(ejecuciones):
-        codigo = fichero(f"ejecuciones/{run['id']}.py", (run.get("codigo") or "").encode("utf-8"), "text/x-python", {"description": f"Codigo del plan {run.get('hashPlan') or planes.get(run.get('planId'), {}).get('hashPlan', '')} con semilla {run.get('semilla')}"})
+        codigo = fichero(f"ejecuciones/{run['id']}.py", (run.get("codigo") or "").encode("utf-8"), "text/x-python", {"description": f"Código del plan {run.get('hashPlan') or planes.get(run.get('planId'), {}).get('hashPlan', '')} con semilla {run.get('semilla')}"})
         salida = fichero(f"ejecuciones/{run['id']}.json", json.dumps(_limpio({k: run.get(k) for k in ("estado", "runtime", "resultados", "baseline", "controlNegativo", "repeticiones", "interpretacion", "auditoria", "ensayoSeco", "duracionS", "codigoSalida", "entorno")}), ensure_ascii=False, indent=1).encode("utf-8"), "application/json")
         ds_id = f"#dataset-{run.get('hashDatos', '')[:16] or i}"
         if not any(g["@id"] == ds_id for g in grafo):
@@ -136,7 +136,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         if not any(g["@id"] == sb for g in grafo):
             grafo.append({"@id": sb, "@type": "SoftwareApplication", "name": f"Sandbox de Rosa ({img})", "description": "Contenedor sin red, con plan congelado y control negativo obligatorio", "softwareVersion": json.dumps((run.get("entorno") or {}).get("paquetes", [])[:12], ensure_ascii=False)})
         aid = f"#ejecucion-{run['id']}"
-        grafo.append({"@id": aid, "@type": "CreateAction", "name": f"Analisis in silico {run['id']} ({run.get('estado')})", "instrument": {"@id": sb}, "agent": {"@id": "#rosa"}, "object": [{"@id": codigo}, {"@id": ds_id}], "result": {"@id": salida}, "startTime": _iso(run.get("inicio")), "endTime": _iso(run.get("fin")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus" if run.get("estado") == "completado" else "http://schema.org/FailedActionStatus"}, "error": (run.get("error") or "")[:300] or None})
+        grafo.append({"@id": aid, "@type": "CreateAction", "name": f"Análisis in silico {run['id']} ({run.get('estado')})", "instrument": {"@id": sb}, "agent": {"@id": "#rosa"}, "object": [{"@id": codigo}, {"@id": ds_id}], "result": {"@id": salida}, "startTime": _iso(run.get("inicio")), "endTime": _iso(run.get("fin")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus" if run.get("estado") == "completado" else "http://schema.org/FailedActionStatus"}, "error": (run.get("error") or "")[:300] or None})
         acciones.append({"@id": aid})
         act = aid.replace("#", "rosa:")
         prov["activity"][act] = {"prov:startTime": _iso(run.get("inicio")), "prov:endTime": _iso(run.get("fin")), "rosa:estado": run.get("estado"), "rosa:semilla": run.get("semilla")}
@@ -149,7 +149,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
     # Prerregistro, su sello externo y el experimento como LabProcess.
     if art_prerreg:
         contenido = ((art_prerreg.get("versiones") or [{}])[-1].get("contenido") or "")
-        pre = fichero("prerregistro.md", contenido.encode("utf-8"), "text/markdown", {"description": f"Prerregistro congelado el {_iso(x.get('prerregistradoEn'))}; version {x.get('versionPrerregistrada')} de la hipotesis", "dateCreated": _iso(x.get("prerregistradoEn"))})
+        pre = fichero("prerregistro.md", contenido.encode("utf-8"), "text/markdown", {"description": f"Prerregistro congelado el {_iso(x.get('prerregistradoEn'))}; versión {x.get('versionPrerregistrada')} de la hipótesis", "dateCreated": _iso(x.get("prerregistradoEn"))})
         grafo.append({"@id": "#prerregistro", "@type": "CreateAction", "name": "Prerregistro del experimento", "agent": {"@id": "#rosa"}, "instrument": {"@id": "#rosa"}, "object": {"@id": "hipotesis.json"}, "result": {"@id": pre}, "endTime": _iso(x.get("prerregistradoEn")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus"}})
         acciones.append({"@id": "#prerregistro"})
         prov["activity"]["rosa:prerregistro"] = {"prov:endTime": _iso(x.get("prerregistradoEn"))}
@@ -166,13 +166,13 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
 
     # README con la verificacion.
     readme = "\n".join([
-        f"# RO-Crate de la hipotesis {h['id']} (Rosa)",
+        f"# RO-Crate de la hipótesis {h['id']} (Rosa)",
         "",
-        f"Generado el {_iso(ahora)} por Rosa {arnes.get('commit', '')} (firmas {arnes.get('firmas', '')}). Investigacion: {(inv or {}).get('titulo', '')}.",
+        f"Generado el {_iso(ahora)} por Rosa {arnes.get('commit', '')} (firmas {arnes.get('firmas', '')}). Investigación: {(inv or {}).get('titulo', '')}.",
         "",
         "Contenido: `ro-crate-metadata.json` (RO-Crate 1.2, perfil Process Run Crate 0.6), `prov.json` (W3C PROV-JSON), la hipotesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el codigo y el resultado de cada analisis in silico, el prerregistro y sus sellos de tiempo RFC 3161.",
         "",
-        "Como verificar sin Rosa:",
+        "Cómo verificar sin Rosa:",
         "- Cada fichero lleva su sha256 en `ro-crate-metadata.json`: `shasum -a 256 <fichero>`.",
         "- El sello del prerregistro: `openssl ts -verify -digest <sha256 de prerregistro.md> -in sello/<TSA>.tsr -CAfile <certificado raiz de la TSA>`.",
         "- El crate: `rocrate-validator validate . -p process-run-crate` (paquete roc-validator).",
@@ -186,7 +186,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         "@context": CONTEXTO,
         "@graph": [
             {"@id": "ro-crate-metadata.json", "@type": "CreativeWork", "about": {"@id": "./"}, "conformsTo": [{"@id": "https://w3id.org/ro/crate/1.2"}, {"@id": PERFIL}]},
-            {"@id": "./", "@type": "Dataset", "name": f"Expediente de la hipotesis: {h['titulo'][:120]}", "description": (h.get("enunciado") or "")[:1000], "datePublished": _iso(ahora), "license": {"@id": "https://spdx.org/licenses/CC-BY-4.0"}, "hasPart": partes, "mentions": acciones, "conformsTo": {"@id": PERFIL}, "creator": {"@id": "#rosa"}, "keywords": ["Alzheimer", "hipotesis", "procedencia", "Rosa"]},
+            {"@id": "./", "@type": "Dataset", "name": f"Expediente de la hipótesis: {h['titulo'][:120]}", "description": (h.get("enunciado") or "")[:1000], "datePublished": _iso(ahora), "license": {"@id": "https://spdx.org/licenses/CC-BY-4.0"}, "hasPart": partes, "mentions": acciones, "conformsTo": {"@id": PERFIL}, "creator": {"@id": "#rosa"}, "keywords": ["Alzheimer", "hipotesis", "procedencia", "Rosa"]},
             {"@id": "https://spdx.org/licenses/CC-BY-4.0", "@type": "CreativeWork", "name": "Creative Commons Attribution 4.0", "identifier": "CC-BY-4.0"},
         ] + grafo,
     }

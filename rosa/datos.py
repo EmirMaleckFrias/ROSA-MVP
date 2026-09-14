@@ -66,8 +66,8 @@ def _numero(v: str) -> float | None:
 
 def _ic_mediana(nums: list[float], remuestras: int = 2000) -> tuple[float, float]:
     """Intervalo percentil del 95 % para la mediana por bootstrap con semilla
-    fija: mismo fichero, mismo intervalo. Es una aproximacion para orientar al
-    juez, no sustituye el analisis prerregistrado."""
+    fija: mismo fichero, mismo intervalo. Es una aproximación para orientar al
+    juez, no sustituye el análisis prerregistrado."""
     import random
 
     if len(nums) < 4:
@@ -101,7 +101,7 @@ def _resumen_tabla(cabecera: list[str], filas: list[list[str]]) -> str:
             # determinista (semilla fija), util cuando el criterio pide la mediana.
             ic = _ic_mediana(nums)
             lineas.append(
-                f"- {col} (numerica): n={len(nums)}, media={media:.4g}, sd={sd:.4g}, mediana={mediana:.4g} (IC95 aprox. {ic[0]:.4g} a {ic[1]:.4g}), Q1={q1:.4g}, Q3={q3:.4g}, min={min(nums):.4g}, max={max(nums):.4g}, positivos={positivos}, negativos={negativos}, ceros={ceros}, faltantes={faltan}"
+                f"- {col} (numérica): n={len(nums)}, media={media:.4g}, sd={sd:.4g}, mediana={mediana:.4g} (IC95 aprox. {ic[0]:.4g} a {ic[1]:.4g}), Q1={q1:.4g}, Q3={q3:.4g}, min={min(nums):.4g}, max={max(nums):.4g}, positivos={positivos}, negativos={negativos}, ceros={ceros}, faltantes={faltan}"
             )
         else:
             distintos = {}
@@ -110,7 +110,7 @@ def _resumen_tabla(cabecera: list[str], filas: list[list[str]]) -> str:
                 distintos[k] = distintos.get(k, 0) + 1
             top = sorted(distintos.items(), key=lambda kv: -kv[1])[:8]
             if len(distintos) <= 30:
-                lineas.append(f"- {col} (categorica): {len(distintos)} valores distintos; mas frecuentes: " + ", ".join(f"{k[:40]}={n}" for k, n in top) + f"; faltantes={faltan}")
+                lineas.append(f"- {col} (categorica): {len(distintos)} valores distintos; más frecuentes: " + ", ".join(f"{k[:40]}={n}" for k, n in top) + f"; faltantes={faltan}")
             else:
                 # Muchos valores distintos: podrian ser identificadores o texto libre de
                 # personas. No se enumeran: solo cardinalidad y longitudes.
@@ -168,7 +168,7 @@ def _leer_tabla(ruta: Path) -> tuple[list[str], list[list[str]]] | None:
 def perfil_dataset(ruta: Path) -> dict:
     """El contrato de datos que la interfaz ya pintaba pero nadie calculaba:
     columnas, filas, columnas con valores centinela, nombres duplicados, y el
-    esqueleto del diccionario (tipo inferido, descripcion vacia para que la
+    esqueleto del diccionario (tipo inferido, descripción vacía para que la
     persona la rellene). Determinista."""
     tabla = _leer_tabla(ruta)
     if tabla is None:
@@ -209,17 +209,17 @@ def perfil_dataset(ruta: Path) -> dict:
 
 
 def esquema_para_modelo(ruta: Path, procedencia: dict, incluir_filas: bool = False) -> str:
-    """Lo que ve el modelo de un dataset: diccionario y estadisticos por
+    """Lo que ve el modelo de un dataset: diccionario y estadísticos por
     columna. Las filas solo si el libro de procedencia lo permite; con datos
     controlados (NIH NOT-OD-25-081, DUA de A4 y del AD Knowledge Portal) no
     salen nunca hacia el gateway."""
     resumen, muestra = resumir(ruta, filas_muestra=20)
-    lineas = [f"Dataset: {procedencia.get('origen') or 'origen sin declarar'}, version {procedencia.get('version') or '?'}, {procedencia.get('filas', 0)} filas, sha256 {str(procedencia.get('hash', ''))[:12]}." + (" SINTETICO." if procedencia.get("sintetico") else "")]
+    lineas = [f"Dataset: {procedencia.get('origen') or 'origen sin declarar'}, versión {procedencia.get('version') or '?'}, {procedencia.get('filas', 0)} filas, sha256 {str(procedencia.get('hash', ''))[:12]}." + (" SINTÉTICO." if procedencia.get("sintetico") else "")]
     dic = procedencia.get("diccionario") or []
     if dic:
         lineas.append("Diccionario de columnas:")
         lineas += [f"- {c['columna']} ({c['tipo']}{', ' + c['unidad'] if c.get('unidad') else ''}): {c['descripcion'] or 'sin descripcion'}" for c in dic]
-    lineas += ["Resumen estadistico:", resumen]
+    lineas += ["Resumen estadístico:", resumen]
     if incluir_filas and procedencia.get("permiteLlmTerceros"):
         lineas += ["Primeras filas (autorizado por el libro de procedencia):", muestra[:4000]]
     else:
@@ -240,7 +240,7 @@ def resumir(ruta: Path, filas_muestra: int = 40) -> tuple[str, str]:
                 if t:
                     textos.append(f"[pag. {p.number + 1}]\n{t}")
         texto = "\n\n".join(textos)
-        return f"PDF de {len(textos)} paginas con texto, {len(texto)} caracteres.", texto[:12000]
+        return f"PDF de {len(textos)} páginas con texto, {len(texto)} caracteres.", texto[:12000]
     raw = ruta.read_bytes()
     try:
         texto = raw.decode("utf-8")
@@ -250,7 +250,7 @@ def resumir(ruta: Path, filas_muestra: int = 40) -> tuple[str, str]:
         try:
             datos = json.loads(texto)
         except json.JSONDecodeError:
-            return f"JSON invalido, {len(texto)} caracteres.", texto[:8000]
+            return f"JSON inválido, {len(texto)} caracteres.", texto[:8000]
         if isinstance(datos, list) and datos and isinstance(datos[0], dict):
             cabecera = sorted({k for d in datos for k in d})
             filas = [[str(d.get(k, "")) for k in cabecera] for d in datos]
@@ -267,4 +267,4 @@ def resumir(ruta: Path, filas_muestra: int = 40) -> tuple[str, str]:
             cabecera, filas = lector[0], lector[1:]
             muestra = "\n".join(dialecto.delimiter.join(f) for f in lector[: filas_muestra + 1])
             return _resumen_tabla(cabecera, filas), muestra[:8000]
-    return f"Texto de {len(texto)} caracteres y {texto.count(chr(10)) + 1} lineas.", texto[:8000]
+    return f"Texto de {len(texto)} caracteres y {texto.count(chr(10)) + 1} líneas.", texto[:8000]

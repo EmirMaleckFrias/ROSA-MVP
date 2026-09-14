@@ -118,7 +118,7 @@ async def gen_hgnc(simbolo: str) -> dict[str, Any] | None:
 
 
 async def termino_ols(texto: str, ontologia: str) -> dict[str, Any] | None:
-    """Un termino a su clase en una ontologia de OLS4: solo si la etiqueta o
+    """Un término a su clase en una ontología de OLS4: solo si la etiqueta o
     un sinonimo exacto coinciden (en el cliente). None si no hay coincidencia."""
     t = (texto or "").strip()
     if len(t) < 3:
@@ -189,8 +189,8 @@ def ids_de(entidades: list[dict[str, Any]] | None) -> set[str]:
 
 
 def comparten(a: list[dict[str, Any]] | None, b: list[dict[str, Any]] | None, minimo: int = 2) -> list[str]:
-    """Identificadores canonicos que dos entidades del estado comparten, si
-    son al menos `minimo`: es la senal de que hablan de lo mismo con otras
-    palabras (para redundancia de hipotesis y deduplicacion de hechos)."""
+    """Identificadores canónicos que dos entidades del estado comparten, si
+    son al menos `mínimo`: es la señal de que hablan de lo mismo con otras
+    palabras (para redundancia de hipótesis y deduplicación de hechos)."""
     comunes = sorted(ids_de(a) & ids_de(b))
     return comunes if len(comunes) >= minimo else []

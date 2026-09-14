@@ -1,1 +1,1 @@
-"""El bucle de investigacion de Rosa."""
+"""El bucle de investigación de Rosa."""

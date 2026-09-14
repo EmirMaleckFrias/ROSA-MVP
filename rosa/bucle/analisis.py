@@ -50,14 +50,14 @@ def _texto_plan(plan: dict[str, Any]) -> str:
             f"Tipo: {plan['tipo']}",
             f"Pregunta: {plan['pregunta']}",
             "Variables: " + "; ".join(plan["variables"]),
-            f"Poblacion: {plan['poblacion']}",
+            f"Población: {plan['poblacion']}",
             "Preprocesado: " + " -> ".join(plan["preprocesado"]),
             f"Prueba: {plan['prueba']}",
             f"H0: {plan['hipotesisNula']}",
             f"H1: {plan['hipotesisAlternativa']}",
             f"Alfa: {plan['alpha']}",
-            f"Direccion esperada: {plan['direccionEsperada']}",
-            f"Efecto minimo: {plan['tamanoEfectoMinimo']}",
+            f"Dirección esperada: {plan['direccionEsperada']}",
+            f"Efecto mínimo: {plan['tamanoEfectoMinimo']}",
             f"Baseline: {plan['baseline']}",
             f"Control negativo: {plan['controlNegativo']}",
             f"Multiplicidad: {plan['correccionMultiplicidad']}",
@@ -82,7 +82,7 @@ def _puerta_permite(inv: dict[str, Any]) -> tuple[bool, str]:
     p = inv.get("puertaReproduccion") or P.puerta_reproduccion()
     if p["estado"] in ("abierta", "eximida"):
         return True, ""
-    return False, f"Puerta de reproduccion bloqueada: {p['superadas']} de {p['requeridas']} analisis publicados reproducidos. Registra y reproduce los que faltan, o exime la puerta con motivo."
+    return False, f"Puerta de reproducción bloqueada: {p['superadas']} de {p['requeridas']} análisis publicados reproducidos. Registra y reproduce los que faltan, o exime la puerta con motivo."
 
 
 def _limpiar_codigo(texto: str) -> str:
@@ -127,16 +127,16 @@ async def _ensayo_en_seco(ctx, plan: dict[str, Any], codigo: str, ruta: Path, es
         perfil = await asyncio.to_thread(SINT.generar, ruta, destino, SINT.FILAS_POR_DEFECTO, plan["semilla"])
         registro["filas"] = perfil["filas"]
     except Exception as ex:  # noqa: BLE001
-        registro.update(estado="no_hecho", error=f"No se pudo fabricar la tabla sintetica: {str(ex)[:160]}")
+        registro.update(estado="no_hecho", error=f"No se pudo fabricar la tabla sintética: {str(ex)[:160]}")
         pista.nota(registro["error"])
         return codigo, registro
     for intento in range(MAX_REPARACIONES + 1):
         registro["intentos"] = intento + 1
-        pista.accion(f"Ensayo en seco sobre {registro['filas']} filas sinteticas, intento {intento + 1}")
+        pista.accion(f"Ensayo en seco sobre {registro['filas']} filas sintéticas, intento {intento + 1}")
         r = await asyncio.to_thread(X.ejecutar, codigo, destino, plan["semilla"], True, f"{run_id}-seco{intento}", entorno, ficheros)
         if r.estado == "completado":
             registro.update(estado="completado", error="")
-            pista.resultado("Ensayo en seco completado: el codigo corre sobre la forma del dataset (las cifras sinteticas no cuentan)")
+            pista.resultado("Ensayo en seco completado: el código corre sobre la forma del dataset (las cifras sintéticas no cuentan)")
             break
         if r.estado in ("no_ejecutado", "tiempo_agotado"):
             registro.update(estado=r.estado, error=r.error[-300:])
@@ -159,20 +159,20 @@ async def _ensayo_en_seco(ctx, plan: dict[str, Any], codigo: str, ruta: Path, es
 def _verificar_congelado(plan: dict[str, Any], ruta: Path) -> str | None:
     """None si el plan y los datos son los congelados; si no, el motivo."""
     if plan.get("hashPlan") and P.hash_plan(plan) != plan["hashPlan"]:
-        return f"El plan {plan['id']} no corresponde a su hash congelado ({plan['hashPlan']}): se altero despues de congelarlo. No se ejecuta."
+        return f"El plan {plan['id']} no corresponde a su hash congelado ({plan['hashPlan']}): se alteró después de congelarlo. No se ejecuta."
     if plan.get("hashDatos"):
         try:
             actual = X.hash_fichero(ruta)
         except OSError as ex:
             return f"No se pudo leer el fichero de datos para comprobar su hash: {ex}"
         if actual != plan["hashDatos"]:
-            return f"El fichero de datos cambio desde que se congelo el plan (sha256 {actual[:12]} frente a {plan['hashDatos'][:12]}). No se ejecuta."
+            return f"El fichero de datos cambio desde que se congeló el plan (sha256 {actual[:12]} frente a {plan['hashDatos'][:12]}). No se ejecuta."
     return None
 
 
 async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path, esquema: str, hipotesis_id: str | None, tipo: str, pista: Pista) -> dict[str, Any]:
-    """Codigo, ejecucion (con reparaciones), interpretacion y auditoria.
-    Devuelve el registro de ejecucion ya guardado en el estado."""
+    """Código, ejecución (con reparaciones), interpretación y auditoría.
+    Devuelve el registro de ejecución ya guardado en el estado."""
     proc = ds["procedencia"]
     sintetico = bool(proc.get("sintetico"))
     ruta_en_sandbox = f"/datos/{ruta.name}"
@@ -182,7 +182,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
     skills = SK.para_texto(_texto_plan(plan) + " " + esquema[:1500] + " " + ds.get("nombre", ""))
     entorno = plan.get("entorno") or SK.entorno_de(skills)
     ficheros = SK.scripts_de(skills)
-    pista.accion(f"Escribiendo el codigo del plan {plan['hashPlan']} (semilla {plan['semilla']})" + (f"; skills: {', '.join(s_['nombre'] for s_ in skills)}" if skills else "") + f"; entorno {entorno}")
+    pista.accion(f"Escribiendo el código del plan {plan['hashPlan']} (semilla {plan['semilla']})" + (f"; skills: {', '.join(s_['nombre'] for s_ in skills)}" if skills else "") + f"; entorno {entorno}")
     pred = await ctx.llamar("cerebro", ctx.programas.codigo, plan=_texto_plan(plan), esquema_datos=esquema, ruta_datos=ruta_en_sandbox, semilla=plan["semilla"], skills=SK.texto_para_prompt(skills))
     codigo = _limpiar_codigo(pred.codigo)
     run = P.nueva_ejecucion(ctx.investigacion_id, hipotesis_id, plan["id"], tipo, codigo, plan["semilla"], plan["hashDatos"], P.ahora_ms())
@@ -211,7 +211,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
         if res.estado in ("completado", "no_ejecutado", "tiempo_agotado"):
             break
         if intento < MAX_REPARACIONES:
-            pista.error(f"Error tecnico: {res.error[-200:]}. Se intenta reparar sin cambiar el plan")
+            pista.error(f"Error técnico: {res.error[-200:]}. Se intenta reparar sin cambiar el plan")
             try:
                 p2 = await ctx.llamar("cerebro", ctx.programas.reparar, plan=_texto_plan(plan), codigo=codigo, error=res.error[-1500:] or res.salida[-800:], esquema_datos=esquema)
                 codigo = _limpiar_codigo(p2.codigo_corregido)
@@ -230,13 +230,13 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
         for extra in (1, 2):
             semilla2 = plan["semilla"] + extra
             codigo2 = _cambiar_semilla(codigo, plan["semilla"], semilla2)
-            pista.accion(f"Repeticion con semilla {semilla2}")
+            pista.accion(f"Repetición con semilla {semilla2}")
             r2 = await asyncio.to_thread(X.ejecutar, codigo2, ruta, semilla2, sintetico, run["id"] + f"-s{extra}", entorno, ficheros)
             repeticiones.append({"semilla": semilla2, "estado": r2.estado, "resultados": r2.resultados if r2.estado == "completado" else {}})
     interpretacion = None
     if res.estado == "completado":
         if res.no_evaluable:
-            interpretacion = {"estado": "no_evaluable", "resumen": f"El analisis no se pudo evaluar con estos datos: {res.no_evaluable}"}
+            interpretacion = {"estado": "no_evaluable", "resumen": f"El análisis no se pudo evaluar con estos datos: {res.no_evaluable}"}
         else:
             texto_rep = ""
             if repeticiones:
@@ -272,7 +272,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
         except PresupuestoAgotado:
             raise
         except Exception as ex:  # noqa: BLE001
-            auditoria = {"veredicto": "no_evaluable_computacionalmente", "comprobaciones": deterministas, "motivo": f"El auditor no respondio: {str(ex)[:120]}", "quien": ctx.modelos.juez.model, "fecha": P.ahora_ms()}
+            auditoria = {"veredicto": "no_evaluable_computacionalmente", "comprobaciones": deterministas, "motivo": f"El auditor no respondió: {str(ex)[:120]}", "quien": ctx.modelos.juez.model, "fecha": P.ahora_ms()}
             run_plausible = None
     else:
         run_plausible = None
@@ -304,15 +304,15 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
 
     ctx.mutar(guardar, "ejecucion")
     estado_txt = res.estado if res.estado != "completado" else (interpretacion or {}).get("estado", "completado")
-    pista.resultado(f"Ejecucion {run['id']}: {estado_txt}" + (f"; auditoria {auditoria['veredicto']}" if auditoria else "") + (f". {res.error[-160:]}" if res.estado != "completado" else ""))
+    pista.resultado(f"Ejecución {run['id']}: {estado_txt}" + (f"; auditoría {auditoria['veredicto']}" if auditoria else "") + (f". {res.error[-160:]}" if res.estado != "completado" else ""))
     run.update(estado=res.estado, resultados=res.resultados, baseline=res.baseline, controlNegativo=res.control, interpretacion=interpretacion, auditoria=auditoria, error=res.error, runtime=res.runtime)
     return run
 
 
 async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: str, pista: Pista) -> dict[str, Any] | None:
-    """Un analisis in silico completo sobre una hipotesis. Respeta la puerta
-    de reproduccion, el tope de evaluaciones costosas y el libro de
-    procedencia. Devuelve la ejecucion o None si no se pudo ni empezar."""
+    """Un análisis in silico completo sobre una hipótesis. Respeta la puerta
+    de reproducción, el tope de evaluaciones costosas y el libro de
+    procedencia. Devuelve la ejecución o None si no se pudo ni empezar."""
     e = ctx.e
     inv = ctx.inv()
     ds, ruta = _dataset_de(e, ctx.investigacion_id, dataset_id)
@@ -321,7 +321,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
     if not ds or ruta is None:
         motivo_bloqueo = "El dataset no tiene fichero en el servidor: subelo desde Objetivo y datos."
     elif ds["estado"] != "aprobado":
-        motivo_bloqueo = "El contrato de datos no esta aprobado."
+        motivo_bloqueo = "El contrato de datos no está aprobado."
     elif (ds.get("procedencia") or {}).get("usoIAAutorizado") != "si":
         motivo_bloqueo = "El libro de procedencia no marca el uso con IA como autorizado."
     else:
@@ -332,7 +332,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
             corrida = ctx.corrida()
             usadas = corrida.get("_evaluacionesCostosas", 0)
             if usadas >= politicas.MAX_EVALUACIONES_COSTOSAS:
-                motivo_bloqueo = f"Se alcanzo el tope de {politicas.MAX_EVALUACIONES_COSTOSAS} evaluaciones costosas por corrida (politica)."
+                motivo_bloqueo = f"Se alcanzó el tope de {politicas.MAX_EVALUACIONES_COSTOSAS} evaluaciones costosas por corrida (política)."
     if motivo_bloqueo:
         run = P.nueva_ejecucion(ctx.investigacion_id, h["id"], "sin-plan", "hipotesis", "", 0, (ds or {}).get("procedencia", {}).get("hash", "") if ds else "", ahora)
         run["error"] = motivo_bloqueo
@@ -344,8 +344,8 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
             if y:
                 y.setdefault("ejecuciones", []).append(run["id"])
                 y.pop("_analisisPedido", None)
-                y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"No pude ejecutar el analisis: {motivo_bloqueo}", "creadoEn": ahora})
-            A.con_evento(e2, ctx.investigacion_id, "analisis", f"Analisis no ejecutado: {motivo_bloqueo[:120]}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}", ahora)
+                y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"No pude ejecutar el análisis: {motivo_bloqueo}", "creadoEn": ahora})
+            A.con_evento(e2, ctx.investigacion_id, "analisis", f"Análisis no ejecutado: {motivo_bloqueo[:120]}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}", ahora)
             return True
 
         ctx.mutar(anotar, "ejecucion")
@@ -354,7 +354,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
     proc = ds["procedencia"]
     esquema = await asyncio.to_thread(D.esquema_para_modelo, ruta, proc, bool(proc.get("permiteLlmTerceros")))
     prediccion = (h.get("tarjeta") or {}).get("prediccionFalsable") or h["enunciado"]
-    pista.accion(f"Congelando el plan de analisis sobre {ds['nombre']} (solo esquema, sin filas)")
+    pista.accion(f"Congelando el plan de análisis sobre {ds['nombre']} (solo esquema, sin filas)")
     skills_plan = SK.para_texto(T.hipotesis_texto(h) + " " + (pregunta or "") + " " + esquema[:1500] + " " + ds.get("nombre", ""))
     pp = await ctx.llamar("cerebro", ctx.programas.planificar, hipotesis=T.hipotesis_texto(h), prediccion_falsable=prediccion, pregunta_pedida=pregunta or "", esquema_datos=esquema, limites="; ".join(inv["limites"]) or "Ninguno", skills=SK.texto_para_prompt(skills_plan))
     p = pp.plan
@@ -404,7 +404,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
         y.setdefault("ejecuciones", []).append(run["id"])
         y.pop("_analisisPedido", None)
         y["coste"]["analisis"] = round(y["coste"]["analisis"] + 1.5, 2)
-        y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} analisis in silico {run['id']}: {run['estado']}" + (f", {run['interpretacion']['estado']}" if run.get("interpretacion") else "") + (f", auditoria {run['auditoria']['veredicto']}" if run.get("auditoria") else ""))
+        y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} análisis in silico {run['id']}: {run['estado']}" + (f", {run['interpretacion']['estado']}" if run.get("interpretacion") else "") + (f", auditoría {run['auditoria']['veredicto']}" if run.get("auditoria") else ""))
         if valido:
             from rosa import secuencial
 
@@ -413,9 +413,9 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
             y["afirmaciones"].append(
                 {
                     "texto": run["interpretacion"]["resumen"],
-                    "cita": f"[Analisis in silico {run['id']}, plan {plan['hashPlan']}, datos {proc['hash'][:12]}]",
+                    "cita": f"[Análisis in silico {run['id']}, plan {plan['hashPlan']}, datos {proc['hash'][:12]}]",
                     "veredicto": "sostenida",
-                    "motivo": f"Cifra calculada por codigo auditado ({run['auditoria']['veredicto']}); {run['interpretacion']['estado'].replace('_', ' ')}.",
+                    "motivo": f"Cifra calculada por código auditado ({run['auditoria']['veredicto']}); {run['interpretacion']['estado'].replace('_', ' ')}.",
                     "entidadDistinta": False,
                     "tipo": "dato",
                     "clase": "derivado",
@@ -429,7 +429,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
             y.pop("_conclusionIntentada", None)
         A.recalcular_bloqueos(e2, y)
         estado_txt = run["estado"] if run["estado"] != "completado" else (run.get("interpretacion") or {}).get("estado", "completado")
-        A.con_evento(e2, ctx.investigacion_id, "analisis", f"Analisis in silico de '{h['titulo'][:60]}': {estado_txt}" + (f", auditoria {run['auditoria']['veredicto']}" if run.get("auditoria") else ""), f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}", ahora)
+        A.con_evento(e2, ctx.investigacion_id, "analisis", f"Análisis in silico de '{h['titulo'][:60]}': {estado_txt}" + (f", auditoría {run['auditoria']['veredicto']}" if run.get("auditoria") else ""), f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}", ahora)
         return True
 
     ctx.mutar(aplicar, "analisis_hipotesis")
@@ -450,28 +450,28 @@ def _valor_reproducido(res_resultados: dict[str, str]) -> float | None:
 
 
 async def reproducir(ctx, rep: dict[str, Any], pista: Pista) -> None:
-    """Una reproduccion de la puerta: plan de tipo reproduccion, ejecucion y
-    comparacion con la cifra publicada dentro de la tolerancia congelada."""
+    """Una reproducción de la puerta: plan de tipo reproducción, ejecución y
+    comparación con la cifra publicada dentro de la tolerancia congelada."""
     e = ctx.e
     ds, ruta = _dataset_de(e, ctx.investigacion_id, rep["datasetId"])
     ahora = P.ahora_ms()
     if not ds or ruta is None or ds["estado"] != "aprobado":
         ctx.mutar(lambda e2: _estado_rep(e2, rep["id"], "error_tecnico", None, None, "El dataset no tiene fichero aprobado en el servidor"), "reproduccion")
-        pista.error("El dataset de la reproduccion no esta aprobado o no tiene fichero")
+        pista.error("El dataset de la reproducción no está aprobado o no tiene fichero")
         return
     proc = ds["procedencia"]
     esquema = await asyncio.to_thread(D.esquema_para_modelo, ruta, proc, bool(proc.get("permiteLlmTerceros")))
     ctx.mutar(lambda e2: _estado_rep(e2, rep["id"], "en_curso", None, None, None), "reproduccion")
-    pista.accion(f"Plan de reproduccion de {rep['referencia']}: {rep['descripcion'][:100]}")
+    pista.accion(f"Plan de reproducción de {rep['referencia']}: {rep['descripcion'][:100]}")
     pp = await ctx.llamar(
         "cerebro",
         ctx.programas.planificar,
-        hipotesis=f"Reproducir el analisis publicado: {rep['referencia']} ({rep['doi'] or 'sin DOI'}). {rep['descripcion']}",
+        hipotesis=f"Reproducir el análisis publicado: {rep['referencia']} ({rep['doi'] or 'sin DOI'}). {rep['descripcion']}",
         prediccion_falsable=f"La cifra publicada es {rep['cifraPublicada']} = {rep['valorPublicado']}. El script debe imprimir RESULTADO valor_reproducido=<numero> con la misma definicion.",
         pregunta_pedida=f"Calcular exactamente: {rep['cifraPublicada']}",
         esquema_datos=esquema,
-        limites="Reproduccion: mismos criterios que la publicacion; ninguna variante nueva",
-        skills=SK.texto_para_prompt(SK.para_texto("reproduccion cifra publicada " + rep["descripcion"] + " " + esquema[:1500] + " " + ds.get("nombre", ""))),
+        limites="Reproducción: mismos criterios que la publicación; ninguna variante nueva",
+        skills=SK.texto_para_prompt(SK.para_texto("reproducción cifra publicada " + rep["descripcion"] + " " + esquema[:1500] + " " + ds.get("nombre", ""))),
     )
     p = pp.plan
     plan = P.nuevo_plan_analisis(ctx.investigacion_id, None, rep["datasetId"], P.ahora_ms(), tipo="reproduccion", pregunta=p.pregunta.strip(), variables=list(p.variables)[:12], poblacion=p.poblacion.strip(), preprocesado=list(p.preprocesado)[:10], prueba=p.prueba.strip(), hipotesisNula=p.hipotesis_nula.strip(), hipotesisAlternativa=p.hipotesis_alternativa.strip(), alpha=float(p.alpha), direccionEsperada=p.direccion_esperada.strip(), tamanoEfectoMinimo=p.tamano_efecto_minimo.strip(), baseline=p.baseline.strip(), controlNegativo=p.control_negativo.strip(), correccionMultiplicidad=p.correccion_multiplicidad.strip(), umbralEfecto=f"|valor_reproducido - {rep['valorPublicado']}| <= {rep['tolerancia']} * |{rep['valorPublicado']}|", criterioNoEvaluable=p.criterio_no_evaluable.strip(), semilla=12345, hashDatos=proc["hash"], autor=ctx.modelos.cerebro.model, reproduccionId=rep["id"], entorno=getattr(p, "entorno", "tabular") or "tabular")
@@ -486,7 +486,7 @@ async def reproducir(ctx, rep: dict[str, Any], pista: Pista) -> None:
         dentro = abs(valor - rep["valorPublicado"]) <= rep["tolerancia"] * max(abs(rep["valorPublicado"]), 1e-12)
         estado = "superada" if dentro else "fallida"
     ctx.mutar(lambda e2: _estado_rep(e2, rep["id"], estado, plan["id"], run["id"], None if estado != "error_tecnico" else (run.get("error") or "El script no imprimio RESULTADO valor_reproducido=<numero>: no se puede comparar con la cifra publicada"), valor), "reproduccion")
-    pista.resultado(f"Reproduccion {rep['referencia']}: {estado}" + (f" (obtenido {valor:g}, publicado {rep['valorPublicado']:g}, tolerancia {rep['tolerancia']:.0%})" if valor is not None else ""))
+    pista.resultado(f"Reproducción {rep['referencia']}: {estado}" + (f" (obtenido {valor:g}, publicado {rep['valorPublicado']:g}, tolerancia {rep['tolerancia']:.0%})" if valor is not None else ""))
 
 
 def _estado_rep(e: dict[str, Any], rep_id: str, estado: str, plan_id: str | None, run_id: str | None, error: str | None, valor: float | None = None) -> bool:
@@ -516,7 +516,7 @@ def _estado_rep(e: dict[str, Any], rep_id: str, estado: str, plan_id: str | None
                     if m["estado"] == "implementado":
                         m["estado"] = "probado_en_contexto"
                 else:
-                    m["fallosConocidos"] = (m["fallosConocidos"] + f" | Reproduccion fallida: {contexto}")[:600]
+                    m["fallosConocidos"] = (m["fallosConocidos"] + f" | Reproducción fallida: {contexto}")[:600]
                 m["actualizadoEn"] = P.ahora_ms()
     if inv and estado in ("superada", "fallida", "error_tecnico"):
         puerta = inv.setdefault("puertaReproduccion", P.puerta_reproduccion())
@@ -524,5 +524,5 @@ def _estado_rep(e: dict[str, Any], rep_id: str, estado: str, plan_id: str | None
         if puerta["estado"] != "eximida":
             puerta["estado"] = "abierta" if puerta["superadas"] >= puerta["requeridas"] else "bloqueada"
             puerta["fecha"] = P.ahora_ms()
-        A.con_evento(e, inv["id"], "analisis", f"Reproduccion {r['referencia']}: {estado}. Puerta: {puerta['superadas']} de {puerta['requeridas']} ({puerta['estado']})", f"#/investigaciones/{inv['id']}/investigacion", P.ahora_ms())
+        A.con_evento(e, inv["id"], "analisis", f"Reproducción {r['referencia']}: {estado}. Puerta: {puerta['superadas']} de {puerta['requeridas']} ({puerta['estado']})", f"#/investigaciones/{inv['id']}/investigacion", P.ahora_ms())
     return True

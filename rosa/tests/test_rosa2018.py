@@ -1,6 +1,6 @@
-"""Las piezas de ROSA2018 que no necesitan modelo: la decision del Killer
-por regla, los bloqueos y candidatos, las versiones, la mision, la puerta de
-reproduccion, el contrato de salida del sandbox y el dossier."""
+"""Las piezas de ROSA2018 que no necesitan modelo: la decisión del Killer
+por regla, los bloqueos y candidatos, las versiones, la misión, la puerta de
+reproducción, el contrato de salida del sandbox y el dossier."""
 
 import tempfile
 from pathlib import Path
@@ -103,7 +103,7 @@ def test_reformular_crea_version_y_respeta_el_limite(al):
     assert x["version"] == 2 and x["enunciado"] == "v2" and x["versiones"][0]["enunciado"].startswith("En portadores") and x["tarjeta"]["prediccionFalsable"] == "p"
     assert x["estado"] == "propuesta" and x["decisionKiller"] is None
     assert al.aplicar("reformularHipotesis", {"hipotesis_id": h, "cambios": {"enunciado": "v3"}, "quien": "Rosa", "motivo": "otra"}) is True
-    assert al.aplicar("reformularHipotesis", {"hipotesis_id": h, "cambios": {"enunciado": "v4"}, "quien": "Rosa", "motivo": "una mas"}) is False
+    assert al.aplicar("reformularHipotesis", {"hipotesis_id": h, "cambios": {"enunciado": "v4"}, "quien": "Rosa", "motivo": "una más"}) is False
     assert next(y for y in al.estado["hipotesis"] if y["id"] == h)["version"] == 3
 
 
@@ -124,7 +124,7 @@ def test_mision_se_aprueba_con_el_primer_plan(al):
 def test_puerta_eximir_exige_motivo_y_deja_aprendizaje_nivel_3(al):
     inv = _inv(al)
     assert al.aplicar("eximirPuerta", {"investigacion_id": inv, "motivo": "  ", "quien": "persona"}) is False
-    assert al.aplicar("eximirPuerta", {"investigacion_id": inv, "motivo": "demo con datos sinteticos", "quien": "persona"}) is True
+    assert al.aplicar("eximirPuerta", {"investigacion_id": inv, "motivo": "demo con datos sintéticos", "quien": "persona"}) is True
     assert al.estado["investigaciones"][0]["puertaReproduccion"]["estado"] == "eximida"
     assert al.estado["aprendizaje"][-1]["nivel"] == 3 and al.estado["aprendizaje"][-1]["tipo"] == "politica"
     assert al.aplicar("cerrarPuerta", {"investigacion_id": inv, "quien": "persona"}) is True
@@ -147,14 +147,14 @@ def test_pedir_analisis_exige_dataset_aprobado_con_hash(al):
 
 def test_aprendizaje_nivel_2_lo_promueve_una_persona(al):
     inv = _inv(al)
-    al.mutar(lambda e: e["aprendizaje"].append(P.nuevo_cambio_aprendizaje(inv, 2, "criterio", "Una cohorte no es replicacion", "debilidad:x", "propuesto", "Rosa", 1)) or True)
+    al.mutar(lambda e: e["aprendizaje"].append(P.nuevo_cambio_aprendizaje(inv, 2, "criterio", "Una cohorte no es replicación", "debilidad:x", "propuesto", "Rosa", 1)) or True)
     cid = al.estado["aprendizaje"][0]["id"]
-    assert "Una cohorte no es replicacion" not in al.estado["criteriosRevision"]
+    assert "Una cohorte no es replicación" not in al.estado["criteriosRevision"]
     assert al.aplicar("promoverAprendizaje", {"cambio_id": cid, "quien": "persona"}) is True
-    assert "Una cohorte no es replicacion" in al.estado["criteriosRevision"]
+    assert "Una cohorte no es replicación" in al.estado["criteriosRevision"]
     assert al.aplicar("promoverAprendizaje", {"cambio_id": cid, "quien": "persona"}) is False
     assert al.aplicar("revertirAprendizaje", {"cambio_id": cid, "quien": "persona", "motivo": "empeoro"}) is True
-    assert "Una cohorte no es replicacion" not in al.estado["criteriosRevision"]
+    assert "Una cohorte no es replicación" not in al.estado["criteriosRevision"]
     nivel3 = P.nuevo_cambio_aprendizaje(inv, 3, "politica", "x", "y", "aplicado", "persona", 1)
     al.mutar(lambda e: e["aprendizaje"].append(nivel3) or True)
     assert al.aplicar("revertirAprendizaje", {"cambio_id": nivel3["id"], "quien": "persona", "motivo": ""}) is False
@@ -188,7 +188,7 @@ def test_dossier_pone_los_bloqueos_en_la_primera_pagina(al):
     art = al.aplicar("generarDossier", {"hipotesis_id": h, "quien": "persona"})
     assert art
     texto = al.estado["artefactos"][-1]["versiones"][0]["contenido"]
-    assert texto.index("## 1. Decision") < texto.index("## 2. La hipotesis")
+    assert texto.index("## 1. Decisión") < texto.index("## 2. La hipótesis")
     assert "NO es candidata" in texto and "Trazabilidad insuficiente" in texto and "sin experimento interpretable" in texto.lower()
     assert al.estado["artefactos"][-1]["tipo"] == "dossier"
     assert next(x for x in al.estado["hipotesis"] if x["id"] == h)["dossierArtefactoId"] == art
@@ -331,7 +331,7 @@ def test_enmienda_fechada_y_protocolo_real(al):
     assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "hecho"}, "quien": "persona"}) is False  # sin asignar
     assert al.aplicar("asignarExperimento", {"hipotesis_id": h, "laboratorio": "Lab X"}) is True
     # Enmienda: guarda antes y despues, y actualiza el campo. Sin motivo no vale; campo raro tampoco.
-    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "GFAP al menos 20 % mayor", "motivo": "efecto minimo explicito", "quien": "persona"}) is True
+    assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "GFAP al menos 20 % mayor", "motivo": "efecto mínimo explícito", "quien": "persona"}) is True
     assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "confirma", "despues": "x", "motivo": "", "quien": "persona"}) is False
     assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "laboratorio", "despues": "x", "motivo": "m", "quien": "persona"}) is False
     x = next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"]
@@ -340,7 +340,7 @@ def test_enmienda_fechada_y_protocolo_real(al):
     assert al.aplicar("registrarProtocoloReal", {"hipotesis_id": h, "protocolo_real": {"texto": "Se midio GFAP con Simoa", "desviaciones": "n = 12 en vez de 20", "identidadMuestras": "lote 7, cohorte local, 2026"}, "quien": "persona"}) is True
     x = next(y for y in al.estado["hipotesis"] if y["id"] == h)["experimento"]
     t = A.texto_protocolo_real(x)
-    assert "n = 12" in t and "lote 7" in t and "ENMIENDAS FECHADAS" in t and "efecto minimo explicito" in t
+    assert "n = 12" in t and "lote 7" in t and "ENMIENDAS FECHADAS" in t and "efecto mínimo explícito" in t
     # Con resultado evaluado ya no se enmienda; registrar el protocolo real borra el resultado para reevaluar.
     al.mutar(lambda e: next(y for y in e["hipotesis"] if y["id"] == h)["experimento"].update(resultado={"veredicto": "confirma"}, ficheroDatos="d.csv") or True)
     assert al.aplicar("enmendarExperimento", {"hipotesis_id": h, "campo": "refuta", "despues": "otra", "motivo": "m", "quien": "persona"}) is False
@@ -384,10 +384,10 @@ def test_grafo_causal_identifica_por_regla():
 
     h = {"id": "h1", "investigacionId": "inv", "titulo": "GFAP sube antes que NfL en APOE4", "enunciado": "En portadores de APOE4 el GFAP en plasma sube antes que el NfL", "version": 1, "tarjeta": {"diana": "GFAP", "intervencion": "", "direccion": "sin_intervencion", "prediccionFalsable": "x"}, "comprobacion": {"biomarcador": "NfL"}, "afirmaciones": []}
     # Sin afirmaciones sostenidas: la exposicion es genetica (APOE4 en el enunciado) y nada mas.
-    g = causal.grafo_local(h, ["El NfL podria subir por la edad, causa comun", "Podria ser artefacto de la plataforma de medida"], None, 1)
+    g = causal.grafo_local(h, ["El NfL podría subir por la edad, causa común", "Podría ser artefacto de la plataforma de medida"], None, 1)
     assert g["identificacion"] == "acotado"
-    assert any("genetica" in c for c in g["supuestosCumplidos"])
-    assert any(f.startswith("Confusion") and "edad" in f for f in g["supuestosFaltantes"]) and any(f.startswith("Replicacion") for f in g["supuestosFaltantes"])
+    assert any("genética" in c for c in g["supuestosCumplidos"])
+    assert any(f.startswith("Confusión") and "edad" in f for f in g["supuestosFaltantes"]) and any(f.startswith("Replicación") for f in g["supuestosFaltantes"])
     roles = {n["rol"] for n in g["nodos"]}
     assert "alternativa_confusor" in roles and "alternativa_artefacto" in roles and "base" in roles
     tipos = {a["tipo"] for a in g["aristas"]}
@@ -512,7 +512,7 @@ def test_identificadores_resuelven_por_regla():
     assert c["identificadores_resuelven"]["resultado"] == "no_comprobable"
     c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "TREM2"}, "contextoBases": {"identificadores": {"simbolo": "TREM2", "ensembl": "ENSG00000095970", "uniprot": "Q9NZC2"}, "consultadoEn": 1}}, {})}
     assert c["identificadores_resuelven"]["resultado"] == "pasa" and "ENSG00000095970" in c["identificadores_resuelven"]["detalle"]
-    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "inflamacion glial"}, "contextoBases": {"identificadores": {}, "consultadoEn": 1}}, {})}
+    c = {d["comprobacion"]: d for d in K.comprobaciones_deterministas({**base, "tarjeta": {"diana": "inflamación glial"}, "contextoBases": {"identificadores": {}, "consultadoEn": 1}}, {})}
     assert c["identificadores_resuelven"]["resultado"] == "falla"
     # Una diana que no resuelve en las bases suspende: hace falta mejor evidencia, no un aviso.
     ok = [{"comprobacion": n, "resultado": "pasa", "detalle": ""} for n in ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "novedad", "falsabilidad", "direccion_causal", "factibilidad", "redundancia")]
@@ -543,7 +543,7 @@ def test_revisor_de_registro_por_regla(al):
     clases = sorted(x["clase"] for x in h2)
     assert clases == ["calculo_no_ejecutado", "contradiccion_con_registro", "identificador_no_coincide"]
     assert "999" in next(x for x in h2 if x["clase"] == "contradiccion_con_registro")["detalle"]
-    assert "no encontro discrepancias" in RR.resumen_revision([]).lower() and "3 hallazgos" in RR.resumen_revision(h2)
+    assert "no encontró discrepancias" in RR.resumen_revision([]).lower() and "3 hallazgos" in RR.resumen_revision(h2)
     assert "PLAN:" in RR.texto_registro(e, inv, it, c) and "AFIRMACIONES:" in RR.texto_registro(e, inv, it, c)
 
 
@@ -583,10 +583,10 @@ def test_permiso_conector_memoria_y_busqueda(al):
     # Memoria del proyecto: entra al texto de la mision.
     from rosa.bucle.pasos import _texto_mision
 
-    assert al.aplicar("anadirMemoria", {"investigacion_id": inv, "texto": "Solo datos publicos por ahora", "quien": "persona"}) is True
+    assert al.aplicar("anadirMemoria", {"investigacion_id": inv, "texto": "Solo datos públicos por ahora", "quien": "persona"}) is True
     assert al.aplicar("anadirMemoria", {"investigacion_id": inv, "texto": "   ", "quien": "persona"}) is False
     i = al.estado["investigaciones"][0]
-    assert "Solo datos publicos" in _texto_mision(i)
+    assert "Solo datos públicos" in _texto_mision(i)
     assert al.aplicar("quitarMemoria", {"investigacion_id": inv, "memoria_id": i["memoria"][0]["id"]}) is True and i["memoria"] == []
     # Busqueda en el proyecto: hipotesis, decisiones de persona frente a propuestas.
     h = _hip(al, inv)
@@ -613,7 +613,7 @@ def test_skills_se_activan_por_palabras_y_traen_scripts():
     assert SK.para_texto("nada que ver") == [] and SK.texto_para_prompt([]) == "Ninguna skill aplica"
     cel = SK.para_texto("control de calidad de un h5ad de SEA-AD por tipo celular")
     assert SK.entorno_de(cel) == "celula_unica"
-    sc = SK.scripts_de(SK.para_texto("tamano muestral con potencia 80 %"))
+    sc = SK.scripts_de(SK.para_texto("tamaño muestral con potencia 80 %"))
     assert "tamano_muestral.py" in sc and "def continuo" in sc["tamano_muestral.py"]
     cat = SK.catalogo()
     assert all("texto" not in c and c["lineas"] > 5 for c in cat)
@@ -645,7 +645,7 @@ def test_ejecucion_conoce_los_dos_entornos():
 def test_simbolos_de_genes_con_alias_y_siglas_que_no_son_genes():
     from rosa.bucle.pasos import simbolos_de_genes
 
-    assert simbolos_de_genes("Dependencia de dosis de APOE ε4 en GFAP y NfL plasmaticos; amiloide-PET; MCI; p-tau181") == ["APOE", "GFAP", "NEFL", "MAPT"]
+    assert simbolos_de_genes("Dependencia de dosis de APOE ε4 en GFAP y NfL plasmáticos; amiloide-PET; MCI; p-tau181") == ["APOE", "GFAP", "NEFL", "MAPT"]
     assert simbolos_de_genes("brecha GFAP-NfL en la cohorte BioFINDER (CA1 frente a CA3)") == ["GFAP", "NEFL"]
     assert simbolos_de_genes("sin diana") == []
 
@@ -653,9 +653,9 @@ def test_simbolos_de_genes_con_alias_y_siglas_que_no_son_genes():
 def test_skills_por_palabra_completa_y_contexto():
     from rosa import skills as SK
 
-    assert [s["nombre"] for s in SK.para_texto("regresion lineal sobre el area bajo la curva", contexto="analisis")] == []  # 'area' no activa la de mision en analisis
-    assert [s["nombre"] for s in SK.para_texto("mision y areas del programa", contexto="mision")] == ["eleccion-de-problema"]
-    assert "fila-de-evidencia" not in [s["nombre"] for s in SK.para_texto("evidencia de la hipotesis", contexto="analisis")]
+    assert [s["nombre"] for s in SK.para_texto("regresión lineal sobre el área bajo la curva", contexto="analisis")] == []  # 'area' no activa la de mision en analisis
+    assert [s["nombre"] for s in SK.para_texto("misión y áreas del programa", contexto="mision")] == ["eleccion-de-problema"]
+    assert "fila-de-evidencia" not in [s["nombre"] for s in SK.para_texto("evidencia de la hipótesis", contexto="analisis")]
 
 
 def test_resolver_hallazgo_del_revisor(al):
@@ -671,7 +671,7 @@ def test_resolver_hallazgo_del_revisor(al):
     from rosa import revisor_registro as RR
 
     t = RR.texto_registro(al.estado, inv, it, al.estado["corridas"][0])
-    assert "BUSQUEDAS DE LITERATURA" in t and "HIPOTESIS DE LA INVESTIGACION" in t and "CONSULTAS A BASES ESTRUCTURADAS" in t
+    assert "BÚSQUEDAS DE LITERATURA" in t and "HIPÓTESIS DE LA INVESTIGACIÓN" in t and "CONSULTAS A BASES ESTRUCTURADAS" in t
 
 
 # -- Espejo en Convex ---------------------------------------------------------------
@@ -796,7 +796,7 @@ def test_herramientas_rechazan_argumentos_inventados():
     t = next(t for t in hs if t.name == disponibles[0])
     props = CON.REGISTRO[disponibles[0]].esquema["properties"]
     salida = asyncio.run(t.func(**{k: "x" for k in props}, argumento_inventado="y"))
-    assert "ARGUMENTOS INVALIDOS" in salida and "argumento_inventado" in salida and registro == []
+    assert "ARGUMENTOS INVÁLIDOS" in salida and "argumento_inventado" in salida and registro == []
 
 
 def test_404_de_una_fuente_es_sin_registro_no_caida():
@@ -825,7 +825,7 @@ def test_skills_con_acentos_y_crlf():
 
     meta, cuerpo = SK._frontmatter("---\r\nname: x\r\ndescription: y\r\n---\r\ncuerpo\r\n")
     assert meta.get("name") == "x" and cuerpo.strip() == "cuerpo"
-    assert SK._sin_acentos("Expresión Diferencial") == "expresion diferencial"
+    assert SK._sin_acentos("Expresión Diferencial") == "expresion diferencial"  # sin tildes
 
 
 def test_borrar_criterio_por_texto():

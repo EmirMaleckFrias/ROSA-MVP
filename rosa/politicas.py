@@ -101,28 +101,28 @@ TARIFA_HORA_REVISION_USD = 60.0
 # ningun ciclo fisico sola y no pretende hacerlo.
 NIVEL_AUTONOMIA_DECLARADO = 2
 NIVELES_AUTONOMIA = (
-    {"nivel": 0, "nombre": "Sin autonomia", "definicion": "Todo el trabajo lo hacen personas."},
-    {"nivel": 1, "nombre": "Operacion asistida", "definicion": "Asistencia de maquina en tareas definidas (manipuladores de liquidos, software de analisis)."},
-    {"nivel": 2, "nombre": "Autonomia parcial", "definicion": "Asistencia cientifica proactiva: generacion de protocolos e hipotesis, al menos un paso intelectual automatizado. Las decisiones que tocan el mundo real las toma una persona."},
-    {"nivel": 3, "nombre": "Autonomia condicional", "definicion": "Minimo para llamarse laboratorio autonomo: al menos un ciclo completo del metodo cientifico sin intervencion salvo anomalias."},
-    {"nivel": 4, "nombre": "Alta autonomia", "definicion": "Genera protocolos, ejecuta experimentos, analiza y ajusta hipotesis con los resultados (Adam, Eve)."},
-    {"nivel": 5, "nombre": "Autonomia total", "definicion": "Automatizacion completa del metodo cientifico. No existe todavia."},
+    {"nivel": 0, "nombre": "Sin autonomía", "definicion": "Todo el trabajo lo hacen personas."},
+    {"nivel": 1, "nombre": "Operación asistida", "definicion": "Asistencia de maquina en tareas definidas (manipuladores de líquidos, software de análisis)."},
+    {"nivel": 2, "nombre": "Autonomía parcial", "definicion": "Asistencia científica proactiva: generación de protocolos e hipótesis, al menos un paso intelectual automatizado. Las decisiones que tocan el mundo real las toma una persona."},
+    {"nivel": 3, "nombre": "Autonomía condicional", "definicion": "Mínimo para llamarse laboratorio autónomo: al menos un ciclo completo del método científico sin intervención salvo anomalias."},
+    {"nivel": 4, "nombre": "Alta autonomía", "definicion": "Genera protocolos, ejecuta experimentos, analiza y ajusta hipótesis con los resultados (Adam, Eve)."},
+    {"nivel": 5, "nombre": "Autonomía total", "definicion": "Automatización completa del método científico. No existe todavía."},
 )
 
 
 def nivel_autonomia_texto() -> str:
     n = next(x for x in NIVELES_AUTONOMIA if x["nivel"] == NIVEL_AUTONOMIA_DECLARADO)
-    return f"Nivel {n['nivel']} de 5 ({n['nombre']}): {n['definicion']} Escala de Beal y Rogers (2020) usada por la revision de laboratorios autonomos de 2025."
+    return f"Nivel {n['nivel']} de 5 ({n['nombre']}): {n['definicion']} Escala de Beal y Rogers (2020) usada por la revisión de laboratorios autonomos de 2025."
 
 
 def puede_reformular(version: int) -> bool:
-    """`version` es la version actual de la hipotesis (1 al nacer). Se puede
-    reformular mientras la siguiente version no supere el limite."""
+    """`versión` es la versión actual de la hipótesis (1 al nacer). Se puede
+    reformular mientras la siguiente versión no supere el límite."""
     return version - 1 < MAX_REFORMULACIONES
 
 
 def resumen() -> dict[str, object]:
-    """Para la pantalla de Ajustes: las politicas tal como estan en codigo."""
+    """Para la pantalla de Ajustes: las políticas tal como están en código."""
     return {
         "maxHipotesisVivas": MAX_HIPOTESIS_VIVAS_POR_MISION,
         "maxEvaluacionesCostosas": MAX_EVALUACIONES_COSTOSAS,

@@ -65,7 +65,7 @@ def _numeros(texto: str) -> set[str]:
 
 
 def corpus_del_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, corrida: dict[str, Any] | None, hipotesis: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Todo lo que el registro sabe: numeros, identificadores y textos, para
+    """Todo lo que el registro sabe: números, identificadores y textos, para
     contrastar un resumen o un dossier."""
     textos: list[str] = []
     numeros: set[str] = set()
@@ -127,13 +127,13 @@ def comprobaciones_deterministas(texto: str, corpus: dict[str, Any], it: dict[st
     hallazgos: list[dict[str, Any]] = []
     sueltas = sorted(n for n in _numeros(texto) if n not in corpus["numeros"] and not any(abs(float(n) - float(x)) < 1e-9 for x in corpus["numeros"] if _es_num(x)))
     if sueltas:
-        hallazgos.append({"clase": "contradiccion_con_registro", "gravedad": "media", "detalle": f"Cifras del texto que no aparecen en ninguna afirmacion, ejecucion, hecho ni pista del registro: {', '.join(sueltas[:8])}" + (" ..." if len(sueltas) > 8 else ""), "origen": "regla"})
+        hallazgos.append({"clase": "contradiccion_con_registro", "gravedad": "media", "detalle": f"Cifras del texto que no aparecen en ninguna afirmación, ejecución, hecho ni pista del registro: {', '.join(sueltas[:8])}" + (" ..." if len(sueltas) > 8 else ""), "origen": "regla"})
     ident = {i.lower().rstrip(".") for i in _DOI.findall(texto) + _NCT.findall(texto) + _GSE.findall(texto) + _PMID.findall(texto)}
     faltan = sorted(i for i in ident if i not in corpus["ids"])
     if faltan:
-        hallazgos.append({"clase": "identificador_no_coincide", "gravedad": "alta", "detalle": "Identificadores citados que no estan en las fuentes, datasets ni consultas: " + ", ".join(faltan[:6]), "origen": "regla"})
+        hallazgos.append({"clase": "identificador_no_coincide", "gravedad": "alta", "detalle": "Identificadores citados que no están en las fuentes, datasets ni consultas: " + ", ".join(faltan[:6]), "origen": "regla"})
     if _EJECUCION.search(texto or "") and ejecuciones_ok == 0:
-        hallazgos.append({"clase": "calculo_no_ejecutado", "gravedad": "alta", "detalle": "El texto habla de ejecuciones, calculos o reproducciones y no hay ninguna ejecucion completada en el registro", "origen": "regla"})
+        hallazgos.append({"clase": "calculo_no_ejecutado", "gravedad": "alta", "detalle": "El texto habla de ejecuciones, cálculos o reproducciones y no hay ninguna ejecución completada en el registro", "origen": "regla"})
     if it:
         sin_terminar = [p for p in it.get("plan", []) if p.get("estado") not in ("hecho", "omitido")]
         if sin_terminar and not _RESERVA.search(texto or ""):
@@ -152,10 +152,10 @@ def _es_num(x: str) -> bool:
 def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, corrida: dict[str, Any] | None, hipotesis: dict[str, Any] | None = None, maximo: int = 9000) -> str:
     """El registro en texto para el juez: plan con estados, pistas, afirmaciones
     con veredicto, ejecuciones con cifras, reproducciones, consultas."""
-    lineas: list[str] = ["Nota: 'CONSULTAS A BASES ESTRUCTURADAS' son solo las llamadas a bases de genes, farmacos y datos (conectores). Las busquedas de literatura (PubMed, Europe PMC, OpenAlex) estan en 'BUSQUEDAS DE LITERATURA' con su base y su recuento."]
+    lineas: list[str] = ["Nota: 'CONSULTAS A BASES ESTRUCTURADAS' son solo las llamadas a bases de genes, fármacos y datos (conectores). Las búsquedas de literatura (PubMed, Europe PMC, OpenAlex) están en 'BÚSQUEDAS DE LITERATURA' con su base y su recuento."]
     if it:
         lineas.append("PLAN: " + "; ".join(f"{p.get('titulo', '')[:50]} [{p.get('estado')}]" for p in it.get("plan", [])))
-        lineas.append("PISTAS (una pista fallida seguida de otra hecha con el mismo titulo significa que el paso se retomo y termino): " + "; ".join(f"{p.get('titulo', '')[:40]} [{p.get('estado')}] {(p.get('resumen') or '')[:80]}" for p in it.get("pistas", [])[:20]))
+        lineas.append("PISTAS (una pista fallida seguida de otra hecha con el mismo título significa que el paso se retomó y terminó): " + "; ".join(f"{p.get('titulo', '')[:40]} [{p.get('estado')}] {(p.get('resumen') or '')[:80]}" for p in it.get("pistas", [])[:20]))
         busq = []
         for p in it.get("pistas", []):
             for ev in p.get("transcripcion", []) or []:
@@ -165,14 +165,14 @@ def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, co
         for q in (corrida or {}).get("busqueda", {}).get("consultas", []) or []:
             if not it or q.get("iteracion") == it.get("numero"):
                 busq.append(f"{q.get('base')}: {str(q.get('consulta', ''))[:60]} -> {q.get('resultados', '?')} resultados")
-        lineas.append("BUSQUEDAS DE LITERATURA: " + ("; ".join(busq[:30]) or "ninguna registrada en las pistas"))
+        lineas.append("BÚSQUEDAS DE LITERATURA: " + ("; ".join(busq[:30]) or "ninguna registrada en las pistas"))
     hips = [hipotesis] if hipotesis else [h for h in e.get("hipotesis", []) if h["investigacionId"] == inv_id]
-    lineas.append("HIPOTESIS DE LA INVESTIGACION (titulo [estado, decision del Killer, iteracion en que nacio]): " + ("; ".join(f"{h.get('titulo', '')[:90]} [{h.get('estado')}, {h.get('decisionKiller')}, it {h.get('iteracion')}]" for h in hips[:20]) or "ninguna"))
+    lineas.append("HIPÓTESIS DE LA INVESTIGACIÓN (título [estado, decisión del Killer, iteración en que nació]): " + ("; ".join(f"{h.get('titulo', '')[:90]} [{h.get('estado')}, {h.get('decisionKiller')}, it {h.get('iteracion')}]" for h in hips[:20]) or "ninguna"))
     if it and not hipotesis:
         nuevas = [h for h in hips if h.get("iteracion") == it.get("numero")]
-        lineas.append(f"HIPOTESIS NUEVAS EN ESTA ITERACION: {len(nuevas)} (" + "; ".join(h.get("titulo", "")[:60] for h in nuevas) + "); en cola (propuestas o en revision) al cerrar: " + str(sum(1 for h in hips if h.get("estado") in ("propuesta", "en_revision"))))
+        lineas.append(f"HIPÓTESIS NUEVAS EN ESTA ITERACIÓN: {len(nuevas)} (" + "; ".join(h.get("titulo", "")[:60] for h in nuevas) + "); en cola (propuestas o en revisión) al cerrar: " + str(sum(1 for h in hips if h.get("estado") in ("propuesta", "en_revision"))))
         hechos_it = [x for x in e.get("hechos", []) if x["investigacionId"] == inv_id and x.get("actualizadoEn", 0) >= it.get("empezadaEn", 0)]
-        lineas.append(f"HECHOS NUEVOS O ACTUALIZADOS EN ESTA ITERACION: {len(hechos_it)}")
+        lineas.append(f"HECHOS NUEVOS O ACTUALIZADOS EN ESTA ITERACIÓN: {len(hechos_it)}")
     afs = list((corrida or {}).get("_afirmaciones", [])) if not hipotesis else list(hipotesis.get("afirmaciones", []))
     if it and not hipotesis:
         afs = [a for a in afs if a.get("iteracion") == it.get("numero")]
@@ -192,7 +192,7 @@ def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, co
 
 def resumen_revision(hallazgos: list[dict[str, Any]]) -> str:
     if not hallazgos:
-        return "El revisor no encontro discrepancias entre lo dicho y el registro"
+        return "El revisor no encontró discrepancias entre lo dicho y el registro"
     por = {}
     for h in hallazgos:
         por[h["clase"]] = por.get(h["clase"], 0) + 1

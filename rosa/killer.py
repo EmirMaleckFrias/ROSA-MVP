@@ -1,24 +1,24 @@
 """El Hypothesis Killer (ROSA2018, etapa 4): la parte sin modelo.
 
-El Killer es una lista de comprobaciones fija. Unas las resuelve Rosa aqui,
+El Killer es una lista de comprobaciones fija. Unas las resuelve Rosa aquí,
 de forma determinista, con lo que ya tiene (veredictos del verificador,
-cohortes de las fuentes, la comprobacion de novedad con recuperacion); las
+cohortes de las fuentes, la comprobación de novedad con recuperación); las
 otras las hace el juez (Opus 5, de otra familia que el generador) con la
-firma `MatarHipotesis`. La decision no la da ningun modelo: se deriva de los
-resultados con `decidir`, siguiendo la regla que salio de la investigacion
+firma `MatarHipotesis`. La decisión no la da ningún modelo: se deriva de los
+resultados con `decidir`, siguiendo la regla que salió de la investigación
 del 11 de septiembre de 2026:
 
 - descartar en este contexto solo si falla la evidencia misma: citas que no
   resuelven, afirmaciones no sostenidas, o un supuesto del que depende la
-  hipotesis contradicho;
-- reformular si falla algo arreglable: direccion causal, falsabilidad,
+  hipótesis contradicho;
+- reformular si falla algo arreglable: dirección causal, falsabilidad,
   factibilidad, redundancia;
-- suspender (no evaluable) si una comprobacion critica quedo sin poder
-  comprobarse porque una fuente no respondio o falta el dato;
-- avanzar solo si nada critico falla y hay prediccion falsable.
+- suspender (no evaluable) si una comprobación crítica quedó sin poder
+  comprobarse porque una fuente no respondió o falta el dato;
+- avanzar solo si nada critico falla y hay predicción falsable.
 
-Separar deteccion de decision evita el fallo documentado en revisores LLM
-que senalan el problema y aun asi aprueban.
+Separar detección de decisión evita el fallo documentado en revisores LLM
+que señalan el problema y aun así aprueban.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     # 1. Citas reales: ninguna afirmacion con cita que no resuelve o sin cita.
     rotas = [a for a in afs if a["veredicto"] in ("cita_no_resuelve", "sin_cita")]
     if not afs:
-        c.append({"comprobacion": "citas_reales", "resultado": "falla", "detalle": "La hipotesis no cita ninguna afirmacion"})
+        c.append({"comprobacion": "citas_reales", "resultado": "falla", "detalle": "La hipótesis no cita ninguna afirmación"})
     elif rotas:
         c.append({"comprobacion": "citas_reales", "resultado": "falla", "detalle": f"{len(rotas)} afirmaciones con cita que no resuelve o sin cita: " + "; ".join(a["texto"][:80] for a in rotas[:3])})
     else:
@@ -90,7 +90,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     if no_sost:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "falla", "detalle": f"{len(no_sost)} afirmaciones que la fuente no sostiene" + (" (una es dato de otra entidad)" if any(a.get("entidadDistinta") for a in no_sost) else "") + ": " + "; ".join(a["texto"][:80] for a in no_sost[:3])})
     elif afs and sin_ver and not sostenidas:
-        c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(sin_ver)} afirmaciones sin verificar todavia (el juez no dictamino)"})
+        c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(sin_ver)} afirmaciones sin verificar todavía (el juez no dictamino)"})
     elif sostenidas:
         parciales = sum(1 for a in sostenidas if a["veredicto"] == "parcial")
         # Cifras del texto que no aparecen en el pasaje citado: el verificador pudo
@@ -98,9 +98,9 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         # comprobacion en no_comprobable (suspender) para que alguien la mire.
         desviadas = [(a["texto"][:70], falt) for a in sostenidas for falt in [cifras_fuera_del_pasaje(a.get("texto", ""), a.get("fragmento", ""))] if falt]
         if desviadas:
-            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(desviadas)} afirmaciones con cifras que no estan en su pasaje: " + "; ".join(f"'{t}' ({', '.join(f)})" for t, f in desviadas[:3])})
+            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(desviadas)} afirmaciones con cifras que no están en su pasaje: " + "; ".join(f"'{t}' ({', '.join(f)})" for t, f in desviadas[:3])})
         else:
-            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones estan sostenidas por su fuente y sus cifras aparecen en el pasaje" + (f"; {parciales} solo parcialmente" if parciales else "")})
+            c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones están sostenidas por su fuente y sus cifras aparecen en el pasaje" + (f"; {parciales} solo parcialmente" if parciales else "")})
     else:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": "Sin afirmaciones verificadas"})
     # 3. Supuestos: falla solo si un supuesto necesario esta CONTRADICHO por la
@@ -116,7 +116,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     elif not sups:
         c.append({"comprobacion": "supuestos", "resultado": "pasa", "detalle": "Sin supuestos declarados"})
     else:
-        c.append({"comprobacion": "supuestos", "resultado": "pasa", "detalle": f"Ningun supuesto contradicho; {len(sin_ev)} sin evidencia todavia" + (": " + "; ".join(x["texto"][:70] for x in sin_ev[:3]) if sin_ev else "")})
+        c.append({"comprobacion": "supuestos", "resultado": "pasa", "detalle": f"Ningún supuesto contradicho; {len(sin_ev)} sin evidencia todavía" + (": " + "; ".join(x["texto"][:70] for x in sin_ev[:3]) if sin_ev else "")})
     # 4. Independencia de cohortes: por nombre de cohorte y, cuando no lo hay,
     # por autores compartidos, mismo centro y periodo cercano.
     cohortes = cohortes_de(h)
@@ -124,7 +124,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     primarias = [f for f in fuentes if f.get("tipoEstudio") not in ("revision_narrativa", "revision_sistematica", "otro")]
     grupos, pistas_misma = grupos_de_cohorte(fuentes)
     if len(fuentes) <= 1:
-        c.append({"comprobacion": "independencia_cohortes", "resultado": "falla" if fuentes else "no_aplica", "detalle": "Una sola fuente: no hay replicacion independiente" if fuentes else "Sin fuentes"})
+        c.append({"comprobacion": "independencia_cohortes", "resultado": "falla" if fuentes else "no_aplica", "detalle": "Una sola fuente: no hay replicación independiente" if fuentes else "Sin fuentes"})
     elif len(cohortes) >= 2:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "pasa", "detalle": f"{len(cohortes)} cohortes distintas: " + ", ".join(cohortes)})
     elif len(cohortes) == 1 and len(grupos) == 1:
@@ -144,9 +144,9 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     elif ids.get("ensembl"):
         c.append({"comprobacion": "identificadores_resuelven", "resultado": "pasa", "detalle": f"{ids.get('simbolo') or diana}: Ensembl {ids.get('ensembl')}, UniProt {ids.get('uniprot') or 'sin entrada revisada'}"})
     elif ctxb.get("consultadoEn") and not ids.get("ensembl"):
-        c.append({"comprobacion": "identificadores_resuelven", "resultado": "falla", "detalle": f"'{diana}' no resuelve a un gen humano en MyGene: la diana es un proceso, un texto libre o un simbolo mal escrito; hay que nombrarla con identificador"})
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "falla", "detalle": f"'{diana}' no resuelve a un gen humano en MyGene: la diana es un proceso, un texto libre o un símbolo mal escrito; hay que nombrarla con identificador"})
     else:
-        c.append({"comprobacion": "identificadores_resuelven", "resultado": "no_comprobable", "detalle": "Las bases no se han consultado todavia para esta diana"})
+        c.append({"comprobacion": "identificadores_resuelven", "resultado": "no_comprobable", "detalle": "Las bases no se han consultado todavía para esta diana"})
     # 8. Novedad con recuperacion.
     n = h.get("novedad", {})
     prec = n.get("precedente", {})
@@ -196,7 +196,7 @@ def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]
             for d in salida:
                 if d["comprobacion"] == nombre and d["resultado"] == "pasa":
                     d["resultado"] = "no_comprobable"
-                    d["detalle"] = f"El juez discrepa de la comprobacion por regla: {c['detalle'][:200]}"
+                    d["detalle"] = f"El juez discrepa de la comprobación por regla: {c['detalle'][:200]}"
             continue
         if nombre in hechas:
             continue
@@ -207,29 +207,29 @@ def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]
 
 
 def decidir(comprobaciones: list[dict[str, str]], tiene_prediccion: bool, version: int) -> tuple[str, str]:
-    """(decision, motivo). Regla fija; ningun modelo la escribe."""
+    """(decisión, motivo). Regla fija; ningún modelo la escribe."""
     por_nombre = {c["comprobacion"]: c for c in comprobaciones}
     fallan = [c for c in comprobaciones if c["resultado"] == "falla"]
     fallan_descarte = [c for c in fallan if c["comprobacion"] in DESCARTAN]
     if fallan_descarte:
-        return "descartar_en_contexto", "La evidencia no sostiene la hipotesis: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_descarte)
+        return "descartar_en_contexto", "La evidencia no sostiene la hipótesis: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_descarte)
     no_comp = [c for c in comprobaciones if c["resultado"] == "no_comprobable" and c["comprobacion"] in CRITICAS]
     fallan_suspenden = [c for c in fallan if c["comprobacion"] in SUSPENDEN]
     fallan_reform = [c for c in fallan if c["comprobacion"] in REFORMULAN]
     if not tiene_prediccion and "falsabilidad" not in {c["comprobacion"] for c in fallan_reform}:
-        fallan_reform.append({"comprobacion": "falsabilidad", "resultado": "falla", "detalle": "La tarjeta no tiene prediccion falsable"})
+        fallan_reform.append({"comprobacion": "falsabilidad", "resultado": "falla", "detalle": "La tarjeta no tiene predicción falsable"})
     if fallan_reform:
         if not politicas.puede_reformular(version):
-            return "descartar_en_contexto", f"Agoto las {politicas.MAX_REFORMULACIONES} reformulaciones de la politica y sigue fallando: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in fallan_reform)
+            return "descartar_en_contexto", f"Agotó las {politicas.MAX_REFORMULACIONES} reformulaciones de la política y sigue fallando: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in fallan_reform)
         return "reformular", "Arreglable reescribiendo: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_reform)
     if fallan_suspenden:
-        return "suspender", "Hace falta mas o mejor evidencia antes de seguir: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_suspenden)
+        return "suspender", "Hace falta más o mejor evidencia antes de seguir: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in fallan_suspenden)
     if no_comp:
-        return "suspender", "No evaluable todavia: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in no_comp)
+        return "suspender", "No evaluable todavía: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:120]}" for c in no_comp)
     otras = [c for c in fallan if c["comprobacion"] not in DESCARTAN + REFORMULAN + SUSPENDEN]
-    nota = ("Avanza con avisos: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in otras)) if otras else "Pasa todas las comprobaciones criticas y tiene prediccion falsable"
+    nota = ("Avanza con avisos: " + "; ".join(f"{c['comprobacion']}: {c['detalle'][:100]}" for c in otras)) if otras else "Pasa todas las comprobaciones críticas y tiene predicción falsable"
     if por_nombre.get("independencia_cohortes", {}).get("resultado") == "falla":
-        nota += ". Una sola cohorte: la certeza queda limitada hasta que haya replicacion independiente"
+        nota += ". Una sola cohorte: la certeza queda limitada hasta que haya replicación independiente"
     return "avanzar", nota
 
 
@@ -238,22 +238,22 @@ def texto_tarjeta(h: dict[str, Any]) -> str:
     if not t:
         return "Tarjeta: sin rellenar"
     return (
-        f"Tarjeta: diana o proceso {t.get('diana') or 'sin especificar'}; celula o tejido {t.get('celula') or 'sin especificar'}; etapa {t.get('etapa') or 'sin especificar'}; "
-        f"intervencion {t.get('intervencion') or 'ninguna'} ({t.get('direccion', 'sin_intervencion')}); prediccion falsable: {t.get('prediccionFalsable') or 'NINGUNA'}; "
-        f"riesgos: {'; '.join(t.get('riesgos', [])) or 'ninguno declarado'}; paso de la ruta terapeutica: {t.get('pasoRuta', 'mecanismo')}"
+        f"Tarjeta: diana o proceso {t.get('diana') or 'sin especificar'}; célula o tejido {t.get('celula') or 'sin especificar'}; etapa {t.get('etapa') or 'sin especificar'}; "
+        f"intervención {t.get('intervencion') or 'ninguna'} ({t.get('direccion', 'sin_intervencion')}); predicción falsable: {t.get('prediccionFalsable') or 'NINGUNA'}; "
+        f"riesgos: {'; '.join(t.get('riesgos', [])) or 'ninguno declarado'}; paso de la ruta terapéutica: {t.get('pasoRuta', 'mecanismo')}"
     )
 
 
 def muestrear_para_auditoria(indice: int) -> bool:
-    """Que descartes se auditan: uno de cada k segun la fraccion de la
-    politica, determinista por el orden en que llegan (auditable, sin azar)."""
+    """Qué descartes se auditan: uno de cada k según la fracción de la
+    política, determinista por el orden en que llegan (auditable, sin azar)."""
     k = max(1, round(1 / politicas.FRACCION_DESCARTES_AUDITADOS))
     return indice % k == 0
 
 
 def sospechoso_inyeccion(texto: str) -> bool:
-    """Patrones de instruccion dirigida al modelo dentro de un fragmento. No
-    bloquea (falsos positivos en texto tecnico); marca para ensenarlo."""
+    """Patrones de instrucción dirigida al modelo dentro de un fragmento. No
+    bloquea (falsos positivos en texto técnico); marca para ensenarlo."""
     t = (texto or "").lower()
     patrones = [r"ignore (all |the )?(previous|above|prior) instructions", r"\bsystem prompt\b", r"\bas an ai\b", r"you must (now )?(respond|answer|output)", r"\bassistant:\s", r"disregard (all|the) (previous|above)", r"\bprompt injection\b", r"</?\s*(system|assistant|instruction)s?\s*>"]
     return any(re.search(p, t) for p in patrones)
@@ -283,9 +283,9 @@ def _palabras_centro(centro: str | None) -> set[str]:
 
 def posible_misma_cohorte(f1: dict[str, Any], f2: dict[str, Any]) -> str:
     """Un motivo si dos fuentes primarias sin cohorte nombrada parecen salir
-    de la misma muestra: dos o mas autores comunes, o el mismo centro, y
-    publicadas con pocos anos de diferencia. Cadena vacia si no hay pista.
-    Es una heuristica: sirve para no contar dos veces, nunca para descartar."""
+    de la misma muestra: dos o más autores comunes, o el mismo centro, y
+    publicadas con pocos años de diferencia. Cadena vacía si no hay pista.
+    Es una heurística: sirve para no contar dos veces, nunca para descartar."""
     if any((f.get("cohorte") or "") for f in (f1, f2)) and (f1.get("cohorte") or "").lower() != (f2.get("cohorte") or "").lower():
         return ""  # cohortes nombradas y distintas: son independientes
     a1 = {a.lower() for a in f1.get("autores") or []}
@@ -296,16 +296,16 @@ def posible_misma_cohorte(f1: dict[str, Any], f2: dict[str, Any]) -> str:
     c1, c2 = _palabras_centro(f1.get("centro")), _palabras_centro(f2.get("centro"))
     mismo_centro = len(c1 & c2) >= 2
     if len(comunes) >= 2 and cerca:
-        return f"{f1.get('referencia')} y {f2.get('referencia')} comparten autores ({', '.join(x.title() for x in comunes[:3])}) y periodo"
+        return f"{f1.get('referencia')} y {f2.get('referencia')} comparten autores ({', '.join(x.title() for x in comunes[:3])}) y período"
     if mismo_centro and cerca and comunes:
-        return f"{f1.get('referencia')} y {f2.get('referencia')} salen del mismo centro ({', '.join(sorted(c1 & c2)[:2])}) con un autor comun y periodo cercano"
+        return f"{f1.get('referencia')} y {f2.get('referencia')} salen del mismo centro ({', '.join(sorted(c1 & c2)[:2])}) con un autor común y período cercano"
     return ""
 
 
 def grupos_de_cohorte(fuentes: list[dict[str, Any]]) -> tuple[list[list[str]], list[str]]:
     """Agrupa las fuentes primarias que probablemente son la misma cohorte:
-    por nombre de cohorte igual o por la heuristica de autores y centro.
-    Devuelve los grupos (ids) y los motivos de cada union heuristica."""
+    por nombre de cohorte igual o por la heurística de autores y centro.
+    Devuelve los grupos (ids) y los motivos de cada unión heurística."""
     prim = [f for f in fuentes if f.get("tipoEstudio") not in ("revision_narrativa", "revision_sistematica", "otro")] or list(fuentes)
     padre = {f["id"]: f["id"] for f in prim}
 
@@ -341,7 +341,7 @@ _UNIDADES = re.compile(r"\b(pg|ng|ug|µg|mg|pmol|nmol|umol|µmol|fmol)\s*/\s*(m?
 
 
 def direccion_de(texto: str) -> str:
-    """'sube', 'baja' o '' segun las palabras del texto; '' si hay las dos o ninguna."""
+    """'sube', 'baja' o '' según las palabras del texto; '' si hay las dos o ninguna."""
     s, b = bool(_SUBE.search(texto or "")), bool(_BAJA.search(texto or ""))
     return "sube" if s and not b else "baja" if b and not s else ""
 
@@ -366,13 +366,13 @@ def consistencia_medidas(h: dict[str, Any]) -> list[dict[str, str]]:
     dirs = [direccion_de(a.get("texto", "")) for a in relevantes]
     dirs = [d for d in dirs if d]
     if not relevantes or not dirs:
-        salida.append({"comprobacion": "direccion_evidencia", "resultado": "no_aplica", "detalle": "Sin afirmaciones sostenidas con direccion sobre el biomarcador" if bio else "Sin biomarcador ni afirmaciones con direccion"})
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "no_aplica", "detalle": "Sin afirmaciones sostenidas con dirección sobre el biomarcador" if bio else "Sin biomarcador ni afirmaciones con dirección"})
     elif "sube" in dirs and "baja" in dirs:
         salida.append({"comprobacion": "direccion_evidencia", "resultado": "falla", "detalle": f"Las fuentes sostenidas van en direcciones opuestas sobre {bio or 'la medida'} ({dirs.count('sube')} suben, {dirs.count('baja')} bajan): hay que decir en que contexto sube y en cual baja"})
     elif dir_enunciado and all(d != dir_enunciado for d in dirs):
-        salida.append({"comprobacion": "direccion_evidencia", "resultado": "falla", "detalle": f"El enunciado dice que {bio or 'la medida'} {dir_enunciado} y todas las afirmaciones sostenidas dicen que {dirs[0]}: direccion invertida"})
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "falla", "detalle": f"El enunciado dice que {bio or 'la medida'} {dir_enunciado} y todas las afirmaciones sostenidas dicen que {dirs[0]}: dirección invertida"})
     else:
-        salida.append({"comprobacion": "direccion_evidencia", "resultado": "pasa", "detalle": f"{len(dirs)} afirmaciones con direccion {dirs[0]}" + (", igual que el enunciado" if dir_enunciado else "")})
+        salida.append({"comprobacion": "direccion_evidencia", "resultado": "pasa", "detalle": f"{len(dirs)} afirmaciones con dirección {dirs[0]}" + (", igual que el enunciado" if dir_enunciado else "")})
     unidades = sorted({unidad_de(a.get("efecto", "") or a.get("texto", "")) for a in relevantes} - {""})
     if len(unidades) >= 2:
         salida.append({"comprobacion": "unidades", "resultado": "falla", "detalle": "Las cifras sobre " + (bio or "la medida") + " vienen en unidades distintas (" + ", ".join(unidades) + "): comparar solo tras convertir"})

@@ -69,7 +69,7 @@ async def texto_completo(pmcid: str) -> list[dict[str, str]]:
     secciones: list[dict[str, str]] = []
     for sec in raiz.iter("sec"):
         titulo_el = sec.find("title")
-        titulo = "".join(titulo_el.itertext()).strip() if titulo_el is not None else "Sin titulo"
+        titulo = "".join(titulo_el.itertext()).strip() if titulo_el is not None else "Sin título"
         parrafos = ["".join(p.itertext()).strip() for p in sec.findall("p")]
         texto = "\n".join(p for p in parrafos if p)
         if texto:

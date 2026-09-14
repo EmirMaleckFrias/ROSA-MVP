@@ -44,7 +44,7 @@ def _texto(el: ET.Element | None) -> str:
 
 
 async def detalles(pmids: list[str]) -> list[dict[str, Any]]:
-    """Articulos con: pmid, doi, pmcid, titulo, autores, referencia, anio,
+    """Artículos con: pmid, doi, pmcid, título, autores, referencia, anio,
     revista, resumen, tipos (lista de PublicationType)."""
     if not pmids:
         return []

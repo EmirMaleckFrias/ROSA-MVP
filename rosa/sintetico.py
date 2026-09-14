@@ -1,16 +1,16 @@
-"""Datos sinteticos con la forma de un dataset real, para el ensayo en seco.
+"""Datos sintéticos con la forma de un dataset real, para el ensayo en seco.
 
-Antes de gastar una ejecucion sobre los datos reales, el plan de analisis
+Antes de gastar una ejecución sobre los datos reales, el plan de análisis
 congelado se corre sobre una tabla inventada con las mismas columnas y los
-mismos tipos (numeros en el rango observado, categorias del mismo conjunto,
-identificadores y fechas plausibles). Asi se detectan variables mal
+mismos tipos (números en el rango observado, categorías del mismo conjunto,
+identificadores y fechas plausibles). Así se detectan variables mal
 nombradas, particiones imposibles o pruebas inaplicables sin tocar los
-datos reales y sin gastar el presupuesto de reparacion sobre ellos. No es un
-gemelo digital: la tabla no conserva ninguna relacion entre columnas, y por
+datos reales y sin gastar el presupuesto de reparación sobre ellos. No es un
+gemelo digital: la tabla no conserva ninguna relación entre columnas, y por
 eso sus cifras nunca cuentan como resultado.
 
-Todo es local: el fichero real se lee en esta maquina y ningun valor sale
-hacia un modelo. La tabla sintetica lleva marca en el nombre y en la
+Todo es local: el fichero real se lee en esta maquina y ningún valor sale
+hacia un modelo. La tabla sintética lleva marca en el nombre y en la
 primera fila de comentario del plan.
 """
 
@@ -29,7 +29,7 @@ MAX_CATEGORIAS = 40
 
 
 def _perfil_columnas(cabecera: list[str], filas: list[list[str]]) -> list[dict[str, Any]]:
-    """Por columna: tipo, rango numerico o conjunto de categorias, fraccion de vacios."""
+    """Por columna: tipo, rango numérico o conjunto de categorías, fracción de vacíos."""
     perfil = []
     for i, col in enumerate(cabecera):
         valores = [f[i] if i < len(f) else "" for f in filas]
@@ -77,7 +77,7 @@ def _valor(p: dict[str, Any], rng: random.Random, i: int) -> str:
         return f"{p['prefijo']}{i + 1:05d}"
     if t == "categorica":
         return rng.choices(p["categorias"], weights=p["pesos"], k=1)[0]
-    return "texto sintetico " + "".join(rng.choice("abcdefghij") for _ in range(min(12, max(3, p.get("longitud", 8)))))
+    return "texto sintético " + "".join(rng.choice("abcdefghij") for _ in range(min(12, max(3, p.get("longitud", 8)))))
 
 
 def generar(ruta_real: Path, destino: Path, filas: int = FILAS_POR_DEFECTO, semilla: int = 12345) -> dict[str, Any]:
@@ -86,7 +86,7 @@ def generar(ruta_real: Path, destino: Path, filas: int = FILAS_POR_DEFECTO, semi
     rangos y categorias). Lanza ValueError si el fichero real no es tabular."""
     tabla = D._leer_tabla(ruta_real)
     if tabla is None:
-        raise ValueError("el dataset real no es una tabla legible: no se puede fabricar una sintetica")
+        raise ValueError("el dataset real no es una tabla legible: no se puede fabricar una sintética")
     cabecera, filas_reales = tabla
     perfil = _perfil_columnas(cabecera, filas_reales)
     rng = random.Random(semilla)

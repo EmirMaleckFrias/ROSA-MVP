@@ -162,8 +162,14 @@ una frase, solo, si/sí, paso/pasó, cambio/cambió, valido/validó,
 critico/criticó, publico/publicó, cortes/cortés, este/esté. Esas se escriben
 a mano (y una pasada temprana las estropeó: "se le crítico", "los cortés").
 Los textos que genera el backend en Python (eventos, dossier, pistas,
-frases GRADE) no pasan por este script: allí las mismas palabras viven en
-claves, expresiones regulares y textos, y necesitan una pasada aparte.
+frases GRADE) tienen su propia pasada, `python3 scripts/acentuar_py.py` en la
+raíz del repositorio: usa el mismo diccionario y las mismas reglas, pero
+recorre los ficheros con `tokenize` para tocar solo los literales de cadena
+(nunca comentarios ni código), deja fuera las cadenas crudas (expresiones
+regulares), el SQL y las que llevan `_ $ / \ < > | * ^ [ ]`, y en las
+f-strings solo acentúa el texto fuera de las llaves (contando la profundidad,
+para no tocar `{(inv or {}).get('titulo')}`). Una línea con el comentario
+`# sin tildes` se respeta tal cual.
 
 Cómo se completó el diccionario. Cada palabra visible se pasó por un
 diccionario de frecuencias del castellano (`pyspellchecker`, en el venv del

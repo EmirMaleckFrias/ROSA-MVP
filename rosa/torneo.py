@@ -31,7 +31,7 @@ def actualizar(elo_a: float, elo_b: float, gano_a: bool) -> tuple[int, int]:
 
 
 def emparejar(hipotesis: list[dict[str, Any]], maximo: int = 6, semilla: int | None = None) -> list[tuple[dict, dict]]:
-    """Pares para esta ronda: primero cada hipotesis sin partidos contra una
+    """Pares para esta ronda: primero cada hipótesis sin partidos contra una
     del top, luego pares de Elo cercano que no se hayan enfrentado ya."""
     vivas = [h for h in hipotesis if h["estado"] in ("propuesta", "en_revision", "refinar", "aceptada")]
     if len(vivas) < 2:
@@ -76,7 +76,7 @@ def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None,
         for r in h["revisionesAutomaticas"]:
             if r["tipo"] == "torneo":
                 r["estado"] = "hecha" if r["estado"] == "pendiente" else "rehecha"
-                r["resumen"] = f"Partido en la iteracion {iteracion} contra {rival['titulo'][:60]}: {'gano' if gano else ('tablas' if gano is None else 'perdio')}."
+                r["resumen"] = f"Partido en la iteración {iteracion} contra {rival['titulo'][:60]}: {'gano' if gano else ('tablas' if gano is None else 'perdio')}."
                 r["fecha"] = None
 
 
@@ -87,8 +87,8 @@ def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None,
 
 def _partidos_unicos(hipotesis: list[dict[str, Any]]) -> list[tuple[str, str]]:
     """(ganador, perdedor) por cada partido decidido. Cada partido se guarda en
-    las dos hipotesis (gano en una, perdio en la otra), asi que basta con los
-    'gano'. Las tablas no cuentan."""
+    las dos hipótesis (ganó en una, perdió en la otra), así que basta con los
+    'ganó'. Las tablas no cuentan."""
     ids = {h["id"] for h in hipotesis}
     pares = []
     for h in hipotesis:
@@ -99,8 +99,8 @@ def _partidos_unicos(hipotesis: list[dict[str, Any]]) -> list[tuple[str, str]]:
 
 
 def _ajustar_bt(ids: list[str], pares: list[tuple[str, str]], iteraciones: int = 200) -> dict[str, float]:
-    """Algoritmo de minorizacion y maximizacion de Hunter (2004) para las
-    fuerzas de Bradley-Terry, con un suavizado minimo para que una hipotesis
+    """Algoritmo de minorización y maximización de Hunter (2004) para las
+    fuerzas de Bradley-Terry, con un suavizado mínimo para que una hipótesis
     invicta o sin victorias no se vaya a infinito o a cero."""
     import math
 
@@ -130,9 +130,9 @@ def _ajustar_bt(ids: list[str], pares: list[tuple[str, str]], iteraciones: int =
 
 
 def bradley_terry(hipotesis: list[dict[str, Any]], remuestras: int = 200, semilla: int = 0) -> dict[str, dict[str, Any]]:
-    """Fuerza de cada hipotesis en escala Elo (1500 + 400 log10 p) con un
+    """Fuerza de cada hipótesis en escala Elo (1500 + 400 log10 p) con un
     intervalo del 95 % por bootstrap de los partidos. Con menos de dos
-    partidos decididos no hay estimacion. El Elo se conserva como vista; esto
+    partidos decididos no hay estimación. El Elo se conserva como vista; esto
     es lo que ordena a las candidatas."""
     import math
 
