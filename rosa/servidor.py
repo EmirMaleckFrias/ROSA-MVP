@@ -30,6 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from rosa import config
+from rosa.estado import plantilla as P
 from rosa.estado.almacen import ACCIONES, Almacen
 
 

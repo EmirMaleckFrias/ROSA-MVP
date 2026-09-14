@@ -73,3 +73,43 @@ def test_presupuesto_corta_antes_de_llamar():
     assert presupuesto_ok(al, c_id) is True
     al.mutar(lambda e: next(c for c in e["corridas"] if c["id"] == c_id)["gasto"].update(llamadas=10**6) or True)
     assert presupuesto_ok(al, c_id) is False
+
+
+def test_prisma_rocrate_costes_e_integridad_responden(cliente):
+    """Los endpoints nuevos se prueban de punta a punta: un import que falte
+    solo se ve al llamarlos."""
+    import io
+    import json
+    import zipfile
+
+    from rosa.estado import plantilla as P
+
+    c, al = cliente
+    r = c.post("/api/acciones/crearInvestigacion", json={"datos": {"titulo": "T", "objetivo": "O", "condicionParada": "1 iteraciones"}}, headers={"X-Rosa": "1"})
+    assert r.status_code == 200
+    inv_id = al.estado["investigaciones"][0]["id"]
+
+    def sembrar(e):
+        cor = P.nueva_corrida(inv_id, 1, 1)
+        cor["busqueda"]["consultas"] = [{"base": "PubMed", "consulta": "GFAP", "fecha": 1000, "resultados": 3, "iteracion": 1, "tema": "t"}]
+        e["corridas"].append(cor)
+        h = P.nueva_hipotesis(inv_id, 1, 1, titulo="H", enunciado="E", mecanismo="M")
+        e["hipotesis"].append(h)
+        return True
+
+    al.mutar(sembrar, "prueba")
+    cor_id = al.estado["corridas"][0]["id"]
+    hip_id = al.estado["hipotesis"][0]["id"]
+    r = c.get(f"/api/corridas/{cor_id}/prisma")
+    assert r.status_code == 200 and r.json()["prisma"] == "2020" and r.json()["flujo"]["database_results"] == 3
+    r = c.get(f"/api/hipotesis/{hip_id}/rocrate")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/zip")
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert "ro-crate-metadata.json" in z.namelist() and json.loads(z.read("prov.json"))["agent"]
+    r = c.get(f"/api/investigaciones/{inv_id}/costes")
+    assert r.status_code == 200 and r.json()["hipotesis"] == 1
+    r = c.get("/api/registro/integridad")
+    assert r.status_code == 200 and r.json()["ok"]
+    r = c.get("/api/calidad/acuerdo")
+    assert r.status_code == 200 and r.json()["casos"] == 0
+    assert c.get("/api/corridas/nada/prisma").status_code == 404 and c.get("/api/hipotesis/nada/rocrate").status_code == 404
