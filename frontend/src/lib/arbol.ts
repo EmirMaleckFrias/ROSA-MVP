@@ -94,10 +94,16 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
     anadir({ id: `area-${a.id}`, tipo: 'area', etiqueta: a.titulo, sub: a.familiaMecanismo, peso: 2, iteracion: 0, estado: a.estado, href: rutaDe(inv.id, 'investigacion') });
     enlazar('objetivo', `area-${a.id}`, 'rama');
   }
+  // Una rama solo cuando agrupa dos o mas hipotesis: un cluster con una sola
+  // hipotesis no aporta nada como nodo y llenaba el arbol de circulos con
+  // texto pegado. Esas hipotesis cuelgan directamente del tronco.
   const clusters = [...new Set(hip.map((h) => h.cluster || 'Sin cluster'))];
+  const conRama = new Set<string>();
   for (const c of clusters) {
     const n = hip.filter((h) => (h.cluster || 'Sin cluster') === c);
-    anadir({ id: `rama-${c}`, tipo: 'rama', etiqueta: c, sub: `${n.length} ${n.length === 1 ? 'hipotesis' : 'hipotesis'}`, peso: 2 + Math.min(3, n.length) * 0.4, iteracion: Math.min(...n.map((h) => h.iteracion)), href: rutaDe(inv.id, 'ranking') });
+    if (n.length < 2) continue;
+    conRama.add(c);
+    anadir({ id: `rama-${c}`, tipo: 'rama', etiqueta: c, sub: `${n.length} hipotesis`, peso: 2 + Math.min(3, n.length) * 0.4, iteracion: Math.min(...n.map((h) => h.iteracion)), href: rutaDe(inv.id, 'ranking') });
     enlazar('objetivo', `rama-${c}`, 'rama');
     // Un area cuyo titulo o familia coincide con el cluster lo adopta.
     const area = (inv.mision?.areas ?? []).find((a) => a.titulo.toLowerCase() === c.toLowerCase() || a.familiaMecanismo.toLowerCase() === c.toLowerCase());
@@ -106,8 +112,8 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   for (const h of hip) {
     const bloqueos = h.bloqueos ?? [];
     const alerta = h.estado === 'descartada' ? 'descartada' : h.decisionKiller === 'descartar_en_contexto' ? 'el Killer propone descartar' : bloqueos.length ? `${bloqueos.length} ${bloqueos.length === 1 ? 'bloqueo' : 'bloqueos'}` : undefined;
-    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo, sub: `Elo ${h.elo}${h.candidata ? ' · candidata' : ''}`, peso: 1.5 + Math.max(0, (h.elo - 1300) / 200), iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
-    enlazar(`rama-${h.cluster || 'Sin cluster'}`, h.id, 'rama');
+    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo, sub: `${h.cluster || 'Sin cluster'} · Elo ${h.elo}${h.candidata ? ' · candidata' : ''}`, peso: 1.5 + Math.max(0, (h.elo - 1300) / 200), iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
+    enlazar(conRama.has(h.cluster || 'Sin cluster') ? `rama-${h.cluster || 'Sin cluster'}` : 'objetivo', h.id, 'rama');
     if (h.experimento && h.experimento.estado !== 'propuesto') {
       anadir({ id: `ex-${h.id}`, tipo: 'experimento', etiqueta: h.experimento.laboratorio ? `Experimento en ${h.experimento.laboratorio}` : 'Experimento', sub: h.experimento.estado.replace('_', ' ') + (h.experimento.prerregistradoEn ? ' · prerregistrado' : ''), peso: 2, iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.experimento.estado });
       enlazar(h.id, `ex-${h.id}`, 'experimento');
@@ -227,7 +233,15 @@ export interface Posicion {
   fijo?: boolean;
 }
 
-const LARGO: Record<TipoEnlace, number> = { rama: 120, cita: 70, respalda: 80, entidad: 70, causal: 110, rival: 150, experimento: 80 };
+const LARGO: Record<TipoEnlace, number> = { rama: 170, cita: 80, respalda: 95, entidad: 85, causal: 130, rival: 190, experimento: 100 };
+
+/** Anchura aproximada de la etiqueta de un nodo (en unidades del lienzo), para
+ *  que las fuerzas dejen sitio al texto y no solo al circulo. */
+export function anchoEtiqueta(n: NodoArbol): number {
+  const chars = Math.min(n.etiqueta.length, 30);
+  const tam = n.tipo === 'objetivo' ? 7 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 5.8 : 5;
+  return chars * tam;
+}
 
 export function posicionInicial(g: Grafo, posiciones: Map<string, Posicion>, id: string, semilla: number): Posicion {
   // Nace junto a un vecino ya colocado (el arbol crece desde la rama), o en un anillo.
@@ -257,10 +271,25 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
         dy = (Math.random() - 0.5) * 2;
         d2 = 1;
       }
-      const f = (2600 * (pa + pb) * 0.5 * alfa) / d2;
+      const f = (3400 * (pa + pb) * 0.5 * alfa) / d2;
       const d = Math.sqrt(d2);
-      const fx = (dx / d) * f;
-      const fy = (dy / d) * f;
+      let fx = (dx / d) * f;
+      let fy = (dy / d) * f;
+      // Colision de etiquetas: si las cajas de texto (bajo cada circulo) se
+      // solapan, se empujan aparte, mas en horizontal que en vertical.
+      const na = g.porId.get(ids[i]!);
+      const nb = g.porId.get(ids[j]!);
+      if (na && nb && na.tipo !== 'fuente' && nb.tipo !== 'fuente') {
+        const sx = (anchoEtiqueta(na) + anchoEtiqueta(nb)) / 2 + 8;
+        const sy = 30;
+        const ox = sx - Math.abs(dx);
+        const oy = sy - Math.abs(dy);
+        if (ox > 0 && oy > 0) {
+          const k = 0.35 * alfa;
+          fx += Math.sign(dx || 1) * ox * k;
+          fy += Math.sign(dy || 1) * oy * k * 0.6;
+        }
+      }
       if (!a.fijo) {
         a.vx += fx;
         a.vy += fy;

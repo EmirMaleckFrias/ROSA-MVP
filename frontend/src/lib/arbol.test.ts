@@ -10,14 +10,17 @@ describe('el arbol de la investigacion', () => {
 
   it('tiene tronco, ramas y hojas, y ningun enlace suelto', () => {
     expect(g.porId.get('objetivo')?.tipo).toBe('objetivo');
-    expect(g.nodos.filter((n) => n.tipo === 'rama').length).toBeGreaterThan(0);
+    const clustersConVarias = new Set(hip.map((h) => h.cluster || 'Sin cluster').filter((c, _, arr) => arr.filter((x) => x === c).length >= 2));
+    expect(g.nodos.filter((n) => n.tipo === 'rama').length).toBe(clustersConVarias.size);
     expect(g.nodos.filter((n) => n.tipo === 'hipotesis').length).toBe(hip.length);
     for (const en of g.enlaces) {
       expect(g.porId.has(en.de), en.de).toBe(true);
       expect(g.porId.has(en.a), en.a).toBe(true);
     }
     // Cada hipotesis cuelga de su rama; cada fuente citada existe una sola vez.
-    for (const h of hip) expect(g.enlaces.some((en) => en.tipo === 'rama' && en.a === h.id)).toBe(true);
+    for (const h of hip) expect(g.enlaces.some((en) => en.tipo === 'rama' && en.a === h.id && (en.de === 'objetivo' || en.de.startsWith('rama-')))).toBe(true);
+    // Una rama existe solo si agrupa dos o mas hipotesis.
+    for (const r of g.nodos.filter((n) => n.tipo === 'rama')) expect(g.enlaces.filter((en) => en.de === r.id && en.tipo === 'rama').length).toBeGreaterThanOrEqual(2);
     const fuentes = g.nodos.filter((n) => n.tipo === 'fuente').map((n) => n.id);
     expect(new Set(fuentes).size).toBe(fuentes.length);
   });

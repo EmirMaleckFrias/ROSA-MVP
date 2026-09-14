@@ -40,33 +40,89 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
   const [, setTick] = useState(0);
   const alfa = useRef(1);
   const semilla = useRef(1);
-  useEffect(() => {
-    // Los nodos nuevos nacen junto a un vecino colocado; los que se van, se olvidan.
-    for (const id of visibles) if (!posiciones.current.has(id)) posiciones.current.set(id, posicionInicial(grafo, posiciones.current, id, semilla.current++));
-    for (const id of [...posiciones.current.keys()]) if (!visibles.has(id)) posiciones.current.delete(id);
-    alfa.current = 1;
-    if (quieto) {
-      for (let i = 0; i < 240; i++) paso(grafo, visibles, posiciones.current, Math.max(0.05, 1 - i / 240));
-      setTick((t) => t + 1);
-      return;
-    }
-    let vivo = true;
-    let marco = 0;
+  const marco = useRef<number | null>(null);
+  // Un bucle de animacion que se enfria solo y se puede reavivar (al
+  // arrastrar un nodo, al desplegar): como el "animate" del grafo de Obsidian.
+  const arrancar = (energia = 1) => {
+    alfa.current = Math.max(alfa.current, energia);
+    if (marco.current !== null) return;
     const animar = () => {
-      if (!vivo) return;
       for (let k = 0; k < 2; k++) paso(grafo, visibles, posiciones.current, alfa.current);
       alfa.current = Math.max(0.02, alfa.current * 0.975);
       setTick((t) => t + 1);
-      marco++;
-      if (alfa.current > 0.03 && marco < 400) requestAnimationFrame(animar);
+      if (alfa.current > 0.03) marco.current = requestAnimationFrame(animar);
+      else marco.current = null;
     };
-    const id = requestAnimationFrame(animar);
+    marco.current = requestAnimationFrame(animar);
+  };
+  const firmaAnterior = useRef('');
+  useEffect(() => {
+    // Los nodos nuevos nacen junto a un vecino colocado; los que se van, se olvidan.
+    let cambio = false;
+    for (const id of visibles) {
+      if (!posiciones.current.has(id)) {
+        posiciones.current.set(id, posicionInicial(grafo, posiciones.current, id, semilla.current++));
+        cambio = true;
+      }
+    }
+    for (const id of [...posiciones.current.keys()]) {
+      if (!visibles.has(id)) {
+        posiciones.current.delete(id);
+        cambio = true;
+      }
+    }
+    // El estado de Rosa cambia cada pocos segundos por SSE y reconstruye el grafo:
+    // si el conjunto de nodos no cambio, no se vuelve a agitar el arbol.
+    const firma = [...visibles].sort().join('|');
+    const primera = firmaAnterior.current === '';
+    firmaAnterior.current = firma;
+    if (quieto) {
+      if (cambio || primera) {
+        for (let i = 0; i < 240; i++) paso(grafo, visibles, posiciones.current, Math.max(0.05, 1 - i / 240));
+        setTick((t) => t + 1);
+      }
+      return;
+    }
+    if (cambio || primera) {
+      alfa.current = 0;
+      arrancar(primera ? 1 : 0.6);
+    }
     return () => {
-      vivo = false;
-      cancelAnimationFrame(id);
+      if (marco.current !== null) cancelAnimationFrame(marco.current);
+      marco.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grafo, visibles, quieto]);
-  return posiciones.current;
+  return { posiciones: posiciones.current, reavivar: (energia = 0.4) => (quieto ? setTick((t) => t + 1) : arrancar(energia)) };
+}
+
+/** Cuanto se ve la etiqueta de un nodo segun el zoom y su importancia (el
+ *  "text fade threshold" del grafo de Obsidian): el tronco siempre; ramas,
+ *  hipotesis y experimentos desde un zoom normal; lo pequeno solo al acercar,
+ *  o si esta iluminado o seleccionado. */
+function opacidadEtiqueta(n: NodoArbol, k: number, vivo: boolean, sel: boolean): number {
+  if (sel) return 1;
+  const umbral = n.tipo === 'objetivo' ? 0 : n.tipo === 'rama' || n.tipo === 'area' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 0.75 : 1.5;
+  const base = Math.max(0, Math.min(1, (k - umbral) / 0.35 + 1));
+  return vivo ? Math.max(base, n.tipo === 'fuente' || n.tipo === 'entidad' || n.tipo === 'hecho' || n.tipo === 'pregunta' ? 0.9 : 1) : base;
+}
+
+/** Parte una etiqueta en hasta dos lineas de unos 22 caracteres. */
+function lineas(texto: string, maximo = 22): string[] {
+  if (texto.length <= maximo) return [texto];
+  const palabras = texto.split(' ');
+  const salida: string[] = [];
+  let actual = '';
+  for (const p of palabras) {
+    if ((actual + ' ' + p).trim().length > maximo && actual) {
+      salida.push(actual);
+      actual = p;
+      if (salida.length === 2) break;
+    } else actual = (actual + ' ' + p).trim();
+  }
+  if (salida.length < 2 && actual) salida.push(actual);
+  if (salida.length === 2 && salida.join(' ').length < texto.length) salida[1] = `${salida[1]!.slice(0, maximo - 3)}...`;
+  return salida;
 }
 
 export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa }) {
@@ -77,11 +133,22 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const [texto, setTexto] = useState('');
   const [hasta, setHasta] = useState<number>(grafo.iteracionMax);
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
+  const [hover, setHover] = useState<string | null>(null);
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const reducido = useMovimientoReducido();
   const svgRef = useRef<SVGSVGElement>(null);
   const ancho = 900;
   const alto = 560;
+  // Coordenadas del lienzo a partir de un evento del puntero (para el zoom al
+  // cursor y para arrastrar nodos con la vista movida).
+  const enLienzo = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const caja = svg.getBoundingClientRect();
+    const escala = ancho / caja.width;
+    return { x: (clientX - caja.left) * escala - ancho / 2, y: (clientY - caja.top) * escala - alto / 2 };
+  };
 
   // Si el estado trae nodos nuevos (una hipotesis nueva), entran solos al arbol.
   useEffect(() => {
@@ -97,28 +164,90 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
-  const posiciones = useSimulacion(grafo, enTiempo, reducido);
+  const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido);
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
-  const vecinosSel = useMemo(() => (seleccion ? new Set(grafo.vecinos.get(seleccion) ?? []) : null), [grafo, seleccion]);
-  const atenuar = iluminados.size > 0 || seleccion !== null;
-  const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : seleccion === null || seleccion === id || (vecinosSel?.has(id) ?? false));
+  // Resaltar al pasar el raton (como Obsidian): el nodo y sus vecinos vivos, el resto atenuado.
+  const foco = hover ?? seleccion;
+  const vecinosFoco = useMemo(() => (foco ? new Set(grafo.vecinos.get(foco) ?? []) : null), [grafo, foco]);
+  const atenuar = iluminados.size > 0 || foco !== null;
+  const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : foco === null || foco === id || (vecinosFoco?.has(id) ?? false));
 
-  const alRueda = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    setVista((v) => ({ ...v, k: Math.max(0.3, Math.min(3, v.k * factor)) }));
-  };
+  // La rueda va con un oyente nativo no pasivo: React registra onWheel como
+  // pasivo y preventDefault no haria nada (la pagina haria scroll).
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const alRueda = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const p = enLienzo(e.clientX, e.clientY);
+      setVista((v) => {
+        const k = Math.max(0.25, Math.min(4, v.k * factor));
+        // Zoom alrededor del cursor: el punto bajo el raton no se mueve.
+        return { k, x: p.x - ((p.x - v.x) * k) / v.k, y: p.y - ((p.y - v.y) * k) / v.k };
+      });
+    };
+    svg.addEventListener('wheel', alRueda, { passive: false });
+    return () => svg.removeEventListener('wheel', alRueda);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const empezarArrastre = (e: React.PointerEvent) => {
-    if ((e.target as Element).closest('.arbol-nodo')) return;
+    const nodo = (e.target as Element).closest('.arbol-nodo') as SVGGElement | null;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    if (nodo) {
+      const id = nodo.getAttribute('data-id');
+      const p = id ? posiciones.get(id) : undefined;
+      if (id && p) {
+        arrastreNodo.current = { id, x0: e.clientX, y0: e.clientY, movido: false };
+        p.fijo = true;
+      }
+      return;
+    }
     arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y };
   };
   const mover = (e: React.PointerEvent) => {
+    if (arrastreNodo.current) {
+      const a = arrastreNodo.current;
+      const p = posiciones.get(a.id);
+      if (!p) return;
+      if (Math.hypot(e.clientX - a.x0, e.clientY - a.y0) > 4) a.movido = true;
+      const l = enLienzo(e.clientX, e.clientY);
+      // Del lienzo a las coordenadas del grafo (deshaciendo la vista).
+      p.x = (l.x - vista.x) / vista.k;
+      p.y = (l.y - vista.y) / vista.k;
+      p.vx = 0;
+      p.vy = 0;
+      reavivar(0.35); // los vecinos siguen al que se arrastra
+      return;
+    }
     if (!arrastre.current) return;
     const a = arrastre.current;
     setVista((v) => ({ ...v, x: a.vx + (e.clientX - a.x), y: a.vy + (e.clientY - a.y) }));
   };
   const soltar = () => {
+    if (arrastreNodo.current) {
+      const p = posiciones.get(arrastreNodo.current.id);
+      if (p && arrastreNodo.current.id !== 'objetivo') p.fijo = false;
+      // Un arrastre no es un clic: si se movio, no se despliega ni se selecciona.
+      const movido = arrastreNodo.current.movido;
+      arrastreNodo.current = null;
+      if (movido) {
+        reavivar(0.3);
+        ultimoArrastreMovido.current = true;
+        return;
+      }
+    }
     arrastre.current = null;
+  };
+  const ultimoArrastreMovido = useRef(false);
+  const pulsar = (n: NodoArbol, detalle: number) => {
+    if (ultimoArrastreMovido.current) {
+      ultimoArrastreMovido.current = false;
+      return;
+    }
+    if (detalle > 1) return; // la segunda pulsacion de un doble clic no vuelve a plegar
+    setSeleccion(n.id);
+    setVisibles((v) => alternar(grafo, v, n.id));
   };
 
   if (hip.length === 0 && estado.hechos.filter((h) => h.investigacionId === inv.id).length === 0) {
@@ -142,7 +271,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Arbol de la investigacion</h2>
-          <p>El objetivo es el tronco; las ramas son los clusters de mecanismo; las hojas, las hipotesis; alrededor, lo que las sostiene. Pulsa un nodo para desplegar lo que toca; dos veces para abrir su ficha. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipotesis; las hojas, las hipotesis; alrededor, lo que las sostiene. Pasa el raton por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demas lo siguen). Las etiquetas pequenas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
         </div>
         <div className="acciones">
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el arbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el arbol" />
@@ -156,7 +285,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       </div>
 
       <div className="arbol-marco">
-        <svg ref={svgRef} className="arbol" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Arbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onWheel={alRueda} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerLeave={soltar}>
+        <svg ref={svgRef} className="arbol" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Arbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
           <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
             {enlacesVisibles.map((e) => {
               const a = posiciones.get(e.de)!;
@@ -170,16 +299,22 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
               const vivo = destacado(n.id);
               const sel = seleccion === n.id;
+              const opEt = opacidadEtiqueta(n, vista.k, vivo && atenuar, sel || hover === n.id);
+              const filas = lineas(n.etiqueta);
               return (
-                <g key={n.id} className={`arbol-nodo arbol-${n.tipo} ${vivo ? '' : 'arbol-atenuado'} ${sel ? 'arbol-seleccionado' : ''}`} transform={`translate(${p.x} ${p.y})`} onClick={() => { setSeleccion(n.id); setVisibles((v) => alternar(grafo, v, n.id)); }} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') { setSeleccion(n.id); setVisibles((v) => alternar(grafo, v, n.id)); } }}>
+                <g key={n.id} data-id={n.id} className={`arbol-nodo arbol-${n.tipo} ${vivo ? '' : 'arbol-atenuado'} ${sel ? 'arbol-seleccionado' : ''}`} transform={`translate(${p.x} ${p.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
                   {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
                   <circle r={r} fill={COLOR[n.tipo]} stroke={n.alerta ? 'var(--red)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : undefined} />
                   {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
-                  {(n.tipo !== 'fuente' && n.tipo !== 'entidad') || vivo ? (
-                    <text y={r + 12} textAnchor="middle" className="arbol-etiqueta" style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 11 : 9.5 }}>
-                      {n.etiqueta.length > 34 ? `${n.etiqueta.slice(0, 32)}...` : n.etiqueta}
+                  {opEt > 0.02 && (
+                    <text y={r + 11} textAnchor="middle" className="arbol-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 10.5 : 9 }}>
+                      {filas.map((f, i) => (
+                        <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
+                          {f}
+                        </tspan>
+                      ))}
                     </text>
-                  ) : null}
+                  )}
                 </g>
               );
             })}

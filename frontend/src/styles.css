@@ -3736,7 +3736,7 @@ mark.fuerte {
 }
 
 .arbol-nodo {
-  cursor: pointer;
+  cursor: grab;
   transition: opacity var(--dur-2) var(--ease-salida);
   animation: brotar var(--dur-3) var(--ease-salida);
   transform-box: fill-box;
@@ -3773,6 +3773,7 @@ mark.fuerte {
 }
 
 .arbol-etiqueta {
+  transition: opacity var(--dur-2) var(--ease-salida);
   fill: var(--text);
   font-family: var(--font-sans);
   font-weight: 500;
