@@ -15,13 +15,13 @@ import { rutaDe, type Pantalla } from '../lib/ruta';
 export type Etapa = 'plan' | 'literatura' | 'verificar' | 'mundo' | 'hipotesis' | 'candidatas' | 'laboratorio';
 
 export const ETAPAS: { clave: Etapa; nombre: string; corto: string; explicacion: string; pantalla: Pantalla; detalle?: string }[] = [
-  { clave: 'plan', nombre: 'Plan', corto: 'Plan', explicacion: 'Rosa propone el plan de la iteracion y espera tu aprobacion antes de ejecutar nada.', pantalla: 'corrida' },
-  { clave: 'literatura', nombre: 'Buscar literatura', corto: 'Literatura', explicacion: 'Consultas a PubMed, Europe PMC, ensayos clinicos y bases curadas. Cada consulta queda registrada con fecha.', pantalla: 'corrida' },
+  { clave: 'plan', nombre: 'Plan', corto: 'Plan', explicacion: 'Rosa propone el plan de la iteración y espera tu aprobación antes de ejecutar nada.', pantalla: 'corrida' },
+  { clave: 'literatura', nombre: 'Buscar literatura', corto: 'Literatura', explicacion: 'Consultas a PubMed, Europe PMC, ensayos clínicos y bases curadas. Cada consulta queda registrada con fecha.', pantalla: 'corrida' },
   { clave: 'verificar', nombre: 'Verificar afirmaciones', corto: 'Verificar', explicacion: 'Cada afirmacion extraida se contrasta con su pasaje literal; el juez decide si la fuente la sostiene.', pantalla: 'corrida' },
   { clave: 'mundo', nombre: 'Modelo de mundo', corto: 'Mundo', explicacion: 'Lo sostenido entra como hecho con su procedencia; lo abierto queda como pregunta. Se ve como arbol: que sostiene a que.', pantalla: 'arbol' },
-  { clave: 'hipotesis', nombre: 'Hipotesis y Killer', corto: 'Hipotesis', explicacion: 'Rosa genera hipotesis, el Killer las somete a catorce comprobaciones y tu decides sobre las que quedan en la cola.', pantalla: 'hipotesis' },
+  { clave: 'hipotesis', nombre: 'Hipótesis y Killer', corto: 'Hipótesis', explicacion: 'Rosa genera hipótesis, el Killer las somete a catorce comprobaciones y tu decides sobre las que quedan en la cola.', pantalla: 'hipotesis' },
   { clave: 'candidatas', nombre: 'Candidatas', corto: 'Candidatas', explicacion: 'El torneo (Elo y Bradley-Terry) y los bloqueos deciden cuales llegan al laboratorio: hasta tres por ciclo.', pantalla: 'ranking' },
-  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y Rosa actualiza su conclusion. Aqui se ven solo las hipotesis que estan en ese tramo.', pantalla: 'hipotesis', detalle: 'laboratorio' },
+  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y Rosa actualiza su conclusión. Aquí se ven solo las hipótesis que están en ese tramo.', pantalla: 'hipotesis', detalle: 'laboratorio' },
 ];
 
 const ETAPA_POR_PISTA: Record<TipoPista, Etapa> = {
@@ -90,7 +90,7 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
   const datosPendientes = inv.datasets.filter((d) => d.estado === 'pendiente').length;
   if (datosPendientes > 0) esperan.mundo = (esperan.mundo ?? 0) + datosPendientes;
   const cuentas: Partial<Record<Etapa, string>> = {
-    plan: it ? `iteracion ${it.numero}` : '',
+    plan: it ? `iteración ${it.numero}` : '',
     literatura: corrida ? `${corrida.busqueda.cribados} fuentes` : '',
     verificar: afirmaciones.length ? `${sostenidas} de ${afirmaciones.length} sostenidas` : '',
     mundo: hechos.length ? `${hechos.length} hechos` : '',
@@ -106,7 +106,7 @@ export function HiloDelProceso({ estado, inv, pantalla, detalleId = null, compac
   const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0] ?? null;
   const hilo = estadoDelHilo(estado, inv, corrida);
   return (
-    <nav className={`hilo ${compacto ? 'hilo-compacto' : ''}`} aria-label="Etapas de la investigacion">
+    <nav className={`hilo ${compacto ? 'hilo-compacto' : ''}`} aria-label="Etapas de la investigación">
       {ETAPAS.map((e, i) => {
         const activa = hilo.activa === e.clave;
         const hecha = hilo.hechas.has(e.clave) && !activa;
@@ -123,7 +123,7 @@ export function HiloDelProceso({ estado, inv, pantalla, detalleId = null, compac
               {!compacto && hilo.cuentas[e.clave] && <span className="hilo-cuenta">{hilo.cuentas[e.clave]}</span>}
             </span>
             {espera > 0 && (
-              <span className="hilo-aviso" title="Espera una decision tuya">
+              <span className="hilo-aviso" title="Espera una decisión tuya">
                 {espera}
               </span>
             )}

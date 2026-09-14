@@ -39,7 +39,7 @@ function TarjetaHallazgo({ h }: { h: HallazgoRevisor }) {
 
 export function Revisor({ hallazgos }: { hallazgos: HallazgoRevisor[] }) {
   const [todo, setTodo] = useState(false);
-  if (hallazgos.length === 0) return <p className="meta">El revisor no encontro nada que objetar. Eso no sustituye a tu lectura.</p>;
+  if (hallazgos.length === 0) return <p className="meta">El revisor no encontró nada que objetar. Eso no sustituye a tu lectura.</p>;
   const { visibles, ocultos } = hallazgosVisibles(hallazgos, todo);
   return (
     <div className="hallazgos">

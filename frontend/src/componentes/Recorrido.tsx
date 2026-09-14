@@ -14,32 +14,32 @@ const CLAVE = 'rosa.recorrido.v1';
 export const PASOS: { titulo: string; texto: string; pista: string; etapa: number | null }[] = [
   {
     titulo: 'Rosa investiga; tu decides',
-    texto: 'Rosa lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipotesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
+    texto: 'Rosa lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
     pista: 'El hilo de arriba muestra siempre en que etapa esta y que te espera.',
     etapa: null,
   },
   {
     titulo: 'La corrida en vivo',
-    texto: 'Cada iteracion empieza con un plan que Rosa propone y tu apruebas (puedes reordenar, quitar o anadir pasos). Despues ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
-    pista: 'Si algo va mal, Rosa abre una incidencia o pide permiso: se resuelven ahi mismo.',
+    texto: 'Cada iteración empieza con un plan que Rosa propone y tu apruebas (puedes reordenar, quitar o añadir pasos). Después ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
+    pista: 'Si algo va mal, Rosa abre una incidencia o pide permiso: se resuelven ahí mismo.',
     etapa: 1,
   },
   {
-    titulo: 'La cola de hipotesis y el Killer',
-    texto: 'Las hipotesis llegan a la cola ordenadas por Elo. Abres una, ves su tarjeta, sus afirmaciones verificadas y lo que dijo el Killer comprobacion por comprobacion, y decides: aceptar, descartar o pedir que la refine. Tienes unos segundos para deshacer.',
-    pista: 'Marca en cada comprobacion si el juez acierta: asi se calibra.',
+    titulo: 'La cola de hipótesis y el Killer',
+    texto: 'Las hipótesis llegan a la cola ordenadas por Elo. Abres una, ves su tarjeta, sus afirmaciones verificadas y lo que dijo el Killer comprobación por comprobación, y decides: aceptar, descartar o pedir que la refine. Tienes unos segundos para deshacer.',
+    pista: 'Marca en cada comprobación si el juez acierta: así se calibra.',
     etapa: 4,
   },
   {
     titulo: 'Candidatas, laboratorio y prerregistro',
-    texto: 'El torneo entre hipotesis y los bloqueos no compensables deciden cuales son candidatas (hasta tres por ciclo). Al asignar una a un laboratorio, el protocolo y los criterios se congelan en un prerregistro sellado por un tercero, y el dossier sale listo.',
+    texto: 'El torneo entre hipótesis y los bloqueos no compensables deciden cuales son candidatas (hasta tres por ciclo). Al asignar una a un laboratorio, el protocolo y los criterios se congelan en un prerregistro sellado por un tercero, y el dossier sale listo.',
     pista: 'Cuando vuelvan los datos, Rosa los juzga contra lo prerregistrado y actualiza la certeza GRADE.',
     etapa: 5,
   },
   {
     titulo: 'Donde mirar y como moverse',
-    texto: 'Calidad mide si el juez acierta y cuanto cuesta cada decision. Ajustes tiene el dial de autonomia, las politicas y la integridad del registro. Objetivo y datos guarda la mision, los datasets con su libro de procedencia y lo que sabe el laboratorio.',
-    pista: 'Cmd K (o Ctrl K) busca en toda la investigacion. Este recorrido vuelve desde el boton ? de la cabecera.',
+    texto: 'Calidad mide si el juez acierta y cuanto cuesta cada decisión. Ajustes tiene el dial de autonomía, las políticas y la integridad del registro. Objetivo y datos guarda la misión, los datasets con su libro de procedencia y lo que sabe el laboratorio.',
+    pista: 'Cmd K (o Ctrl K) busca en toda la investigación. Este recorrido vuelve desde el boton ? de la cabecera.',
     etapa: null,
   },
 ];

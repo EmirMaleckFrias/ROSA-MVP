@@ -124,7 +124,7 @@ export function Trazabilidad({ corrida, activa }: { corrida: Corrida; activa: bo
         </label>
       </div>
 
-      {arbol.nodos.length === 0 && <p className="meta">Esta iteracion todavia no tiene consultas ni fuentes.</p>}
+      {arbol.nodos.length === 0 && <p className="meta">Esta iteración todavía no tiene consultas ni fuentes.</p>}
 
       <ul className="arbol" role="tree">
         {arbol.nodos.map((n) => {
@@ -200,9 +200,9 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
             </Chip>
           )}
           {f.retraccion === 'retractado' && <Chip tono="mal">Retractado</Chip>}
-          {f.retraccion === 'preocupacion' && <Chip tono="aviso">Expresion de preocupacion</Chip>}
+          {f.retraccion === 'preocupacion' && <Chip tono="aviso">Expresión de preocupacion</Chip>}
           {f.retraccion === 'erratum' && <Chip tono="aviso">Erratum</Chip>}
-          <Chip tono="borde" title="Puntuacion de relevancia del cribado, 0 a 10">
+          <Chip tono="borde" title="Puntuación de relevancia del cribado, 0 a 10">
             relevancia {f.relevancia}
           </Chip>
           <Chip tono={f.textoCompleto ? 'acento' : 'borde'}>{f.textoCompleto ? `texto completo · ${f.fragmentos} fragmentos` : 'solo resumen'}</Chip>
@@ -222,7 +222,7 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
             {f.anio && <span>{f.anio}</span>}
             {nodo.tambienEn.length > 0 && <span>Tambien la trajo la consulta {nodo.tambienEn.join(', ')}</span>}
             {f.retraccionDetalle && <span>Crossref: {f.retraccionDetalle}</span>}
-            {!f.extraida && <span>Todavia sin extraer</span>}
+            {!f.extraida && <span>Todavía sin extraer</span>}
           </div>
           <ul className="arbol-afirmaciones" role="group">
             {nodo.afirmaciones.length === 0 && <li className="meta arbol-vacio">Sin afirmaciones que pasen el filtro.</li>}

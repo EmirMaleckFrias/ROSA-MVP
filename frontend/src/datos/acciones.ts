@@ -146,7 +146,7 @@ export function dirigirCorrida(estado: EstadoRosa, corridaId: string, texto: str
   if (!corrida) return estado;
   const iteracion = iteracionActualDe(estado, corrida);
   if (!iteracion) return estado;
-  const paso: PasoPlan = { id: nuevoId('paso'), titulo: 'Indicacion de la investigadora', detalle: limpio, estado: 'pendiente', indicacionHumana: true, motivoFallo: null, presupuesto: null };
+  const paso: PasoPlan = { id: nuevoId('paso'), titulo: 'Indicación de la investigadora', detalle: limpio, estado: 'pendiente', indicacionHumana: true, motivoFallo: null, presupuesto: null };
   const idx = iteracion.plan.findIndex((p) => p.estado === 'en_curso');
   const plan = [...iteracion.plan];
   plan.splice(idx === -1 ? plan.length : idx + 1, 0, paso);
@@ -415,7 +415,7 @@ export function revisarHipotesis(
       id: `he-${hipotesisId}`,
       investigacionId: h.investigacionId,
       tipo: 'hipotesis',
-      tema: 'Revision humana',
+      tema: 'Revisión humana',
       enunciado: accion === 'aceptar' ? `Hipotesis aceptada para perseguir: ${h.titulo}` : h.titulo,
       estado: accion === 'aceptar' ? 'abierto' : 'descartado',
       origen: 'inferencia',
@@ -469,8 +469,8 @@ export function solicitarRevision(estado: EstadoRosa, hipotesisId: string, ahora
     hipotesis: reemplazar(estado.hipotesis, hipotesisId, (x) => ({
       ...x,
       ultimaRevisionAutomatica: ahora,
-      revisionesAutomaticas: x.revisionesAutomaticas.map((r) => (r.estado === 'pendiente' ? { ...r, estado: 'hecha' as const, fecha: ahora, resumen: 'Revisada a peticion de la investigadora: sin hallazgos nuevos.' } : r)),
-      procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, { id: nuevoId('m'), de: 'revisor' as const, texto: 'Revision pedida por la investigadora: releidas las afirmaciones, el plan y el registro. Sin hallazgos nuevos.', creadoEn: ahora }] },
+      revisionesAutomaticas: x.revisionesAutomaticas.map((r) => (r.estado === 'pendiente' ? { ...r, estado: 'hecha' as const, fecha: ahora, resumen: 'Revisada a petición de la investigadora: sin hallazgos nuevos.' } : r)),
+      procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, { id: nuevoId('m'), de: 'revisor' as const, texto: 'Revisión pedida por la investigadora: releidas las afirmaciones, el plan y el registro. Sin hallazgos nuevos.', creadoEn: ahora }] },
     })),
   };
   return conEvento(siguiente, h.investigacionId, 'revision_automatica', `Revision pedida sobre: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
@@ -522,7 +522,7 @@ export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, d
     historialElo: [{ iteracion, elo: 1_500 }],
     rivales: [],
     novedad: {
-      openTargets: { estado: 'sin_evidencia', detalle: 'Pendiente de comprobar en la siguiente iteracion' },
+      openTargets: { estado: 'sin_evidencia', detalle: 'Pendiente de comprobar en la siguiente iteración' },
       ensayos: { estado: 'sin_ensayo', detalle: 'Pendiente de comprobar', nct: null },
       agora: { estado: 'no_nominada', detalle: 'Pendiente de comprobar' },
       precedente: { estado: 'sin_precedente', detalle: 'Pendiente de comprobar' },
@@ -646,7 +646,7 @@ export function cambiarEstadoArea(estado: EstadoRosa, investigacionId: string, a
     campana = corridaId ? estado.corridas.find((c) => c.id === corridaId) : undefined;
     if (corridaId && (!campana || campana.investigacionId !== investigacionId)) return estado;
     if ((corridaId || null) !== (a.corridaId ?? null)) {
-      a.historial!.push({ fecha: ahora, de: a.estado, a: a.estado, quien: quien.trim() || 'persona', motivo: campana ? `asignada a la campana ${campana.numero}` : 'desasignada de su campana' });
+      a.historial!.push({ fecha: ahora, de: a.estado, a: a.estado, quien: quien.trim() || 'persona', motivo: campana ? `asignada a la campana ${campana.numero}` : 'desasignada de su campaña' });
       a = { ...a, corridaId: corridaId || null };
       cambio = true;
     }
@@ -749,7 +749,7 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
     '',
     `Congelado el ${fecha}. Asignado a: ${laboratorio}. Hipotesis ${h.id}, iteracion ${h.iteracion}.`,
     '',
-    '## Hipotesis (no se modifica despues de esta fecha)',
+    '## Hipótesis (no se modifica después de esta fecha)',
     h.enunciado,
     '',
     '## Mecanismo propuesto',
@@ -769,9 +769,9 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
     `## Coste estimado
 ${x.costeEstimado}`,
   ];
-  if (x.analisisPedido) lineas.push('', '## Analisis sobre datos existentes', x.analisisPedido);
+  if (x.analisisPedido) lineas.push('', '## Análisis sobre datos existentes', x.analisisPedido);
   if (k) lineas.push('', '## Estado de la evidencia al prerregistrar', `Certeza: ${k.certeza}. Direccion: ${k.direccion}.`, k.enunciado, `Subiria la certeza si: ${k.subiria}`, `Bajaria si: ${k.bajaria}`);
-  if (arnes) lineas.push('', '## Version de Rosa', `Commit ${arnes.commit}, firmas ${arnes.firmas}, programas optimizados: ${arnes.optimizados}.`);
+  if (arnes) lineas.push('', '## Versión de Rosa', `Commit ${arnes.commit}, firmas ${arnes.firmas}, programas optimizados: ${arnes.optimizados}.`);
   lineas.push('', 'Lo que se analice fuera de este registro se reporta como exploratorio, separado de lo prerregistrado.');
   return lineas.join('\n');
 }
@@ -895,7 +895,7 @@ export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: 
     .filter((x) => x.aciertos > 0)
     .sort((a, b) => b.aciertos - a.aciertos)
     .slice(0, 5);
-  if (puntuados.length === 0) return { respuesta: 'El modelo de mundo no tiene nada sobre eso. No lo invento: queda como pregunta abierta si quieres anadirla.', nodos: [], citas: [] };
+  if (puntuados.length === 0) return { respuesta: 'El modelo de mundo no tiene nada sobre eso. No lo invento: queda como pregunta abierta si quieres añadirla.', nodos: [], citas: [] };
   const sabidos = puntuados.filter((x) => x.h.estado === 'sabido');
   const abiertos = puntuados.filter((x) => x.h.estado === 'abierto');
   const descartados = puntuados.filter((x) => x.h.estado === 'descartado');
@@ -1077,7 +1077,7 @@ export function pedirAnalisis(estado: EstadoRosa, hipotesisId: string, datasetId
   const inv = estado.investigaciones.find((i) => i.id === h.investigacionId);
   const ds = inv?.datasets.find((d) => d.id === datasetId);
   if (!ds || ds.estado !== 'aprobado' || !ds.procedencia?.hash) return estado;
-  const mensaje = { id: nuevoId('m'), de: 'investigadora' as const, texto: `Analisis pedido sobre ${ds.nombre}: ${pregunta.trim() || 'aplicar la prediccion falsable de la hipotesis'}`, creadoEn: ahora };
+  const mensaje = { id: nuevoId('m'), de: 'investigadora' as const, texto: `Analisis pedido sobre ${ds.nombre}: ${pregunta.trim() || 'aplicar la predicción falsable de la hipótesis'}`, creadoEn: ahora };
   const siguiente: EstadoRosa = { ...estado, hipotesis: reemplazar(estado.hipotesis, hipotesisId, (x) => ({ ...x, procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, mensaje] } })) };
   return conEvento(siguiente, h.investigacionId, 'analisis', `Analisis in silico pedido sobre ${ds.nombre}: ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }

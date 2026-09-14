@@ -32,7 +32,7 @@ interface PlantillaPista {
 const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; pistas: PlantillaPista[] }[] = [
   {
     titulo: 'Reordenar preguntas abiertas',
-    detalle: 'Por prioridad y por lo aprendido en la iteracion anterior',
+    detalle: 'Por prioridad y por lo aprendido en la iteración anterior',
     presupuesto: 5,
     pistas: [
       {
@@ -73,8 +73,8 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
         titulo: 'Preprints sobre GFAP y microglia',
         fuente: 'bioRxiv y medRxiv',
         lineas: [
-          { tipo: 'accion', texto: 'API de bioRxiv: GFAP microglia Alzheimer, ultimos 12 meses', consulta: { base: 'bioRxiv API', parametros: '/details/biorxiv/2025-09-01/2026-09-10 + filtro GFAP microglia', resultados: '4 preprints' } },
-          { tipo: 'resultado', texto: '4 preprints; 1 ya publicado, se toma la version publicada' },
+          { tipo: 'accion', texto: 'API de bioRxiv: GFAP microglia Alzheimer, últimos 12 meses', consulta: { base: 'bioRxiv API', parametros: '/details/biorxiv/2025-09-01/2026-09-10 + filtro GFAP microglia', resultados: '4 preprints' } },
+          { tipo: 'resultado', texto: '4 preprints; 1 ya publicado, se toma la versión publicada' },
         ],
         resumenFinal: '4 preprints',
       },
@@ -84,7 +84,7 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
         fuente: 'ClinicalTrials.gov v2',
         lineas: [
           { tipo: 'accion', texto: 'GET /api/v2/studies?query.cond=Alzheimer&query.term=ARIA APOE4', consulta: { base: 'ClinicalTrials.gov v2', parametros: 'query.cond=Alzheimer&query.term=ARIA APOE4&pageSize=100', resultados: '7 estudios' } },
-          { tipo: 'resultado', texto: '7 estudios con ARIA como desenlace de seguridad y estratificacion por APOE4' },
+          { tipo: 'resultado', texto: '7 estudios con ARIA como desenlace de seguridad y estratificación por APOE4' },
         ],
         resumenFinal: '7 estudios',
         fallaEnImpares: true,
@@ -93,20 +93,20 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
   },
   {
     titulo: 'Extraer afirmaciones con procedencia',
-    detalle: 'Fragmentos por pagina',
+    detalle: 'Fragmentos por página',
     presupuesto: 40,
     pistas: [
       {
         tipo: 'extraccion',
-        titulo: 'Extraer afirmaciones de los articulos nuevos',
+        titulo: 'Extraer afirmaciones de los artículos nuevos',
         fuente: 'Sonnet 5',
         lineas: [
-          { tipo: 'accion', texto: 'Fragmentos por pagina (GROBID + Docling), sin cruzar de pagina' },
-          { tipo: 'resultado', texto: 'Articulo 4 de 12: 51 afirmaciones acumuladas' },
-          { tipo: 'resultado', texto: 'Articulo 8 de 12: 102 afirmaciones acumuladas' },
-          { tipo: 'resultado', texto: 'Articulo 12 de 12: 148 afirmaciones con cita' },
+          { tipo: 'accion', texto: 'Fragmentos por página (GROBID + Docling), sin cruzar de página' },
+          { tipo: 'resultado', texto: 'Artículo 4 de 12: 51 afirmaciones acumuladas' },
+          { tipo: 'resultado', texto: 'Artículo 8 de 12: 102 afirmaciones acumuladas' },
+          { tipo: 'resultado', texto: 'Artículo 12 de 12: 148 afirmaciones con cita' },
         ],
-        resumenFinal: '12 articulos, 148 afirmaciones con cita',
+        resumenFinal: '12 artículos, 148 afirmaciones con cita',
       },
     ],
   },
@@ -136,11 +136,11 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
     pistas: [
       {
         tipo: 'novedad',
-        titulo: 'Novedad de la hipotesis sobre GFAP y NfL',
+        titulo: 'Novedad de la hipótesis sobre GFAP y NfL',
         fuente: 'Open Targets, ClinicalTrials.gov, Agora',
         lineas: [
           { tipo: 'accion', texto: 'GraphQL Open Targets: GFAP, NEFL x Alzheimer', consulta: { base: 'Open Targets GraphQL', parametros: 'target(GFAP, NEFL) associatedDiseases(EFO_0000249)', resultados: 'GFAP 0,18; NEFL 0,22' } },
-          { tipo: 'resultado', texto: 'GFAP asociacion 0,18 (biomarcador, no diana); NEFL 0,22' },
+          { tipo: 'resultado', texto: 'GFAP asociación 0,18 (biomarcador, no diana); NEFL 0,22' },
           { tipo: 'accion', texto: 'ClinicalTrials.gov: GFAP AND NfL AND APOE4 como desenlace' },
           { tipo: 'resultado', texto: 'Ningun ensayo con ese orden temporal como desenlace: novedad plausible' },
         ],
@@ -158,10 +158,10 @@ const PLANTILLA: { titulo: string; detalle: string; presupuesto: number | null; 
         titulo: 'Actualizar hechos y preguntas',
         fuente: 'GPT-6 Astra',
         lineas: [
-          { tipo: 'accion', texto: 'Anadiendo hechos sostenidos con su procedencia' },
-          { tipo: 'resultado', texto: '1 hecho anadido, 1 hipotesis a la cola de revision' },
+          { tipo: 'accion', texto: 'Añadiendo hechos sostenidos con su procedencia' },
+          { tipo: 'resultado', texto: '1 hecho añadido, 1 hipótesis a la cola de revisión' },
         ],
-        resumenFinal: '1 hecho, 1 hipotesis nueva',
+        resumenFinal: '1 hecho, 1 hipótesis nueva',
       },
     ],
   },
@@ -219,19 +219,19 @@ function hipotesisSimulada(investigacionId: string, iteracion: number, ahora: nu
     investigacionId,
     titulo: 'GFAP en plasma se altera antes que NfL en portadores de APOE4 con amiloide positivo',
     enunciado:
-      'En portadores de APOE4 con PET de amiloide positiva y sin deterioro, GFAP en plasma sube antes que NfL, y la diferencia de tiempo entre ambos predice la velocidad de progresion a MCI.',
-    mecanismo: 'Reaccion astroglial temprana ante las placas, previa al dano axonal que NfL refleja.',
+      'En portadores de APOE4 con PET de amiloide positiva y sin deterioro, GFAP en plasma sube antes que NfL, y la diferencia de tiempo entre ambos predice la velocidad de progresión a MCI.',
+    mecanismo: 'Reacción astroglial temprana ante las placas, previa al daño axonal que NfL refleja.',
     comprobacion: {
       biomarcador: 'GFAP y NfL en plasma, seriados cada 6 meses',
       cohorte: 'A4 y ADNI, portadores de APOE4 amiloide positivos sin deterioro',
-      diseno: 'Modelos de tiempo hasta el primer cambio significativo de cada marcador; asociar la brecha con la conversion a MCI',
+      diseno: 'Modelos de tiempo hasta el primer cambio significativo de cada marcador; asociar la brecha con la conversión a MCI',
     },
     estado: 'propuesta',
     elo: 1_500,
     historialElo: [{ iteracion, elo: 1_500 }],
     rivales: ['hip-4'],
     novedad: {
-      openTargets: { estado: 'evidencia_previa', detalle: 'GFAP y NEFL con asociacion debil como biomarcadores' },
+      openTargets: { estado: 'evidencia_previa', detalle: 'GFAP y NEFL con asociación débil como biomarcadores' },
       ensayos: { estado: 'sin_ensayo', detalle: 'Ningun ensayo usa la brecha GFAP-NfL como desenlace', nct: null },
       agora: { estado: 'no_nominada', detalle: 'No aplica: no es una diana' },
       precedente: { estado: 'parcial', detalle: 'Dos cohortes describen GFAP temprano; ninguna mide la brecha con NfL como predictor.' },
@@ -240,7 +240,7 @@ function hipotesisSimulada(investigacionId: string, iteracion: number, ahora: nu
       { texto: 'La microglia atenuada en R47H y APOE4 deja a la astroglia como respuesta compensatoria.', cita: `[${f.referencia}, pag. ${f.pagina}]`, veredicto: 'parcial', motivo: 'La fuente sugiere la compensacion; no la mide.', entidadDistinta: false, tipo: 'interpretacion', trayectoria: null },
     ],
     procedencia: {
-      mensajes: [{ id: nuevoId('m'), de: 'rosa', texto: 'Hipotesis generada por la simulacion de la interfaz a partir de la pregunta abierta sobre NfL y GFAP.', creadoEn: ahora }],
+      mensajes: [{ id: nuevoId('m'), de: 'rosa', texto: 'Hipótesis generada por la simulación de la interfaz a partir de la pregunta abierta sobre NfL y GFAP.', creadoEn: ahora }],
       codigo: 'salida = generar(hechos=hechos_iteracion, pregunta_abierta="orden de NfL y GFAP")',
       registro: ['(simulacion) generar -> 1 hipotesis', '(simulacion) juez -> parcial', '(simulacion) novedad -> sin ensayo'],
       entorno: { lenguaje: 'Python', version: '3.12.14', paquetes: [{ nombre: 'dspy', version: '3.3.1' }], modelos: [{ nombre: 'openai/gpt-6-astra', version: 'gateway' }] },
@@ -254,10 +254,10 @@ function hipotesisSimulada(investigacionId: string, iteracion: number, ahora: nu
     derivadaDe: 'hip-4',
     cluster: 'Biomarcadores sanguineos',
     evidenciaEstadistica: 'moderada',
-    relevancia: { justificacion: 'Responde a la pregunta abierta con mas prioridad del modelo de mundo (orden de NfL y GFAP).', votoHumano: null },
+    relevancia: { justificacion: 'Responde a la pregunta abierta con más prioridad del modelo de mundo (orden de NfL y GFAP).', votoHumano: null },
     partidos: [],
     revisionesAutomaticas: [
-      { tipo: 'inicial', estado: 'hecha', resumen: 'Plausible; deriva de una hipotesis aceptada.', fecha: ahora },
+      { tipo: 'inicial', estado: 'hecha', resumen: 'Plausible; deriva de una hipótesis aceptada.', fecha: ahora },
       { tipo: 'completa', estado: 'pendiente', resumen: '', fecha: null },
       { tipo: 'profunda', estado: 'pendiente', resumen: '', fecha: null },
       { tipo: 'observacion', estado: 'pendiente', resumen: '', fecha: null },
@@ -403,9 +403,9 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
           return {
             ...p,
             estado: 'fallida',
-            resumen: 'Sin respuesta en 30 s: se reintenta en la siguiente iteracion',
+            resumen: 'Sin respuesta en 30 s: se reintenta en la siguiente iteración',
             ms: 30_000,
-            transcripcion: [...p.transcripcion, { t: 30_000, tipo: 'error' as const, texto: 'Tiempo limite agotado (30 s). No es "sin ensayos": la consulta no llego.' }],
+            transcripcion: [...p.transcripcion, { t: 30_000, tipo: 'error' as const, texto: 'Tiempo límite agotado (30 s). No es "sin ensayos": la consulta no llegó.' }],
           };
         }
         const siguiente = plantilla.lineas[p.transcripcion.length];
@@ -461,7 +461,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
             tema: 'Biomarcadores',
             estado: 'sabido',
             origen: 'fuente',
-            enunciado: 'GFAP en plasma es un marcador de reaccion astroglial; NfL, de dano axonal, no especifico de Alzheimer.',
+            enunciado: 'GFAP en plasma es un marcador de reacción astroglial; NfL, de daño axonal, no específico de Alzheimer.',
             procedencia: [{ fuenteId: f.id, referencia: f.referencia, pagina: f.pagina }],
             motivoDescarte: null,
             actualizadoEn: ahora,

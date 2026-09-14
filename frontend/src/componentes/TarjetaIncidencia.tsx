@@ -46,7 +46,7 @@ export function TarjetaIncidencia({ incidencia, ahora, onResolver }: { incidenci
             </button>
           )}
           <div className="dirigir">
-            <input className="entrada" value={otra} placeholder="Otra resolucion (por ejemplo: saltar ese articulo y anotarlo)" onChange={(e) => setOtra(e.target.value)} aria-label="Otra resolucion" />
+            <input className="entrada" value={otra} placeholder="Otra resolución (por ejemplo: saltar ese artículo y anotarlo)" onChange={(e) => setOtra(e.target.value)} aria-label="Otra resolución" />
             <button type="button" className="btn" disabled={otra.trim() === ''} onClick={() => onResolver(otra)}>
               Aplicar
             </button>

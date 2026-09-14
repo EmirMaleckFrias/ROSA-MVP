@@ -25,8 +25,8 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
       <AvisoMuestra conexion={estado.conexion} />
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
-          <h2>Panorama de la investigacion</h2>
-          <p>La sintesis por encima de las hipotesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que Rosa le ensenaria a el investigador clinico principal primero.</p>
+          <h2>Panorama de la investigación</h2>
+          <p>La síntesis por encima de las hipótesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que Rosa le ensenaria a el investigador clínico principal primero.</p>
         </div>
         <button type="button" className="btn" onClick={exportarAims} disabled={hipotesis.length === 0}>
           Exportar como Specific Aims
@@ -34,7 +34,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
       </div>
 
       {direcciones.length === 0 ? (
-        <Vacio titulo="Sin panorama todavia">Rosa lo sintetiza al cerrar cada iteracion a partir de las hipotesis, las revisiones y el modelo de mundo.</Vacio>
+        <Vacio titulo="Sin panorama todavía">Rosa lo sintetiza al cerrar cada iteración a partir de las hipótesis, las revisiones y el modelo de mundo.</Vacio>
       ) : (
         <div className="seccion">
           {direcciones.map((d, i) => (
@@ -43,7 +43,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
                 <h3 style={{ fontSize: 15, fontWeight: 600 }}>
                   {i + 1}. {d.titulo}
                 </h3>
-                {d.inesperada && <Chip tono="acento">Area inesperada</Chip>}
+                {d.inesperada && <Chip tono="acento">Área inesperada</Chip>}
               </div>
               <p style={{ marginTop: 6 }}>{d.razon}</p>
               <div className="rejilla-3" style={{ marginTop: 12 }}>
@@ -85,9 +85,9 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
         </div>
       )}
 
-      <Seccion titulo="Meta-revision: debilidades recurrentes" nota="Lo que se repite en las revisiones de todas las hipotesis de la corrida. Inyectarlo como criterio hace que la siguiente generacion lo tenga en cuenta.">
+      <Seccion titulo="Meta-revisión: debilidades recurrentes" nota="Lo que se repite en las revisiones de todas las hipótesis de la corrida. Inyectarlo como criterio hace que la siguiente generación lo tenga en cuenta.">
         {meta.length === 0 ? (
-          <p className="meta">Sin meta-revision todavia.</p>
+          <p className="meta">Sin meta-revisión todavía.</p>
         ) : (
           meta.map((m) => (
             <div key={m.iteracion} className="tarjeta seccion">

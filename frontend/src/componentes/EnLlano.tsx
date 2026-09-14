@@ -11,7 +11,7 @@ import { Momento, Seccion } from './piezas';
 export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: ResumenLlano | null | undefined; numero: number; abierta?: boolean }) {
   if (resumen === undefined) return null;
   return (
-    <Seccion titulo={`Que encontro Rosa en la iteracion ${numero}`} nota="Contado en lenguaje corriente, con cada termino tecnico definido al final. El detalle con citas, veredictos y pistas esta mas abajo.">
+    <Seccion titulo={`Que encontró Rosa en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada termino técnico definido al final. El detalle con citas, veredictos y pistas esta más abajo.">
       {resumen === null ? (
         <p className="meta">Rosa no pudo escribir el resumen de esta iteracion (el modelo no respondio). El resumen tecnico esta en las iteraciones anteriores.</p>
       ) : (
@@ -38,7 +38,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
             </div>
           )}
           <div className="llano-bloque">
-            <h4>Que encontro</h4>
+            <h4>Que encontró</h4>
             <ul>
               {resumen.queEncontro.map((t, i) => (
                 <li key={i}>{t}</li>
@@ -53,7 +53,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
           )}
           {resumen.cambios.length > 0 && (
             <div className="llano-bloque">
-              <h4>Que cambio desde la iteracion anterior</h4>
+              <h4>Que cambio desde la iteración anterior</h4>
               <ul>
                 {resumen.cambios.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -85,7 +85,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
                 Evidencia buscada hasta el <Momento t={resumen.alDia.fechaBusqueda} ahora={Date.now()} />.
               </>
             ) : (
-              'Sin consultas nuevas en esta iteracion.'
+              'Sin consultas nuevas en esta iteración.'
             )}{' '}
             {resumen.alDia?.fuentesSinRespuesta.length ? `No respondieron: ${resumen.alDia.fuentesSinRespuesta.join('; ')}.` : ''}
           </p>
@@ -113,7 +113,7 @@ export function HipotesisEnLlano({ texto }: { texto: string | null | undefined }
   return (
     <div className="llano llano-hipotesis">
       <h4>En pocas palabras</h4>
-      {texto === null ? <p className="meta">Rosa todavia no escribio el resumen de esta hipotesis.</p> : <p>{texto}</p>}
+      {texto === null ? <p className="meta">Rosa todavía no escribio el resumen de esta hipótesis.</p> : <p>{texto}</p>}
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   if (conclusion === null) {
     return (
       <Seccion titulo="Conclusión de Rosa">
-        <p className="meta">Rosa todavia no escribio su conclusion sobre esta hipotesis. La escribe al crearla y la rehace al cerrar cada iteracion.</p>
+        <p className="meta">Rosa todavía no escribio su conclusión sobre esta hipótesis. La escribe al crearla y la rehace al cerrar cada iteración.</p>
       </Seccion>
     );
   }
@@ -137,7 +137,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   return (
     <Seccion
       titulo="Conclusión de Rosa"
-      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (direccion). Ninguna dice si la hipotesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteracion."
+      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración."
       acciones={
         <span className="meta">
           Iteracion {conclusion.iteracion} · <Momento t={conclusion.fecha} ahora={ahora} />
@@ -186,7 +186,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
           </div>
         </div>
         <div className="llano-bloque">
-          <h4>De que depende mas</h4>
+          <h4>De que depende más</h4>
           <p>{conclusion.loMasFragil}</p>
         </div>
         <div className="conclusion-columnas">

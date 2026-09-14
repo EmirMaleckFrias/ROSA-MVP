@@ -23,7 +23,7 @@ import {
 
 const PANTALLAS: { clave: Pantalla; etiqueta: string; icono: (p: { size?: number }) => JSX.Element }[] = [
   { clave: 'corrida', etiqueta: 'Corrida en vivo', icono: IconActivity },
-  { clave: 'hipotesis', etiqueta: 'Cola de hipotesis', icono: IconFlask },
+  { clave: 'hipotesis', etiqueta: 'Cola de hipótesis', icono: IconFlask },
   { clave: 'ranking', etiqueta: 'Ranking', icono: IconTrophy },
   { clave: 'panorama', etiqueta: 'Panorama', icono: IconGlobe },
   { clave: 'mundo', etiqueta: 'Modelo de mundo', icono: IconLayers },
@@ -61,7 +61,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
   return (
     <>
       {abierta && <div className="scrim" onClick={onCerrar} aria-hidden="true" />}
-      <nav className={`barra ${abierta ? 'abierta' : ''}`} aria-label="Navegacion principal">
+      <nav className={`barra ${abierta ? 'abierta' : ''}`} aria-label="Navegación principal">
         <a className="marca" href="#/" onClick={onCerrar}>
           <img src="/arbol-marca.png" alt="" width={30} height={30} />
           <div>
@@ -70,7 +70,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
           </div>
         </a>
 
-        <button type="button" className="nav-item nav-buscar" onClick={onBuscar} disabled={actual === null} title="Buscar en la investigacion (Cmd+K o Ctrl+K)">
+        <button type="button" className="nav-item nav-buscar" onClick={onBuscar} disabled={actual === null} title="Buscar en la investigación (Cmd+K o Ctrl+K)">
           <IconSearch size={14} />
           Buscar
           <span className="meta" style={{ marginLeft: 'auto' }}>
@@ -81,7 +81,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
         <div className="barra-seccion">
           <div className="barra-titulo">
             <span>Investigaciones</span>
-            <a href="#/nueva" onClick={onCerrar} title="Nueva investigacion">
+            <a href="#/nueva" onClick={onCerrar} title="Nueva investigación">
               <IconPlus size={13} /> Nueva
             </a>
           </div>
@@ -99,7 +99,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
         {actual && (
           <div className="barra-seccion">
             <div className="barra-titulo">
-              <span>Esta investigacion</span>
+              <span>Esta investigación</span>
             </div>
             {PANTALLAS.map((p) => {
               const Icono = p.icono;

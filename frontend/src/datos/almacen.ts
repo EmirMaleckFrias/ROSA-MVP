@@ -477,15 +477,15 @@ export const acciones = {
    *  segundos que tardo en decidir; si el servidor la rechaza (la hipotesis
    *  cambio entre medias), se resincroniza el estado y se avisa. */
   revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null) => {
-    const titulo = estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipotesis';
-    const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decision registrada';
+    const titulo = estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipótesis';
+    const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decisión registrada';
     programar(
       `${verbo}: ${titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo}`,
       () => aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada)),
       () => {
         void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
           if (ok === false) {
-            fijarAviso('La hipotesis cambio mientras la revisabas (Rosa la reformulo). Se recargo la version nueva; vuelve a mirarla antes de decidir.');
+            fijarAviso('La hipótesis cambio mientras la revisabas (Rosa la reformuló). Se recargo la versión nueva; vuelve a mirarla antes de decidir.');
             void resincronizar();
           }
         });
@@ -538,7 +538,7 @@ export const acciones = {
       if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
       return null;
     } catch {
-      return 'No se pudo subir el fichero: sin conexion con el servidor.';
+      return 'No se pudo subir el fichero: sin conexión con el servidor.';
     }
   },
   anadirComentario: (hipotesisId: string, ancla: AnclaComentario, nota: string) => {
@@ -580,7 +580,7 @@ export const acciones = {
       const invId = id;
       void enviarYComprobar('crearInvestigacion', { datos: conQuien, id_: invId }).then((ok) => {
         if (ok === false) {
-          fijarAviso('El servidor no creo la investigacion. Se recargo el estado.');
+          fijarAviso('El servidor no creo la investigación. Se recargo el estado.');
           void resincronizar();
           return;
         }
@@ -759,7 +759,7 @@ export const acciones = {
       const d = (await r.json()) as { ok: boolean; resultado?: { error?: string | null } };
       return d.ok ? null : d.resultado?.error ?? 'La pregunta fallo.';
     } catch {
-      return 'Sin conexion con el servidor.';
+      return 'Sin conexión con el servidor.';
     }
   },
   cambiarEstadoArea: (investigacionId: string, areaId: string, estado: EstadoArea | null, condicionReapertura = '', corridaId: string | null | undefined = undefined, motivo = '') => {
@@ -860,7 +860,7 @@ export const acciones = {
       if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
       return null;
     } catch {
-      return 'No se pudo subir el fichero: sin conexion con el servidor.';
+      return 'No se pudo subir el fichero: sin conexión con el servidor.';
     }
   },
 };

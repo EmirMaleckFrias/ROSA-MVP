@@ -102,15 +102,34 @@ const AUDITAR = () => {
   }
   // 5. Titulos pegados al bloque anterior: falta de aire (lo que se ve como
   //    "un texto demasiado cerca de otra cosa"). Menos de 10 px es pegado.
-  for (const h of document.querySelectorAll('.seccion-titulo h3, .pantalla-cabecera h2, .quetoca')) {
-    const sec = h.closest('.seccion') ?? h.closest('.pantalla-cabecera') ?? h;
-    if (!visible(sec)) continue;
-    let prev = sec.previousElementSibling;
-    while (prev && !visible(prev)) prev = prev.previousElementSibling;
+  //    Se mira cualquier titulo (h2, h3, "que toca"), no solo los que estan
+  //    dentro de una .seccion: el 14 de septiembre una clase rota dejo un
+  //    titulo sin .seccion alrededor y esta regla lo saltaba en silencio. Se
+  //    sube por los ancestros hasta encontrar un hermano anterior que quede
+  //    por encima (no al lado, como el chevron de plegar) y se mide el hueco.
+  for (const h of document.querySelectorAll('h2, h3, .quetoca')) {
+    if (!visible(h) || h.closest('.recorrido, .cajon, .grafo-detalle, table')) continue;
+    const rh = h.getBoundingClientRect();
+    let sec = h;
+    let prev = null;
+    while (sec && sec !== document.body) {
+      let p = sec.previousElementSibling;
+      while (p && !visible(p)) p = p.previousElementSibling;
+      if (p && p.getBoundingClientRect().bottom <= rh.top + 2) {
+        prev = p;
+        break;
+      }
+      // Un hermano al lado (el chevron de plegar, un chip) no cuenta: se sigue subiendo.
+      sec = sec.parentElement;
+    }
     if (!prev) continue;
     const rp = prev.getBoundingClientRect();
-    const rh = h.getBoundingClientRect();
-    if (rh.top - rp.bottom < 10 && rh.top - rp.bottom > -2) problemas.push({ tipo: 'titulo pegado al bloque anterior', el: descr(h), extra: `${Math.round(rh.top - rp.bottom)} px sobre ${descr(prev).slice(0, 40)}` });
+    // Un antetitulo (el tipo de artefacto, la fila de chips de una hipotesis)
+    // va a proposito a 8 px de su titulo dentro de la misma tarjeta: no es un
+    // bloque ajeno pegado. Se reconoce por ser bajo y hermano directo.
+    const antetitulo = prev.parentElement === sec.parentElement && prev.matches('.artefacto-tipo, .acciones, .meta, .chips, .chip, .kicker');
+    if (antetitulo && rh.top - rp.bottom >= 6) continue;
+    if (rh.top - rp.bottom < 10) problemas.push({ tipo: 'titulo pegado al bloque anterior', el: descr(h), extra: `${Math.round(rh.top - rp.bottom)} px sobre ${descr(prev).slice(0, 40)}` });
   }
   // 6. Tarjetas de una misma fila de rejilla que no empiezan a la misma altura.
   for (const rej of document.querySelectorAll('.rejilla-2, .rejilla-3')) {

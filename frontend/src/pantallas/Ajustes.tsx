@@ -16,11 +16,11 @@ import { ACCION_ESPERA, ALCANCE, CLASE_ACCION, NIVEL_AUTONOMIA, TIPO_PERMISO } f
 import { useTema, type Tema } from '../lib/theme';
 
 const CRITERIOS_INTEGRADOS = [
-  'Toda afirmacion lleva una cita que resuelve a la pagina exacta del dato.',
+  'Toda afirmacion lleva una cita que resuelve a la página exacta del dato.',
   'Un identificador (NCT, DOI, PMID) que no aparece en el fragmento citado no se sostiene.',
-  'Un dato de otra entidad (otro farmaco, cohorte, estudio) se marca aunque la cifra sea real.',
-  'Una declaracion de ausencia desmentida por el corpus se bloquea.',
-  'Nada se aprueba por omision: sin veredicto es "sin verificar".',
+  'Un dato de otra entidad (otro fármaco, cohorte, estudio) se marca aunque la cifra sea real.',
+  'Una declaración de ausencia desmentida por el corpus se bloquea.',
+  'Nada se aprueba por omisión: sin veredicto es "sin verificar".',
   'Una "ausencia refutada" solo vale si la busqueda del tema ha convergido.',
 ];
 
@@ -95,11 +95,11 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </div>
 
-      <Seccion titulo="Autonomia por clase de accion" nota="Que puede hacer Rosa sola, que pregunta antes y que solo sugiere. Es mas fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea friccion sin seguridad.">
+      <Seccion titulo="Autonomía por clase de acción" nota="Que puede hacer Rosa sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea friccion sin seguridad.">
         <table className="tabla">
           <thead>
             <tr>
-              <th>Accion</th>
+              <th>Acción</th>
               {(['sugerir', 'preguntar', 'actuar'] as NivelAutonomia[]).map((n) => (
                 <th key={n}>{NIVEL_AUTONOMIA[n]}</th>
               ))}
@@ -125,7 +125,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Que pasa con una decision que nadie toma" nota="En una corrida de dias la cola envejece. Esto lo decide una persona, nunca la interfaz por accidente.">
+      <Seccion titulo="Que pasa con una decisión que nadie toma" nota="En una corrida de días la cola envejece. Esto lo decide una persona, nunca la interfaz por accidente.">
         <div className="tarjeta seccion">
           <div className="rejilla-3">
             <div className="campo">
@@ -183,9 +183,9 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Memoria de Rosa sobre ti" nota="Hechos cortos sobre la investigadora y sus preferencias. Aparte del modelo de mundo, que es de la investigacion.">
+      <Seccion titulo="Memoria de Rosa sobre ti" nota="Hechos cortos sobre la investigadora y sus preferencias. Aparte del modelo de mundo, que es de la investigación.">
         {estado.memoria.length === 0 ? (
-          <p className="meta">Rosa no recuerda nada todavia.</p>
+          <p className="meta">Rosa no recuerda nada todavía.</p>
         ) : (
           <ul className="lista-limpia">
             {estado.memoria.map((r) => (
@@ -217,7 +217,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion detalle titulo="Criterios de revision" nota="Los tuyos se suman a los integrados y no pueden debilitarlos. Las debilidades de la meta-revision se inyectan aqui.">
+      <Seccion detalle titulo="Criterios de revisión" nota="Los tuyos se suman a los integrados y no pueden debilitarlos. Las debilidades de la meta-revisión se inyectan aquí.">
         <div className="tarjeta">
           <p className="campo-etiqueta" style={{ marginBottom: 8 }}>
             Integrados (no se pueden quitar)
@@ -270,7 +270,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
 
       <EspejoConvex ahora={ahora} />
 
-      <Seccion titulo="Avisos" nota="El bucle trabaja cuando nadie mira. Aqui se decide como te enteras, y el resumen diario es el mismo 'mientras no estabas' que ves al entrar.">
+      <Seccion titulo="Avisos" nota="El bucle trabaja cuando nadie mira. Aquí se decide como te enteras, y el resumen diario es el mismo 'mientras no estabas' que ves al entrar.">
         <div className="tarjeta seccion">
           <label className="interruptor">
             <input type="checkbox" checked={avisos.slack.activo} onChange={(e) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, activo: e.target.checked } })} />
@@ -289,7 +289,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           {avisos.correo.activo && (
             <div className="campo">
-              <label htmlFor="correo-dir">Direccion</label>
+              <label htmlFor="correo-dir">Dirección</label>
               <EntradaDiferida id="correo-dir" tipo="email" valor={avisos.correo.direccion} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, correo: { ...avisos.correo, direccion: v } })} />
             </div>
           )}
@@ -312,7 +312,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           {avisos.cuando.resumenDiario && ejemploDigest !== '' && (
             <div>
-              <p className="campo-etiqueta">Asi se veria hoy</p>
+              <p className="campo-etiqueta">Así se veria hoy</p>
               <pre className="registro">{ejemploDigest}</pre>
             </div>
           )}
@@ -360,7 +360,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
               <td>Reserva</td>
               <td className="mono">anthropic/claude-fable-5.1</td>
               <td>
-                <Chip tono="mal">Fuera: filtros de doble uso en biologia</Chip>
+                <Chip tono="mal">Fuera: filtros de doble uso en biología</Chip>
               </td>
             </tr>
           </tbody>

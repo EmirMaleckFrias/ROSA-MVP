@@ -176,10 +176,10 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                   </div>
                   <span className="meta">
                     {c.leidos} leidos
-                    {Number.isFinite(faltan) && faltan > 0 && ` · unos ${faltan} mas para el 90 %`}
+                    {Number.isFinite(faltan) && faltan > 0 && ` · unos ${faltan} más para el 90 %`}
                   </span>
                   {baja && (
-                    <button type="button" className="btn btn-s" onClick={() => corrida && acciones.dirigirCorrida(corrida.id, `Extender la busqueda del tema "${c.tema}" hasta el 90 % de cobertura (unos ${Number.isFinite(faltan) ? faltan : 'muchos'} articulos mas)`)} disabled={!corrida}>
+                    <button type="button" className="btn btn-s" onClick={() => corrida && acciones.dirigirCorrida(corrida.id, `Extender la busqueda del tema "${c.tema}" hasta el 90 % de cobertura (unos ${Number.isFinite(faltan) ? faltan : 'muchos'} artículos más)`)} disabled={!corrida}>
                       Extender busqueda
                     </button>
                   )}
@@ -243,9 +243,9 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       </Seccion>
 
       {vista === 'cambios' ? (
-        <Seccion titulo="Que cambio desde tu ultima visita" nota="Movimientos entre sabido, abierto y descartado, con quien los decidio y por que.">
+        <Seccion titulo="Que cambio desde tu última visita" nota="Movimientos entre sabido, abierto y descartado, con quien los decidió y por que.">
           {movimientos.length === 0 ? (
-            <p className="meta">Nada se movio desde tu ultima visita.</p>
+            <p className="meta">Nada se movio desde tu última visita.</p>
           ) : (
             <ul className="lista-limpia">
               {movimientos.map((x, i) => (

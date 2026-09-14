@@ -118,7 +118,7 @@ export function resumenEvidencia(fuentes: Fuente[]): string {
   const n = { sistematica: 0, ensayo: 0, observacional: 0, preclinico: 0, otro: 0 };
   for (const f of fuentes) n[GRUPO[f.tipoEstudio]]++;
   const piezas = [
-    n.sistematica > 0 && `${n.sistematica} ${n.sistematica === 1 ? 'revision sistematica' : 'revisiones sistematicas'}`,
+    n.sistematica > 0 && `${n.sistematica} ${n.sistematica === 1 ? 'revisión sistemática' : 'revisiones sistemáticas'}`,
     n.ensayo > 0 && `${n.ensayo} ${n.ensayo === 1 ? 'ensayo aleatorizado' : 'ensayos aleatorizados'}`,
     n.observacional > 0 && `${n.observacional} ${n.observacional === 1 ? 'observacional' : 'observacionales'}`,
     n.preclinico > 0 && `${n.preclinico} ${n.preclinico === 1 ? 'preclinico' : 'preclinicos'}`,

@@ -20,7 +20,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       <div className="pantalla-cabecera">
         <div>
           <h2>Investigaciones</h2>
-          <p>Cada investigacion tiene su objetivo, sus limites y su condicion de parada. Rosa corre dentro de ellos y tu revisas lo que propone.</p>
+          <p>Cada investigación tiene su objetivo, sus límites y su condición de parada. Rosa corre dentro de ellos y tu revisas lo que propone.</p>
         </div>
         <a className="btn btn-primario" href="#/nueva">
           Nueva investigacion
@@ -35,8 +35,8 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
 
       {estado.investigaciones.length === 0 ? (
         <Vacio
-          titulo="Todavia no hay investigaciones"
-          pasos={['Escribes el objetivo, los limites y la condicion de parada.', 'Rosa propone la mision y el plan de la primera iteracion; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipotesis.', 'Tu decides sobre las hipotesis; las candidatas van al laboratorio con prerregistro.']}
+          titulo="Todavía no hay investigaciones"
+          pasos={['Escribes el objetivo, los límites y la condición de parada.', 'Rosa propone la misión y el plan de la primera iteración; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipótesis.', 'Tu decides sobre las hipótesis; las candidatas van al laboratorio con prerregistro.']}
           accion={
             <a className="btn btn-primario" href="#/nueva">
               Crear la primera investigacion
@@ -69,7 +69,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                           {pistasVivas > 0 && ` (${pistasVivas} ${pistasVivas === 1 ? 'pista' : 'pistas'} en paralelo)`}
                         </>
                       ) : corrida.estado === 'esperando_plan' ? (
-                        `El plan de la iteracion ${corrida.iteracionActual} espera tu aprobacion`
+                        `El plan de la iteración ${corrida.iteracionActual} espera tu aprobación`
                       ) : corrida.motivoCierre ? (
                         corrida.motivoCierre
                       ) : (
@@ -84,7 +84,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                   {espera.total > 0 ? (
                     <Chip tono={espera.masAntiguaMs > estado.politicaEsperas.horas * 3_600_000 ? 'mal' : 'aviso'}>
                       {espera.total} {espera.total === 1 ? 'decision espera' : 'decisiones esperan'}
-                      {espera.masAntiguaMs > 60_000 && ` · la mas antigua ${formatearDuracion(espera.masAntiguaMs)}`}
+                      {espera.masAntiguaMs > 60_000 && ` · la más antigua ${formatearDuracion(espera.masAntiguaMs)}`}
                     </Chip>
                   ) : (
                     <Chip tono="ok">Nada espera</Chip>

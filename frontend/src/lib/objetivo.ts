@@ -23,12 +23,12 @@ export function avisosDelObjetivo(objetivo: string, condicionParada: string): Av
   if (o.length < 80) avisos.push({ tipo: 'corto', texto: 'El objetivo es muy corto. Rosa va a perseguir lo primero que parezca significativo: di que enfermedad, que subgrupo y que tipo de hallazgo buscas.' });
   const oraciones = o.split(/[.;]\s+/).filter((s) => s.trim().length > 0);
   const conectores = (o.match(/\by (?:tambien|ademas)\b|\bpor otro lado\b/gi) ?? []).length;
-  if (oraciones.length > 4 || conectores >= 2) avisos.push({ tipo: 'varios_objetivos', texto: 'Parece haber mas de un objetivo. Edison recomienda uno solo por corrida: con varios, la busqueda se reparte y ninguno converge. Considera una investigacion por objetivo, o una rama.' });
-  if (PREGUNTA_LISTA.test(o)) avisos.push({ tipo: 'respuesta_obvia', texto: 'Empieza como una pregunta de lista ("lista", "cuales son"). Eso lo responde una busqueda, no una investigacion de dias: pide una hipotesis o un mecanismo, no un inventario.' });
-  if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningun termino del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan seran genericas.' });
-  if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaria un resultado. el investigador clinico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipotesis lo traiga.' });
-  if (condicionParada.trim() === '') avisos.push({ tipo: 'sin_parada', texto: 'Sin condicion de parada la corrida no sabe cuando terminar y gasta hasta el tope.' });
-  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con numero, no con letras). Lo demas lo decides tu con el boton Detener; añade una cifra si quieres que pare sin ti.' });
+  if (oraciones.length > 4 || conectores >= 2) avisos.push({ tipo: 'varios_objetivos', texto: 'Parece haber más de un objetivo. Edison recomienda uno solo por corrida: con varios, la busqueda se reparte y ninguno converge. Considera una investigación por objetivo, o una rama.' });
+  if (PREGUNTA_LISTA.test(o)) avisos.push({ tipo: 'respuesta_obvia', texto: 'Empieza como una pregunta de lista ("lista", "cuales son"). Eso lo responde una busqueda, no una investigación de días: pide una hipótesis o un mecanismo, no un inventario.' });
+  if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningun termino del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan serán genericas.' });
+  if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaria un resultado. el investigador clínico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipótesis lo traiga.' });
+  if (condicionParada.trim() === '') avisos.push({ tipo: 'sin_parada', texto: 'Sin condición de parada la corrida no sabe cuando terminar y gasta hasta el tope.' });
+  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con número, no con letras). Lo demas lo decides tu con el boton Detener; añade una cifra si quieres que pare sin ti.' });
   return avisos;
 }
 

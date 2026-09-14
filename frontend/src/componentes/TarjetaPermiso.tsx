@@ -46,7 +46,7 @@ export function TarjetaPermiso({ solicitud, ahora, horasEspera, seleccionada, on
           Pedido <Momento t={solicitud.creadaEn} ahora={ahora} />
         </span>
         {!resuelta && esperaMs > 60_000 && (
-          <Chip tono={tarde ? 'mal' : undefined} title={tarde ? `Supera las ${horasEspera} h de la politica de esperas` : undefined}>
+          <Chip tono={tarde ? 'mal' : undefined} title={tarde ? `Supera las ${horasEspera} h de la política de esperas` : undefined}>
             esperando {formatearDuracion(esperaMs)}
           </Chip>
         )}

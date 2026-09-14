@@ -17,13 +17,13 @@ import { rutaDe } from '../lib/ruta';
  *  controlado; lo controlado pasa por acuerdo de uso y, si hay personas, por
  *  desidentificacion y comite. */
 const CATALOGO: { nombre: string; descripcion: string; acceso: 'abierto' | 'controlado'; tamanoMb: number; columnas: number; clasificacion: Dataset['clasificacion'] }[] = [
-  { nombre: 'NIAGADS GenomicsDB (GWAS)', descripcion: '69 conjuntos de estadisticas GWAS, 150 millones de variantes anotadas.', acceso: 'abierto', tamanoMb: 2_400, columnas: 12, clasificacion: 'publico' },
+  { nombre: 'NIAGADS GenomicsDB (GWAS)', descripcion: '69 conjuntos de estadísticas GWAS, 150 millones de variantes anotadas.', acceso: 'abierto', tamanoMb: 2_400, columnas: 12, clasificacion: 'publico' },
   { nombre: 'ADSP (WGS/WES)', descripcion: 'Secuenciacion completa del Alzheimer Disease Sequencing Project.', acceso: 'controlado', tamanoMb: 900_000, columnas: 40, clasificacion: 'personas' },
   { nombre: 'SEA-AD (Allen Institute)', descripcion: 'Single-nucleus de corteza en envejecimiento y Alzheimer.', acceso: 'abierto', tamanoMb: 18_000, columnas: 30, clasificacion: 'publico' },
-  { nombre: 'ROSMAP (via AD Knowledge Portal)', descripcion: 'Cohortes longitudinales con multiomica; acuerdo de uso en Synapse.', acceso: 'controlado', tamanoMb: 45_000, columnas: 120, clasificacion: 'personas' },
+  { nombre: 'ROSMAP (vía AD Knowledge Portal)', descripcion: 'Cohortes longitudinales con multiomica; acuerdo de uso en Synapse.', acceso: 'controlado', tamanoMb: 45_000, columnas: 120, clasificacion: 'personas' },
   { nombre: 'ssREAD', descripcion: 'Atlas de single-cell y espacial de Alzheimer.', acceso: 'abierto', tamanoMb: 12_000, columnas: 25, clasificacion: 'publico' },
-  { nombre: 'OASIS-4', descripcion: 'Imagen y clinica longitudinal.', acceso: 'controlado', tamanoMb: 60_000, columnas: 80, clasificacion: 'personas' },
-  { nombre: 'GEO (expresion, RNA-Seq)', descripcion: 'Conjuntos de expresion publicos, por accession.', acceso: 'abierto', tamanoMb: 500, columnas: 20, clasificacion: 'publico' },
+  { nombre: 'OASIS-4', descripcion: 'Imagen y clínica longitudinal.', acceso: 'controlado', tamanoMb: 60_000, columnas: 80, clasificacion: 'personas' },
+  { nombre: 'GEO (expresión, RNA-Seq)', descripcion: 'Conjuntos de expresión públicos, por accession.', acceso: 'abierto', tamanoMb: 500, columnas: 20, clasificacion: 'publico' },
 ];
 
 function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
@@ -39,7 +39,7 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
             {d.descripcion} · {d.tamanoMb >= 1000 ? `${(d.tamanoMb / 1000).toFixed(1).replace('.', ',')} GB` : `${d.tamanoMb} MB`} · {d.columnas} columnas
           </p>
         </div>
-        <Chip tono={d.estado === 'aprobado' ? 'ok' : d.estado === 'rechazado' ? 'mal' : 'aviso'}>{d.estado === 'aprobado' ? 'Contrato aprobado' : d.estado === 'rechazado' ? 'Rechazado' : 'Comprobacion pendiente'}</Chip>
+        <Chip tono={d.estado === 'aprobado' ? 'ok' : d.estado === 'rechazado' ? 'mal' : 'aviso'}>{d.estado === 'aprobado' ? 'Contrato aprobado' : d.estado === 'rechazado' ? 'Rechazado' : 'Comprobación pendiente'}</Chip>
       </div>
       <div className="comprobacion-datos">
         <div className={d.columnasSinDiccionario > 0 ? 'mal' : 'ok'}>
@@ -67,8 +67,8 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
       </div>
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
         <label className="interruptor" style={{ gap: 6 }}>
-          <span className="meta">Clasificacion</span>
-          <select className="entrada entrada-s" style={{ width: 'auto' }} value={d.clasificacion} onChange={(e) => acciones.clasificarDataset(inv.id, d.id, e.target.value as Dataset['clasificacion'])} aria-label="Clasificacion de los datos">
+          <span className="meta">Clasificación</span>
+          <select className="entrada entrada-s" style={{ width: 'auto' }} value={d.clasificacion} onChange={(e) => acciones.clasificarDataset(inv.id, d.id, e.target.value as Dataset['clasificacion'])} aria-label="Clasificación de los datos">
             {(Object.keys(CLASIFICACION_DATOS) as Dataset['clasificacion'][]).map((c) => (
               <option key={c} value={c}>
                 {CLASIFICACION_DATOS[c]}
@@ -104,15 +104,15 @@ function QueToca({ inv, corridas, irA }: { inv: Inv; corridas: EstadoRosa['corri
   const puerta = inv.puertaReproduccion;
   const pendientes = inv.datasets.filter((d) => d.estado === 'pendiente').length;
   const tareas: { texto: string; accion: () => void; etiqueta: string }[] = [];
-  if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'Rosa propuso la mision (poblacion, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la mision' });
+  if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'Rosa propuso la misión (población, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la misión' });
   if (pendientes > 0) tareas.push({ texto: `${pendientes} ${pendientes === 1 ? 'dataset espera' : 'datasets esperan'} que completes su libro de procedencia y lo apruebes.`, accion: () => ir('datos'), etiqueta: 'Ver los datos' });
-  if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproduccion esta bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningun analisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
-  if (corridas.length === 0) tareas.push({ texto: 'Esta investigacion no tiene corridas: Rosa todavia no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
+  if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproducción esta bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningun análisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
+  if (corridas.length === 0) tareas.push({ texto: 'Esta investigación no tiene corridas: Rosa todavía no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
   return (
     <div className={`quetoca ${tareas.length === 0 ? 'quetoca-vacio' : ''}`} role="status">
-      <strong>{tareas.length === 0 ? 'Nada te espera aqui.' : tareas.length === 1 ? 'Te espera una cosa:' : `Te esperan ${tareas.length} cosas:`}</strong>
+      <strong>{tareas.length === 0 ? 'Nada te espera aquí.' : tareas.length === 1 ? 'Te espera una cosa:' : `Te esperan ${tareas.length} cosas:`}</strong>
       {tareas.length === 0 ? (
-        <span className="meta"> El objetivo, la mision y los datos estan en orden. Lo demas de esta pantalla es consulta.</span>
+        <span className="meta"> El objetivo, la misión y los datos están en orden. Lo demas de esta pantalla es consulta.</span>
       ) : (
         <ul>
           {tareas.map((t) => (
@@ -181,7 +181,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           <p>{inv.relevancia || 'Sin definir. Rosa perseguira todo lo que parezca significativo.'}</p>
         </div>
         <div className="tarjeta seccion">
-          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Limites</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Límites</h3>
           <ul className="lista-limpia">
             {inv.limites.map((l, i) => (
               <li key={i}>{l}</li>
@@ -189,7 +189,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           </ul>
         </div>
         <div className="tarjeta seccion">
-          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Condicion de parada</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Condición de parada</h3>
           <p>{inv.condicionParada}</p>
           <p className="meta">{textoAutomatizacion(inv.condicionParadaAutomatizada ?? partesAutomatizadas(inv.condicionParada))}</p>
           <h3 style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Quien revisa</h3>
@@ -204,7 +204,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       </div>
 
       <Seccion id="mision" titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. Rosa propone; una persona aprueba. Debajo, las áreas de investigación que Rosa comparó para elegir por dónde empezar.">
-        {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la mision al arrancar la primera corrida. Tambien puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
+        {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la misión al arrancar la primera corrida. También puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
         <FormularioMision inv={inv} corridas={corridas} />
       </Seccion>
 
@@ -215,7 +215,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
 
       <Seccion
         titulo="Configuración que Rosa lee"
-        nota="Preferencias, atributos deseables y restricciones: alimentan la generacion, cada revision y cada debate del torneo. Se versiona con la investigacion."
+        nota="Preferencias, atributos deseables y restricciones: alimentan la generación, cada revisión y cada debate del torneo. Se versiona con la investigación."
         acciones={
           editando ? (
             <>
@@ -285,7 +285,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
 
       <Seccion id="datos"
         titulo="Datos"
-        nota="Antes de una corrida larga, la comprobacion de datos: columnas sin diccionario, valores centinela y nombres duplicados contaminaron horas de una corrida de Kosmos. Nada se aprueba con esos contadores en rojo."
+        nota="Antes de una corrida larga, la comprobación de datos: columnas sin diccionario, valores centinela y nombres duplicados contaminaron horas de una corrida de Kosmos. Nada se aprueba con esos contadores en rojo."
         acciones={
           <button type="button" className="btn btn-s" onClick={() => setVerCatalogo((v) => !v)}>
             {verCatalogo ? 'Ocultar catalogo' : 'Catalogo de datos del Alzheimer'}
@@ -350,14 +350,14 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
 
       <Seccion detalle titulo="Corridas" nota="Cada corrida es un arranque del bucle con estas instrucciones.">
         {corridas.length === 0 ? (
-          <p className="meta">Sin corridas todavia.</p>
+          <p className="meta">Sin corridas todavía.</p>
         ) : (
           <table className="tabla">
             <thead>
               <tr>
                 <th>Corrida</th>
                 <th>Estado</th>
-                <th>Empezo</th>
+                <th>Empezó</th>
                 <th className="num">Iteraciones</th>
                 <th className="num">Duracion</th>
                 <th className="num">Llamadas</th>

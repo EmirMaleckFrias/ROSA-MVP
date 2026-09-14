@@ -38,13 +38,13 @@ export function BusquedaGlobal({ estado, investigacionId, abierta, onCerrar }: {
   };
   return (
     <div className="scrim scrim-visible" onClick={onCerrar} role="presentation">
-      <div className="busqueda" role="dialog" aria-label="Buscar en la investigacion" onClick={(e) => e.stopPropagation()}>
+      <div className="busqueda" role="dialog" aria-label="Buscar en la investigación" onClick={(e) => e.stopPropagation()}>
         <div className="busqueda-entrada">
           <IconSearch size={15} />
           <input
             ref={entrada}
             value={q}
-            placeholder={investigacionId ? 'Buscar hipotesis, hechos, fuentes, artefactos, iteraciones' : 'Abre una investigacion para buscar dentro'}
+            placeholder={investigacionId ? 'Buscar hipótesis, hechos, fuentes, artefactos, iteraciones' : 'Abre una investigación para buscar dentro'}
             disabled={investigacionId === null}
             onChange={(e) => {
               setQ(e.target.value);

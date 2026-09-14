@@ -283,7 +283,7 @@ describe('meta-revision y modelo de mundo', () => {
     const e = estadoDeMuestra();
     const r = preguntarAlModeloDeMundo(e.hechos, 'inv-1', 'que se sabe del cociente p-tau217/Abeta42');
     expect(r.respuesta).toMatch(/^Se sabe: /);
-    expect(r.respuesta).toContain('Cohorte clinica, 2025, pag. 7');
+    expect(r.respuesta).toContain('Cohorte clínica, 2025, pag. 7');
     expect(r.respuesta).toContain('Se descarto:');
     expect(r.nodos.length).toBeGreaterThan(0);
     expect(preguntarAlModeloDeMundo(e.hechos, 'inv-1', 'unicornios').nodos).toEqual([]);

@@ -92,7 +92,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         </div>
       </div>
 
-      <Seccion detalle titulo="Metricas del juez" nota={ultima ? `Ultima medicion con ${ultima.juez}` : 'Sin mediciones'} acciones={ultima ? <Momento t={ultima.fecha} ahora={ahora} /> : undefined}>
+      <Seccion detalle titulo="Metricas del juez" nota={ultima ? `Última medición con ${ultima.juez}` : 'Sin mediciones'} acciones={ultima ? <Momento t={ultima.fecha} ahora={ahora} /> : undefined}>
         {ultima && (
           <div className="metricas">
             <div className="gasto-item">
@@ -123,10 +123,10 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         )}
       </Seccion>
 
-      <Seccion titulo="Conjunto dorado: acuerdo juez-humano por comprobacion" nota="Cada etiqueta que una persona pone sobre una comprobacion del Killer (en la ficha de la hipotesis) entra aqui. Kappa de Cohen corrige el acuerdo por el azar; se mide por comprobacion, no en promedio, porque el juez puede acertar en citas y fallar en sesgo. Hacen falta al menos 100 casos por comprobacion (200 si el fallo es raro) para que la cifra sea estable; hasta entonces es orientativa.">
+      <Seccion titulo="Conjunto dorado: acuerdo juez-humano por comprobación" nota="Cada etiqueta que una persona pone sobre una comprobación del Killer (en la ficha de la hipótesis) entra aquí. Kappa de Cohen corrige el acuerdo por el azar; se mide por comprobación, no en promedio, porque el juez puede acertar en citas y fallar en sesgo. Hacen falta al menos 100 casos por comprobación (200 si el fallo es raro) para que la cifra sea estable; hasta entonces es orientativa.">
         {(() => {
           const casos = estado.conjuntoDorado ?? [];
-          if (casos.length === 0) return <p className="meta">Sin etiquetas todavia. Abre una hipotesis juzgada por el Killer y marca en cada comprobacion tu veredicto.</p>;
+          if (casos.length === 0) return <p className="meta">Sin etiquetas todavía. Abre una hipótesis juzgada por el Killer y marca en cada comprobación tu veredicto.</p>;
           const global = acuerdoDe(casos);
           const porComp = acuerdoPorComprobacion(casos);
           return (
@@ -138,7 +138,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
               <table className="tabla">
                 <thead>
                   <tr>
-                    <th>Comprobacion</th>
+                    <th>Comprobación</th>
                     <th>Etiquetas</th>
                     <th>Acuerdo bruto</th>
                     <th>Kappa</th>
@@ -199,7 +199,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
           ['200 o mas hechos', (n) => n >= 200],
         ];
         return (
-          <Seccion detalle titulo="Acuerdo juez-humano segun el tamano del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decision del Killer guarda cuantos hechos habia en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la politica de contexto tiene que recortar antes de que duela.">
+          <Seccion detalle titulo="Acuerdo juez-humano según el tamaño del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decisión del Killer guarda cuantos hechos habia en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la política de contexto tiene que recortar antes de que duela.">
             <table className="tabla">
               <thead>
                 <tr>
@@ -232,15 +232,15 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         const propias = (estado.decisiones ?? []).filter((d) => d.etapa === 'persona' && typeof d.segundosRevision === 'number' && estado.hipotesis.some((h) => h.id === d.hipotesisId && h.investigacionId === inv.id));
         const media = propias.length ? propias.reduce((a, d) => a + (d.segundosRevision ?? 0), 0) / propias.length : null;
         return (
-          <Seccion titulo="Carga de revision" nota="Segundos entre abrir la ficha de una hipotesis y decidir sobre ella. Es la cifra con la que se compara Rosa contra investigar sin ella: si revisar cuesta mas que hacerlo a mano, pierde.">
+          <Seccion titulo="Carga de revisión" nota="Segundos entre abrir la ficha de una hipótesis y decidir sobre ella. Es la cifra con la que se compara Rosa contra investigar sin ella: si revisar cuesta más que hacerlo a mano, pierde.">
             <p className="meta">
-              {media === null ? 'Sin decisiones humanas con tiempo medido todavia.' : `${propias.length} ${propias.length === 1 ? 'decision' : 'decisiones'} medidas; media ${Math.round(media)} s por decision (${(media / 60).toFixed(1)} min).`}
+              {media === null ? 'Sin decisiones humanas con tiempo medido todavía.' : `${propias.length} ${propias.length === 1 ? 'decision' : 'decisiones'} medidas; media ${Math.round(media)} s por decision (${(media / 60).toFixed(1)} min).`}
             </p>
           </Seccion>
         );
       })()}
 
-      <Seccion detalle titulo="Calibracion del revisor frente a las personas" nota="Que recomendaba el revisor (bloquear o pasar) frente a lo que decidio una persona. Los desacuerdos son el conjunto de entrenamiento de GEPA para el juez.">
+      <Seccion detalle titulo="Calibración del revisor frente a las personas" nota="Que recomendaba el revisor (bloquear o pasar) frente a lo que decidió una persona. Los desacuerdos son el conjunto de entrenamiento de GEPA para el juez.">
         <div className="rejilla-2">
           <table className="tabla matriz">
             <thead>
@@ -300,7 +300,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
             ))}
           </div>
           <div className="tarjeta">
-            <p className="campo-etiqueta">Coste por hipotesis</p>
+            <p className="campo-etiqueta">Coste por hipótesis</p>
             <p style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{costeTotal.toFixed(1).replace('.', ',')} $ en total</p>
             <table className="tabla" style={{ marginTop: 6 }}>
               <tbody>

@@ -95,7 +95,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         .filter((h) => h.estado !== 'descartada' && !cands.some((c) => c.id === h.id))
         .map((h) => {
           const b = bloqueosDe(estado, h);
-          const motivo = b.length > 0 ? '' : h.decisionKiller !== 'avanzar' ? (h.decisionKiller ? `El Killer decidio: ${DECISION_KILLER[h.decisionKiller].etiqueta.toLowerCase()}` : 'El Killer todavia no la juzgo') : 'Sin bloqueos, pero otras puntuan mas o repiten su cluster';
+          const motivo = b.length > 0 ? '' : h.decisionKiller !== 'avanzar' ? (h.decisionKiller ? `El Killer decidió: ${DECISION_KILLER[h.decisionKiller].etiqueta.toLowerCase()}` : 'El Killer todavia no la juzgo') : 'Sin bloqueos, pero otras puntuan más o repiten su cluster';
           return { h, bloqueos: b, motivo };
         }),
     [propias, cands, estado],
@@ -106,7 +106,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
       <AvisoMuestra conexion={estado.conexion} />
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
-          <h2>Ranking de hipotesis</h2>
+          <h2>Ranking de hipótesis</h2>
           <p>
             Puntuacion Elo por torneo entre rivales, revisada en cada iteracion. Elo inicial 1500; funciona como el ranking de ajedrez: mayor Elo, mas probable que sea correcta y util. Las descartadas van al final aunque puntuaran alto.
           </p>
@@ -126,10 +126,10 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
       <Candidatas inv={inv} estado={estado} candidatas={cands} noCandidatas={noCands} />
 
       <div className="acciones" style={{ marginBottom: 14 }}>
-        <Chip tono={cal.acuerdo === null ? undefined : cal.acuerdo >= 0.7 ? 'ok' : 'aviso'} title="Cuantas veces la recomendacion del revisor coincidio con lo que decidio una persona">
+        <Chip tono={cal.acuerdo === null ? undefined : cal.acuerdo >= 0.7 ? 'ok' : 'aviso'} title="Cuantas veces la recomendación del revisor coincidio con lo que decidió una persona">
           Acuerdo revisor y personas: {cal.acuerdo === null ? 'sin decisiones todavia' : formatearPorcentaje(cal.acuerdo)}
         </Chip>
-        <span className="meta">Las decisiones humanas de aceptar y descartar son la senal que calibra al juez del torneo.</span>
+        <span className="meta">Las decisiones humanas de aceptar y descartar son la señal que calibra al juez del torneo.</span>
       </div>
 
       {vista === 'lista' ? (

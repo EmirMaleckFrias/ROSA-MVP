@@ -21,7 +21,7 @@ export function Resumen({ d, titulo, ahora, onVisto }: { d: Digest; titulo: stri
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600 }}>Mientras no estabas{desde ? ` (${desde})` : ''}</h3>
-          <p className="meta">Lo que Rosa hizo y lo que te espera. Cada linea lleva a su sitio.</p>
+          <p className="meta">Lo que Rosa hizo y lo que te espera. Cada línea lleva a su sitio.</p>
         </div>
         <div className="acciones">
           <button

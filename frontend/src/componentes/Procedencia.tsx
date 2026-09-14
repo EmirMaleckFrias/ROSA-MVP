@@ -18,7 +18,7 @@ export type PestanaProcedencia = 'mensajes' | 'codigo' | 'registro' | 'entorno' 
 
 const PESTANAS: { clave: PestanaProcedencia; etiqueta: string }[] = [
   { clave: 'mensajes', etiqueta: 'Mensajes' },
-  { clave: 'codigo', etiqueta: 'Codigo' },
+  { clave: 'codigo', etiqueta: 'Código' },
   { clave: 'registro', etiqueta: 'Registro' },
   { clave: 'entorno', etiqueta: 'Entorno' },
   { clave: 'revision', etiqueta: 'Revisión' },
@@ -59,7 +59,7 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
           {f.retraccion !== null && (
             <>
               {' · '}
-              <span className="fuente-retractada">{f.retraccion === 'retractado' ? 'Retractado' : f.retraccion === 'preocupacion' ? 'Expresion de preocupacion' : 'Erratum'}</span>
+              <span className="fuente-retractada">{f.retraccion === 'retractado' ? 'Retractado' : f.retraccion === 'preocupacion' ? 'Expresión de preocupacion' : 'Erratum'}</span>
             </>
           )}
         </span>
@@ -67,7 +67,7 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
         <span className="acciones" style={{ gap: 6 }}>
           <Chip tono="borde">{TIPO_ESTUDIO[f.tipoEstudio]}</Chip>
           <Escalera nivel={f.nivelEvidencia} />
-          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'Rosa leyo el texto completo' : 'Rosa solo leyo el resumen: la verificacion vale menos'}>
+          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'Rosa leyo el texto completo' : 'Rosa solo leyo el resumen: la verificación vale menos'}>
             {f.textoCompleto ? 'texto completo' : 'solo resumen'}
           </Chip>
           <span className="meta">
@@ -96,7 +96,7 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
             {f.nct} <IconExternal />
           </a>
         )}
-        <span className="meta">{f.retraccionComprobadaEn !== null ? `retractacion comprobada ${tiempoRelativo(f.retraccionComprobadaEn, ahora)}` : 'retractacion sin comprobar'}</span>
+        <span className="meta">{f.retraccionComprobadaEn !== null ? `retractación comprobada ${tiempoRelativo(f.retraccionComprobadaEn, ahora)}` : 'retractacion sin comprobar'}</span>
       </footer>
     </article>
   );
@@ -153,7 +153,7 @@ export function Procedencia({
         )}
         {pestana === 'codigo' &&
           (p.codigo.trim() === '' ? (
-            <p className="meta">Esta hipotesis no ejecuto codigo propio.</p>
+            <p className="meta">Esta hipótesis no ejecuto código propio.</p>
           ) : (
             <>
               <p className="meta">
@@ -170,7 +170,7 @@ export function Procedencia({
           ))}
         {pestana === 'registro' && (
           <>
-            <p className="meta">Cada comando que corrio, en orden. Es la fuente autoritativa.</p>
+            <p className="meta">Cada comando que corrió, en orden. Es la fuente autoritativa.</p>
             <pre className="registro">{p.registro.join('\n')}</pre>
           </>
         )}
@@ -183,7 +183,7 @@ export function Procedencia({
               <thead>
                 <tr>
                   <th>Paquete</th>
-                  <th>Version</th>
+                  <th>Versión</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,7 +199,7 @@ export function Procedencia({
               <thead>
                 <tr>
                   <th>Modelo</th>
-                  <th>Via</th>
+                  <th>Vía</th>
                 </tr>
               </thead>
               <tbody>
@@ -221,7 +221,7 @@ export function Procedencia({
             <>
               <div className="acciones">
                 <Chip>{p.fuentes.length === 1 ? '1 fuente' : `${p.fuentes.length} fuentes`}</Chip>
-                <span className="meta">La pagina es la del visor de PDF, no la impresa al pie.</span>
+                <span className="meta">La página es la del visor de PDF, no la impresa al pie.</span>
               </div>
               <div className="acciones">
                 <span className="meta">Exportar:</span>

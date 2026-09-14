@@ -18,7 +18,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
   const [titulo, setTitulo] = useState('');
   const [objetivo, setObjetivo] = useState('');
   const [relevancia, setRelevancia] = useState('');
-  const [limites, setLimites] = useState('Solo literatura publicada y bases curadas: sin datos de pacientes.\nIgnorar articulos retractados o con expresion de preocupacion.');
+  const [limites, setLimites] = useState('Solo literatura publicada y bases curadas: sin datos de pacientes.\nIgnorar artículos retractados o con expresión de preocupacion.');
   const [parada, setParada] = useState('');
   const [revisores, setRevisores] = useState('');
   const [heredar, setHeredar] = useState<string>('');
@@ -46,7 +46,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
       mision: verMision ? { poblacion: mision.poblacion, etapa: mision.etapa, celulaTejido: mision.celulaTejido, mecanismo: mision.mecanismo, tipoIntervencion: mision.tipoIntervencion, capacidadesLaboratorio: mision.capacidades.split('\n') } : undefined,
     });
     if (id === null) {
-      setError('Faltan el titulo, el objetivo o la condicion de parada. Sin condicion de parada la corrida no sabe cuando terminar.');
+      setError('Faltan el título, el objetivo o la condición de parada. Sin condición de parada la corrida no sabe cuando terminar.');
       return;
     }
     irA(rutaDe(id, 'corrida'));
@@ -56,8 +56,8 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
     <div className="contenido" style={{ maxWidth: 800 }}>
       <div className="pantalla-cabecera">
         <div>
-          <h2>Nueva investigacion</h2>
-          <p>Lo que Rosa lee antes de cada iteracion. Se puede cambiar despues, pero la primera corrida arranca con esto.</p>
+          <h2>Nueva investigación</h2>
+          <p>Lo que Rosa lee antes de cada iteración. Se puede cambiar después, pero la primera corrida arranca con esto.</p>
         </div>
       </div>
       <form
@@ -68,12 +68,12 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         }}
       >
         <div className="campo">
-          <label htmlFor="n-titulo">Titulo</label>
-          <input id="n-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Biomarcadores plasmaticos y progresion en Alzheimer familiar" />
+          <label htmlFor="n-titulo">Título</label>
+          <input id="n-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Biomarcadores plasmáticos y progresión en Alzheimer familiar" />
         </div>
         <div className="campo">
           <label htmlFor="n-objetivo">Objetivo</label>
-          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Que quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigacion." />
+          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Que quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigación." />
           {objetivo.trim() !== '' && avisos.length > 0 && (
             <ul className="avisos-objetivo" aria-label="Avisos sobre el objetivo">
               {avisos.map((a) => (
@@ -83,25 +83,25 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
               ))}
             </ul>
           )}
-          {objetivo.trim() !== '' && avisos.length === 0 && <small className="tono-ok">El objetivo tiene contexto, comprobacion y una sola direccion.</small>}
+          {objetivo.trim() !== '' && avisos.length === 0 && <small className="tono-ok">El objetivo tiene contexto, comprobación y una sola dirección.</small>}
         </div>
         <div className="campo">
           <label htmlFor="n-relevancia">Que cuenta como relevante</label>
-          <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipotesis mecanistica, una asociacion biomarcador-progresion, un candidato a reposicionamiento..." />
-          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si esta vacio, Rosa perseguira todo lo que parezca significativo.</small>
+          <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipótesis mecanistica, una asociación biomarcador-progresión, un candidato a reposicionamiento..." />
+          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si esta vacío, Rosa perseguira todo lo que parezca significativo.</small>
         </div>
         <div className="campo">
           <label htmlFor="n-limites">Limites (uno por linea)</label>
           <textarea id="n-limites" value={limites} onChange={(e) => setLimites(e.target.value)} rows={4} />
         </div>
         <div className="campo">
-          <label htmlFor="n-parada">Condicion de parada</label>
+          <label htmlFor="n-parada">Condición de parada</label>
           <input id="n-parada" value={parada} onChange={(e) => setParada(e.target.value)} placeholder="3 iteraciones, o 72 horas, lo que ocurra primero" />
-          <p className="meta">{parada.trim() ? textoAutomatizacion(partesAutomatizadas(parada)) : 'Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decision de parar por otro motivo es tuya.'}</p>
+          <p className="meta">{parada.trim() ? textoAutomatizacion(partesAutomatizadas(parada)) : 'Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decisión de parar por otro motivo es tuya.'}</p>
         </div>
         <div className="campo">
           <label htmlFor="n-revisores">Quien revisa (separados por coma)</label>
-          <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Compañero, el investigador clinico principal" />
+          <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Compañero, el investigador clínico principal" />
         </div>
 
         <Seccion titulo="Configuración que Rosa leerá" nota="Propuesta a partir del objetivo. Es lo que alimenta la generación, la revisión y los debates del torneo. Edítala si no encaja.">
@@ -128,7 +128,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
 
         <Seccion
           titulo="Misión (opcional)"
-          nota="El objetivo puede ser amplio: Rosa propone el marco (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio) y las areas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aqui y queda aprobado por ti."
+          nota="El objetivo puede ser amplio: Rosa propone el marco (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio) y las áreas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aquí y queda aprobado por ti."
           acciones={
             <button type="button" className="btn btn-s" onClick={() => setVerMision((v) => !v)}>
               {verMision ? 'Dejar que Rosa la proponga' : 'Escribirla yo'}
@@ -143,8 +143,8 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
                   ['etapa', 'Etapa', 'Prodromica'],
                   ['celulaTejido', 'Célula o tejido', 'Astrocitos; plasma'],
                   ['mecanismo', 'Mecanismo', 'Reactividad astrocitaria'],
-                  ['tipoIntervencion', 'Tipo de intervencion o resultado', 'Biomarcador de progresion'],
-                  ['capacidades', 'Capacidades del laboratorio (una por linea)', 'Inmunoensayo Simoa en plasma'],
+                  ['tipoIntervencion', 'Tipo de intervención o resultado', 'Biomarcador de progresión'],
+                  ['capacidades', 'Capacidades del laboratorio (una por línea)', 'Inmunoensayo Simoa en plasma'],
                 ] as const
               ).map(([k, label, marcador]) => (
                 <div className="campo" key={k}>
@@ -196,7 +196,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
                 </option>
               ))}
             </select>
-            <small>Rosa arranca sabiendo lo que ya se supo, se abrio y se descarto en esa investigacion.</small>
+            <small>Rosa arranca sabiendo lo que ya se supo, se abrio y se descarto en esa investigación.</small>
           </div>
         )}
 

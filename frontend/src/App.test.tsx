@@ -24,6 +24,6 @@ describe('rework de la interfaz', () => {
     expect(['plan', 'literatura', 'verificar', 'mundo', 'hipotesis', 'candidatas', 'laboratorio', null]).toContain(hilo.activa);
     const html = renderToString(<HiloDelProceso estado={e} inv={inv} pantalla="corrida" />);
     expect(html).toContain('Buscar literatura');
-    expect(html).toContain('Hipotesis y Killer');
+    expect(html).toContain('Hipótesis y Killer');
   });
 });

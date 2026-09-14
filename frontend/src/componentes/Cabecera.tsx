@@ -5,7 +5,7 @@ import { fijarModo, useModo } from '../lib/modo';
 const CONEXION: Record<EstadoConexion, string> = {
   conectando: 'Conectando',
   en_linea: 'En linea',
-  sin_conexion: 'Sin conexion',
+  sin_conexion: 'Sin conexión',
   muestra: 'Datos de muestra',
 };
 
@@ -31,7 +31,7 @@ export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, on
       <h1>{titulo}</h1>
       <div className="cabecera-derecha">
         {esperan > 0 && (
-          <span className="chip chip-aviso" title="Permisos, incidencias, planes e hipotesis que esperan tu decision">
+          <span className="chip chip-aviso" title="Permisos, incidencias, planes e hipótesis que esperan tu decisión">
             {esperan} {esperan === 1 ? 'espera' : 'esperan'}
           </span>
         )}

@@ -48,7 +48,7 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
         </div>
       </div>
       <div className="acciones" style={{ marginBottom: 14 }}>
-        <span className="meta">Version</span>
+        <span className="meta">Versión</span>
         <div className="segmentos" role="group" aria-label="Versión">
           {a.versiones.map((v) => (
             <button key={v.n} type="button" aria-pressed={v.n === n} onClick={() => setN(v.n)} title={`${v.resumen} · ${new Date(v.creadaEn).toLocaleString('es')}`}>
@@ -71,7 +71,7 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
             </select>
           </>
         )}
-        {n !== ultima.n && <Chip tono="aviso">Version anterior, solo lectura</Chip>}
+        {n !== ultima.n && <Chip tono="aviso">Versión anterior, solo lectura</Chip>}
       </div>
       <p className="meta" style={{ marginBottom: 10 }}>
         v{version.n} · iteracion {version.iteracion} · <Momento t={version.creadaEn} ahora={ahora} /> · {version.resumen}
@@ -127,7 +127,7 @@ export function Artefactos({ inv, estado, ahora, detalleId }: { inv: Investigaci
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Artefactos</h2>
-          <p>Lo que Rosa guarda en cada iteracion: informes, tablas, el estado del modelo de mundo. Cada guardado con el mismo nombre es una version nueva.</p>
+          <p>Lo que Rosa guarda en cada iteración: informes, tablas, el estado del modelo de mundo. Cada guardado con el mismo nombre es una versión nueva.</p>
         </div>
         <input className="entrada" style={{ maxWidth: 300 }} value={busqueda} placeholder="Buscar artefactos" onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar artefactos" />
       </div>

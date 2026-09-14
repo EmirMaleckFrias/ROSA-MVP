@@ -39,7 +39,7 @@ function Consulta({ c }: { c: NonNullable<Pista['transcripcion'][number]['consul
       </button>
       {abierta && (
         <dl className="consulta-detalle">
-          <dt>Parametros</dt>
+          <dt>Parámetros</dt>
           <dd className="mono">{c.parametros}</dd>
           <dt>Devolvio</dt>
           <dd>{c.resultados}</dd>
@@ -58,9 +58,9 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
         {pista.ms > 0 && ` · ${formatearDuracion(pista.ms)}`}
       </p>
       {pista.transcripcion.length === 0 ? (
-        <p className="meta">Todavia sin actividad registrada.</p>
+        <p className="meta">Todavía sin actividad registrada.</p>
       ) : (
-        <ol className="transcripcion" aria-label={`Transcripcion de ${pista.titulo}`}>
+        <ol className="transcripcion" aria-label={`Transcripción de ${pista.titulo}`}>
           <AnimatePresence initial={false}>
             {pista.transcripcion.map((e, i) => (
               <motion.li key={`${e.t}-${i}`} className={`t-${e.tipo}`} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18 }}>
@@ -76,7 +76,7 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
       )}
       {pista.estado === 'en_curso' && onDetener && (
         <div className="dirigir" style={{ marginTop: 8 }}>
-          <input className="entrada entrada-s" value={indicacion} placeholder="Indicacion para Rosa al detenerla (opcional)" onChange={(e) => setIndicacion(e.target.value)} aria-label="Indicacion al detener la pista" />
+          <input className="entrada entrada-s" value={indicacion} placeholder="Indicación para Rosa al detenerla (opcional)" onChange={(e) => setIndicacion(e.target.value)} aria-label="Indicación al detener la pista" />
           <button type="button" className="btn btn-s btn-peligro" onClick={() => onDetener(indicacion)}>
             <IconStop size={11} /> Detener esta pista
           </button>
@@ -151,7 +151,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
                       const t = e.target.value.trim();
                       if (t && t !== paso.titulo) onEditarPlan?.(iteracion.plan.map((p) => (p.id === paso.id ? { ...p, titulo: t } : p)));
                     }}
-                    aria-label={`Titulo del paso ${i + 1}`}
+                    aria-label={`Título del paso ${i + 1}`}
                   />
                   <input
                     className="entrada entrada-s"
@@ -179,7 +179,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
                   </button>
                 </div>
                 {paso.detalle !== '' && <p className="paso-detalle">{paso.detalle}</p>}
-                {paso.valorDecision ? <p className="paso-detalle paso-valor" title="Que decision cambia segun el resultado de este paso (valor de decision)">Decide: {paso.valorDecision}</p> : null}
+                {paso.valorDecision ? <p className="paso-detalle paso-valor" title="Que decisión cambia según el resultado de este paso (valor de decisión)">Decide: {paso.valorDecision}</p> : null}
               </div>
             </li>
           ))}
@@ -203,7 +203,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
   }
 
   return (
-    <ol className="plan" aria-label={`Plan de la iteracion ${iteracion.numero}`}>
+    <ol className="plan" aria-label={`Plan de la iteración ${iteracion.numero}`}>
       {iteracion.plan.map((paso) => {
         const pistas = iteracion.pistas.filter((p) => p.pasoId === paso.id);
         return (
@@ -214,7 +214,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
             <div className="paso-cuerpo">
               <div className="paso-titulo">
                 <span className={paso.estado === 'en_curso' ? 'shimmer-text' : ''}>{paso.titulo}</span>
-                {paso.indicacionHumana && <Chip tono="acento">Indicacion tuya</Chip>}
+                {paso.indicacionHumana && <Chip tono="acento">Indicación tuya</Chip>}
                 {paso.estado === 'fallido' && <Chip tono="mal">Fallido</Chip>}
                 {paso.presupuesto !== null && <span className="meta">hasta {paso.presupuesto} llamadas</span>}
               </div>
