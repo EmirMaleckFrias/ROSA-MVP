@@ -3752,11 +3752,18 @@ mark.fuerte {
 }
 
 .arbol-nodo circle {
-  transition: r var(--dur-2) var(--ease-salida), stroke-width var(--dur-2) var(--ease-salida);
+  transition: r var(--dur-2) var(--ease-salida), stroke-width var(--dur-2) var(--ease-salida), transform var(--dur-2) var(--ease-salida);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.arbol-nodo:hover circle {
+.arbol-hover circle {
   stroke-width: 3;
+  transform: scale(1.18);
+}
+
+.arbol-nodo:active {
+  cursor: grabbing;
 }
 
 .arbol-seleccionado circle {

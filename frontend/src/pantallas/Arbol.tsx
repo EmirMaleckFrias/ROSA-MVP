@@ -138,7 +138,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const [hasta, setHasta] = useState<number>(grafo.iteracionMax);
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
-  const arrastre = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const reducido = useMovimientoReducido();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -169,6 +169,28 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
   const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido);
+  // Balanceo en reposo: un vaiven lento y distinto por nodo (solo al dibujar,
+  // no en la fisica) para que el arbol nunca parezca una foto. Con movimiento
+  // reducido no hay balanceo.
+  const [reloj, setReloj] = useState(0);
+  useEffect(() => {
+    if (reducido) return;
+    let id = 0;
+    const paso_ = (t: number) => {
+      setReloj(t / 1000);
+      id = requestAnimationFrame(paso_);
+    };
+    id = requestAnimationFrame(paso_);
+    return () => cancelAnimationFrame(id);
+  }, [reducido]);
+  const vaiven = (id: string, peso: number) => {
+    if (reducido) return { x: 0, y: 0 };
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    const fase = (h % 628) / 100;
+    const amp = 1.6 + Math.min(2.5, peso) * 0.5;
+    return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
+  };
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
   // Resaltar al pasar el raton (como Obsidian): el nodo y sus vecinos vivos, el resto atenuado.
   const foco = hover ?? seleccion;
@@ -226,6 +248,21 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     }
     if (!arrastre.current) return;
     const a = arrastre.current;
+    // Al agarrar el arbol, las esferas no van pegadas al fondo: reciben un
+    // impulso contrario, se columpian y vuelven a su sitio tiradas por los
+    // enlaces (el tronco esta fijo). Es la sacudida de un arbol de verdad.
+    const dx = e.clientX - (a.ux ?? a.x);
+    const dy = e.clientY - (a.uy ?? a.y);
+    a.ux = e.clientX;
+    a.uy = e.clientY;
+    if (!reducido) {
+      for (const p of posiciones.values()) {
+        if (p.fijo) continue;
+        p.vx -= (dx * 0.12) / vista.k;
+        p.vy -= (dy * 0.12) / vista.k;
+      }
+      reavivar(0.25);
+    }
     setVista((v) => ({ ...v, x: a.vx + (e.clientX - a.x), y: a.vy + (e.clientY - a.y) }));
   };
   const soltar = () => {
@@ -294,9 +331,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
             {enlacesVisibles.map((e) => {
               const a = posiciones.get(e.de)!;
               const b = posiciones.get(e.a)!;
+              const va = vaiven(e.de, grafo.porId.get(e.de)?.peso ?? 1);
+              const vb = vaiven(e.a, grafo.porId.get(e.a)?.peso ?? 1);
               const t = TRAZO[e.tipo];
               const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
-              return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="arbol-enlace" />;
+              return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="arbol-enlace" />;
             })}
             {nodosVisibles.map((n) => {
               const p = posiciones.get(n.id)!;
@@ -305,8 +344,9 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               const sel = seleccion === n.id;
               const opEt = opacidadEtiqueta(n, vista.k, vivo && atenuar, sel || hover === n.id);
               const filas = lineas(n.etiqueta);
+              const v = vaiven(n.id, n.peso);
               return (
-                <g key={n.id} data-id={n.id} className={`arbol-nodo arbol-${n.tipo} ${vivo ? '' : 'arbol-atenuado'} ${sel ? 'arbol-seleccionado' : ''}`} transform={`translate(${p.x} ${p.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
+                <g key={n.id} data-id={n.id} className={`arbol-nodo arbol-${n.tipo} ${vivo ? '' : 'arbol-atenuado'} ${sel ? 'arbol-seleccionado' : ''} ${hover === n.id ? 'arbol-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
                   {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
                   <circle r={r} fill={COLOR[n.tipo]} stroke={n.alerta ? 'var(--red)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : undefined} />
                   {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
