@@ -287,7 +287,12 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
       // La repulsión se satura por debajo de 12 unidades: dos nodos que caen
       // casi encima no salen disparados (con muchos nodos, un solo par así
       // bastaba para que todo el árbol temblara).
-      const f = (3400 * (pa + pb) * 0.5 * alfa) / Math.max(d2, 144);
+      // Entre dos nodos con etiqueta (hipótesis, ramas, hechos) la repulsión es
+      // mayor: son los que tienen texto que leer.
+      const na0 = g.porId.get(ids[i]!);
+      const nb0 = g.porId.get(ids[j]!);
+      const conTexto = na0 && nb0 && na0.tipo !== 'fuente' && nb0.tipo !== 'fuente' && na0.tipo !== 'entidad' && nb0.tipo !== 'entidad' ? 1.8 : 1;
+      const f = (3400 * conTexto * (pa + pb) * 0.5 * alfa) / Math.max(d2, 144);
       const d = Math.sqrt(d2);
       let fx = (dx / d) * f;
       let fy = (dy / d) * f;
@@ -367,11 +372,13 @@ export function paso(g: Grafo, visibles: Set<string>, posiciones: Map<string, Po
 /** Caja de la etiqueta de un nodo en unidades del lienzo: centrada en x, del
  *  borde superior del círculo al final de la segunda línea de texto. */
 export function cajaEtiqueta(n: NodoArbol, p: { x: number; y: number }): { x0: number; x1: number; y0: number; y1: number } {
-  const w = Math.min(anchoEtiqueta(n), 180) + 10;
-  return { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - 16, y1: p.y + 36 };
+  // Margen generoso: la etiqueta real puede ser algo más ancha que la
+  // estimación y dos textos a un píxel de distancia siguen leyéndose mal.
+  const w = Math.min(anchoEtiqueta(n), 180) + 26;
+  return { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - 18, y1: p.y + 42 };
 }
 
-const FRACCION_SEPARACION = 0.18;
+const FRACCION_SEPARACION = 0.3;
 
 function separarEtiquetas(g: Grafo, ids: string[], posiciones: Map<string, Posicion>, alfa: number): void {
   // Con el árbol caliente se separa deprisa; casi en reposo, despacio, para
