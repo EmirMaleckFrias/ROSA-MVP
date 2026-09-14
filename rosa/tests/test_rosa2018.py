@@ -833,3 +833,14 @@ def test_borrar_criterio_por_texto():
     assert A.borrar_criterio(e, indice=1, texto="c") and e["criteriosRevision"] == ["a", "b"]
     assert A.borrar_criterio(e, indice=0) and e["criteriosRevision"] == ["b"]
     assert not A.borrar_criterio(e, texto="zzz") and not A.borrar_criterio(e, indice=7) and not A.borrar_criterio(e)
+
+
+def test_contador_atribuye_el_uso_a_la_llamada_correcta():
+    from rosa.modulos import contador as C
+
+    a = {"messages": [{"role": "user", "content": "A"}], "usage": {"prompt_tokens": 10}}
+    b = {"messages": [{"role": "user", "content": "B"}], "usage": {"prompt_tokens": 999}}
+    # La ultima entrada del historial es de otra pista (B); la de esta llamada es A.
+    assert C._entrada_de_esta_llamada([a, b], {"messages": a["messages"]}) is a
+    assert C._entrada_de_esta_llamada([a, b], {"prompt": "no esta"}) is None
+    assert C._entrada_de_esta_llamada([a, b], None) is None

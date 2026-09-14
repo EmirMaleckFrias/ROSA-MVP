@@ -75,7 +75,14 @@ def _es_local(host: str) -> bool:
 
 
 def crear_app(almacen: Almacen) -> FastAPI:
-    app = FastAPI(title="Rosa", version="0.1")
+    @contextlib.asynccontextmanager
+    async def _vida(_app: FastAPI):
+        # Arranque: el almacen conoce el bucle de eventos para despertar a los
+        # suscriptores del SSE desde el hilo del bucle de investigacion.
+        almacen.enganchar_bucle(asyncio.get_running_loop())
+        yield
+
+    app = FastAPI(title="Rosa", version="0.1", lifespan=_vida)
     app.state.almacen = almacen
     app.state.token_interno = token_interno()
     app.state.semaforo_preguntas = asyncio.Semaphore(2)
@@ -99,9 +106,6 @@ def crear_app(almacen: Almacen) -> FastAPI:
             return JSONResponse({"detail": "Falta la cabecera X-Rosa (la interfaz la manda siempre)"}, status_code=403)
         return await call_next(request)
 
-    @app.on_event("startup")
-    async def _arranque() -> None:
-        almacen.enganchar_bucle(asyncio.get_running_loop())
 
     @app.get("/api/estado")
     async def estado() -> JSONResponse:

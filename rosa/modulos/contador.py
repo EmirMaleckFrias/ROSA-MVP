@@ -49,11 +49,26 @@ def presupuesto_ok(almacen, corrida_id: str) -> bool:
     return c["gasto"]["llamadas"] < c["presupuesto"]["limiteLlamadas"]
 
 
+def _entrada_de_esta_llamada(candidatos: list[dict[str, Any]], entradas: dict[str, Any] | None) -> dict[str, Any] | None:
+    """La entrada del historial de DSPy cuyos `messages` (o `prompt`) coinciden
+    con los de la llamada que termina. Se recorre de la mas nueva a la mas vieja."""
+    if not entradas:
+        return None
+    mensajes = entradas.get("messages")
+    prompt = entradas.get("prompt")
+    for h in reversed(candidatos):
+        if mensajes is not None and h.get("messages") == mensajes:
+            return h
+        if prompt is not None and h.get("prompt") == prompt:
+            return h
+    return None
+
+
 class Contador(BaseCallback):
     def __init__(self, almacen) -> None:
         super().__init__()
         self.almacen = almacen
-        self._inicio: dict[str, tuple[float, ContextoLlamada | None, str]] = {}
+        self._inicio: dict[str, tuple[float, ContextoLlamada | None, str, dict[str, Any] | None]] = {}
         self._lock = threading.Lock()
 
     def _presupuesto_ok(self, corrida_id: str) -> bool:
@@ -64,22 +79,25 @@ class Contador(BaseCallback):
         modelo = getattr(instance, "model", "?")
         # El corte real esta en Ctx.llamar (DSPy se traga lo que un callback lance).
         with self._lock:
-            self._inicio[call_id] = (time.monotonic(), ctx, modelo)
+            self._inicio[call_id] = (time.monotonic(), ctx, modelo, inputs)
 
     def on_lm_end(self, call_id: str, outputs: Any, exception: Exception | None = None) -> None:
         with self._lock:
-            inicio, ctx, modelo = self._inicio.pop(call_id, (time.monotonic(), contexto_actual.get(), "?"))
+            inicio, ctx, modelo, entradas = self._inicio.pop(call_id, (time.monotonic(), contexto_actual.get(), "?", None))
         ms = int((time.monotonic() - inicio) * 1000)
         entrada = salida = 0
         historial = dspy.settings.lm.history if dspy.settings.lm is not None else []
-        # La entrada mas reciente del historial global corresponde a esta llamada
-        # salvo carrera; se toma el uso por aproximacion.
+        # Las pistas corren en paralelo: la ultima entrada del historial global
+        # puede ser de otra llamada. Se busca hacia atras la entrada cuyos
+        # mensajes (o prompt) son los de esta llamada; solo si no aparece se
+        # toma la ultima por aproximacion.
         try:
             from dspy.clients.base_lm import GLOBAL_HISTORY
 
-            ultimo = GLOBAL_HISTORY[-1] if GLOBAL_HISTORY else (historial[-1] if historial else None)
+            candidatos = list(GLOBAL_HISTORY[-40:]) if GLOBAL_HISTORY else list(historial[-40:])
         except Exception:
-            ultimo = historial[-1] if historial else None
+            candidatos = list(historial[-40:])
+        ultimo = _entrada_de_esta_llamada(candidatos, entradas) or (candidatos[-1] if candidatos else None)
         if ultimo and exception is None:
             uso = ultimo.get("usage") or {}
             entrada = int(uso.get("prompt_tokens", 0) or 0)
