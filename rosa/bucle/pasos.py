@@ -1131,14 +1131,17 @@ def simbolos_de_genes(texto: str) -> list[str]:
     APP) y una lista de siglas que no son genes. MyGene decide despues cual
     resuelve de verdad."""
     vistos: list[str] = []
-    for tok in re.findall(r"[A-Za-z][A-Za-z0-9\-]{1,11}", texto or ""):
-        t = tok.upper().replace("\u03b5", "E")
-        t = ALIAS_GEN.get(t, t)
-        if t in NO_GEN or t in vistos or not re.fullmatch(r"[A-Z][A-Z0-9\-]{1,9}", t):
-            continue
-        if not (tok.isupper() or tok.upper() in ALIAS_GEN or re.search(r"\d", tok)):
-            continue  # palabras normales en minusculas no cuentan
-        vistos.append(t)
+    for bruto in re.findall(r"[A-Za-z][A-Za-z0-9\-\u03b5]{1,14}", texto or ""):
+        bruto = bruto.replace("\u03b5", "E")
+        # Un alias compuesto (p-tau181, NF-L) se resuelve entero; si no, se separa por guion (GFAP-NfL).
+        partes = [bruto] if bruto.upper() in ALIAS_GEN else bruto.split("-")
+        for tok in partes:
+            t = ALIAS_GEN.get(tok.upper(), tok.upper())
+            if not t or t in NO_GEN or t in vistos or not re.fullmatch(r"[A-Z][A-Z0-9]{1,9}", t):
+                continue
+            if not (tok.isupper() or tok.upper() in ALIAS_GEN or re.search(r"\d", tok)):
+                continue  # palabras normales en minusculas no cuentan
+            vistos.append(t)
     return vistos[:6]
 
 
