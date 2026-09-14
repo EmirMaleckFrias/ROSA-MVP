@@ -1298,6 +1298,8 @@ export interface HallazgoRegistro {
   origen: 'regla' | 'juez';
   estado?: 'abierto' | 'atendido' | 'descartado';
   respuesta?: string;
+  resueltoPor?: string;
+  resueltoEn?: number;
 }
 
 export interface RevisionRegistro {

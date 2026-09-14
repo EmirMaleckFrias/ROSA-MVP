@@ -135,7 +135,7 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
         return cerrada ? (
           <>
             <ResumenEnLlano resumen={cerrada.resumenLlano} numero={cerrada.numero} />
-            <RevisionDeRegistro r={cerrada.revisionRegistro} />
+            <RevisionDeRegistro r={cerrada.revisionRegistro} iteracionId={cerrada.id} />
           </>
         ) : null;
       })()}

@@ -522,6 +522,10 @@ export const acciones = {
     aplicar((e) => A.actualizarPregunta(e, corridaId, pregunta, Date.now()));
     enviar('actualizarPregunta', { corrida_id: corridaId, pregunta, quien: QUIEN });
   },
+  resolverHallazgoRegistro: (iteracionId: string, hallazgoId: string, estado: 'atendido' | 'descartado' | 'abierto', respuesta: string) => {
+    aplicar((e) => A.resolverHallazgoRegistro(e, iteracionId, hallazgoId, estado, respuesta, QUIEN, Date.now()));
+    enviar('resolverHallazgoRegistro', { iteracion_id: iteracionId, hallazgo_id: hallazgoId, estado, respuesta, quien: QUIEN });
+  },
   fijarPermisoConector: (nombre: string, nivel: NivelPermisoConector) => {
     aplicar((e) => A.fijarPermisoConector(e, nombre, nivel, QUIEN, Date.now()));
     enviar('fijarPermisoConector', { nombre, nivel, quien: QUIEN });

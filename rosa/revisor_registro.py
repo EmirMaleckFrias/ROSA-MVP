@@ -143,11 +143,24 @@ def _es_num(x: str) -> bool:
 def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, corrida: dict[str, Any] | None, hipotesis: dict[str, Any] | None = None, maximo: int = 9000) -> str:
     """El registro en texto para el juez: plan con estados, pistas, afirmaciones
     con veredicto, ejecuciones con cifras, reproducciones, consultas."""
-    lineas: list[str] = []
+    lineas: list[str] = ["Nota: 'CONSULTAS A BASES ESTRUCTURADAS' son solo las llamadas a bases de genes, farmacos y datos (conectores). Las busquedas de literatura (PubMed, Europe PMC, OpenAlex) estan en 'BUSQUEDAS DE LITERATURA' con su base y su recuento."]
     if it:
         lineas.append("PLAN: " + "; ".join(f"{p.get('titulo', '')[:50]} [{p.get('estado')}]" for p in it.get("plan", [])))
-        lineas.append("PISTAS: " + "; ".join(f"{p.get('titulo', '')[:40]} [{p.get('estado')}] {(p.get('resumen') or '')[:80]}" for p in it.get("pistas", [])[:20]))
+        lineas.append("PISTAS (una pista fallida seguida de otra hecha con el mismo titulo significa que el paso se retomo y termino): " + "; ".join(f"{p.get('titulo', '')[:40]} [{p.get('estado')}] {(p.get('resumen') or '')[:80]}" for p in it.get("pistas", [])[:20]))
+        busq = []
+        for p in it.get("pistas", []):
+            for ev in p.get("eventos", []) or []:
+                q = ev.get("consulta") or {}
+                if q.get("base"):
+                    busq.append(f"{q.get('base')}: {str(q.get('parametros', ''))[:60]} -> {q.get('resultados', '?')} resultados")
+        lineas.append("BUSQUEDAS DE LITERATURA: " + ("; ".join(busq[:30]) or "ninguna registrada en las pistas"))
     hips = [hipotesis] if hipotesis else [h for h in e.get("hipotesis", []) if h["investigacionId"] == inv_id]
+    lineas.append("HIPOTESIS DE LA INVESTIGACION (titulo [estado, decision del Killer, iteracion en que nacio]): " + ("; ".join(f"{h.get('titulo', '')[:90]} [{h.get('estado')}, {h.get('decisionKiller')}, it {h.get('iteracion')}]" for h in hips[:20]) or "ninguna"))
+    if it and not hipotesis:
+        nuevas = [h for h in hips if h.get("iteracion") == it.get("numero")]
+        lineas.append(f"HIPOTESIS NUEVAS EN ESTA ITERACION: {len(nuevas)} (" + "; ".join(h.get("titulo", "")[:60] for h in nuevas) + "); en cola (propuestas o en revision) al cerrar: " + str(sum(1 for h in hips if h.get("estado") in ("propuesta", "en_revision"))))
+        hechos_it = [x for x in e.get("hechos", []) if x["investigacionId"] == inv_id and x.get("actualizadoEn", 0) >= it.get("empezadaEn", 0)]
+        lineas.append(f"HECHOS NUEVOS O ACTUALIZADOS EN ESTA ITERACION: {len(hechos_it)}")
     afs = list((corrida or {}).get("_afirmaciones", [])) if not hipotesis else list(hipotesis.get("afirmaciones", []))
     if it and not hipotesis:
         afs = [a for a in afs if a.get("iteracion") == it.get("numero")]
@@ -159,7 +172,7 @@ def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, co
     reps = [r for r in e.get("reproducciones", []) if r.get("investigacionId") == inv_id]
     lineas.append("REPRODUCCIONES: " + ("; ".join(f"{r.get('referencia', '')[:40]} [{r.get('estado')}] obtenido={r.get('valorObtenido')} publicado={r.get('valorPublicado')}" for r in reps) or "ninguna"))
     cons = [q for h in hips for q in h.get("consultas", [])]
-    lineas.append("CONSULTAS A BASES: " + ("; ".join(f"{q.get('herramienta')}({', '.join(str(v) for v in q.get('argumentos', {}).values())}) n={q.get('n')}{' ERROR' if q.get('error') else ''}" for q in cons[-25:]) or "ninguna"))
+    lineas.append("CONSULTAS A BASES ESTRUCTURADAS (conectores): " + ("; ".join(f"{q.get('herramienta')}({', '.join(str(v) for v in q.get('argumentos', {}).values())}) n={q.get('n')}{' ERROR' if q.get('error') else ''}" for q in cons[-25:]) or "ninguna"))
     fuentes = {f.get("referencia"): f for h in hips for f in h.get("procedencia", {}).get("fuentes", [])}
     lineas.append("FUENTES: " + ("; ".join(f"{r} (doi {f.get('doi') or 'no'})" for r, f in list(fuentes.items())[:40]) or "ninguna"))
     return "\n".join(lineas)[:maximo]

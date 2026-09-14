@@ -445,6 +445,7 @@ _TABLA: dict[str, Callable] = {
     "cambiarEstadoArea": A.cambiar_estado_area,
     "registrarEvaluacion": A.registrar_evaluacion,
     "fijarPermisoConector": A.fijar_permiso_conector,
+    "resolverHallazgoRegistro": A.resolver_hallazgo_registro,
     "anadirMemoria": A.anadir_memoria,
     "quitarMemoria": A.quitar_memoria,
     "registrarPreguntaBases": A.registrar_pregunta_bases,

@@ -584,6 +584,14 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
   return siguiente;
 }
 
+export function resolverHallazgoRegistro(estado: EstadoRosa, iteracionId: string, hallazgoId: string, nuevoEstado: 'atendido' | 'descartado' | 'abierto', respuesta: string, quien: string, ahora: number): EstadoRosa {
+  const it = estado.iteraciones.find((i) => i.id === iteracionId);
+  if (!it?.revisionRegistro || !it.revisionRegistro.hallazgos.some((h) => h.id === hallazgoId)) return estado;
+  const hallazgos = it.revisionRegistro.hallazgos.map((h) => (h.id === hallazgoId ? { ...h, estado: nuevoEstado, respuesta: respuesta.trim().slice(0, 400), resueltoPor: quien.trim() || 'persona', resueltoEn: ahora } : h));
+  const revision = { ...it.revisionRegistro, hallazgos, estado: hallazgos.some((h) => (h.estado ?? 'abierto') === 'abierto') ? ('con_hallazgos' as const) : ('limpia' as const) };
+  return { ...estado, iteraciones: estado.iteraciones.map((i) => (i.id === iteracionId ? { ...i, revisionRegistro: revision } : i)) };
+}
+
 export const NIVELES_PERMISO_CONECTOR: NivelPermisoConector[] = ['permitir', 'solo_persona', 'bloquear'];
 
 /** Misma regla que `fijar_permiso_conector`: cambia el permiso y deja un cambio de politica. */

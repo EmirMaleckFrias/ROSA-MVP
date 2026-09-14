@@ -1883,7 +1883,7 @@ export function ContextoDeBases({ h }: { h: Hipotesis }) {
 
 /** Los hallazgos del revisor de registro como tarjetas, igual que Claude
  *  Science los ensena bajo el mensaje revisado. */
-export function RevisionDeRegistro({ r, compacto = false }: { r: RevisionRegistro | null | undefined; compacto?: boolean }) {
+export function RevisionDeRegistro({ r, compacto = false, iteracionId }: { r: RevisionRegistro | null | undefined; compacto?: boolean; iteracionId?: string }) {
   if (!r) return null;
   if (r.hallazgos.length === 0) {
     return (
@@ -1907,7 +1907,20 @@ export function RevisionDeRegistro({ r, compacto = false }: { r: RevisionRegistr
         {r.hallazgos.slice(0, compacto ? 3 : 20).map((h, i) => (
           <li key={h.id ?? i} className={`tarjeta hallazgo-registro gravedad-${h.gravedad}`}>
             <strong style={{ fontSize: 13 }}>{CLASE_HALLAZGO_REGISTRO[h.clase] ?? h.clase}</strong> <Chip tono={h.gravedad === 'alta' ? 'mal' : h.gravedad === 'media' ? 'aviso' : 'borde'}>{h.gravedad}</Chip> <span className="meta">({h.origen})</span>
+            {h.estado && h.estado !== 'abierto' && (
+              <Chip tono={h.estado === 'atendido' ? 'ok' : 'borde'}>
+                {h.estado === 'atendido' ? 'Atendido' : 'Descartado'}
+                {h.resueltoPor ? ` por ${h.resueltoPor}` : ''}
+              </Chip>
+            )}
             <p className="meta">{h.detalle}</p>
+            {h.respuesta && <p className="meta">Respuesta: {h.respuesta}</p>}
+            {iteracionId && h.id && (h.estado ?? 'abierto') === 'abierto' && !compacto && (
+              <div className="acciones">
+                <Confirmar etiqueta="Atendido" pregunta="Que se hizo con este hallazgo?" pedirTexto={{ etiqueta: 'Respuesta', marcador: 'Se corrigio el resumen; la cifra venia de la pista 3' }} onConfirmar={(t) => acciones.resolverHallazgoRegistro(iteracionId, h.id!, 'atendido', t)} />
+                <Confirmar etiqueta="Descartar" pregunta="Por que no aplica este hallazgo?" pedirTexto={{ etiqueta: 'Motivo', marcador: 'El revisor confundio hipotesis en cola con hipotesis nuevas' }} onConfirmar={(t) => acciones.resolverHallazgoRegistro(iteracionId, h.id!, 'descartado', t)} />
+              </div>
+            )}
           </li>
         ))}
       </ul>

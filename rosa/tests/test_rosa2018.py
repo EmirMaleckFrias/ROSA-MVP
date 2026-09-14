@@ -654,3 +654,19 @@ def test_skills_por_palabra_completa_y_contexto():
     assert [s["nombre"] for s in SK.para_texto("regresion lineal sobre el area bajo la curva", contexto="analisis")] == []  # 'area' no activa la de mision en analisis
     assert [s["nombre"] for s in SK.para_texto("mision y areas del programa", contexto="mision")] == ["eleccion-de-problema"]
     assert "fila-de-evidencia" not in [s["nombre"] for s in SK.para_texto("evidencia de la hipotesis", contexto="analisis")]
+
+
+def test_resolver_hallazgo_del_revisor(al):
+    inv = _inv(al)
+    c = al.estado["corridas"][0]["id"]
+    it = P.nueva_iteracion(c, 1, P.ahora_ms(), [P.nuevo_paso("a", "", 5)])
+    it["revisionRegistro"] = {"hallazgos": [{"id": "rr-1", "clase": "cita_sin_soporte", "gravedad": "media", "detalle": "x", "origen": "juez", "estado": "abierto"}], "porRegla": 0, "juez": "j", "resumen": "", "estado": "con_hallazgos"}
+    al.mutar(lambda e: e["iteraciones"].append(it) or True)
+    assert al.aplicar("resolverHallazgoRegistro", {"iteracion_id": it["id"], "hallazgo_id": "rr-1", "estado": "descartado", "respuesta": "confundio cola con nuevas", "quien": "persona"}) is True
+    r = al.estado["iteraciones"][0]["revisionRegistro"]
+    assert r["estado"] == "limpia" and r["hallazgos"][0]["resueltoPor"] == "persona"
+    assert al.aplicar("resolverHallazgoRegistro", {"iteracion_id": it["id"], "hallazgo_id": "no", "estado": "atendido", "respuesta": "", "quien": "p"}) is False
+    from rosa import revisor_registro as RR
+
+    t = RR.texto_registro(al.estado, inv, it, al.estado["corridas"][0])
+    assert "BUSQUEDAS DE LITERATURA" in t and "HIPOTESIS DE LA INVESTIGACION" in t and "CONSULTAS A BASES ESTRUCTURADAS" in t

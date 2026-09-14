@@ -493,6 +493,23 @@ def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, a
     return True
 
 
+def resolver_hallazgo_registro(e: Estado, iteracion_id: str, hallazgo_id: str, estado: str, respuesta: str, quien: str, ahora: int) -> bool:
+    """Una persona atiende o descarta un hallazgo del revisor de registro,
+    con su respuesta. Si no queda ninguno abierto, la revision pasa a limpia."""
+    it = _buscar(e["iteraciones"], iteracion_id)
+    if not it or not it.get("revisionRegistro") or estado not in ("atendido", "descartado", "abierto"):
+        return False
+    hz = next((x for x in it["revisionRegistro"]["hallazgos"] if x.get("id") == hallazgo_id), None)
+    if not hz:
+        return False
+    hz["estado"] = estado
+    hz["respuesta"] = respuesta.strip()[:400]
+    hz["resueltoPor"] = quien.strip() or "persona"
+    hz["resueltoEn"] = ahora
+    it["revisionRegistro"]["estado"] = "con_hallazgos" if any(x.get("estado", "abierto") == "abierto" for x in it["revisionRegistro"]["hallazgos"]) else "limpia"
+    return True
+
+
 def fijar_permiso_conector(e: Estado, nombre: str, nivel: str, quien: str, ahora: int) -> bool:
     """Permiso por conector: permitir, solo cuando una persona pregunta, o
     bloquear. Queda en el estado y en el proceso (la capa de conectores lo
