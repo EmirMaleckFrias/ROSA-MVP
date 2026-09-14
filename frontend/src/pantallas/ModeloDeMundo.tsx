@@ -10,7 +10,7 @@ import { preguntarAlModeloDeMundo } from '../datos/acciones';
 import type { EstadoRosa, HechoMundo, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Momento, Seccion } from '../componentes/piezas';
 import { IconChevronDown } from '../componentes/icons';
-import { PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
+import { Entidades, PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
 import { COBERTURA_MINIMA, faltanParaCobertura } from '../lib/cobertura';
 import { CLASIFICACION_CITA, ESTADO_HECHO, TIPO_HECHO } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
@@ -57,6 +57,7 @@ function TarjetaHecho({ h, ahora }: { h: HechoMundo; ahora: number }) {
         </Chip>
       </div>
       <p>{h.enunciado}</p>
+      <Entidades entidades={h.entidades} maximo={6} />
       {h.procedencia.length > 0 && (
         <div className="hecho-procedencia">
           {h.procedencia.map((p, i) => (
@@ -86,7 +87,9 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
   const propios = useMemo(() => estado.hechos.filter((h) => h.investigacionId === inv.id), [estado.hechos, inv.id]);
   const temas = useMemo(() => [...new Set(propios.map((h) => h.tema))].sort(), [propios]);
   const q = busqueda.trim().toLowerCase();
-  const filtrados = propios.filter((h) => (tema === 'todos' || h.tema === tema) && (q === '' || h.enunciado.toLowerCase().includes(q) || h.procedencia.some((p) => p.referencia.toLowerCase().includes(q))));
+  // Se busca tambien por identificador canonico y por alias (GFAP, P14136, HGNC:4235
+  // encuentran el mismo hecho): el modelo de mundo como grafo consultable.
+  const filtrados = propios.filter((h) => (tema === 'todos' || h.tema === tema) && (q === '' || h.enunciado.toLowerCase().includes(q) || h.procedencia.some((p) => p.referencia.toLowerCase().includes(q)) || (h.entidades ?? []).some((x) => x.id.toLowerCase() === q || x.etiqueta.toLowerCase().includes(q) || x.alias.some((a) => a.toLowerCase() === q) || (x.uniprot ?? '').toLowerCase() === q)));
   const columnas: HechoMundo['estado'][] = ['sabido', 'abierto', 'descartado'];
   const orden = (a: HechoMundo, b: HechoMundo) => a.prioridad - b.prioridad || b.actualizadoEn - a.actualizadoEn;
   const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0];

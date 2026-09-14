@@ -27,6 +27,7 @@ from typing import Any
 import dspy
 
 from rosa import acuerdo_dorado as ACU
+from rosa import ontologias as ONTO
 from rosa import politicas
 from rosa import sesgo as SESGO
 from rosa import config, politicas
@@ -121,6 +122,7 @@ class Ctx:
         # puede cortar: DSPy captura lo que lance y sigue.)
         if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
             raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} (o de su iteracion {self.numero}) agotado")
+        kwargs = self._acotar_contexto(rol, kwargs)
         token = contexto_actual.set(ContextoLlamada(self.corrida_id, self.numero, rol))
         try:
             try:
@@ -147,6 +149,42 @@ class Ctx:
                     return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
         finally:
             contexto_actual.reset(token)
+
+    def _acotar_contexto(self, rol: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Politica de contexto: cada rol tiene un presupuesto de tokens de
+        entrada (politicas.TOKENS_MAX_POR_ROL). Si el prompt lo excede, las
+        entradas de texto mas largas se recortan (se conserva el principio y
+        el final, con una marca) y queda registrado en la corrida como
+        compactacion. Estimacion: 4 caracteres por token."""
+        tope = politicas.TOKENS_MAX_POR_ROL.get(rol)
+        if not tope:
+            return kwargs
+        textos = {k: v for k, v in kwargs.items() if isinstance(v, str)}
+        total = sum(len(v) for v in textos.values()) // 4
+        if total <= tope:
+            return kwargs
+        exceso_chars = (total - tope) * 4
+        nuevos = dict(kwargs)
+        for k, v in sorted(textos.items(), key=lambda kv: -len(kv[1])):
+            if exceso_chars <= 0:
+                break
+            recorte = min(exceso_chars, max(0, len(v) - 2000))
+            if recorte <= 0:
+                continue
+            mitad = (len(v) - recorte) // 2
+            nuevos[k] = v[:mitad] + f"\n[... {recorte // 4} tokens recortados por la politica de contexto del rol {rol} ...]\n" + v[len(v) - mitad:]
+            exceso_chars -= recorte
+
+        def fn(e: dict[str, Any]) -> bool:
+            c = next((x for x in e["corridas"] if x["id"] == self.corrida_id), None)
+            if not c:
+                return False
+            c["contexto"]["compactaciones"] = int(c["contexto"].get("compactaciones") or 0) + 1
+            c["contexto"]["ultimaCompactacion"] = P.ahora_ms()
+            return True
+
+        self.mutar(fn, "compactacion")
+        return nuevos
 
     def incidencia(self, tipo: str, titulo: str, detalle: str, recurso: str, alternativa: str | None) -> None:
         ahora = P.ahora_ms()
@@ -694,9 +732,14 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
     fuentes = ctx.fuentes()
     anadidos = 0
     preguntas = 0
+    # Genes nombrados en los hechos nuevos, resueltos en HGNC (con cache en el estado).
+    cache_ent = dict(ctx.e.get("entidadesCache") or {})
+    simbolos_nuevos = sorted({s_ for hp in pred.hechos for s_ in simbolos_de_genes(hp.enunciado)})[:12]
+    genes_resueltos = await ONTO.normalizar(simbolos_nuevos, [], cache_ent) if simbolos_nuevos else []
 
     def aplicar(e2: dict[str, Any]) -> bool:
         nonlocal anadidos, preguntas
+        e2["entidadesCache"] = {k: v for k, v in list(cache_ent.items())[-2000:]}
         existentes = {V.normalizar(h["enunciado"]) for h in e2["hechos"] if h["investigacionId"] == ctx.investigacion_id}
         for hp in pred.hechos:
             if V.normalizar(hp.enunciado) in existentes:
@@ -713,6 +756,13 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
                 if entrada not in procedencia:
                     procedencia.append(entrada)
             h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteracion {ctx.numero}")
+            # Entidades canonicas del hecho: diccionario curado mas los genes que HGNC
+            # resolvio (cache `entidadesCache` del estado). Con ellas el modelo de mundo
+            # se puede consultar y deduplicar por identificador, no por cadena.
+            h["entidades"] = ONTO.fusionar(ONTO.anotar_curadas(hp.enunciado), [x for x in genes_resueltos if x["texto"].upper() in {s_.upper() for s_ in simbolos_de_genes(hp.enunciado)}])
+            ids_nuevo = ONTO.ids_de(h["entidades"])
+            if ids_nuevo and any(len(ids_nuevo & ONTO.ids_de(x.get("entidades"))) >= 2 and V.normalizar(x["enunciado"])[:40] == V.normalizar(hp.enunciado)[:40] for x in e2["hechos"] if x["investigacionId"] == ctx.investigacion_id):
+                continue  # mismo comienzo y mismas entidades canonicas: es el mismo hecho con otras palabras
             e2["hechos"].append(h)
             existentes.add(V.normalizar(hp.enunciado))
             if hp.tipo == "hecho":
@@ -778,6 +828,35 @@ async def _completar_tarjeta(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -
 
 
 MAX_FUENTES_SESGO = 3
+
+
+async def _anotar_entidades(ctx: Ctx, h: dict[str, Any]) -> None:
+    """`h["entidades"]`: identificadores canonicos (HGNC, MONDO, CL, UBERON, GO,
+    ChEBI) de lo que nombra la hipotesis. Se recalcula si cambio la version."""
+    if (h.get("_entidadesVersion") == h.get("version", 1)) and h.get("entidades") is not None:
+        return
+    t = h.get("tarjeta") or {}
+    texto = " ".join([h.get("titulo", ""), h.get("enunciado", ""), h.get("mecanismo", ""), t.get("diana", ""), t.get("celula", ""), (h.get("comprobacion") or {}).get("biomarcador", "")])
+    curadas = ONTO.anotar_curadas(texto)
+    simbolos = simbolos_de_genes(" ".join([h.get("titulo", ""), t.get("diana", ""), (h.get("comprobacion") or {}).get("biomarcador", "")]))[:6]
+    cache_ent = dict(ctx.e.get("entidadesCache") or {})
+    try:
+        genes = await ONTO.normalizar(simbolos, [], cache_ent) if simbolos else []
+    except Exception:  # noqa: BLE001
+        genes = []
+    entidades = ONTO.fusionar(curadas, genes)
+
+    def fn(e: dict[str, Any]) -> bool:
+        x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return False
+        x["entidades"] = entidades
+        x["_entidadesVersion"] = x.get("version", 1)
+        e["entidadesCache"] = {k: v for k, v in list(cache_ent.items())[-2000:]}
+        return True
+
+    ctx.mutar(fn, "entidades")
+    h["entidades"] = entidades
 
 
 def _fuentes_de_hipotesis(ctx: Ctx, h: dict[str, Any]) -> list[dict[str, Any]]:
@@ -851,6 +930,16 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             pista.nota(f"Las bases no respondieron para la diana: {str(ex)[:100]}")
     h = next((y for y in e["hipotesis"] if y["id"] == h["id"]), h)
     deterministas = K.comprobaciones_deterministas(h, e)
+    # Entidades canonicas de la hipotesis (HGNC para la diana, diccionario curado
+    # para lo demas) y redundancia por identificador: dos hipotesis vivas que
+    # comparten dos o mas entidades canonicas hablan quiza de lo mismo con otras
+    # palabras; el juez lo recibe como pista, no como veredicto.
+    await _anotar_entidades(ctx, h)
+    if not any(c["comprobacion"] == "redundancia" for c in deterministas):
+        parecidas = [(x, ONTO.comparten(h.get("entidades"), x.get("entidades"))) for x in e["hipotesis"] if x["id"] != h["id"] and x["investigacionId"] == h["investigacionId"] and x["estado"] != "descartada"]
+        parecidas = [(x, c) for x, c in parecidas if c]
+        if parecidas:
+            deterministas.append({"comprobacion": "redundancia", "resultado": "no_comprobable", "detalle": "Comparte entidades canonicas con: " + "; ".join(f"{x['titulo'][:60]} ({', '.join(c)})" for x, c in parecidas[:3]) + ". El juez decide si es la misma hipotesis con otras palabras."})
     # Riesgo de sesgo por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE):
     # el modelo responde las preguntas de senalizacion de cada fuente primaria y
     # el veredicto lo pone la regla del instrumento. Sustituye al juicio libre.

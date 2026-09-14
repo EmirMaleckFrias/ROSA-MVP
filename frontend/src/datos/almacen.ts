@@ -15,6 +15,7 @@
 import { useSyncExternalStore } from 'react';
 import * as A from './acciones';
 import { descargar } from '../componentes/piezas';
+import type { CostesInvestigacion } from '../componentes/Rosa2018';
 import { estadoDeMuestra } from './muestra';
 import { iniciarSimulacion } from './simulacion';
 import type {
@@ -712,6 +713,16 @@ export const acciones = {
       return true;
     } catch {
       return false;
+    }
+  },
+  /** Coste por decision de una investigacion (modelo mas revision humana). */
+  costesDe: async (investigacionId: string): Promise<CostesInvestigacion | null> => {
+    if (modo !== 'servidor') return null;
+    try {
+      const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/costes`, { cache: 'no-store', headers: cabeceras(false) });
+      return r.ok ? ((await r.json()) as CostesInvestigacion) : null;
+    } catch {
+      return null;
     }
   },
   /** Integridad del registro de acciones (cadena de hashes). */

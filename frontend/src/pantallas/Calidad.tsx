@@ -4,7 +4,7 @@
 // coste por hipotesis, los casos de control (los 17 del RAG, sin aprobar) y
 // las optimizaciones de GEPA con su enlace a MLflow.
 
-import { PanelKiller } from '../componentes/Rosa2018';
+import { CostesPorDecision, PanelKiller } from '../componentes/Rosa2018';
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import type { CasoControl, EstadoRosa, Investigacion } from '../datos/tipos';
@@ -187,6 +187,46 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
       </Seccion>
 
       <PanelKiller estado={estado} />
+
+      <CostesPorDecision investigacionId={inv.id} />
+
+      {(() => {
+        const casos = (estado.conjuntoDorado ?? []).map((c) => ({ c, d: (estado.decisiones ?? []).find((d) => d.id === c.decisionId) })).filter((x) => x.d?.contexto);
+        if (casos.length < 5) return null;
+        const tramos: [string, (n: number) => boolean][] = [
+          ['menos de 50 hechos', (n) => n < 50],
+          ['50 a 200 hechos', (n) => n >= 50 && n < 200],
+          ['200 o mas hechos', (n) => n >= 200],
+        ];
+        return (
+          <Seccion titulo="Acuerdo juez-humano segun el tamano del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decision del Killer guarda cuantos hechos habia en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la politica de contexto tiene que recortar antes de que duela.">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Modelo de mundo al decidir</th>
+                  <th>Etiquetas</th>
+                  <th>Acuerdo bruto</th>
+                  <th>Kappa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tramos.map(([nombre, pertenece]) => {
+                  const sub = casos.filter((x) => pertenece(x.d!.contexto!.hechos)).map((x) => x.c);
+                  const a = acuerdoDe(sub);
+                  return (
+                    <tr key={nombre}>
+                      <td>{nombre}</td>
+                      <td className="num">{a.n}</td>
+                      <td className="num">{a.bruto === null ? 'n/a' : formatearPorcentaje(a.bruto)}</td>
+                      <td className="num">{a.kappa ?? 'n/a'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Seccion>
+        );
+      })()}
 
       {(() => {
         const propias = (estado.decisiones ?? []).filter((d) => d.etapa === 'persona' && typeof d.segundosRevision === 'number' && estado.hipotesis.some((h) => h.id === d.hipotesisId && h.investigacionId === inv.id));

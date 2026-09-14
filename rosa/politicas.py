@@ -88,6 +88,33 @@ ELO_INICIAL = 1500
 TOKENS_MAX_POR_ROL = {"cerebro": 120_000, "juez": 90_000, "volumen": 40_000}
 
 
+# Coste por decision: las horas de revision humana entran en el coste a esta
+# tarifa declarada (USD por hora), para comparar con investigar sin Rosa.
+TARIFA_HORA_REVISION_USD = 60.0
+
+# Nivel de autonomia declarado, con la escala de Beal y Rogers (Mol Syst Biol
+# 2020) que adopta la revision de laboratorios autonomos de Tobias y Wahab
+# (Royal Society Open Science 2025): la mayoria de los sistemas actuales esta
+# en el nivel 3 y ninguno en produccion pasa del 4. Rosa opera en el nivel 2:
+# asistencia cientifica proactiva (hipotesis, planes, protocolos, analisis in
+# silico) con decision humana en lo que cambia el mundo real. No ejecuta
+# ningun ciclo fisico sola y no pretende hacerlo.
+NIVEL_AUTONOMIA_DECLARADO = 2
+NIVELES_AUTONOMIA = (
+    {"nivel": 0, "nombre": "Sin autonomia", "definicion": "Todo el trabajo lo hacen personas."},
+    {"nivel": 1, "nombre": "Operacion asistida", "definicion": "Asistencia de maquina en tareas definidas (manipuladores de liquidos, software de analisis)."},
+    {"nivel": 2, "nombre": "Autonomia parcial", "definicion": "Asistencia cientifica proactiva: generacion de protocolos e hipotesis, al menos un paso intelectual automatizado. Las decisiones que tocan el mundo real las toma una persona."},
+    {"nivel": 3, "nombre": "Autonomia condicional", "definicion": "Minimo para llamarse laboratorio autonomo: al menos un ciclo completo del metodo cientifico sin intervencion salvo anomalias."},
+    {"nivel": 4, "nombre": "Alta autonomia", "definicion": "Genera protocolos, ejecuta experimentos, analiza y ajusta hipotesis con los resultados (Adam, Eve)."},
+    {"nivel": 5, "nombre": "Autonomia total", "definicion": "Automatizacion completa del metodo cientifico. No existe todavia."},
+)
+
+
+def nivel_autonomia_texto() -> str:
+    n = next(x for x in NIVELES_AUTONOMIA if x["nivel"] == NIVEL_AUTONOMIA_DECLARADO)
+    return f"Nivel {n['nivel']} de 5 ({n['nombre']}): {n['definicion']} Escala de Beal y Rogers (2020) usada por la revision de laboratorios autonomos de 2025."
+
+
 def puede_reformular(version: int) -> bool:
     """`version` es la version actual de la hipotesis (1 al nacer). Se puede
     reformular mientras la siguiente version no supere el limite."""
@@ -111,4 +138,7 @@ def resumen() -> dict[str, object]:
         "maxHipotesisEnContexto": MAX_HIPOTESIS_EN_CONTEXTO,
         "tokensMaxPorRol": dict(TOKENS_MAX_POR_ROL),
         "eloK": ELO_K,
+        "tarifaHoraRevisionUsd": TARIFA_HORA_REVISION_USD,
+        "nivelAutonomiaDeclarado": NIVEL_AUTONOMIA_DECLARADO,
+        "nivelesAutonomia": list(NIVELES_AUTONOMIA),
     }

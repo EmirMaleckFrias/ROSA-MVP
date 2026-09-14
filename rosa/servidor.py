@@ -25,7 +25,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
@@ -201,6 +201,43 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if r is None:
             raise HTTPException(404, "Corrida desconocida")
         return r
+
+    @app.get("/api/investigaciones/{investigacion_id}/costes")
+    async def costes(investigacion_id: str) -> dict[str, Any]:
+        """Coste por decision de una investigacion: dolares del modelo mas horas
+        de revision humana a la tarifa declarada; por dossier, por candidata y
+        por decision; y la tendencia por iteracion."""
+        from rosa import costes as C
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                if not any(i["id"] == investigacion_id for i in almacen.estado["investigaciones"]):
+                    return None
+                por_corrida = {c["id"]: almacen.llamadas_de(c["id"], 20000) for c in almacen.estado["corridas"] if c.get("investigacionId") == investigacion_id}
+                return C.costes_de_investigacion(almacen.estado, investigacion_id, por_corrida)
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Investigacion desconocida")
+        return r
+
+    @app.get("/api/hipotesis/{hipotesis_id}/rocrate")
+    async def rocrate_de(hipotesis_id: str) -> Response:
+        """El expediente de la hipotesis como RO-Crate (zip) con procedencia
+        W3C PROV: verificable con herramientas de terceros, sin Rosa."""
+        from rosa import rocrate as RC
+
+        def armar() -> bytes | None:
+            with almacen._lock:
+                h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
+                if not h:
+                    return None
+                return RC.zip_bytes(RC.armar(almacen.estado, h, P.ahora_ms()))
+
+        datos = await asyncio.to_thread(armar)
+        if datos is None:
+            raise HTTPException(404, "Hipotesis desconocida")
+        return Response(content=datos, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="rosa-{hipotesis_id}.crate.zip"', "Cache-Control": "no-store"})
 
     @app.get("/api/registro/integridad")
     async def integridad() -> dict[str, Any]:

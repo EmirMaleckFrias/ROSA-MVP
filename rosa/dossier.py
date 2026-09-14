@@ -57,6 +57,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L.append(f"Rosa: commit {a.get('commit')}, firmas {a.get('firmas')}, programas optimizados {a.get('optimizados')}.")
 
     # 1. Decision
+    L += ["", f"Nivel de autonomia con el que se produjo este dossier: {politicas.nivel_autonomia_texto()} Ninguna decision que toque el mundo real (asignar un experimento, gastar grande, descartar) la toma Rosa sola por politica."]
     L += ["", "## 1. Decision de priorizacion"]
     if bloqueos:
         L.append("NO es candidata al laboratorio. Bloqueos no compensables:")

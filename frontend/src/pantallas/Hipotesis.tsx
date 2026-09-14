@@ -806,6 +806,9 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <Seccion titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipotesis fuera de Rosa: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
         <div className="dirigir">
           <input className="entrada" value={aplicableA} placeholder="Aplicable a (cohorte, modelo, condicion): por ejemplo portadores de APOE4 con genotipo de TREM2" onChange={(e) => setAplicableA(e.target.value)} aria-label="Aplicable a" />
+          <a className="btn" href={`/api/hipotesis/${encodeURIComponent(h.id)}/rocrate`} download={`rosa-${h.id}.crate.zip`} title="RO-Crate 1.2 (perfil Process Run Crate) con procedencia W3C PROV: la hipotesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el codigo y resultado de cada analisis, el prerregistro y sus sellos RFC 3161. Se verifica con herramientas de terceros, sin Rosa.">
+            Exportar RO-Crate (PROV)
+          </a>
           <button type="button" className="btn" onClick={() => descargar(`${h.id}-expediente.json`, expediente(h, estado.hechos, aplicableA.trim() || 'sin limite declarado'), 'application/json')}>
             Descargar expediente
           </button>

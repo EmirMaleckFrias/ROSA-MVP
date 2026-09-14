@@ -89,6 +89,7 @@ def estado_inicial() -> dict[str, Any]:
         "hechos": [],
         "evaluaciones": [],
         "conjuntoDorado": [],
+        "entidadesCache": {},
         "permisosConectores": {},
         "skills": [],
         "conectores": [],

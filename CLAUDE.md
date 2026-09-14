@@ -59,7 +59,13 @@ sin aprobar por un humano.
   `rosa/revisor_registro.py` (seis clases de hallazgo al cerrar iteracion y
   dossier), `rosa/skills/` (SKILL.md por metodo, cargadas por palabras de
   activacion) y `rosa/sandbox/Dockerfile.celula` (segundo entorno). Ver
-  `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`.
+  `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`. Del 14 de septiembre:
+  `rosa/sesgo.py` (riesgo de sesgo por instrumento, veredicto por regla),
+  `rosa/acuerdo.py` y `rosa/acuerdo_dorado.py` (kappa, conjunto dorado),
+  `rosa/sello.py` (RFC 3161), `rosa/prisma.py` (PRISMA 2020 y trAIce),
+  `rosa/sintetico.py` (ensayo en seco), `rosa/ontologias.py` (entidades
+  canonicas), `rosa/costes.py`, `rosa/rocrate.py` (RO-Crate con PROV),
+  `rosa/parada.py`. Ver `INVESTIGACION-AI-SCIENTIST-2026.md`.
 - `frontend/`: la interfaz web de Rosa (React, Vite, TypeScript). Ver su
   `README.md`. `frontend/src/datos/almacen.ts` prueba el servidor al arrancar
   y, si no responde, cae a los datos de muestra con la corrida simulada.

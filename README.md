@@ -187,6 +187,54 @@ infraestructura ni necesidad hoy), y las plataformas de pago sin datos
 publicos. scvi-tools no entra en la imagen de celula unica porque arrastra
 PyTorch y no hay GPU.
 
+## Lo que Rosa tomo de la revision de un AI scientist profesional (14 de septiembre de 2026)
+
+Un informe externo listo quince huecos entre el MVP y un sistema en operacion
+profesional; se verifico cada afirmacion contra las fuentes (ver
+`INVESTIGACION-AI-SCIENTIST-2026.md`, con las correcciones: PRISMA 2026 no
+existe, la mayoria de los laboratorios autonomos esta en el nivel 3, DrugBank
+no es abierto) y se aplico lo que aportaba:
+
+- **Riesgo de sesgo por instrumento** (`rosa/sesgo.py`): RoB 2, ROBINS-I V2,
+  QUADAS-2, ROBIS y SYRCLE. El juez responde las preguntas de senalizacion
+  con cita y la regla del instrumento pone el veredicto; la comprobacion
+  `sesgo_evidencia` del Killer y el factor GRADE salen de ahi.
+- **Conjunto dorado y calibracion** (`rosa/acuerdo.py`,
+  `rosa/acuerdo_dorado.py`): cada comprobacion del Killer se etiqueta a mano
+  desde la ficha; Calidad muestra el kappa de Cohen por comprobacion (y AC1
+  de Gwet); el panel de fallos plantados reporta kappa; si cambia el modelo
+  del juez o cae el acuerdo, queda una incidencia.
+- **Sello externo del prerregistro** (`rosa/sello.py`): RFC 3161 con freeTSA,
+  DigiCert y Sectigo al asignar un experimento; verificable con `openssl ts
+  -verify` sin Rosa. **Registro encadenado por hashes** (Ajustes, Integridad
+  del registro).
+- **PRISMA 2020** (`rosa/prisma.py`): el cribado registra cada excluido con
+  su motivo; la corrida exporta el flujo con las variables oficiales del
+  diagrama, los items 6, 7, 8, 16a y 16b, la extension PRISMA-LSR y la
+  declaracion de la IA (PRISMA-trAIce).
+- **Ensayo en seco** (`rosa/sintetico.py`): el plan congelado corre sobre una
+  tabla sintetica con la forma del dataset antes de tocar los datos reales.
+- **Entidades canonicas** (`rosa/ontologias.py`): HGNC, MONDO, CL, UBERON,
+  GO y ChEBI en hechos, hipotesis y nodos causales; el modelo de mundo se
+  busca por identificador o alias; redundancia por identificador.
+- **Politica de contexto**: presupuesto de tokens por rol
+  (`politicas.TOKENS_MAX_POR_ROL`), recortes registrados como compactacion y
+  el acuerdo juez-humano por tamano del modelo de mundo en Calidad.
+- **Nivel de autonomia declarado**: 2 de 5 en la escala de Beal y Rogers, en
+  Ajustes y en cada dossier. **Coste por decision** (`rosa/costes.py`):
+  modelo mas horas de revision a tarifa declarada, por dossier, candidata y
+  decision. **Conocimiento operativo del laboratorio** como clase de
+  evidencia propia. **RO-Crate con PROV** (`rosa/rocrate.py`) desde la ficha.
+
+Reglas de concurrencia (lo que antes no estaba escrito): un solo escritor
+(el proceso de Rosa, con cerrojo reentrante); cada mutacion es atomica y se
+persiste con su fila del registro en la misma transaccion; una lectura ve
+siempre una version completa (la instantanea se toma bajo el cerrojo); una
+decision humana lleva la version de la hipotesis que veia y el servidor la
+rechaza si cambio (la interfaz recarga y avisa); el espejo de Convex y las
+exportaciones leen bajo el cerrojo en un hilo. Si algun dia hay varios
+procesos escribiendo, esta seccion es lo que hay que revisar primero.
+
 ## Espejo del estado en Convex
 
 Con `CONVEX_URL` y `CONVEX_DEPLOY_KEY` en el `.env` del servidor, Rosa copia
@@ -261,3 +309,6 @@ uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # trazas en :5000
   de otros sistemas.
 - `INVESTIGACION-BACKEND.md`: los AI scientists estudiados, las APIs de las
   fuentes y la arquitectura del backend.
+- `INVESTIGACION-AI-SCIENTIST-2026.md`: los quince huecos de un AI scientist
+  profesional verificados contra las fuentes, con las correcciones al informe
+  externo y lo que Rosa tomo de cada uno.

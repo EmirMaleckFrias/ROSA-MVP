@@ -269,6 +269,8 @@ export interface PresupuestoGlobal {
 export interface Contexto {
   tokensUsados: number;
   tokensLimite: number;
+  /** El prompt mas largo que entro en esta corrida (tokens reales de entrada). */
+  tokensMaximo?: number;
   compactaciones: number;
   ultimaCompactacion: number | null;
 }
@@ -1077,6 +1079,8 @@ export interface Decision {
   auditoria: { quien: string; acuerdo: boolean; motivo: string; fecha: number } | null;
   /** Segundos entre abrir la ficha y decidir, si la decision fue de una persona: la carga de revision. */
   segundosRevision?: number;
+  /** Cuanto contexto habia al decidir (para vigilar si la calidad cae al crecer el modelo de mundo). */
+  contexto?: { hechos: number; hipotesisVivas: number };
 }
 
 /** Bloqueos no compensables de la priorizacion (ROSA2018, etapa 8): uno
@@ -1106,6 +1110,8 @@ export interface Hipotesis {
   origen: 'rosa' | 'humana';
   derivadaDe: Id | null;
   cluster: string;
+  /** Identificadores canonicos de lo que nombra la hipotesis (diana, celula, tejido, proceso). */
+  entidades?: EntidadCanonica[];
   evidenciaEstadistica: 'fuerte' | 'moderada' | 'debil' | 'no_aplica';
   /** Por que importa para el objetivo, en dos lineas, escrito por Rosa. */
   relevancia: { justificacion: string; votoHumano: 'alta' | 'media' | 'baja' | null };
@@ -1356,12 +1362,28 @@ export interface MovimientoHecho {
   motivo: string;
 }
 
+/** Una entidad enlazada a su identificador canonico (HGNC, MONDO, CL,
+ *  UBERON, GO, ChEBI). Los sinonimos son alias del mismo nodo. */
+export interface EntidadCanonica {
+  id: string;
+  etiqueta: string;
+  ontologia: string;
+  tipo: string;
+  alias: string[];
+  uniprot?: string | null;
+  ensembl?: string | null;
+  entrez?: string | null;
+  iri?: string | null;
+}
+
 export interface HechoMundo {
   id: Id;
   investigacionId: Id;
   tipo: TipoHecho;
   tema: string;
   enunciado: string;
+  /** Identificadores canonicos de lo que nombra el hecho. */
+  entidades?: EntidadCanonica[];
   estado: EstadoHecho;
   /** Lo que dice la fuente, separado de lo que infiere Rosa. */
   origen: 'fuente' | 'inferencia';
@@ -1600,7 +1622,7 @@ export interface EstadoRosa {
   /** El registro de metodos y ensayos (plan completo, seccion 5). */
   metodos?: MetodoRegistrado[];
   /** Las politicas tal como estan en el codigo del servidor (solo lectura). */
-  politicas?: Record<string, number>;
+  politicas?: Record<string, number | string | Record<string, number> | { nivel: number; nombre: string; definicion: string }[]>;
 }
 
 /** Motor causal minimo. Una arista "de causa a" lleva el tipo que dice de

@@ -70,6 +70,22 @@ _ARTEFACTO = re.compile(r"artefact|artifact|medida|measurement|ensayo|assay|plat
 _SELECCION = re.compile(r"selecci|selection|supervivencia|survivor|colider|collider|voluntari", re.I)
 
 
+# Identificador canonico de cada nodo de la base curada (ver rosa/ontologias.py).
+CANONICOS: dict[str, str] = {
+    "APOE4": "HGNC:613",
+    "amiloide": "CHEBI:64645",
+    "p-tau181": "HGNC:6893",
+    "tau": "HGNC:6893",
+    "neurodegeneracion": "MONDO:0005559",
+    "cognicion": "GO:0050890",
+    "GFAP": "HGNC:4235",
+    "NfL": "HGNC:7739",
+    "edad": "NCIT:C25150",
+    "funcion renal": "UBERON:0002113",
+    "neuroinflamacion": "GO:0150076",
+}
+
+
 def nodos_base_en(texto: str) -> list[str]:
     t = (texto or "").lower()
     return [n for patron, n in _SINONIMOS.items() if re.search(patron, t)]
@@ -180,6 +196,15 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         "acotado": f"El efecto esta acotado: {len(cumplidos)} de {len(cumplidos) + len(faltantes)} supuestos cumplidos; faltan {len(faltantes)}. Lo que falta es lo que un experimento o un dataset tendria que aportar.",
         "sin_resolver": "No se puede decir nada del efecto causal con lo que hay: faltan los nodos o todos los supuestos.",
     }[identificacion]
+    for n in nodos:
+        canon = CANONICOS.get(n["etiqueta"])
+        if canon is None:
+            from rosa import ontologias as ONTO
+
+            ents = ONTO.anotar_curadas(n["etiqueta"])
+            canon = ents[0]["id"] if ents else None
+        if canon:
+            n["idCanonico"] = canon
     return {"nodos": nodos, "aristas": aristas, "identificacion": identificacion, "supuestosCumplidos": cumplidos, "supuestosFaltantes": faltantes, "resumen": resumen, "calculadoEn": ahora}
 
 

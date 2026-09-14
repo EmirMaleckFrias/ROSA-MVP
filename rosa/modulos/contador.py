@@ -125,7 +125,11 @@ class Contador(BaseCallback):
             g["tokensEntrada"] += entrada
             g["tokensSalida"] += salida
             g["usd"] = round(g.get("usd", 0.0) + config.coste_usd(str(modelo), entrada, salida), 4)
-            c["contexto"]["tokensUsados"] = min(c["contexto"]["tokensLimite"], c["contexto"]["tokensUsados"] + entrada // 8)
+            # El uso del contexto es lo que entro en la ultima llamada (tokens reales de
+            # entrada), no una suma acumulada: dice cuanto de la ventana ocupa un prompt.
+            if entrada:
+                c["contexto"]["tokensUsados"] = min(c["contexto"]["tokensLimite"], entrada)
+                c["contexto"]["tokensMaximo"] = max(int(c["contexto"].get("tokensMaximo") or 0), entrada)
             for it in e["iteraciones"]:
                 if it["corridaId"] == ctx.corrida_id and it["numero"] == ctx.iteracion:
                     it["presupuesto"]["usado"] = it["presupuesto"]["usado"] + 1

@@ -444,6 +444,9 @@ def registrar_decision(e: Estado, h: dict, etapa: str, decision: str, motivo: st
     if etapa.startswith("killer") and decision not in politicas.DECISIONES_KILLER:
         raise ValueError(f"decision del Killer fuera de la politica: {decision}")
     d = P.nueva_decision(h["investigacionId"], h["id"], h.get("version", 1), etapa, decision, motivo, quien, ahora, comprobaciones, que_haria_falta)
+    # Cuanto contexto habia al decidir: sirve para vigilar si la calidad de las
+    # decisiones cae cuando crece el modelo de mundo (context rot).
+    d["contexto"] = {"hechos": sum(1 for x in e.get("hechos", []) if x.get("investigacionId") == h["investigacionId"]), "hipotesisVivas": sum(1 for x in e.get("hipotesis", []) if x.get("investigacionId") == h["investigacionId"] and x.get("estado") != "descartada")}
     e.setdefault("decisiones", []).append(d)
     return d
 
@@ -894,7 +897,7 @@ def generar_dossier(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> str
     runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("hipotesisId") == h["id"])
     hallazgos = RR.comprobaciones_deterministas(contenido, corpus, None, runs_ok if RR._EJECUCION.search(contenido) else 1)
     contenido += "\n\n## Revision del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipotesis.")
-    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Version {h.get('version', 1)} de la hipotesis; {len(h.get('bloqueos', []))} bloqueos; revision del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
+    art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Version {h.get('version', 1)} de la hipotesis; {len(h.get('bloqueos', []))} bloqueos; revision del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1)}, "revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
     h["dossierArtefactoId"] = art_id
     h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} dossier generado por {quien}")
     con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Dossier para el laboratorio generado: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)

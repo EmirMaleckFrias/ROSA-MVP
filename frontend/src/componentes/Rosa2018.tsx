@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { CAMPOS_ENMENDABLES } from '../datos/acciones';
-import type { CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
+import type { CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, EntidadCanonica, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -245,7 +245,9 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
       ) : (
         <dl className="comprobacion tarjeta-hip">
           <dt>Diana o proceso</dt>
-          <dd>{t.diana || 'sin especificar'}</dd>
+          <dd>
+            {t.diana || 'sin especificar'} <Entidades entidades={h.entidades} />
+          </dd>
           <dt>Celula o tejido</dt>
           <dd>{t.celula || 'sin especificar'}</dd>
           <dt>Etapa</dt>
@@ -651,7 +653,7 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
             <button type="button" className="btn" disabled={ds === ''} onClick={() => acciones.pedirAnalisis(h.id, ds, pregunta)}>
               Pedir analisis in silico
             </button>
-            <span className="meta">Cuenta como evaluacion costosa (maximo {estado.politicas?.maxEvaluacionesCostosas ?? 5} por corrida).</span>
+            <span className="meta">Cuenta como evaluacion costosa (maximo {Number(estado.politicas?.maxEvaluacionesCostosas ?? 5)} por corrida).</span>
           </div>
         </div>
       )}
@@ -1204,7 +1206,7 @@ function FilaAprendizaje({ c, ahora }: { c: CambioAprendizaje; ahora: number }) 
   );
 }
 
-export function Politicas({ politicas }: { politicas: Record<string, number> | undefined }) {
+export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] }) {
   const filas: { clave: string; etiqueta: string; nota: string }[] = [
     { clave: 'maxHipotesisVivas', etiqueta: 'Hipótesis vivas por misión', nota: 'Al llegar, Rosa deja de generar hasta que se decidan algunas.' },
     { clave: 'maxEvaluacionesCostosas', etiqueta: 'Evaluaciones costosas (analisis con datos) por corrida', nota: 'Cada una gasta codigo, sandbox y auditoria.' },
@@ -1230,7 +1232,7 @@ export function Politicas({ politicas }: { politicas: Record<string, number> | u
             {filas.map((f) => (
               <tr key={f.clave}>
                 <td>{f.etiqueta}</td>
-                <td className="num">{politicas[f.clave] ?? ''}</td>
+                <td className="num">{typeof politicas[f.clave] === 'number' || typeof politicas[f.clave] === 'string' ? String(politicas[f.clave]) : ''}</td>
                 <td className="meta">{f.nota}</td>
               </tr>
             ))}
@@ -2192,6 +2194,128 @@ export function ConocimientoOperativoDelLaboratorio({ inv }: { inv: Investigacio
           Registrar
         </button>
       </div>
+    </Seccion>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Nivel de autonomia declarado (escala de Beal y Rogers 2020)
+
+export function NivelDeAutonomia({ politicas }: { politicas: EstadoRosa['politicas'] }) {
+  const niveles = (politicas?.nivelesAutonomia as { nivel: number; nombre: string; definicion: string }[] | undefined) ?? [];
+  const declarado = typeof politicas?.nivelAutonomiaDeclarado === 'number' ? politicas.nivelAutonomiaDeclarado : 2;
+  return (
+    <Seccion titulo="Nivel de autonomia declarado" nota="Con la escala que usa el resto del sector (Beal y Rogers 2020; la revision de laboratorios autonomos de 2025 dice que la mayoria esta en el nivel 3 y ninguno en produccion pasa del 4). Rosa opera en el nivel 2 y lo declara en cada dossier: propone hipotesis, planes y protocolos y corre analisis in silico; toda decision que toca el mundo real la toma una persona. El dial de autonomia de arriba no sube este nivel: ajusta cuanto pregunta dentro de el.">
+      {niveles.length === 0 ? (
+        <p className="meta">Sin servidor no hay politicas que leer.</p>
+      ) : (
+        <table className="tabla">
+          <tbody>
+            {niveles.map((n) => (
+              <tr key={n.nivel} style={n.nivel === declarado ? { fontWeight: 600 } : undefined}>
+                <td className="num">{n.nivel}</td>
+                <td>
+                  {n.nombre} {n.nivel === declarado && <Chip tono="acento">Rosa</Chip>}
+                </td>
+                <td className="meta">{n.definicion}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Seccion>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Entidades canonicas
+
+export function Entidades({ entidades, maximo = 8 }: { entidades: EntidadCanonica[] | undefined; maximo?: number }) {
+  if (!entidades || entidades.length === 0) return null;
+  return (
+    <span className="acciones" style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
+      {entidades.slice(0, maximo).map((x) => (
+        <Chip key={x.id} tono="borde" title={`${x.ontologia} ${x.id}${x.alias.length ? ` · alias: ${x.alias.slice(0, 6).join(', ')}` : ''}${x.uniprot ? ` · UniProt ${x.uniprot}` : ''}`}>
+          {x.etiqueta} <span className="meta">{x.id}</span>
+        </Chip>
+      ))}
+    </span>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Coste por decision, no por llamada
+
+export interface CostesInvestigacion {
+  corridas: number;
+  llamadas: number;
+  usdModelo: number;
+  horasRevision: number;
+  tarifaHoraRevisionUsd: number;
+  usdRevision: number;
+  usdTotal: number;
+  hipotesis: number;
+  hipotesisConDossier: number;
+  candidatas: number;
+  decisionesHumanas: number;
+  usdPorDossier: number | null;
+  usdPorCandidata: number | null;
+  usdPorDecisionHumana: number | null;
+  segundosMediosPorDecision: number | null;
+  porIteracion: { corrida: number; iteracion: number; llamadas: number; usd: number }[];
+  tendenciaUsdPorIteracion: number | null;
+  nota: string;
+}
+
+export function CostesPorDecision({ investigacionId }: { investigacionId: string }) {
+  const [c, setC] = useState<CostesInvestigacion | null | 'cargando'>('cargando');
+  useEffect(() => {
+    let vivo = true;
+    setC('cargando');
+    void acciones.costesDe(investigacionId).then((r) => {
+      if (vivo) setC(r);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [investigacionId]);
+  const usd = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `${v.toFixed(2).replace('.', ',')} $`);
+  return (
+    <Seccion titulo="Coste por decision" nota="Lo que decide presupuestos no es el coste de una llamada sino cuanto cuesta una hipotesis que llega al dossier, una candidata al laboratorio o una decision que tomo una persona. El tiempo de revision humana entra en el coste a la tarifa declarada en politicas: sin eso la comparacion con investigar sin Rosa no es honesta.">
+      {c === 'cargando' ? (
+        <p className="meta">Calculando...</p>
+      ) : c === null ? (
+        <p className="meta">Sin servidor no hay costes que agregar.</p>
+      ) : (
+        <>
+          <div className="metricas">
+            <div className="gasto-item">
+              <strong>{usd(c.usdTotal)}</strong>
+              <span>total: {usd(c.usdModelo)} de modelo + {c.horasRevision.toFixed(2).replace('.', ',')} h de revision a {c.tarifaHoraRevisionUsd} $/h</span>
+            </div>
+            <div className="gasto-item">
+              <strong>{usd(c.usdPorDossier)}</strong>
+              <span>por hipotesis con dossier ({c.hipotesisConDossier} de {c.hipotesis})</span>
+            </div>
+            <div className="gasto-item">
+              <strong>{usd(c.usdPorCandidata)}</strong>
+              <span>por candidata al laboratorio ({c.candidatas})</span>
+            </div>
+            <div className="gasto-item">
+              <strong>{usd(c.usdPorDecisionHumana)}</strong>
+              <span>por decision humana ({c.decisionesHumanas}; {c.segundosMediosPorDecision === null ? 'sin tiempos' : `${Math.round(c.segundosMediosPorDecision)} s de media`})</span>
+            </div>
+          </div>
+          {c.porIteracion.length > 0 && (
+            <p className="meta">
+              Por iteracion: {c.porIteracion.map((x) => `c${x.corrida} it${x.iteracion} ${x.usd.toFixed(2)} $`).join(' · ')}
+              {c.tendenciaUsdPorIteracion !== null && ` · tendencia ${c.tendenciaUsdPorIteracion >= 0 ? '+' : ''}${c.tendenciaUsdPorIteracion.toFixed(2)} $ por iteracion entre las primeras y las ultimas`}
+            </p>
+          )}
+        </>
+      )}
     </Seccion>
   );
 }

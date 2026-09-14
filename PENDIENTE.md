@@ -3,6 +3,25 @@
 Actualizado el 14 de septiembre de 2026. El plan completo por etapas esta en
 `PLAN-ROSA2018.md`; esto es la lista corta de lo inmediato.
 
+## Hecho el 14 de septiembre (tarde): segunda auditoria y los quince huecos
+
+- Segunda auditoria (cuatro criticos, siete altos, doce medios) cerrada; ver
+  el commit "Segunda auditoria" y `rosa/tests/test_auditoria2.py`.
+- Los quince huecos de un AI scientist profesional, verificados y aplicados:
+  `INVESTIGACION-AI-SCIENTIST-2026.md` y la seccion nueva del README.
+- Queda para despues del primer ciclo real, a proposito: H08 (valor de la
+  informacion cuantificado; la advertencia de que informacion no es utilidad
+  de decision esta anotada) y H10 (contrato con el laboratorio concreto:
+  identificadores de muestra, formato de retorno, quien confirma la identidad;
+  el RO-Crate ya tipa el experimento como LabProcess para cuando exista).
+  H15 completo (firma electronica por persona, validacion del sistema) solo
+  si el destino es regulado.
+- Cuando haya etiquetas: correr el panel del Killer y mirar el kappa por
+  comprobacion en Calidad; hacen falta 100 casos por comprobacion (200 si el
+  fallo es raro) para que la cifra sea estable.
+- Opcional con cuenta: prerregistro en OSF (token en `.env` como `OSF_TOKEN`)
+  ademas de los sellos RFC 3161.
+
 ## Hecho el 14 de septiembre: auditoria de bugs de todo Rosa
 
 Cinco revisores en paralelo (servidor y estado, bucle, conectores y fuentes,
