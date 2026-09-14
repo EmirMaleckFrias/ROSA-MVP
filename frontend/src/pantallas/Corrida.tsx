@@ -440,10 +440,10 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
                     etiqueta="Bifurcar desde aqui"
                     clase="btn-s"
                     pregunta={`Se crea una investigacion hermana partiendo del estado de la iteracion ${it.numero}. La original sigue igual.`}
-                    pedirTexto={{ etiqueta: 'Para que es la rama', marcador: 'Perseguir la hipotesis rival desde este punto' }}
+                    pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Hipotesis rival desde este punto' }}
                     onConfirmar={(motivo) => {
                       const id = acciones.bifurcarInvestigacion(inv.id, `${motivo} (desde la iteracion ${it.numero})`);
-                      if (id) irA(rutaDe(id, 'investigacion'));
+                      if (id) irA(rutaDe(id, 'corrida'));
                     }}
                   />
                 </div>

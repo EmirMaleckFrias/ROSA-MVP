@@ -1146,8 +1146,8 @@ export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: strin
   const rama: Investigacion = {
     ...origen,
     id,
-    titulo: `${origen.titulo} (rama)`,
-    objetivo: motivo.trim() === '' ? origen.objetivo : `${origen.objetivo}\n\nRama: ${motivo.trim()}`,
+    titulo: motivo.trim() === '' ? `${origen.titulo} (rama)` : motivo.trim().slice(0, 90),
+    objetivo: motivo.trim() === '' ? origen.objetivo : `${origen.objetivo}\n\nRama de '${origen.titulo}': ${motivo.trim()}`,
     creadaEn: ahora,
     ramaDe: origen.id,
     vigilarLiteraturaHasta: null,

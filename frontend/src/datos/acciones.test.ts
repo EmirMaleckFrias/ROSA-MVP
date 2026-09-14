@@ -304,6 +304,9 @@ describe('investigaciones y datos', () => {
     const e0 = estadoDeMuestra();
     const r = bifurcarInvestigacion(e0, 'inv-1', 'Perseguir hip-1', T);
     expect(r.estado.investigaciones.find((i) => i.id === r.id)!.ramaDe).toBe('inv-1');
+    const rama = r.estado.investigaciones.find((i) => i.id === r.id)!;
+    // Lo que se escribe al bifurcar es el nombre de la rama, para distinguirla de la original.
+    expect(rama.titulo === `${r.estado.investigaciones[0]!.titulo} (rama)` || !rama.titulo.endsWith('(rama)')).toBe(true);
     expect(new Set(r.estado.hechos.map((h) => h.id)).size).toBe(r.estado.hechos.length);
   });
   it('un dataset no se aprueba con columnas sin diccionario o centinelas', () => {

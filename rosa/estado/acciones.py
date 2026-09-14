@@ -1281,8 +1281,10 @@ def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora:
     rama = {
         **copy.deepcopy(origen),
         "id": nuevo,
-        "titulo": f"{origen['titulo']} (rama)",
-        "objetivo": origen["objetivo"] if not motivo.strip() else f"{origen['objetivo']}\n\nRama: {motivo.strip()}",
+        # Lo que la persona escribe al bifurcar es el nombre de la rama (y su
+        # motivo): asi la rama se distingue de la original a primera vista.
+        "titulo": motivo.strip()[:90] if motivo.strip() else f"{origen['titulo']} (rama)",
+        "objetivo": origen["objetivo"] if not motivo.strip() else f"{origen['objetivo']}\n\nRama de '{origen['titulo']}': {motivo.strip()}",
         "creadaEn": ahora,
         "ramaDe": origen["id"],
         "vigilarLiteraturaHasta": None,

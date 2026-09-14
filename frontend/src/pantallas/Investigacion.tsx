@@ -129,10 +129,10 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         <Confirmar
           etiqueta="Bifurcar"
           pregunta="Se crea una investigacion nueva con el mismo objetivo y una copia del modelo de mundo. La original sigue igual."
-          pedirTexto={{ etiqueta: 'Para que es la rama', marcador: 'Perseguir la hipotesis del cociente frente a la de NLRP3' }}
+          pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Secuencia GFAP-NfL solo en Alzheimer familiar' }}
           onConfirmar={(motivo) => {
             const id = acciones.bifurcarInvestigacion(inv.id, motivo);
-            if (id) irA(rutaDe(id, 'investigacion'));
+            if (id) irA(rutaDe(id, 'corrida'));
           }}
         />
       </div>

@@ -152,7 +152,7 @@ export default function App() {
         <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
         {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} detalleId={ruta.detalleId} />}
         {aviso && (
-          <div className="aviso-conflicto" role="alert">
+          <div className={`aviso-conflicto ${aviso.tono === 'info' ? 'aviso-info' : ''}`} role={aviso.tono === 'info' ? 'status' : 'alert'}>
             <span>{aviso.texto}</span>
             <button type="button" className="btn btn-s" onClick={cerrarAvisoConflicto}>
               Entendido

@@ -227,14 +227,21 @@ function programar(etiqueta: string, aplicarLocal: () => void, enviarServidor: (
 export interface AvisoConflicto {
   texto: string;
   en: number;
+  /** 'aviso' es un conflicto o rechazo; 'info' confirma algo que paso (una rama creada). */
+  tono?: 'aviso' | 'info';
 }
 
 let avisoConflicto: AvisoConflicto | null = null;
 const oyentesAviso = new Set<() => void>();
 
-function fijarAviso(texto: string): void {
-  avisoConflicto = { texto, en: Date.now() };
+function fijarAviso(texto: string, tono: 'aviso' | 'info' = 'aviso'): void {
+  avisoConflicto = { texto, en: Date.now(), tono };
   for (const o of oyentesAviso) o();
+}
+
+/** Un aviso informativo para la cabecera: confirma que algo paso y donde estas. */
+export function avisar(texto: string): void {
+  fijarAviso(texto, 'info');
 }
 
 export function cerrarAvisoConflicto(): void {
@@ -589,7 +596,11 @@ export const acciones = {
       id = r.id;
       return r.estado;
     });
-    if (id !== null) enviar('bifurcarInvestigacion', { investigacion_id: investigacionId, motivo, id_: id });
+    if (id !== null) {
+      enviar('bifurcarInvestigacion', { investigacion_id: investigacionId, motivo, id_: id });
+      const rama = estado.investigaciones.find((i) => i.id === id);
+      avisar(`Rama creada: "${rama?.titulo ?? 'rama'}". Estas dentro de la rama; la original sigue igual y esta en la barra lateral. Arranca su primera corrida cuando quieras.`);
+    }
     return id;
   },
   actualizarConfiguracion: (investigacionId: string, configuracion: Investigacion['configuracion']) => {

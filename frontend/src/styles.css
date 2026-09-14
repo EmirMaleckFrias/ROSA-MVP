@@ -3899,3 +3899,9 @@ mark.fuerte {
   font-size: 12.5px;
   white-space: normal;
 }
+
+/* Aviso informativo (algo paso y donde estas), frente al de conflicto. */
+.aviso-conflicto.aviso-info {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
