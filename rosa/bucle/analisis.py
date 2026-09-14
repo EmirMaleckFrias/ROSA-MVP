@@ -93,6 +93,18 @@ def _limpiar_codigo(texto: str) -> str:
     return t.strip() + "\n"
 
 
+def _cambiar_semilla(codigo: str, semilla: int, nueva: int) -> str:
+    """Cambia la semilla solo en las lineas que fijan aleatoriedad (seed,
+    random_state, default_rng, RandomState, ROSA_SEMILLA): un filtro como
+    `edad > 42` no se toca."""
+    lineas = []
+    for linea in codigo.splitlines():
+        if re.search(r"seed|random_state|default_rng|RandomState|SEMILLA|semilla|shuffle\(|permutation\(", linea, re.I):
+            linea = re.sub(r"\b" + str(semilla) + r"\b", str(nueva), linea)
+        lineas.append(linea)
+    return "\n".join(lineas) + ("\n" if codigo.endswith("\n") else "")
+
+
 async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path, esquema: str, hipotesis_id: str | None, tipo: str, pista: Pista) -> dict[str, Any]:
     """Codigo, ejecucion (con reparaciones), interpretacion y auditoria.
     Devuelve el registro de ejecucion ya guardado en el estado."""
@@ -139,7 +151,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
     if res.estado == "completado" and not res.no_evaluable and aleatorio:
         for extra in (1, 2):
             semilla2 = plan["semilla"] + extra
-            codigo2 = re.sub(r"\b" + str(plan["semilla"]) + r"\b", str(semilla2), codigo)
+            codigo2 = _cambiar_semilla(codigo, plan["semilla"], semilla2)
             pista.accion(f"Repeticion con semilla {semilla2}")
             r2 = await asyncio.to_thread(X.ejecutar, codigo2, ruta, semilla2, sintetico, run["id"] + f"-s{extra}", entorno, ficheros)
             repeticiones.append({"semilla": semilla2, "estado": r2.estado, "resultados": r2.resultados if r2.estado == "completado" else {}})

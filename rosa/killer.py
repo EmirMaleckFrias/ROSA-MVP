@@ -355,11 +355,18 @@ def consistencia_medidas(h: dict[str, Any]) -> list[dict[str, str]]:
     return salida
 
 
-_NUMERO = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)(?![\w])")
+_NUMERO = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?|[.,]\d+)(?![\w])")
 
 
 def _normaliza_num(t: str) -> str:
-    t = t.replace(",", ".")
+    """'1,234' (miles) -> 1234; '.001' -> 0.001; '0,8' (decimal europeo) -> 0.8."""
+    t = t.replace("\u00b7", ".")
+    if re.fullmatch(r"\d{1,3}(,\d{3})+(\.\d+)?", t):
+        t = t.replace(",", "")
+    else:
+        t = t.replace(",", ".")
+    if t.startswith("."):
+        t = "0" + t
     try:
         v = float(t)
     except ValueError:
@@ -374,6 +381,8 @@ def cifras_fuera_del_pasaje(texto: str, pasaje: str) -> list[str]:
     aparecen en cualquier frase. Devuelve [] si no hay nada que objetar."""
     if not pasaje or not texto:
         return []
+    pasaje = pasaje.replace("\u00b7", ".")
+    texto = texto.replace("\u00b7", ".")
     en_pasaje = {_normaliza_num(m) for m in _NUMERO.findall(pasaje)}
     if not en_pasaje:
         return []

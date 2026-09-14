@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+import traceback
 from dataclasses import dataclass
 from typing import Any
 
@@ -295,7 +296,8 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
                 except PresupuestoAgotado:
                     raise
                 except Exception as ex:  # noqa: BLE001
-                    puntuados.append((0, a, f"sin puntuar: {str(ex)[:80]}"))
+                    # Un fallo del modelo no vuelve irrelevante al articulo: se conserva con nota.
+                    puntuados.append((RELEVANCIA_MINIMA, a, f"sin puntuar (el modelo no respondio: {str(ex)[:60]}); se conserva para no perderlo"))
 
         await asyncio.gather(*(puntuar(a) for a in articulos if a.get("titulo")))
         puntuados.sort(key=lambda x: -x[0])
@@ -432,6 +434,8 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     hechas = 0
 
     async def extraer(f: dict[str, Any]) -> None:
+
+        fallos_fragmentos = 0
         nonlocal total, hechas
         nuevas: list[dict[str, Any]] = []
         frags = f.get("fragmentos", [])
@@ -455,6 +459,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
                     raise
                 except Exception as ex:  # noqa: BLE001
                     pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor fallo: {str(ex)[:120]}")
+                    fallos_fragmentos += 1
                     continue
             for a in pred.afirmaciones:
                 # Comprobacion literal en PDF: la pagina de la cita tiene que contener el fragmento.
@@ -481,7 +486,8 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
             c.setdefault("_afirmaciones", []).extend(nuevas)
             fuente = c["_fuentes"][f["id"]]
-            fuente["extraida"] = True
+            # Con algun fragmento sin extraer por fallo del modelo, la fuente queda pendiente para reintentar.
+            fuente["extraida"] = fallos_fragmentos == 0
             # La cohorte de la fuente: la que mas dijeron sus afirmaciones, o la que
             # se reconoce en el titulo y el resumen. Sirve para contar cohortes, no
             # articulos, al medir replicacion.
@@ -1059,8 +1065,17 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
     # Revision de las nuevas y de las humanas sin revisar.
     a_revisar = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and (h["id"] in nuevas_ids or (h["origen"] == "humana" and h["ultimaRevisionAutomatica"] is None) or h.get("_revisionPedida"))]
     for h in a_revisar:
+        version_antes = h.get("version", 1)
         await _revisar_hipotesis(ctx, h, texto_af[:8000], pista)
-        ctx.mutar(lambda e2, h=h: (next(x for x in e2["hipotesis"] if x["id"] == h["id"]).pop("_revisionPedida", None), True)[1], "revision")
+
+        def quitar_peticion(e2: dict[str, Any], h=h, v=version_antes) -> bool:
+            x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
+            # Si la hipotesis cambio de version mientras se revisaba, la peticion sigue viva.
+            if x and x.get("version", 1) == v:
+                x.pop("_revisionPedida", None)
+            return True
+
+        ctx.mutar(quitar_peticion, "revision")
         pista.resultado(f"Revisada: {h['titulo'][:70]}")
     partidos = await _torneo(ctx, pista)
     pista.cerrar(f"{len(nuevas_ids)} hipotesis nuevas, {len(a_revisar)} revisadas, {partidos} partidos")
@@ -1089,49 +1104,57 @@ async def _novedad_por_conectores(ctx: Ctx, h: dict[str, Any], genes: list[str],
         reg_c, clin = await CON.consultar("clinvar_gen", resumen=f"ClinVar: {gen}", simbolo=gen)
         regs += [reg_g, reg_c]
         pista.accion(f"GWAS Catalog y ClinVar: {gen}", {"base": "GWAS Catalog v2, ClinVar", "parametros": f"gene_name={gen}", "resultados": f"{(gwas or {}).get('n_alzheimer', '?')} asociaciones AD; {(clin or {}).get('con_enfermedad', '?')} variantes ClinVar con Alzheimer"})
-        if gwas is None and clin is None:
-            novedad["genetica"] = {"estado": "no_comprobado", "detalle": "No comprobado: GWAS Catalog y ClinVar no respondieron"}
+        fallos = [n for n, r_ in (("GWAS Catalog", reg_g), ("ClinVar", reg_c)) if r_.get("error")]
+        n_ad = (gwas or {}).get("n_alzheimer", 0)
+        n_cv = (clin or {}).get("con_enfermedad", 0)
+        if len(fallos) == 2 or (fallos and not (n_ad or n_cv)):
+            # Una fuente que no responde es "no pude comprobar", nunca "no hay".
+            novedad["genetica"] = {"estado": "no_comprobado", "detalle": "No comprobado: " + " y ".join(fallos) + " no respondieron" + (f"; la que respondio no encontro vinculo" if len(fallos) == 1 else "")}
         else:
-            n_ad = (gwas or {}).get("n_alzheimer", 0)
-            n_cv = (clin or {}).get("con_enfermedad", 0)
+            nota_fallo = f" (no pude comprobar {fallos[0]})" if fallos else ""
             if n_ad or n_cv:
                 mejor = min(((a.get("p") or 1.0) for a in (gwas or {}).get("alzheimer", [])), default=None)
-                novedad["genetica"] = {"estado": "vinculo_conocido", "detalle": f"{gen}: {n_ad} asociaciones GWAS con Alzheimer" + (f" (mejor p {mejor:.1e})" if mejor else "") + f"; {n_cv} variantes en ClinVar con Alzheimer. La genetica humana ya vincula el gen: la novedad tiene que estar en el mecanismo o el contexto, no en el vinculo"}
+                novedad["genetica"] = {"estado": "vinculo_conocido", "detalle": f"{gen}: {n_ad} asociaciones GWAS con Alzheimer" + (f" (mejor p {mejor:.1e})" if mejor else "") + f"; {n_cv} variantes en ClinVar con Alzheimer. La genetica humana ya vincula el gen: la novedad tiene que estar en el mecanismo o el contexto, no en el vinculo" + nota_fallo}
             else:
                 novedad["genetica"] = {"estado": "sin_vinculo", "detalle": f"{gen}: sin asociaciones GWAS con Alzheimer entre {(gwas or {}).get('total_asociaciones', 0)} registradas y sin variantes ClinVar con la enfermedad. Si la hipotesis afirma un vinculo genetico, es nuevo y hay que decir por que la genetica no lo vio"}
         reg_m, ids = await CON.consultar("mygene_gen", resumen=f"MyGene: {gen}", simbolo=gen)
         regs.append(reg_m)
         chembl = None
+        reg_ch: dict[str, Any] = {}
         if ids and ids.get("uniprot"):
             reg_ch, chembl = await CON.consultar("chembl_diana", resumen=f"ChEMBL: {ids['uniprot']}", uniprot=ids["uniprot"])
             regs.append(reg_ch)
         reg_d, dg = await CON.consultar("dgidb_gen", resumen=f"DGIdb: {gen}", simbolo=gen)
         regs.append(reg_d)
         pista.accion(f"ChEMBL y DGIdb: {gen}", {"base": "ChEMBL, DGIdb", "parametros": f"uniprot={(ids or {}).get('uniprot')}", "resultados": f"{len((chembl or {}).get('mecanismos', []))} mecanismos; {(dg or {}).get('total', '?')} interacciones"})
-        if chembl is None and dg is None:
-            novedad["farmacos"] = {"estado": "no_comprobado", "detalle": "No comprobado: ChEMBL y DGIdb no respondieron"}
+        fallos_f = [n for n, r_ in (("ChEMBL", reg_ch if ids and ids.get("uniprot") else None), ("DGIdb", reg_d)) if r_ is not None and r_.get("error")]
+        mecs = (chembl or {}).get("mecanismos", [])
+        if reg_d.get("error") and not mecs:
+            novedad["farmacos"] = {"estado": "no_comprobado", "detalle": "No comprobado: " + " y ".join(fallos_f) + " no respondieron"}
         else:
-            mecs = (chembl or {}).get("mecanismos", [])
+            nota_fallo_f = f" (no pude comprobar {fallos_f[0]})" if fallos_f else ""
             aprob = [x for x in (dg or {}).get("interacciones", []) if x.get("aprobado")]
             fases = [m.get("fase_maxima") for m in mecs if m.get("fase_maxima") is not None]
             if mecs or aprob:
-                novedad["farmacos"] = {"estado": "farmacos_existentes", "detalle": f"{gen}: {len(mecs)} mecanismos de accion en ChEMBL" + (f" (fase maxima {max(fases)})" if fases else "") + f"; {len(aprob)} farmacos aprobados con interaccion en DGIdb" + (": " + ", ".join(str(x.get('farmaco')) for x in aprob[:4]) if aprob else "") + ". La diana es abordable; una hipotesis de intervencion puede reposicionar"}
+                novedad["farmacos"] = {"estado": "farmacos_existentes", "detalle": f"{gen}: {len(mecs)} mecanismos de accion en ChEMBL" + (f" (fase maxima {max(fases)})" if fases else "") + f"; {len(aprob)} farmacos aprobados con interaccion en DGIdb" + (": " + ", ".join(str(x.get('farmaco')) for x in aprob[:4]) if aprob else "") + ". La diana es abordable; una hipotesis de intervencion puede reposicionar" + nota_fallo_f}
             else:
-                novedad["farmacos"] = {"estado": "sin_farmacos", "detalle": f"{gen}: sin mecanismos en ChEMBL ni farmacos con interaccion en DGIdb. Si la hipotesis propone intervenir, no hay herramienta farmacologica lista"}
+                novedad["farmacos"] = {"estado": "sin_farmacos", "detalle": f"{gen}: sin mecanismos en ChEMBL ni farmacos con interaccion en DGIdb. Si la hipotesis propone intervenir, no hay herramienta farmacologica lista" + nota_fallo_f}
     bio = ((h.get("comprobacion") or {}).get("biomarcador") or (h.get("tarjeta") or {}).get("diana") or gen or "").strip()
     if bio:
         reg_geo, geo = await CON.consultar("geo_series", resumen=f"GEO: Alzheimer {bio}", terminos=f"Alzheimer {bio}")
         reg_cx, cx = await CON.consultar("cellxgene_colecciones", resumen="CELLxGENE: Alzheimer", termino="Alzheimer")
         regs += [reg_geo, reg_cx]
         pista.accion(f"GEO y CELLxGENE: {bio}", {"base": "GEO gds, CELLxGENE Discover", "parametros": f"Alzheimer {bio}", "resultados": f"{(geo or {}).get('total', '?')} series GEO; {reg_cx.get('n') if cx is not None else '?'} colecciones"})
-        if geo is None and cx is None:
-            novedad["datosPublicos"] = {"estado": "no_comprobado", "detalle": "No comprobado: GEO y CELLxGENE no respondieron", "series": []}
+        fallos_d = [n for n, r_ in (("GEO", reg_geo), ("CELLxGENE", reg_cx)) if r_.get("error")]
+        series = [{"accession": s_["accession"], "titulo": s_["titulo"], "n": s_.get("n_muestras"), "plataforma": s_.get("plataforma")} for s_ in (geo or {}).get("series", [])[:5]]
+        n_geo = (geo or {}).get("total", 0)
+        n_cx = (reg_cx.get("n") or 0) if not reg_cx.get("error") else 0
+        if len(fallos_d) == 2 or (fallos_d and not (n_geo or n_cx)):
+            novedad["datosPublicos"] = {"estado": "no_comprobado", "detalle": "No comprobado: " + " y ".join(fallos_d) + " no respondieron", "series": []}
         else:
-            series = [{"accession": s_["accession"], "titulo": s_["titulo"], "n": s_.get("n_muestras"), "plataforma": s_.get("plataforma")} for s_ in (geo or {}).get("series", [])[:5]]
-            n_geo = (geo or {}).get("total", 0)
-            n_cx = reg_cx.get("n") or 0
+            nota_fallo_d = f" (no pude comprobar {fallos_d[0]})" if fallos_d else ""
             if n_geo or n_cx:
-                novedad["datosPublicos"] = {"estado": "hay_datos", "detalle": f"{n_geo} series GEO humanas con 'Alzheimer {bio}' y {n_cx} colecciones de celula unica con Alzheimer en CELLxGENE: la hipotesis se puede empezar a comprobar in silico sin pedir datos", "series": series}
+                novedad["datosPublicos"] = {"estado": "hay_datos", "detalle": f"{n_geo} series GEO humanas con 'Alzheimer {bio}' y {n_cx} colecciones de celula unica con Alzheimer en CELLxGENE: la hipotesis se puede empezar a comprobar in silico sin pedir datos" + nota_fallo_d, "series": series}
             else:
                 novedad["datosPublicos"] = {"estado": "sin_datos", "detalle": f"Ninguna serie GEO humana con 'Alzheimer {bio}' ni coleccion CELLxGENE: comprobarla exige datos propios o del laboratorio", "series": []}
     return regs
@@ -1221,8 +1244,6 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
         return True
 
     ctx.mutar(aplicar, "contexto_bases")
-    h["contextoBases"] = ctxb
-    h.setdefault("consultas", []).extend(regs)
 
 
 async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
@@ -1251,8 +1272,16 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
             except FuenteNoDisponible as ex:
                 detalles.append(f"{g}: Open Targets no respondio ({str(ex)[:60]}); no se afirma ausencia")
         if genes:
-            con_asociacion = any("asociacion 0." in d and float(d.split("asociacion ")[1].split(" ")[0]) >= 0.3 for d in detalles)
-            novedad["openTargets"] = {"estado": "evidencia_previa" if con_asociacion else "sin_evidencia", "detalle": "; ".join(detalles)}
+            def _punt(d: str) -> float:
+                m_ = re.search(r"asociacion ([0-9]+(?:\.[0-9]+)?)", d)
+                return float(m_.group(1)) if m_ else 0.0
+
+            con_asociacion = any(_punt(d) >= 0.3 for d in detalles)
+            if detalles and all("no respondio" in d.lower() or "no pude" in d.lower() for d in detalles):
+                novedad["openTargets"] = {"estado": "no_comprobado", "detalle": "No comprobado: Open Targets no respondio para " + "; ".join(detalles)[:200]}
+                detalles = None
+            if detalles is not None:
+                novedad["openTargets"] = {"estado": "evidencia_previa" if con_asociacion else "sin_evidencia", "detalle": "; ".join(detalles)}
         else:
             novedad["openTargets"] = {"estado": "sin_evidencia", "detalle": "No aplica: la hipotesis no nombra una diana molecular"}
         # ClinicalTrials.gov.
@@ -1265,7 +1294,7 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
             else:
                 novedad["ensayos"] = {"estado": "sin_ensayo", "detalle": f"Ningun ensayo registrado con: {termino}", "nct": None}
         except FuenteNoDisponible as ex:
-            novedad["ensayos"] = {"estado": "sin_ensayo", "detalle": f"No comprobado: ClinicalTrials.gov no respondio ({str(ex)[:60]})", "nct": None}
+            novedad["ensayos"] = {"estado": "no_comprobado", "detalle": f"No comprobado: ClinicalTrials.gov no respondio ({str(ex)[:60]})", "nct": None}
         # Precedente en literatura (OpenAlex) con cribado del modelo.
         try:
             termino = " ".join(T.terminos_clave(h["titulo"], maximo=4))
@@ -1291,7 +1320,7 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
             else:
                 novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"Sin precedente claro entre {total} obras que casan con: {termino}"}
         except FuenteNoDisponible as ex:
-            novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"No comprobado: OpenAlex no respondio ({str(ex)[:60]})"}
+            novedad["precedente"] = {"estado": "no_comprobado", "detalle": f"No comprobado: OpenAlex no respondio ({str(ex)[:60]})"}
 
         # Conectores: genetica humana, farmacos y datos publicos para la misma diana.
         consultas = await _novedad_por_conectores(ctx, h, genes[:1], novedad, pista)
@@ -1302,6 +1331,9 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                 return False
             x["novedad"] = novedad
             x.setdefault("consultas", []).extend(consultas)
+            if x.get("decisionKiller") == "suspender":
+                # El Killer la suspendio antes de tener la novedad: hay que volver a juzgarla.
+                x["_revisionPedida"] = True
             x["procedencia"]["registro"].append(f"iteracion {ctx.numero}: novedad -> Open Targets {novedad['openTargets']['estado']}, ensayos {novedad['ensayos']['estado']}, precedente {novedad['precedente']['estado']}, genetica {novedad.get('genetica', {}).get('estado')}, farmacos {novedad.get('farmacos', {}).get('estado')}, datos publicos {novedad.get('datosPublicos', {}).get('estado')}")
             return True
 
@@ -1351,6 +1383,19 @@ async def paso_meta(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _cerrar_analisis_fallido(e: dict[str, Any], hipotesis_id: str) -> bool:
+    """Un analisis que reventó por excepcion: se quita la peticion y las
+    ejecuciones en curso de la hipotesis pasan a error tecnico."""
+    x = next((y for y in e["hipotesis"] if y["id"] == hipotesis_id), None)
+    if x:
+        x.pop("_analisisPedido", None)
+    for r in e.get("ejecuciones", []):
+        if r.get("hipotesisId") == hipotesis_id and r.get("estado") == "en_curso":
+            r["estado"] = "error_tecnico"
+            r["error"] = (r.get("error") or "") + " Interrumpida por una excepcion del paso de analisis."
+    return True
+
+
 async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
     """Primero las reproducciones pendientes de la puerta; despues los
     analisis que pidio la persona; despues, si la autonomia lo permite, un
@@ -1364,7 +1409,14 @@ async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
     pista = ctx.pista(paso["id"], "modelo", "Analisis in silico", "Sandbox + GPT-6 Astra + Opus 5")
     hechos = 0
     for rep in [r for r in e.get("reproducciones", []) if r["investigacionId"] == ctx.investigacion_id and r["estado"] == "pendiente"][:3]:
-        await AN.reproducir(ctx, rep, pista)
+        try:
+            await AN.reproducir(ctx, rep, pista)
+        except PresupuestoAgotado:
+            raise
+        except Exception as ex:  # noqa: BLE001
+            traceback.print_exc()
+            pista.error(f"La reproduccion {rep['referencia'][:40]} fallo: {str(ex)[:120]}")
+            ctx.mutar(lambda e2, rep=rep, ex=ex: AN._estado_rep(e2, rep["id"], "error_tecnico", None, None, f"{type(ex).__name__}: {str(ex)[:200]}"), "reproduccion")
         hechos += 1
     if not datasets_ok:
         pista.cerrar("Sin datasets aprobados con fichero: no hay analisis que hacer" + (f"; {hechos} reproducciones" if hechos else ""))
@@ -1372,14 +1424,28 @@ async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
     pedidos = [h for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h.get("_analisisPedido")]
     for h in pedidos:
         p = h["_analisisPedido"]
-        await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
+        try:
+            await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
+        except PresupuestoAgotado:
+            raise
+        except Exception as ex:  # noqa: BLE001
+            traceback.print_exc()
+            pista.error(f"El analisis pedido de {h['titulo'][:40]} fallo: {str(ex)[:120]}")
+            ctx.mutar(lambda e2, h=h: _cerrar_analisis_fallido(e2, h["id"]), "analisis")
         hechos += 1
     if e["autonomia"].get("correr_analisis") == "actuar":
         candidatas = [h for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h.get("decisionKiller") == "avanzar" and not h.get("ejecuciones") and h["estado"] not in ("descartada",) and (h.get("tarjeta") or {}).get("prediccionFalsable")]
         for h in sorted(candidatas, key=lambda x: -x["elo"])[:2]:
             if pista.detenida():
                 break
-            await AN.analizar_hipotesis(ctx, h, datasets_ok[0]["id"], "", pista)
+            try:
+                await AN.analizar_hipotesis(ctx, h, datasets_ok[0]["id"], "", pista)
+            except PresupuestoAgotado:
+                raise
+            except Exception as ex:  # noqa: BLE001
+                traceback.print_exc()
+                pista.error(f"El analisis de {h['titulo'][:40]} fallo: {str(ex)[:120]}")
+                ctx.mutar(lambda e2, h=h: _cerrar_analisis_fallido(e2, h["id"]), "analisis")
             hechos += 1
     pista.cerrar(f"{hechos} analisis o reproducciones")
     return f"{hechos} analisis in silico o reproducciones ejecutados"

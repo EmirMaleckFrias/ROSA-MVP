@@ -27,17 +27,23 @@ from typing import Any
 
 CLASES = ("calculo_no_ejecutado", "contradiccion_con_registro", "cita_sin_soporte", "identificador_no_coincide", "paso_incompleto", "conclusion_no_sigue")
 
-_NUM = re.compile(r"(?<![\w.])(\d{2,}(?:[.,]\d+)?|\d[.,]\d+)(?![\w])")
+_NUM = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{2,}(?:[.,]\d+)?|\d[.,]\d+|[.,]\d+)(?![\w])")
 _DOI = re.compile(r"10\.\d{4,9}/[^\s\]\)>,;]+", re.I)
 _NCT = re.compile(r"NCT\d{8}")
 _GSE = re.compile(r"GSE\d{3,7}")
 _PMID = re.compile(r"PMID[:\s]*(\d{6,9})", re.I)
 _EJECUCION = re.compile(r"\b(se ejecut\w*|se reprodu\w*|se calcul\w*|corri[oó]|se analiz\w*|analisis in silico|sandbox|reproducci[oó]n superada|valor reproducido)\b", re.I)
-_RESERVA = re.compile(r"\b(no se|pendiente|fall[oó]|sin terminar|incompleto|no pudo|no respondi[oó])\b", re.I)
+_RESERVA = re.compile(r"\b(pendiente|fall[oó]|fallid[oa]s?|sin terminar|incomplet[oa]s?|no pudo|no se pudo|no respondi[oó]|interrumpid[oa]|quedo sin|queda sin|omitid[oa]s?)\b", re.I)
 
 
 def _norm(n: str) -> str:
-    n = n.replace(",", ".")
+    n = n.replace("\u00b7", ".")
+    if re.fullmatch(r"\d{1,3}(,\d{3})+(\.\d+)?", n):
+        n = n.replace(",", "")
+    else:
+        n = n.replace(",", ".")
+    if n.startswith("."):
+        n = "0" + n
     try:
         return f"{float(n):g}"
     except ValueError:
@@ -46,7 +52,7 @@ def _norm(n: str) -> str:
 
 def _numeros(texto: str) -> set[str]:
     out = set()
-    for m in _NUM.findall(texto or ""):
+    for m in _NUM.findall((texto or "").replace("\u00b7", ".")):
         n = _norm(m)
         try:
             v = float(n)
@@ -104,8 +110,10 @@ def corpus_del_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | Non
             textos += [p.get("titulo", ""), p.get("detalle", ""), p.get("motivoFallo") or ""]
         for pi in it.get("pistas", []):
             textos += [pi.get("titulo", ""), pi.get("resumen", "") or ""]
-            for ev in pi.get("eventos", []) or []:
+            for ev in pi.get("transcripcion", []) or []:
                 textos.append(str(ev.get("texto", "")) + " " + str((ev.get("consulta") or {}).get("resultados", "")))
+    for q in (corrida or {}).get("busqueda", {}).get("consultas", []) or []:
+        textos.append(f"{q.get('base', '')} {q.get('consulta', '')} {q.get('resultados', '')}")
         textos += [str(len(it.get("plan", []))), str(sum(1 for p in it.get("pistas", []) if p.get("estado") == "hecha")), str(len(it.get("pistas", [])))]
     for t in textos:
         numeros |= _numeros(t)
@@ -126,7 +134,7 @@ def comprobaciones_deterministas(texto: str, corpus: dict[str, Any], it: dict[st
     if _EJECUCION.search(texto or "") and ejecuciones_ok == 0:
         hallazgos.append({"clase": "calculo_no_ejecutado", "gravedad": "alta", "detalle": "El texto habla de ejecuciones, calculos o reproducciones y no hay ninguna ejecucion completada en el registro", "origen": "regla"})
     if it:
-        sin_terminar = [p for p in it.get("plan", []) if p.get("estado") not in ("hecho", "saltado", "cancelado")]
+        sin_terminar = [p for p in it.get("plan", []) if p.get("estado") not in ("hecho", "omitido")]
         if sin_terminar and not _RESERVA.search(texto or ""):
             hallazgos.append({"clase": "paso_incompleto", "gravedad": "media", "detalle": f"{len(sin_terminar)} pasos del plan sin terminar ({'; '.join(p.get('titulo', '')[:40] for p in sin_terminar[:3])}) y el resumen no lo dice", "origen": "regla"})
     return hallazgos
@@ -149,10 +157,13 @@ def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, co
         lineas.append("PISTAS (una pista fallida seguida de otra hecha con el mismo titulo significa que el paso se retomo y termino): " + "; ".join(f"{p.get('titulo', '')[:40]} [{p.get('estado')}] {(p.get('resumen') or '')[:80]}" for p in it.get("pistas", [])[:20]))
         busq = []
         for p in it.get("pistas", []):
-            for ev in p.get("eventos", []) or []:
+            for ev in p.get("transcripcion", []) or []:
                 q = ev.get("consulta") or {}
                 if q.get("base"):
                     busq.append(f"{q.get('base')}: {str(q.get('parametros', ''))[:60]} -> {q.get('resultados', '?')} resultados")
+        for q in (corrida or {}).get("busqueda", {}).get("consultas", []) or []:
+            if not it or q.get("iteracion") == it.get("numero"):
+                busq.append(f"{q.get('base')}: {str(q.get('consulta', ''))[:60]} -> {q.get('resultados', '?')} resultados")
         lineas.append("BUSQUEDAS DE LITERATURA: " + ("; ".join(busq[:30]) or "ninguna registrada en las pistas"))
     hips = [hipotesis] if hipotesis else [h for h in e.get("hipotesis", []) if h["investigacionId"] == inv_id]
     lineas.append("HIPOTESIS DE LA INVESTIGACION (titulo [estado, decision del Killer, iteracion en que nacio]): " + ("; ".join(f"{h.get('titulo', '')[:90]} [{h.get('estado')}, {h.get('decisionKiller')}, it {h.get('iteracion')}]" for h in hips[:20]) or "ninguna"))

@@ -772,8 +772,8 @@ export interface RevisionHumana {
 }
 
 export interface Novedad {
-  openTargets: { estado: 'sin_evidencia' | 'evidencia_previa'; detalle: string };
-  ensayos: { estado: 'sin_ensayo' | 'ensayo_existente'; detalle: string; nct: string | null };
+  openTargets: { estado: 'sin_evidencia' | 'evidencia_previa' | 'no_comprobado'; detalle: string };
+  ensayos: { estado: 'sin_ensayo' | 'ensayo_existente' | 'no_comprobado'; detalle: string; nct: string | null };
   /** Conectores: si la genetica humana ya vincula el gen (GWAS Catalog, ClinVar),
    *  si ya hay farmacos contra la diana (ChEMBL, DGIdb) y si hay datos publicos
    *  para comprobarla (GEO, CELLxGENE). */
@@ -782,7 +782,7 @@ export interface Novedad {
   datosPublicos?: { estado: 'no_comprobado' | 'hay_datos' | 'sin_datos'; detalle: string; series: { accession: string; titulo: string; n?: number | string | null; plataforma?: string | null }[] };
   agora: { estado: 'no_nominada' | 'nominada'; detalle: string };
   /** Si alguien ya lo propuso en la literatura (comprobacion tipo Owl). */
-  precedente: { estado: 'sin_precedente' | 'parcial' | 'ya_publicado'; detalle: string };
+  precedente: { estado: 'sin_precedente' | 'parcial' | 'ya_publicado' | 'no_comprobado'; detalle: string };
 }
 
 export interface PuntoElo {
@@ -794,7 +794,7 @@ export interface PuntoElo {
 export interface Partido {
   iteracion: number;
   rivalId: Id;
-  resultado: 'gano' | 'perdio';
+  resultado: 'gano' | 'perdio' | 'tablas';
   resumenDebate: string;
   ejeDecisivo: 'correccion' | 'utilidad' | 'especificidad' | 'novedad' | 'deseabilidad';
 }

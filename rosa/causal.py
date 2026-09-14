@@ -124,7 +124,17 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         elif clase == "artefacto" and y:
             aristas.append({"de": nid, "a": "Y", "tipo": "supuesto", "contexto": "Artefacto de medida planteado por el Killer"})
     # Base curada: las relaciones de consenso que tocan X o Y, y las causas comunes conocidas.
-    bx, by = set(nodos_base_en(x + " " + enunciado)), set(nodos_base_en(y))
+    by = set(nodos_base_en(y))
+    bx = set(nodos_base_en(x)) or (set(nodos_base_en(enunciado)) - by)
+    # Descendientes de X en la base: un mediador (amiloide entre APOE4 y GFAP) no es causa comun.
+    descendientes: set[str] = set()
+    frontera = set(bx)
+    while frontera:
+        n_ = frontera.pop()
+        for r_ in BASE_CURADA:
+            if r_["de"] == n_ and r_["a"] not in descendientes:
+                descendientes.add(r_["a"])
+                frontera.add(r_["a"])
     causas_comunes: list[str] = []
     for r in BASE_CURADA:
         if r["de"] in bx | by or r["a"] in bx | by:
@@ -134,7 +144,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
             aristas.append({"de": f"B:{r['de']}", "a": f"B:{r['a']}", "tipo": "base_curada", "contexto": r["contexto"]})
     for n in {r["de"] for r in BASE_CURADA}:
         hijos = {r["a"] for r in BASE_CURADA if r["de"] == n}
-        if bx & hijos and by & hijos and n not in bx | by:
+        if bx & hijos and by & hijos and n not in bx | by | descendientes:
             causas_comunes.append(n)
     # Identificacion por regla.
     cumplidos: list[str] = []
@@ -149,7 +159,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
         # Temporalidad (contra la causa inversa).
         if _TEMPORALIDAD.search(textos):
             cumplidos.append("Temporalidad: hay evidencia longitudinal o de precedencia de X sobre Y")
-        elif _GENETICO.search(x) or (bx & {"APOE4"}):
+        elif _GENETICO.search(x) or ((bx | set(nodos_base_en(enunciado))) & {"APOE4"}):
             cumplidos.append("La exposicion es genetica: Y no puede causar X (la causa inversa queda excluida)")
         else:
             faltantes.append("Temporalidad: ninguna afirmacion sostenida muestra que X se midio antes que Y" + (" (el Killer planteo causa inversa)" if "causa_inversa" in clases else ""))

@@ -339,12 +339,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <div className="novedad novedad-4">
           <div className="novedad-item">
             <strong>Open Targets</strong>
-            <Chip tono={h.novedad.openTargets.estado === 'sin_evidencia' ? 'ok' : 'aviso'}>{h.novedad.openTargets.estado === 'sin_evidencia' ? 'Sin evidencia previa' : 'Evidencia previa'}</Chip>
+            <Chip tono={h.novedad.openTargets.estado === 'no_comprobado' ? 'borde' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'ok' : 'aviso'}>{h.novedad.openTargets.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'Sin evidencia previa' : 'Evidencia previa'}</Chip>
             <p>{h.novedad.openTargets.detalle}</p>
           </div>
           <div className="novedad-item">
             <strong>ClinicalTrials.gov</strong>
-            <Chip tono={h.novedad.ensayos.estado === 'sin_ensayo' ? 'ok' : 'aviso'}>{h.novedad.ensayos.estado === 'sin_ensayo' ? 'Sin ensayo' : 'Ya hay ensayo'}</Chip>
+            <Chip tono={h.novedad.ensayos.estado === 'no_comprobado' ? 'borde' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'ok' : 'aviso'}>{h.novedad.ensayos.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'Sin ensayo' : 'Ya hay ensayo'}</Chip>
             <p>
               {h.novedad.ensayos.detalle}
               {h.novedad.ensayos.nct && (
@@ -397,8 +397,8 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           )}
           <div className="novedad-item">
             <strong>Precedente en la literatura</strong>
-            <Chip tono={h.novedad.precedente.estado === 'sin_precedente' ? 'ok' : h.novedad.precedente.estado === 'parcial' ? 'aviso' : 'mal'}>
-              {h.novedad.precedente.estado === 'sin_precedente' ? 'Sin precedente' : h.novedad.precedente.estado === 'parcial' ? 'Precedente parcial' : 'Ya publicado'}
+            <Chip tono={h.novedad.precedente.estado === 'no_comprobado' ? 'borde' : h.novedad.precedente.estado === 'sin_precedente' ? 'ok' : h.novedad.precedente.estado === 'parcial' ? 'aviso' : 'mal'}>
+              {h.novedad.precedente.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.precedente.estado === 'sin_precedente' ? 'Sin precedente' : h.novedad.precedente.estado === 'parcial' ? 'Precedente parcial' : 'Ya publicado'}
             </Chip>
             <p>{h.novedad.precedente.detalle}</p>
           </div>
@@ -462,7 +462,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                     <td className="num">{p.iteracion}</td>
                     <td>{rival ? <a className="enlace" href={rutaDe(h.investigacionId, 'hipotesis', rival.id)}>{rival.titulo.length > 50 ? `${rival.titulo.slice(0, 47)}...` : rival.titulo}</a> : p.rivalId}</td>
                     <td>
-                      <Chip tono={p.resultado === 'gano' ? 'ok' : 'mal'}>{p.resultado === 'gano' ? 'Gano' : 'Perdio'}</Chip>
+                      <Chip tono={p.resultado === 'gano' ? 'ok' : p.resultado === 'tablas' ? 'borde' : 'mal'}>{p.resultado === 'gano' ? 'Gano' : p.resultado === 'tablas' ? 'Tablas' : 'Perdio'}</Chip>
                     </td>
                     <td>{p.ejeDecisivo}</td>
                     <td className="meta">{p.resumenDebate}</td>

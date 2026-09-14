@@ -70,7 +70,7 @@ def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None,
         h["historialElo"].append({"iteracion": iteracion, "elo": h["elo"]})
         if rival["id"] not in h["rivales"]:
             h["rivales"].append(rival["id"])
-        h["partidos"].append({"iteracion": iteracion, "rivalId": rival["id"], "resultado": "gano" if gano else "perdio", "resumenDebate": resumen if gano is not None else f"Tablas (el juez discrepo al invertir el orden): {resumen}", "ejeDecisivo": eje})
+        h["partidos"].append({"iteracion": iteracion, "rivalId": rival["id"], "resultado": "tablas" if gano is None else ("gano" if gano else "perdio"), "resumenDebate": resumen if gano is not None else f"Tablas (el juez discrepo al invertir el orden): {resumen}", "ejeDecisivo": eje})
         for r in h["revisionesAutomaticas"]:
             if r["tipo"] == "torneo":
                 r["estado"] = "hecha" if r["estado"] == "pendiente" else "rehecha"

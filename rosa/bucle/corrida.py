@@ -246,6 +246,11 @@ class Supervisor:
         texto_af, _ = T.afirmaciones_sostenidas(ctx.corrida().get("_afirmaciones", []))
         pista = ctx.pista(None, "modelo", f"Reformular a peticion: {h['titulo'][:60]}", "GPT-6 Astra + Opus 5")
         try:
+            if not politicas.puede_reformular(h.get("version", 1)):
+                # A peticion de una persona no se descarta por agotar reformulaciones: se le dice.
+                pista.cerrar(f"La hipotesis ya esta en la version {h.get('version', 1)} y la politica no permite mas reformulaciones automaticas; editala o duplicala a mano")
+                self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).get("procedencia", {}).get("mensajes", []).append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"No se reformulo: version {h.get('version', 1)}, tope de {politicas.MAX_REFORMULACIONES} reformulaciones. Nota de la persona: {nota[:200]}", "creadoEn": P.ahora_ms()}), True)[1], "reformular")
+                return
             ok = await PASOS._reformular(ctx, h, f"Persona: {nota}", config.QUIEN_ROSA, pista)
             if ok:
                 nueva = next((y for y in self.almacen.estado["hipotesis"] if y["id"] == h["id"]), None)
@@ -256,7 +261,7 @@ class Supervisor:
             traceback.print_exc()
             pista.fallar(f"Fallo al reformular: {str(ex)[:160]}")
         finally:
-            self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_reformularPedida", None), True)[1], "reformular")
+            self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_reformularPedida", None), next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_revisionPedida", None), True)[2], "reformular")
 
     async def _evaluar_cambio(self, cambio: dict[str, Any]) -> None:
         """Evaluacion de un criterio propuesto (nivel 2) sobre el conjunto
@@ -265,7 +270,10 @@ class Supervisor:
         la persona (avanzar = aceptar; descartar o reformular = descartar).
         La cifra va al registro; la promocion sigue siendo de la persona."""
         e = self.almacen.estado
-        reservado = [h for h in e["hipotesis"] if h["estado"] in ("aceptada", "descartada") and any(r["quien"] != config.QUIEN_ROSA and r["accion"] in ("aceptada", "descartada") for r in h["revisiones"])][:6]
+        # Conjunto reservado: solo hipotesis con decision de una PERSONA (registro de
+        # decisiones, etapa persona), nunca las que descarto el propio Killer.
+        con_persona = {d["hipotesisId"] for d in e.get("decisiones", []) if d.get("etapa") == "persona" and d.get("decision") in ("aceptada", "descartada")}
+        reservado = [h for h in e["hipotesis"] if h["estado"] in ("aceptada", "descartada") and h["id"] in con_persona][:6]
         ahora = P.ahora_ms()
         if not reservado:
             self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], {"conjunto": "hipotesis con decision humana", "casos": 0, "antes": None, "despues": None, "nota": "Sin conjunto reservado todavia: hacen falta hipotesis aceptadas o descartadas por una persona"}, ahora), "aprendizaje")
@@ -766,7 +774,7 @@ class Supervisor:
                 if f.get("doi") and f["doi"] not in dois:
                     try:
                         dois[f["doi"]] = await crossref.marca_editorial(f["doi"])
-                    except FuenteNoDisponible as ex:
+                    except Exception as ex:  # noqa: BLE001  (un JSON raro de Crossref no debe dejar la bandera puesta para siempre)
                         dois[f["doi"]] = ("__error__", str(ex)[:100])
         cambios = 0
         afectadas: list[dict[str, Any]] = []
@@ -1084,7 +1092,18 @@ class Supervisor:
             raise
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
-            self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "fallido", motivo=f"{type(ex).__name__}: {str(ex)[:200]}"), "paso")
+
+            def fallar_paso(e: dict[str, Any]) -> bool:
+                _estado_paso(e, it["id"], paso["id"], "fallido", motivo=f"{type(ex).__name__}: {str(ex)[:200]}")
+                it2 = next((x for x in e["iteraciones"] if x["id"] == it["id"]), None)
+                # Las pistas del paso que quedaron en curso no pueden seguir "en curso" para siempre.
+                for p_ in (it2 or {}).get("pistas", []):
+                    if p_.get("pasoId") == paso["id"] and p_.get("estado") == "en_curso":
+                        p_["estado"] = "fallida"
+                        p_["resumen"] = f"Interrumpida por un fallo del paso: {type(ex).__name__}"
+                return True
+
+            self.almacen.mutar(fallar_paso, "paso")
 
     async def _revisar_registro(self, ctx: Ctx, inv: dict[str, Any], it: dict[str, Any], c: dict[str, Any], resumen: str, llano: dict[str, Any] | None) -> dict[str, Any]:
         e = self.almacen.estado
@@ -1168,7 +1187,7 @@ class Supervisor:
                     "mensajes": {"plan": [{"titulo": p["titulo"], "estado": p["estado"]} for p in it2["plan"]], "pistas": [{"id": p["id"], "titulo": p["titulo"], "estado": p["estado"]} for p in it2.get("pistas", [])[:40]], "decisiones": [d["id"] for d in e2.get("decisiones", []) if d.get("investigacionId") == inv["id"] and d.get("fecha", 0) >= it["empezadaEn"]][:40]},
                     "codigo": None,
                     "registroEjecucion": [{"id": r["id"], "estado": r.get("estado"), "auditoria": (r.get("auditoria") or {}).get("veredicto"), "resultados": r.get("resultados")} for r in runs_it[:20]] or None,
-                    "entorno": {"cerebro": self.modelos.cerebro.model, "juez": self.modelos.juez.model, "volumen": self.modelos.volumen.model, "arnes": c.get("arnes"), "sandbox": [x for r in runs_it[:1] for x in (r.get("entorno") or [])]},
+                    "entorno": {"cerebro": self.modelos.cerebro.model, "juez": self.modelos.juez.model, "volumen": self.modelos.volumen.model, "arnes": c.get("arnes"), "sandbox": [r.get("entorno") for r in runs_it[:1]]},
                     "revision": revision,
                 },
             )

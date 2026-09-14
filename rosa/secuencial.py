@@ -21,16 +21,20 @@ def e_valor(p: float, kappa: float = KAPPA) -> float:
     return kappa * p ** (kappa - 1)
 
 
+CLAVES_P = ("p_valor", "p_value", "pvalue", "valor_p", "p_bilateral", "p_unilateral", "p_ajustada", "p_ajustado", "p_adj", "p")
+
+
 def p_de(resultados: dict[str, str]) -> float | None:
-    """El p-valor principal de una ejecucion: la clave que empieza por p y
-    tiene un numero entre 0 y 1. Si hay varias, la primera en orden de
-    prioridad (p_valor, p_bilateral, p)."""
-    candidatas = sorted(resultados.keys(), key=lambda k: (0 if k in ("p_valor", "p_bilateral", "p") else 1, k))
-    for k in candidatas:
-        if not re.match(r"^p($|_|val|bil)", k, re.I):
+    """El p-valor principal de una ejecucion: solo claves que son un p-valor
+    (lista blanca, en orden de prioridad), nunca proporciones como p_grupo.
+    Admite '<0.001' (se toma 0.001) y coma decimal."""
+    por_clave = {k.lower(): v for k, v in resultados.items()}
+    for k in CLAVES_P:
+        if k not in por_clave:
             continue
+        crudo = str(por_clave[k]).strip().replace(",", ".").lstrip("<≤=").strip()
         try:
-            v = float(str(resultados[k]).replace(",", "."))
+            v = float(crudo)
         except ValueError:
             continue
         if 0 < v <= 1:
@@ -42,9 +46,15 @@ def agregar(ejecuciones: list[dict[str, Any]]) -> dict[str, Any] | None:
     """La evidencia acumulada de las ejecuciones validas (auditoria valida)
     de una hipotesis. None si ninguna aporta p-valor."""
     validas = [x for x in ejecuciones if (x.get("auditoria") or {}).get("veredicto") == "valido" and x.get("estado") == "completado"]
+    # Solo cuenta una prueba por (datos, plan): repetir el mismo analisis sobre los
+    # mismos datos no es evidencia nueva. Se conserva la ultima.
+    por_clave: dict[tuple[str, str], dict[str, Any]] = {}
+    for x in validas:
+        clave = (str(x.get("hashDatos") or x.get("id")), str(x.get("hashPlan") or x.get("planId") or x.get("id")))
+        por_clave[clave] = x
     pruebas = []
     e_total = 1.0
-    for x in validas:
+    for x in por_clave.values():
         p = p_de(x.get("resultados", {}))
         if p is None:
             continue
