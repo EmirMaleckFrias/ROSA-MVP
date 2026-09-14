@@ -247,9 +247,17 @@ export function posicionInicial(g: Grafo, posiciones: Map<string, Posicion>, id:
   // Nace junto a un vecino ya colocado (el arbol crece desde la rama), o en un anillo.
   const n = g.porId.get(id);
   if (n?.tipo === 'objetivo') return { x: 0, y: 0, vx: 0, vy: 0, fijo: true };
-  const vecino = [...(g.vecinos.get(id) ?? [])].map((v) => posiciones.get(v)).find((p) => p !== undefined);
+  const vecinos = [...(g.vecinos.get(id) ?? [])];
+  const colocado = vecinos.find((v) => v !== 'objetivo' && posiciones.has(v));
+  const vecino = colocado ? posiciones.get(colocado) : undefined;
   const ang = ((semilla * 137.508) % 360) * (Math.PI / 180);
-  if (vecino) return { x: vecino.x + Math.cos(ang) * 24, y: vecino.y + Math.sin(ang) * 24, vx: 0, vy: 0 };
+  if (vecino) return { x: vecino.x + Math.cos(ang) * 28, y: vecino.y + Math.sin(ang) * 28, vx: 0, vy: 0 };
+  // Cuelga del tronco (o no tiene vecino colocado): nace en un anillo, en el
+  // angulo dorado, para que las hojas no se apilen en el centro.
+  if (vecinos.includes('objetivo')) {
+    const r = n?.tipo === 'rama' || n?.tipo === 'area' ? 150 : 200;
+    return { x: Math.cos(ang) * r, y: Math.sin(ang) * r, vx: 0, vy: 0 };
+  }
   const r = n?.tipo === 'rama' || n?.tipo === 'area' ? 140 : 260;
   return { x: Math.cos(ang) * r, y: Math.sin(ang) * r, vx: 0, vy: 0 };
 }

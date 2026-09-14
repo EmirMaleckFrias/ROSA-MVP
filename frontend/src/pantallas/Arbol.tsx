@@ -86,6 +86,10 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
     if (cambio || primera) {
       alfa.current = 0;
       arrancar(primera ? 1 : 0.6);
+    } else if (alfa.current > 0.03) {
+      // La limpieza del efecto anterior cancelo el fotograma en marcha (otro
+      // efecto reasigno los visibles al montar): se retoma donde estaba.
+      arrancar(alfa.current);
     }
     return () => {
       if (marco.current !== null) cancelAnimationFrame(marco.current);
