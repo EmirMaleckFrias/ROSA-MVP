@@ -49,7 +49,7 @@ function DetalleArtefacto({ a, inv, ahora }: { a: Artefacto; inv: Investigacion;
       </div>
       <div className="acciones" style={{ marginBottom: 14 }}>
         <span className="meta">Version</span>
-        <div className="segmentos" role="group" aria-label="Version">
+        <div className="segmentos" role="group" aria-label="Versión">
           {a.versiones.map((v) => (
             <button key={v.n} type="button" aria-pressed={v.n === n} onClick={() => setN(v.n)} title={`${v.resumen} · ${new Date(v.creadaEn).toLocaleString('es')}`}>
               v{v.n}

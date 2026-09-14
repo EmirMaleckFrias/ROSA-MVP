@@ -638,3 +638,19 @@ def test_ejecucion_conoce_los_dos_entornos():
     from pathlib import Path
 
     assert (Path("rosa/sandbox") / "Dockerfile.celula").exists() and "scanpy" in (Path("rosa/sandbox") / "Dockerfile.celula").read_text()
+
+
+def test_simbolos_de_genes_con_alias_y_siglas_que_no_son_genes():
+    from rosa.bucle.pasos import simbolos_de_genes
+
+    assert simbolos_de_genes("Dependencia de dosis de APOE ε4 en GFAP y NfL plasmaticos; amiloide-PET; MCI; p-tau181") == ["APOE", "GFAP", "NEFL", "MAPT"]
+    assert simbolos_de_genes("brecha GFAP-NfL en la cohorte BioFINDER (CA1 frente a CA3)") == ["GFAP", "NEFL"]
+    assert simbolos_de_genes("sin diana") == []
+
+
+def test_skills_por_palabra_completa_y_contexto():
+    from rosa import skills as SK
+
+    assert [s["nombre"] for s in SK.para_texto("regresion lineal sobre el area bajo la curva", contexto="analisis")] == []  # 'area' no activa la de mision en analisis
+    assert [s["nombre"] for s in SK.para_texto("mision y areas del programa", contexto="mision")] == ["eleccion-de-problema"]
+    assert "fila-de-evidencia" not in [s["nombre"] for s in SK.para_texto("evidencia de la hipotesis", contexto="analisis")]

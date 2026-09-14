@@ -166,9 +166,9 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
     <div className="tarjeta seccion mision">
       <p className="meta">La mision fija el marco antes de la primera corrida: a quien aplica, en que etapa, en que celula o tejido, que mecanismo, que tipo de resultado se busca y que puede hacer el laboratorio. Lo que se deje en blanco queda "sin fijar" y Rosa no lo inventa.</p>
       <div className="rejilla-2">
-        {campo('poblacion', 'Poblacion', 'Adultos con deterioro cognitivo leve, amiloide positivos')}
+        {campo('poblacion', 'Población', 'Adultos con deterioro cognitivo leve, amiloide positivos')}
         {campo('etapa', 'Etapa de la enfermedad', 'Prodromica')}
-        {campo('celulaTejido', 'Celula o tejido', 'Astrocitos; plasma')}
+        {campo('celulaTejido', 'Célula o tejido', 'Astrocitos; plasma')}
         {campo('mecanismo', 'Mecanismo', 'Reactividad astrocitaria')}
         {campo('tipoIntervencion', 'Tipo de intervencion o resultado', 'Biomarcador de progresion')}
         {campo('capacidades', 'Capacidades del laboratorio (una por linea)', 'Inmunoensayo Simoa en plasma\nPET de amiloide', 3)}
@@ -346,13 +346,13 @@ export function PreguntaDeCampana({ corrida }: { corrida: Corrida }) {
           <div className="rejilla-2">
             {campo('contexto', 'Contexto (C)')}
             {campo('etapa', 'Etapa (S)')}
-            {campo('intervencion', 'Intervencion (A)')}
+            {campo('intervencion', 'Intervención (A)')}
             {campo('comparador', 'Comparador (B)')}
             {campo('desenlace', 'Desenlace (P), con medida y unidad')}
             {campo('ventana', 'Ventana de tiempo (T)')}
             {campo('unidadBiologica', 'Unidad biologica independiente')}
             {campo('mecanismos', 'Mecanismos que distingue (M1 frente a M2)')}
-            {campo('decision', 'Decision que se toma con la respuesta')}
+            {campo('decision', 'Decisión que se toma con la respuesta')}
             {campo('umbralEfecto', 'Umbral de efecto (o "sin resolver")')}
           </div>
           <div className="campo">
@@ -559,7 +559,7 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
   const puerta = inv?.puertaReproduccion;
   const puertaOk = puerta ? puerta.estado === 'abierta' || puerta.estado === 'eximida' : false;
   return (
-    <Seccion titulo="Analisis in silico" nota="Rosa congela un plan de analisis (sin ver las filas), escribe el codigo, lo ejecuta en un sandbox sin red con los datos en solo lectura, interpreta las cifras contra el umbral del plan y un auditor independiente (Killer II) dice si el analisis vale. Solo un analisis valido entra como evidencia.">
+    <Seccion titulo="Análisis in silico" nota="Rosa congela un plan de análisis (sin ver las filas), escribe el código, lo ejecuta en un sandbox sin red con los datos en solo lectura, interpreta las cifras contra el umbral del plan y un auditor independiente (Killer II) dice si el análisis vale. Solo un análisis válido entra como evidencia.">
       {runs.length === 0 && <p className="meta">Sin analisis con datos todavia.</p>}
       {h.evidenciaSecuencial && (
         <div className="acciones">
@@ -927,7 +927,7 @@ export function LibroDeProcedencia({ inv, d }: { inv: Investigacion; d: Dataset 
       <p className="meta">Sin origen, licencia y uso con IA autorizado el contrato no se puede aprobar. El hash y las filas los fija el servidor y no se editan.</p>
       <div className="rejilla-2">
         {campo('origen', 'Origen (portal, laboratorio, publicacion)', 'GEO GSE1297')}
-        {campo('version', 'Version del dataset', 'v1, 2004')}
+        {campo('version', 'Versión del dataset', 'v1, 2004')}
         {campo('licencia', 'Licencia o condiciones de uso', 'CC-BY 4.0; Allen Terms of Use')}
         {campo('permisos', 'Permisos y acuerdo de uso (id, fecha)', 'DUC Synapse v8.2, aprobado 2026-09-01')}
         {campo('cohorte', 'Cohorte de origen', 'ADNI')}
@@ -1147,11 +1147,11 @@ function FilaAprendizaje({ c, ahora }: { c: CambioAprendizaje; ahora: number }) 
 
 export function Politicas({ politicas }: { politicas: Record<string, number> | undefined }) {
   const filas: { clave: string; etiqueta: string; nota: string }[] = [
-    { clave: 'maxHipotesisVivas', etiqueta: 'Hipotesis vivas por mision', nota: 'Al llegar, Rosa deja de generar hasta que se decidan algunas.' },
+    { clave: 'maxHipotesisVivas', etiqueta: 'Hipótesis vivas por misión', nota: 'Al llegar, Rosa deja de generar hasta que se decidan algunas.' },
     { clave: 'maxEvaluacionesCostosas', etiqueta: 'Evaluaciones costosas (analisis con datos) por corrida', nota: 'Cada una gasta codigo, sandbox y auditoria.' },
     { clave: 'maxCandidatos', etiqueta: 'Candidatas al laboratorio por ciclo', nota: 'Entre cero y esto. Cero es un resultado valido.' },
     { clave: 'maxReformulaciones', etiqueta: 'Reformulaciones por hipotesis', nota: 'Despues, se descarta en este contexto.' },
-    { clave: 'reproduccionesRequeridas', etiqueta: 'Analisis publicados a reproducir antes de descubrir', nota: 'La puerta de reproduccion.' },
+    { clave: 'reproduccionesRequeridas', etiqueta: 'Análisis publicados a reproducir antes de descubrir', nota: 'La puerta de reproducción.' },
     { clave: 'fraccionDescartesAuditados', etiqueta: 'Fraccion de descartes del Killer auditados', nota: 'Con otro metodo y otra familia de modelo.' },
     { clave: 'segundosMaxEjecucion', etiqueta: 'Segundos maximos por ejecucion en el sandbox', nota: 'Pasado el tiempo es un error tecnico, no un resultado nulo.' },
     { clave: 'memoriaMaxEjecucionMb', etiqueta: 'Memoria maxima del sandbox (MB)', nota: '' },
@@ -1237,7 +1237,7 @@ const ETIQUETA_CAMPO: Record<CampoEnmendable, string> = {
   tamanoMuestral: 'Tamaño muestral',
   confirma: 'Criterio de confirmacion',
   refuta: 'Criterio de refutacion',
-  analisisPedido: 'Analisis pedido',
+  analisisPedido: 'Análisis pedido',
 };
 
 /** Lo que se planeo frente a lo que se hizo. El prerregistro queda congelado;
@@ -1574,7 +1574,7 @@ const ETIQUETA_FALLO: Record<string, string> = {
 export function PanelKiller({ estado }: { estado: EstadoRosa }) {
   const evs = [...(estado.evaluaciones ?? [])].filter((e) => e.tipo === 'panel_killer').sort((a, b) => b.fecha - a.fecha);
   return (
-    <Seccion titulo="Panel del Killer" nota="Hipotesis reales con un fallo plantado a proposito (cifra alterada, prediccion vaga, causalidad sin temporalidad, misma cohorte, supuesto contradicho) y un conjunto gris que no debe descartarse. Mide que fraccion detecta el Killer, si lo detecta la comprobacion correcta, cuanto se abstiene y cuanto mata de mas. Se repite con cada version del prompt o del modelo: si baja, se sabe antes de que llegue a una hipotesis real.">
+    <Seccion titulo="Panel del Killer" nota="Hipótesis reales con un fallo plantado a propósito (cifra alterada, predicción vaga, causalidad sin temporalidad, misma cohorte, supuesto contradicho) y un conjunto gris que no debe descartarse. Mide qué fracción detecta el Killer, si lo detecta la comprobación correcta, cuánto se abstiene y cuánto mata de más. Se repite con cada versión del prompt o del modelo: si baja, se sabe antes de que llegue a una hipótesis real.">
       {evs.length === 0 ? (
         <p className="meta">Sin paneles todavia. Se corre desde el servidor con el comando del README (cuesta llamadas al juez).</p>
       ) : (
@@ -1919,7 +1919,7 @@ export function RevisionDeRegistro({ r, compacto = false }: { r: RevisionRegistr
 export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefined }) {
   const [pestana, setPestana] = useState<'mensajes' | 'codigo' | 'registroEjecucion' | 'entorno' | 'revision'>('mensajes');
   if (!p) return <p className="meta">Esta version no tiene procedencia registrada (anterior al 11 de septiembre de 2026).</p>;
-  const etiquetas: Record<string, string> = { mensajes: 'Mensajes', codigo: 'Codigo', registroEjecucion: 'Registro de ejecucion', entorno: 'Entorno', revision: 'Revision' };
+  const etiquetas: Record<string, string> = { mensajes: 'Mensajes', codigo: 'Código', registroEjecucion: 'Registro de ejecución', entorno: 'Entorno', revision: 'Revisión' };
   const vacio = (k: keyof ProcedenciaArtefacto) => p[k] === null || p[k] === undefined || (Array.isArray(p[k]) && (p[k] as unknown[]).length === 0);
   return (
     <div className="procedencia-artefacto">

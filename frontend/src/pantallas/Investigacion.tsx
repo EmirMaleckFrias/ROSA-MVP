@@ -167,7 +167,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         </div>
       </div>
 
-      <Seccion titulo="Mision" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quien aplica, en que etapa, en que celula o tejido, que mecanismo, que tipo de resultado se busca, que puede hacer el laboratorio y con que presupuesto. Rosa propone; una persona aprueba. Debajo, las areas de investigacion que Rosa comparo para elegir por donde empezar.">
+      <Seccion titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. Rosa propone; una persona aprueba. Debajo, las áreas de investigación que Rosa comparó para elegir por dónde empezar.">
         {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la mision al arrancar la primera corrida. Tambien puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
         <FormularioMision inv={inv} corridas={corridas} />
       </Seccion>
@@ -177,7 +177,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       <MemoriaDelProyecto inv={inv} />
 
       <Seccion
-        titulo="Configuracion que Rosa lee"
+        titulo="Configuración que Rosa lee"
         nota="Preferencias, atributos deseables y restricciones: alimentan la generacion, cada revision y cada debate del torneo. Se versiona con la investigacion."
         acciones={
           editando ? (

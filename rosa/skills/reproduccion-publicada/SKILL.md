@@ -1,6 +1,7 @@
 ---
 name: reproduccion-publicada
 description: Como reproducir una cifra publicada dentro de la puerta de reproduccion: leer los metodos completos, congelar la definicion exacta de la cifra, no cambiar el criterio despues, imprimir valor_reproducido. Se activa con reproduccion, reproducir, cifra publicada, tolerancia, puerta.
+contexto: analisis
 activa_si: reproduccion, reproducir, cifra publicada, valor_reproducido, tolerancia, puerta
 ---
 

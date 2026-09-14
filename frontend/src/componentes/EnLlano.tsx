@@ -126,7 +126,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   if (conclusion === undefined) return null;
   if (conclusion === null) {
     return (
-      <Seccion titulo="Conclusion de Rosa">
+      <Seccion titulo="Conclusión de Rosa">
         <p className="meta">Rosa todavia no escribio su conclusion sobre esta hipotesis. La escribe al crearla y la rehace al cerrar cada iteracion.</p>
       </Seccion>
     );
@@ -136,7 +136,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   const b = conclusion.base;
   return (
     <Seccion
-      titulo="Conclusion de Rosa"
+      titulo="Conclusión de Rosa"
       nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (direccion). Ninguna dice si la hipotesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteracion."
       acciones={
         <span className="meta">

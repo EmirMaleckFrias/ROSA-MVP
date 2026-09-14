@@ -176,7 +176,7 @@ export const FACTOR_CERTEZA: Record<FactorCerteza, string> = {
   imprecision: 'Pocos participantes o pocos estudios',
   sesgo_de_publicacion: 'Posible sesgo de publicacion',
   efecto_grande: 'Efecto grande y consistente',
-  gradiente: 'Relacion dosis o tiempo con respuesta',
+  gradiente: 'Relación dosis o tiempo con respuesta',
   replicacion_independiente: 'Replicado en cohortes independientes',
 };
 
@@ -230,7 +230,7 @@ export const TIPO_FUENTE: Record<TipoFuente, string> = {
 };
 
 export const TIPO_ESTUDIO: Record<TipoEstudio, string> = {
-  revision_sistematica: 'Revision sistematica o metaanalisis',
+  revision_sistematica: 'Revisión sistemática o metaanálisis',
   ensayo_aleatorizado: 'Ensayo aleatorizado',
   cohorte: 'Cohorte',
   caso_control: 'Casos y controles',
@@ -238,7 +238,7 @@ export const TIPO_ESTUDIO: Record<TipoEstudio, string> = {
   serie_de_casos: 'Serie de casos',
   preclinico: 'Preclinico (animal)',
   in_vitro: 'In vitro',
-  revision_narrativa: 'Revision narrativa',
+  revision_narrativa: 'Revisión narrativa',
   registro: 'Registro o informe institucional',
   otro: 'Otro',
 };
@@ -265,7 +265,7 @@ export const ESTADO_HECHO: Record<EstadoHecho, string> = {
 
 export const TIPO_HECHO: Record<TipoHecho, string> = {
   hecho: 'Hecho',
-  hipotesis: 'Hipotesis',
+  hipotesis: 'Hipótesis',
   pregunta: 'Pregunta',
 };
 
@@ -336,7 +336,7 @@ export const RESULTADO_COMPROBACION: Record<'pasa' | 'falla' | 'no_aplica' | 'no
 export const BLOQUEO: Record<Bloqueo, string> = {
   trazabilidad_insuficiente: 'Trazabilidad insuficiente',
   datos_no_autorizados: 'Datos no autorizados',
-  analisis_invalido: 'Analisis invalido',
+  analisis_invalido: 'Análisis inválido',
   sin_experimento_interpretable: 'Sin experimento interpretable',
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Fuente retractada',
@@ -364,8 +364,8 @@ export const INTERPRETACION_EJECUCION: Record<InterpretacionEjecucion, { etiquet
 };
 
 export const VEREDICTO_AUDITORIA: Record<'valido' | 'no_valido' | 'no_evaluable_computacionalmente', { etiqueta: string; tono: 'ok' | 'mal' | 'borde' }> = {
-  valido: { etiqueta: 'Analisis valido', tono: 'ok' },
-  no_valido: { etiqueta: 'Analisis no valido', tono: 'mal' },
+  valido: { etiqueta: 'Análisis válido', tono: 'ok' },
+  no_valido: { etiqueta: 'Análisis no válido', tono: 'mal' },
   no_evaluable_computacionalmente: { etiqueta: 'No evaluable computacionalmente', tono: 'borde' },
 };
 
@@ -413,7 +413,7 @@ export const TIPO_APRENDIZAJE: Record<CambioAprendizaje['tipo'], string> = {
   programa: 'Programa optimizado (GEPA)',
   politica: 'Politica',
   modelo_de_mundo: 'Modelo de mundo',
-  hipotesis_derivada: 'Hipotesis derivada',
+  hipotesis_derivada: 'Hipótesis derivada',
 };
 
 export const ACCESO_DATASET: Record<ProcedenciaDataset['acceso'], string> = {
@@ -450,9 +450,9 @@ export const CLASIFICACION_DATOS: Record<ClasificacionDatos, string> = {
 };
 
 export const TIPO_EVENTO: Record<TipoEvento, string> = {
-  iteracion_terminada: 'Iteracion',
-  hipotesis_nueva: 'Hipotesis nueva',
-  hipotesis_decidida: 'Decision',
+  iteracion_terminada: 'Iteración',
+  hipotesis_nueva: 'Hipótesis nueva',
+  hipotesis_decidida: 'Decisión',
   ranking_cambio: 'Ranking',
   permiso_pendiente: 'Permiso',
   permiso_resuelto: 'Permiso',
@@ -464,9 +464,9 @@ export const TIPO_EVENTO: Record<TipoEvento, string> = {
   literatura_nueva: 'Literatura nueva',
   revision_automatica: 'Revisor',
   killer: 'Hypothesis Killer',
-  analisis: 'Analisis con datos',
+  analisis: 'Análisis con datos',
   aprendizaje: 'Aprendizaje',
-  mision: 'Mision',
+  mision: 'Misión',
   dependencias: 'Recalculo por cambio de fuente',
 };
 
@@ -495,7 +495,7 @@ export const TIPO_METODO: Record<MetodoRegistrado['tipo'], string> = {
   recurso_datos: 'Recurso de datos',
   ensayo_laboratorio: 'Ensayo de laboratorio',
   busqueda: 'Busqueda y recuperacion',
-  revision: 'Revision y verificacion',
+  revision: 'Revisión y verificación',
 };
 
 export const NIVEL_MEDICION: Record<NonNullable<Afirmacion['nivelMedicion']>, string> = {

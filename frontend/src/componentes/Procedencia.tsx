@@ -21,7 +21,7 @@ const PESTANAS: { clave: PestanaProcedencia; etiqueta: string }[] = [
   { clave: 'codigo', etiqueta: 'Codigo' },
   { clave: 'registro', etiqueta: 'Registro' },
   { clave: 'entorno', etiqueta: 'Entorno' },
-  { clave: 'revision', etiqueta: 'Revision' },
+  { clave: 'revision', etiqueta: 'Revisión' },
   { clave: 'fuentes', etiqueta: 'Fuentes' },
 ];
 

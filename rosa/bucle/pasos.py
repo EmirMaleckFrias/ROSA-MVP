@@ -1121,6 +1121,27 @@ async def _novedad_por_conectores(ctx: Ctx, h: dict[str, Any], genes: list[str],
     return regs
 
 
+ALIAS_GEN = {"NFL": "NEFL", "NF-L": "NEFL", "P-TAU": "MAPT", "PTAU": "MAPT", "P-TAU181": "MAPT", "P-TAU217": "MAPT", "TAU": "MAPT", "ABETA": "APP", "AB42": "APP", "AB40": "APP", "APOE4": "APOE", "APOE-E4": "APOE", "TREM-2": "TREM2"}
+NO_GEN = {"PET", "MCI", "MMSE", "CDR", "CSF", "LCR", "ADNI", "AD", "EA", "IC", "CI", "HR", "OR", "SD", "DE", "RNA", "DNA", "ARN", "ADN", "ELISA", "SIMOA", "MRI", "RM", "TC", "MR", "NCT", "GEO", "GSE", "UK", "USA", "EE", "UU", "BIOFINDER", "AIBL", "WRAP", "ROSMAP", "MSBB", "MAYO", "SEA", "MAP", "ROS", "CA1", "CA3", "IADG", "UP", "DOWN", "GWAS", "SNP", "QTL", "TPM", "NTPM", "FDR", "ANOVA", "AUC", "ROC", "BIOCARD", "PREVENT", "DIAN", "A4", "ATN", "ANA", "VS"}
+
+
+def simbolos_de_genes(texto: str) -> list[str]:
+    """Candidatos a simbolo de gen en un texto libre: tokens en mayusculas de 2
+    a 10 caracteres, con alias del dominio (NfL a NEFL, p-tau a MAPT, Abeta a
+    APP) y una lista de siglas que no son genes. MyGene decide despues cual
+    resuelve de verdad."""
+    vistos: list[str] = []
+    for tok in re.findall(r"[A-Za-z][A-Za-z0-9\-]{1,11}", texto or ""):
+        t = tok.upper().replace("\u03b5", "E")
+        t = ALIAS_GEN.get(t, t)
+        if t in NO_GEN or t in vistos or not re.fullmatch(r"[A-Z][A-Z0-9\-]{1,9}", t):
+            continue
+        if not (tok.isupper() or tok.upper() in ALIAS_GEN or re.search(r"\d", tok)):
+            continue  # palabras normales en minusculas no cuentan
+        vistos.append(t)
+    return vistos[:6]
+
+
 async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
     """El contexto de la diana desde las bases: identificadores (MyGene),
     funcion (UniProt), expresion en cerebro (Human Protein Atlas), interactores
@@ -1128,14 +1149,23 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
     se ensena en la tarjeta. El Killer usa los identificadores en la
     comprobacion `identificadores_resuelven`."""
     diana = ((h.get("tarjeta") or {}).get("diana") or "").strip()
-    if not diana or (h.get("contextoBases") or {}).get("version") == h.get("version", 1):
+    if (h.get("contextoBases") or {}).get("version") == h.get("version", 1):
         return
-    simbolo = diana.split()[0].strip(",;()") if diana else ""
+    candidatos = simbolos_de_genes(" ".join([diana, (h.get("comprobacion") or {}).get("biomarcador") or "", h.get("titulo", "")]))
+    if not diana and not candidatos:
+        return
     regs: list[dict[str, Any]] = []
-    ctxb: dict[str, Any] = {"diana": diana, "identificadores": {}, "funcion": "", "expresionCerebro": "", "interactores": [], "rutas": [], "version": h.get("version", 1), "consultadoEn": P.ahora_ms()}
-    if CON.bases.parece_simbolo(simbolo):
-        reg, ids = await CON.consultar("mygene_gen", resumen=f"MyGene: {simbolo}", simbolo=simbolo)
+    ctxb: dict[str, Any] = {"diana": diana or ", ".join(candidatos[:3]), "identificadores": {}, "funcion": "", "expresionCerebro": "", "interactores": [], "rutas": [], "version": h.get("version", 1), "consultadoEn": P.ahora_ms(), "candidatos": candidatos[:5]}
+    ids = None
+    simbolo = ""
+    for cand in candidatos[:3]:
+        reg, ids = await CON.consultar("mygene_gen", resumen=f"MyGene: {cand}", simbolo=cand)
         regs.append(reg)
+        if ids and ids.get("ensembl"):
+            simbolo = cand
+            break
+        ids = None
+    if simbolo:
         if ids:
             ctxb["identificadores"] = {k: ids.get(k) for k in ("simbolo", "nombre", "ensembl", "uniprot", "entrez")}
             if ids.get("uniprot"):
@@ -1160,8 +1190,8 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
             reg_s, inter = await CON.consultar("string_interactores", resumen=f"STRING: {simbolo}", simbolo=simbolo)
             regs.append(reg_s)
             ctxb["interactores"] = [{"simbolo": i_["interactor"], "puntuacion": i_["puntuacion"]} for i_ in (inter or [])[:8]]
-        if pista:
-            pista.accion(f"Bases para {simbolo}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": simbolo, "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'no resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
+    if pista:
+        pista.accion(f"Bases para {simbolo or diana[:30] or 'la diana'}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": ", ".join(candidatos[:3]) or diana[:40], "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'ningun candidato resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
 
     def aplicar(e: dict[str, Any]) -> bool:
         x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
@@ -1177,7 +1207,7 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
 
 
 async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
-    pendientes = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h["estado"] not in ("descartada",) and h["novedad"]["precedente"]["detalle"].startswith("No comprobado")]
+    pendientes = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h["estado"] not in ("descartada",) and (h["novedad"]["precedente"]["detalle"].startswith("No comprobado") or (h["novedad"].get("genetica") or {}).get("estado") == "no_comprobado")]
     if not pendientes:
         return "Todas las hipotesis tienen la novedad comprobada"
     pista = ctx.pista(paso["id"], "novedad", f"Novedad de {len(pendientes)} hipotesis", "Open Targets, ClinicalTrials.gov, OpenAlex")
@@ -1187,7 +1217,7 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
         entidades = h.get("_entidades") or T.terminos_clave(h["titulo"], maximo=4)
         novedad = {k: dict(v) for k, v in h["novedad"].items()}
         # Open Targets: genes o proteinas.
-        genes = [x for x in entidades if re.fullmatch(r"[A-Z][A-Z0-9\-]{1,9}", x)]
+        genes = [x for x in entidades if re.fullmatch(r"[A-Z][A-Z0-9\-]{1,9}", x) and x not in NO_GEN] or simbolos_de_genes(" ".join([h["titulo"], ((h.get("tarjeta") or {}).get("diana") or ""), ((h.get("comprobacion") or {}).get("biomarcador") or "")]))
         detalles = []
         for g in genes[:3]:
             try:

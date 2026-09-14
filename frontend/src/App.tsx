@@ -84,7 +84,7 @@ export default function App() {
     pantalla = <Ajustes estado={estado} ahora={ahora} />;
   } else if (ruta.tipo === 'investigacion') {
     if (!inv) {
-      titulo = 'Investigacion no encontrada';
+      titulo = 'Investigación no encontrada';
       pantalla = (
         <div className="contenido">
           <div className="vacio">

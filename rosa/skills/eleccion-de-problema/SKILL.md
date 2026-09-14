@@ -1,6 +1,7 @@
 ---
 name: eleccion-de-problema
 description: Las preguntas de eleccion de problema de Fischbach y Walsh (Cell, 2024), tal como las usa la skill scientific-problem-selection de Anthropic, aplicadas a la mision y a las areas antes de aprobarlas. Se activa al proponer o comparar mision, areas, campanas y preguntas.
+contexto: mision
 activa_si: mision, area, areas, campana, pregunta de campana, meta amplia, programa, eleccion
 ---
 

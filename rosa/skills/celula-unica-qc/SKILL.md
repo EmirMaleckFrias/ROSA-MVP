@@ -1,6 +1,7 @@
 ---
 name: celula-unica-qc
 description: Control de calidad de datos de celula unica (scRNA-seq, snRNA-seq) en formato h5ad con las practicas de scverse: metricas por celula, filtrado por desviacion absoluta mediana (MAD), filtrado de genes, y resumen por tipo celular. Se activa con h5ad, anndata, celula unica, single-cell, snRNA, SEA-AD, CELLxGENE, scanpy.
+contexto: analisis
 activa_si: h5ad, anndata, celula unica, single-cell, single cell, snrna, scrna, sea-ad, cellxgene, scanpy, tipo celular
 paquetes: scanpy, anndata, numpy, pandas, scipy
 entorno: celula_unica

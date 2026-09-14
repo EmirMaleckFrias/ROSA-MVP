@@ -1,6 +1,7 @@
 ---
 name: revision-de-literatura
 description: Como buscar y registrar literatura: traducir la pregunta a conceptos, sinonimos e identificadores; sintaxis por fuente; registrar cada consulta con base, filtros, fecha y numero de resultados; comprobar retractaciones y versiones; texto completo solo por vias legales. Se activa en los pasos de literatura y novedad.
+contexto: literatura
 activa_si: literatura, buscar, busqueda, pubmed, europe pmc, openalex, preprint, novedad, precedente
 ---
 

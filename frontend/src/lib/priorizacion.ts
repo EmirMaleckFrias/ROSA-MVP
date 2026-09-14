@@ -12,7 +12,7 @@ export const MAX_CANDIDATOS = 3;
 export const ETIQUETA_BLOQUEO: Record<Bloqueo, string> = {
   trazabilidad_insuficiente: 'Trazabilidad insuficiente',
   datos_no_autorizados: 'Datos no autorizados',
-  analisis_invalido: 'Analisis invalido segun el auditor',
+  analisis_invalido: 'Análisis inválido según el auditor',
   sin_experimento_interpretable: 'Sin experimento interpretable',
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Depende de una fuente retractada',

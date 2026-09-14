@@ -1,6 +1,7 @@
 ---
 name: tamano-muestral
 description: Calcular el tamano muestral de un experimento (dos grupos, desenlace continuo o binario) con potencia y alfa declarados, para que el experimento propuesto lleve n con su supuesto en vez de "no estimable". Se activa al proponer experimentos, protocolos, ensayos o cuando se pide potencia o n.
+contexto: analisis, mision
 activa_si: tamano muestral, potencia, sample size, n por grupo, protocolo, ensayo, experimento, power
 paquetes: scipy
 scripts: tamano_muestral.py

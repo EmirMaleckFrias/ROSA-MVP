@@ -1,6 +1,7 @@
 ---
 name: expresion-geo
 description: Analizar una serie de expresion de GEO en formato largo (una fila por sonda y muestra): colapsar sondas a genes, normalizar, comparar grupos, correlacionar con variables clinicas. Se activa cuando el dataset o el plan mencionan GEO, GSE, sondas, microarray, expresion, RNA-seq, Illumina o Affymetrix.
+contexto: analisis
 activa_si: gse, geo, sonda, probe, microarray, expresion, rna-seq, illumina, affymetrix, transcrit, gpl
 paquetes: pandas, numpy, scipy, statsmodels
 ---

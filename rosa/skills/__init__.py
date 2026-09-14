@@ -42,6 +42,8 @@ def cargar() -> list[dict[str, Any]]:
             "activaSi": [x.strip().lower() for x in meta.get("activa_si", "").split(",") if x.strip()],
             "paquetes": [x.strip() for x in meta.get("paquetes", "").split(",") if x.strip()],
             "entorno": meta.get("entorno", "tabular"),
+            # analisis (plan y codigo del sandbox), literatura (busqueda y extraccion), mision (areas y programa)
+            "contexto": [x.strip() for x in meta.get("contexto", "analisis").split(",") if x.strip()],
             "scripts": list(scripts),
             "_scripts": scripts,
             "ruta": str(d.relative_to(RAIZ.parent.parent)),
@@ -60,13 +62,16 @@ def todas() -> list[dict[str, Any]]:
     return _CACHE
 
 
-def para_texto(texto: str, maximo: int = 3) -> list[dict[str, Any]]:
-    """Las skills cuyas palabras de activacion aparecen en el texto, las mas
-    coincidentes primero."""
+def para_texto(texto: str, maximo: int = 3, contexto: str = "analisis") -> list[dict[str, Any]]:
+    """Las skills del contexto (analisis, literatura, mision) cuyas palabras
+    de activacion aparecen como palabras completas en el texto, las mas
+    coincidentes primero. Palabra completa: 'area' no se activa con 'lineal'."""
     t = (texto or "").lower()
     puntuadas = []
     for s in todas():
-        p = sum(1 for k in s["activaSi"] if k in t)
+        if contexto not in s["contexto"]:
+            continue
+        p = sum(1 for k in s["activaSi"] if re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", t))
         if p:
             puntuadas.append((p, s))
     puntuadas.sort(key=lambda x: -x[0])

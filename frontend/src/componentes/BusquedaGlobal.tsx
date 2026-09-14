@@ -9,11 +9,11 @@ import { IconSearch, IconX } from './icons';
 import { Chip } from './piezas';
 
 const TIPO: Record<Resultado['tipo'], string> = {
-  hipotesis: 'Hipotesis',
+  hipotesis: 'Hipótesis',
   hecho: 'Modelo de mundo',
   fuente: 'Fuente',
   artefacto: 'Artefacto',
-  iteracion: 'Iteracion',
+  iteracion: 'Iteración',
   evento: 'Evento',
 };
 

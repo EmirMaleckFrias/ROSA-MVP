@@ -1,6 +1,7 @@
 ---
 name: fila-de-evidencia
 description: La forma obligatoria de una afirmacion de tipo dato (la "fila de evidencia" de Claude Science): identificador estable, diseno, poblacion, n, intervencion o exposicion, comparador, desenlace, efecto con unidad, incertidumbre, limitaciones y la afirmacion exacta que sostiene. Se activa al extraer o verificar afirmaciones y al escribir el dossier.
+contexto: literatura
 activa_si: afirmacion, extraer, extraccion, verificar, cita, pasaje, dossier, evidencia
 ---
 

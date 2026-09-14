@@ -41,7 +41,7 @@ export function buscar(estado: EstadoRosa, investigacionId: string, consulta: st
   const corridas = estado.corridas.filter((c) => c.investigacionId === investigacionId).map((c) => c.id);
   for (const it of estado.iteraciones) {
     if (corridas.includes(it.corridaId) && casa(it.resumen, ...it.plan.map((p) => p.titulo + ' ' + p.detalle), ...it.pistas.map((p) => p.titulo))) {
-      salida.push({ tipo: 'iteracion', titulo: `Iteracion ${it.numero}`, detalle: it.resumen || 'en curso', ruta: rutaDe(investigacionId, 'corrida') });
+      salida.push({ tipo: 'iteracion', titulo: `Iteración ${it.numero}`, detalle: it.resumen || 'en curso', ruta: rutaDe(investigacionId, 'corrida') });
     }
   }
   for (const e of estado.eventos) {

@@ -103,7 +103,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
           <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Compañero, el investigador clinico principal" />
         </div>
 
-        <Seccion titulo="Configuracion que Rosa leera" nota="Propuesta a partir del objetivo. Es lo que alimenta la generacion, la revision y los debates del torneo. Editala si no encaja.">
+        <Seccion titulo="Configuración que Rosa leerá" nota="Propuesta a partir del objetivo. Es lo que alimenta la generación, la revisión y los debates del torneo. Edítala si no encaja.">
           <div className="campo">
             <label htmlFor="n-pref">Preferencias</label>
             <textarea id="n-pref" value={configEfectiva.preferencias} rows={2} onChange={(e) => setConfig({ ...configEfectiva, preferencias: e.target.value })} />
@@ -126,7 +126,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         </Seccion>
 
         <Seccion
-          titulo="Mision (opcional)"
+          titulo="Misión (opcional)"
           nota="El objetivo puede ser amplio: Rosa propone el marco (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio) y las areas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aqui y queda aprobado por ti."
           acciones={
             <button type="button" className="btn btn-s" onClick={() => setVerMision((v) => !v)}>
@@ -138,9 +138,9 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
             <div className="rejilla-2">
               {(
                 [
-                  ['poblacion', 'Poblacion', 'Adultos con deterioro cognitivo leve, amiloide positivos'],
+                  ['poblacion', 'Población', 'Adultos con deterioro cognitivo leve, amiloide positivos'],
                   ['etapa', 'Etapa', 'Prodromica'],
-                  ['celulaTejido', 'Celula o tejido', 'Astrocitos; plasma'],
+                  ['celulaTejido', 'Célula o tejido', 'Astrocitos; plasma'],
                   ['mecanismo', 'Mecanismo', 'Reactividad astrocitaria'],
                   ['tipoIntervencion', 'Tipo de intervencion o resultado', 'Biomarcador de progresion'],
                   ['capacidades', 'Capacidades del laboratorio (una por linea)', 'Inmunoensayo Simoa en plasma'],

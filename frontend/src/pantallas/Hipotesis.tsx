@@ -498,7 +498,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       </Seccion>
 
       {rivales.length > 0 && (
-        <Seccion titulo="Rivales" nota="Hipotesis que compiten por la misma pregunta.">
+        <Seccion titulo="Rivales" nota="Hipótesis que compiten por la misma pregunta.">
           <div className="rivales">
             {rivales.map((r) => (
               <a key={r.id} className="chip chip-borde" href={rutaDe(h.investigacionId, 'hipotesis', r.id)} title={r.titulo}>
@@ -625,7 +625,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 {h.experimento.estado === 'propuesto' ? 'Propuesto' : h.experimento.estado === 'asignado' ? `Asignado a ${h.experimento.laboratorio}` : h.experimento.estado === 'en_curso' ? 'En curso' : `Datos recibidos: ${h.experimento.ficheroDatos}`}
               </Chip>
               {h.experimento.prerregistradoEn && h.experimento.prerregistroArtefactoId && (
-                <a className="chip chip-ok" href={rutaDe(h.investigacionId, 'artefactos', h.experimento.prerregistroArtefactoId)} title="Hipotesis, protocolo y criterios congelados antes de los datos">
+                <a className="chip chip-ok" href={rutaDe(h.investigacionId, 'artefactos', h.experimento.prerregistroArtefactoId)} title="Hipótesis, protocolo y criterios congelados antes de los datos">
                   Prerregistrado <Momento t={h.experimento.prerregistradoEn} ahora={ahora} />
                 </a>
               )}
@@ -712,7 +712,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         )}
       </Seccion>
 
-      <Seccion titulo="Decision" nota={cerrada ? 'Esta hipotesis ya se decidio. Se puede reabrir.' : aclarando ? 'Rosa esta aclarando lo que marcaste. Volvera a la cola.' : motivo ?? 'Nada impide aceptarla. Tu lectura decide.'}>
+      <Seccion titulo="Decisión" nota={cerrada ? 'Esta hipótesis ya se decidió. Se puede reabrir.' : aclarando ? 'Rosa está aclarando lo que marcaste. Volverá a la cola.' : motivo ?? 'Nada impide aceptarla. Tu lectura decide.'}>
         <div className="campo">
           <label htmlFor="nota-decision">Nota para Rosa y para el historial</label>
           <textarea id="nota-decision" value={nota} rows={2} onChange={(e) => setNota(e.target.value)} placeholder="Comprobable en FLENI; pedir a el investigador clinico principal si la cohorte tiene genotipo de TREM2" />

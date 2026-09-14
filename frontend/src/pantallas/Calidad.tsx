@@ -208,7 +208,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         </div>
       </Seccion>
 
-      <Seccion titulo="Agujeros de conejo y coste" nota="Hipotesis con evidencia estadistica fuerte que una persona voto poco relevantes: lo que Kosmos reconoce como su fallo. Y cuanto costo cada una.">
+      <Seccion titulo="Agujeros de conejo y coste" nota="Hipótesis con evidencia estadística fuerte que una persona votó poco relevantes: lo que Kosmos reconoce como su fallo. Y cuánto costó cada una.">
         <div className="rejilla-2">
           <div className="tarjeta">
             <p className="campo-etiqueta">Significativas pero irrelevantes</p>

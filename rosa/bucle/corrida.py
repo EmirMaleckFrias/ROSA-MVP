@@ -879,7 +879,7 @@ class Supervisor:
             try:
                 from rosa import skills as SK
 
-                guia = SK.texto_para_prompt(SK.para_texto("eleccion de problema mision areas programa"), maximo=2500)
+                guia = SK.texto_para_prompt(SK.para_texto("eleccion de problema mision areas programa", contexto="mision"), maximo=2500)
                 pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites=("; ".join(inv["limites"]) or "Ninguno") + "\n\nGuia de eleccion de problema (skill):\n" + guia)
                 mision["areas"] = [P.nueva_area(titulo=a.titulo.strip(), familiaMecanismo=a.familia_mecanismo.strip(), relevancia=a.relevancia.strip(), valorIntervencion=a.valor_intervencion.strip(), incertidumbre=a.incertidumbre.strip(), comprobabilidad=a.comprobabilidad.strip(), coste=a.coste.strip(), demora=a.demora.strip(), dependeDe=a.depende_de.strip(), estado="elegida" if a.elegir else ("sin_explorar" if "sin ruta" in a.comprobabilidad.lower() else "propuesta")) for a in list(pa.areas)[:6]]
                 if not any(a["estado"] == "elegida" for a in mision["areas"]) and mision["areas"]:
