@@ -232,6 +232,35 @@ export interface Investigacion {
   /** Preguntas con herramientas hechas desde la interfaz, con sus consultas. */
   preguntasABases?: PreguntaABases[];
   puertaReproduccion?: PuertaReproduccion;
+  /** Vivero de ideas: propuestas de Rosa que todavía no tienen evidencia para
+   *  nacer como hipótesis (certeza baja por regla: dos cohortes distintas).
+   *  La acumulación de evidencia las alimenta en cada cierre de iteración. */
+  vivero?: Semilla[];
+}
+
+/** Una idea en el vivero: la propuesta completa, lista para nacer sin volver
+ *  a llamar al modelo, más lo que le falta. */
+export interface Semilla {
+  id: Id;
+  investigacionId: Id;
+  titulo: string;
+  enunciado: string;
+  mecanismo: string;
+  comprobacion: { biomarcador: string; cohorte: string; diseno: string };
+  cluster: string;
+  justificacion: string;
+  supuestos: string[];
+  afirmaciones: Afirmacion[];
+  fuentes: Fuente[];
+  creadaEn: number;
+  actualizadaEn: number;
+  /** Iteración en la que se propuso. */
+  iteracion: number;
+  /** Por qué no nació (el techo de certeza por regla). */
+  motivo: string;
+  /** Qué le falta para nacer, por regla. */
+  falta: string;
+  historial: string[];
 }
 
 export type EstadoCorrida =
@@ -1604,6 +1633,7 @@ export type TipoEvento =
   | 'aprendizaje'
   | 'mision'
   | 'vigilancia'
+  | 'vivero'
   | 'dependencias';
 
 export interface Evento {

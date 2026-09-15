@@ -14,10 +14,21 @@ tambien el motivo.
 
 from __future__ import annotations
 
-# Hipotesis vivas por mision. Mas alla de esto, la cola deja de ser
-# revisable por una persona en una sesion y el torneo pierde partidos por
-# hipotesis. Rosa deja de generar (no descarta) al llegar aqui.
-MAX_HIPOTESIS_VIVAS_POR_MISION = 20
+# Hipótesis vivas por misión. Más allá de esto, la cola deja de ser
+# revisable por una persona en una sesión y el torneo pierde partidos por
+# hipótesis. Rosa deja de generar (no descarta) al llegar aquí. Bajado de 20
+# a 10 el 15 de septiembre de 2026: el valor de una corrida es cuánto suben
+# las hipótesis que ya existen, no cuántas nacen.
+MAX_HIPOTESIS_VIVAS_POR_MISION = 10
+
+# Propuestas nuevas por iteración. Una hipótesis nace solo si su evidencia ya
+# da para certeza baja (dos cohortes distintas); si no, va al vivero.
+MAX_PROPUESTAS_POR_ITERACION = 2
+
+# Vivero de ideas: propuestas que esperan evidencia para nacer. Tope y
+# paciencia (iteraciones sin evidencia nueva antes de retirarlas).
+MAX_VIVERO = 12
+ITERACIONES_MAX_EN_VIVERO = 6
 
 # Evaluaciones costosas (analisis in silico con datos) por mision y corrida.
 # Cada una gasta codigo, tiempo de maquina y una auditoria; el documento fija

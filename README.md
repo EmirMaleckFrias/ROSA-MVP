@@ -312,6 +312,37 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Vivero de ideas: una hipótesis nace cuando su evidencia da para certeza baja (15 de septiembre de 2026, noche)
+
+Regla de Emir: el valor de una corrida es cuánto suben las hipótesis que ya
+existen, no cuántas nacen; y una hipótesis nueva nace cuando hay evidencia
+suficiente para entrar en certeza baja, no en muy baja.
+
+- **Regla de nacimiento** (`pasos.destino_de_propuesta`). Cada propuesta del
+  generador se mide con el techo por regla sobre sus afirmaciones y fuentes:
+  si da para baja (dos cohortes distintas), nace como hipótesis; si no, va
+  al **vivero** de la investigación (`investigacion.vivero`) con todo lo que
+  hará falta para nacer después sin volver a llamar al modelo, y con "qué le
+  falta" por regla. Las hipótesis que escribe una persona no pasan por aquí.
+- **Cohortes distintas con alias** (`certeza.cohortes_distintas`): "ADAD",
+  "ADAD (Belder et al.)" y "Belder et al., cohorte ADAD" cuentan como una;
+  una fuente sin cohorte identificada no cuenta como independiente y la
+  escalera lo dice ("nombrar la cohorte puede bastar").
+- **Maduración** (`evidencia.acumular_vivero`, al cerrar cada iteración): las
+  ideas del vivero reciben la misma acumulación de evidencia que las
+  hipótesis vivas; la que llega al listón nace (propuesta, con revisión y
+  novedad pendientes) y la que pasa seis iteraciones sin ganar nada sale con
+  su motivo. Tope de doce ideas.
+- **El plan y las consultas ven el peldaño**: cada hipótesis viva lleva "para
+  subir a X le falta Y" y sus cohortes; el vivero se lista con lo que le
+  falta a cada idea. `GenerarHipotesis` pasa de 1 a 3 propuestas a 0 a 2, y
+  devolver la lista vacía es la respuesta esperada cuando la evidencia
+  encaja en algo que ya existe. Hipótesis vivas por misión: de 20 a 10.
+- Interfaz: sección "Vivero de ideas" bajo la cola de hipótesis, con lo que
+  le falta a cada una; evento «Vivero de ideas» en la línea de tiempo.
+
+Pruebas: `rosa/tests/test_vivero.py`.
+
 ## Acumulación de evidencia y techo de certeza (15 de septiembre de 2026, noche)
 
 Hasta hoy una hipótesis nacía con las afirmaciones y fuentes que la motivaron

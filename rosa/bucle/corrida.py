@@ -1040,7 +1040,7 @@ class Supervisor:
                 modelo_de_mundo=mundo,
                 resumen_iteracion_anterior=anterior["resumen"] if anterior else "",
                 indicaciones_humanas=T.indicaciones_humanas(anterior, pendientes_solo=True) if anterior else "Ninguna.",
-                hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]),
+                hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]) + "\n" + T.vivero_texto(inv),
                 numero_iteracion=numero,
             )
             hay_datos = any(d["estado"] == "aprobado" and (d.get("procedencia") or {}).get("hash") for d in inv.get("datasets", []))
@@ -1226,6 +1226,8 @@ class Supervisor:
             pista_ev = ctx.pista(None, "modelo", "Evidencia nueva para las hipótesis vivas", "Sonnet 5")
             acumulado = await EV.acumular(ctx, it["numero"], pista_ev)
             con_evidencia = set(acumulado.get("ids", []))
+            vivero_res = await EV.acumular_vivero(ctx, it["numero"], pista_ev)
+            con_evidencia |= set(vivero_res.get("nacidas", []))
         except PresupuestoAgotado:
             raise
         except Exception:  # noqa: BLE001

@@ -24,12 +24,42 @@ persona vea el camino en vez de una etiqueta roja. 15 de septiembre de 2026.
 
 from __future__ import annotations
 
+import re
 from typing import Any
-
-from rosa import priorizacion as PR
 
 NIVELES = ("muy_baja", "baja", "moderada", "alta")
 CLASES_DIRECTAS = ("observacion_original", "derivado")
+_GENERICOS_COHORTE = {"cohorte", "cohort", "study", "estudio", "longitudinal", "portadores", "familias", "alzheimer", "disease", "enfermedad", "mutaciones", "carriers", "participantes", "pacientes", "et", "al", "the", "of", "de", "del", "la", "los", "las", "con", "and", "familial", "autosomal", "dominant", "autosómico", "dominante"}
+
+
+def _tokens_cohorte(nombre: str) -> set[str]:
+    limpio = re.sub(r"\(.*?\)", " ", (nombre or "").lower())
+    return {t for t in re.findall(r"[a-záéíóúñ0-9][a-záéíóúñ0-9\-]{2,}", limpio) if t not in _GENERICOS_COHORTE}
+
+
+def cohortes_distintas(h: dict[str, Any]) -> list[str]:
+    """Las cohortes nombradas en las fuentes de la hipótesis, agrupando los
+    nombres que se refieren a la misma ("ADAD", "ADAD (Belder et al.)" y
+    "Belder et al., cohorte ADAD" son una). Dos artículos de la misma cohorte
+    son una sola evidencia; una fuente sin cohorte identificada no cuenta como
+    independiente, porque no se puede afirmar que lo sea."""
+    grupos: list[tuple[str, set[str]]] = []
+    for f in h.get("procedencia", {}).get("fuentes", []):
+        nombre = (f.get("cohorte") or "").strip()
+        if not nombre:
+            continue
+        toks = _tokens_cohorte(nombre) or {nombre.lower()}
+        for i, (rep, tk) in enumerate(grupos):
+            if toks & tk:
+                grupos[i] = (rep, tk | toks)
+                break
+        else:
+            grupos.append((nombre, set(toks)))
+    return [rep for rep, _ in grupos]
+
+
+def fuentes_sin_cohorte(h: dict[str, Any]) -> int:
+    return sum(1 for f in h.get("procedencia", {}).get("fuentes", []) if not (f.get("cohorte") or "").strip())
 
 
 def sostenidas_reales(h: dict[str, Any]) -> list[dict[str, Any]]:
@@ -59,10 +89,13 @@ def techo(h: dict[str, Any], factores: list[Any] | None = None) -> tuple[str, st
     sostenidas = sostenidas_reales(h)
     if not sostenidas:
         return "muy_baja", "no hay ninguna afirmación sostenida que no sea sintética"
-    cohortes = PR.cohortes_de(h)
+    cohortes = cohortes_distintas(h)
     n = len(cohortes)
     directa = evidencia_directa(h)
+    sin = fuentes_sin_cohorte(h)
     texto_cohortes = f"{n} cohortes distintas" if n >= 2 else ("una sola cohorte" if n == 1 else "ninguna cohorte identificada en las fuentes")
+    if sin:
+        texto_cohortes += f" ({sin} {'fuente' if sin == 1 else 'fuentes'} sin cohorte identificada, que no cuentan como independientes)"
     if directa:
         clases = sorted({a.get("clase") for a in directa})
         que = "resultado de laboratorio" if "observacion_original" in clases else "análisis sobre datos reales"
@@ -89,12 +122,17 @@ def acotar(certeza_del_juez: str, h: dict[str, Any], factores: list[Any] | None 
 def escalera(h: dict[str, Any], certeza: str, factores: list[Any] | None = None) -> list[dict[str, str]]:
     """Qué le falta a la hipótesis para cada nivel por encima del actual, por
     regla. Cada peldaño: {de, a, falta}. Vacía si ya está en alta."""
-    cohortes = len(PR.cohortes_de(h))
+    cohortes = len(cohortes_distintas(h))
     directa = bool(evidencia_directa(h))
     actual = NIVELES.index(certeza) if certeza in NIVELES else 0
     pasos: list[dict[str, str]] = []
     if actual < 1:
-        falta = "una segunda cohorte independiente que muestre lo mismo (en la literatura o por análisis), o un efecto grande documentado en la evidencia que ya hay" if cohortes < 2 else "que el juez deje de ver riesgo de sesgo, inconsistencia o imprecisión graves en las cohortes que ya hay"
+        if cohortes < 2:
+            falta = "una segunda cohorte independiente que muestre lo mismo (en la literatura o por análisis), o un efecto grande documentado en la evidencia que ya hay"
+            if fuentes_sin_cohorte(h):
+                falta += f"; {fuentes_sin_cohorte(h)} de sus fuentes no tienen la cohorte identificada: nombrarla (qué estudio o población) puede bastar"
+        else:
+            falta = "que el juez deje de ver riesgo de sesgo, inconsistencia o imprecisión graves en las cohortes que ya hay"
         pasos.append({"de": "muy_baja", "a": "baja", "falta": falta})
     if actual < 2:
         falta = "evidencia directa: un análisis in silico sobre un dataset público aprobado (no sintético) o un resultado de laboratorio contra el prerregistro" if not directa else "que la evidencia directa sea consistente y precisa: intervalo que no cruce el efecto mínimo"

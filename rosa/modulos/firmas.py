@@ -135,7 +135,12 @@ class ProponerPlan(dspy.Signature):
     mundo y a las indicaciones humanas; no repiten lo que ya esta sabido. Cuando hay
     hipótesis vivas, se eligen las acciones por lo que discriminan entre ellas: buscar la
     evidencia que subiría o bajaría su certeza o cambiaría su dirección (lo más frágil de
-    cada una), no la que solo confirmaría la favorita."""
+    cada una), no la que solo confirmaría la favorita. Cada hipótesis viva trae su
+    "peldaño siguiente" (qué le falta por regla para subir de certeza: una segunda
+    cohorte, datos reales, réplica) y el vivero trae ideas que aún no nacen y qué les
+    falta: los pasos de literatura se justifican por el peldaño o la idea que atacan
+    (por ejemplo, buscar en ADNI o A4 lo que BIOCARD ya mostró), y el paso de hipótesis
+    se pide para enlazar y madurar evidencia, no para multiplicar hipótesis."""
 
     objetivo: str = dspy.InputField()
     relevancia: str = dspy.InputField(desc="Qué cuenta como relevante para la investigadora")
@@ -236,11 +241,19 @@ class ActualizarModeloDeMundo(dspy.Signature):
 
 
 class GenerarHipotesis(dspy.Signature):
-    """Generar entre 1 y 3 hipótesis nuevas, falsables y específicas, que respondan a las
+    """Generar entre 0 y 2 hipótesis nuevas, falsables y específicas, que respondan a las
     preguntas abiertas con mayor prioridad usando solo afirmaciones sostenidas. Cada una
     con mecanismo, biomarcador, cohorte y diseño de comprobación. No repetir hipótesis ya
-    propuestas ni descartadas (se listan con su motivo de descarte). Si una deriva de una
-    aceptada o refinar, se indica. Los criterios de revisión son restricciones."""
+    propuestas ni descartadas (se listan con su motivo de descarte) ni ideas que ya están
+    en el vivero. Si una deriva de una aceptada o refinar, se indica. Los criterios de
+    revisión son restricciones. El valor de Rosa está en subir la certeza de lo que ya
+    existe, no en multiplicar hipótesis: antes de proponer una nueva, comprobar si las
+    afirmaciones encajan en una hipótesis viva o en una idea del vivero (si encajan, no
+    proponer nada: la acumulación de evidencia las enlaza sola). Una propuesta nace como
+    hipótesis solo si sus afirmaciones vienen de al menos dos cohortes distintas; con una
+    sola cohorte va al vivero a esperar la segunda, así que preferir propuestas con
+    evidencia de dos cohortes y citar las afirmaciones de ambas. Devolver la lista vacía
+    es una respuesta válida y frecuente."""
 
     objetivo: str = dspy.InputField()
     configuracion: str = dspy.InputField(desc="Preferencias, atributos y restricciones de la investigadora")

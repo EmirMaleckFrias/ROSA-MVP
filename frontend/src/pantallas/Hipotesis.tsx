@@ -1025,6 +1025,31 @@ export function Hipotesis({
           ))}
         </ListaAnimada>
       )}
+      {(inv.vivero?.length ?? 0) > 0 && (
+        <Seccion
+          detalle
+          titulo={`Vivero de ideas (${inv.vivero!.length})`}
+          nota="Propuestas de Rosa que todavía no nacen como hipótesis: su evidencia viene de una sola cohorte y no da para certeza baja. En cada cierre de iteración Rosa les suma lo que lee; cuando llegan a dos cohortes distintas, nacen y entran en la cola. Si pasan seis iteraciones sin ganar nada, salen con su motivo."
+        >
+          <div className="cola">
+            {inv.vivero!.map((s) => (
+              <div key={s.id} className="tarjeta hip-fila">
+                <div>
+                  <h3>{s.titulo}</h3>
+                  <p className="meta">{s.enunciado}</p>
+                  <div className="hip-meta">
+                    <Chip tono="borde">Idea desde la iteración {s.iteracion}</Chip>
+                    <Chip tono="borde">{s.afirmaciones.length} {s.afirmaciones.length === 1 ? 'afirmación' : 'afirmaciones'}</Chip>
+                    <Chip tono="borde">{s.fuentes.length} {s.fuentes.length === 1 ? 'fuente' : 'fuentes'}</Chip>
+                    <span className="meta">Actualizada <Momento t={s.actualizadaEn} ahora={ahora} /></span>
+                  </div>
+                  <p className="meta"><strong>Le falta para nacer:</strong> {s.falta}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Seccion>
+      )}
     </div>
   );
 }

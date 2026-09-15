@@ -42,7 +42,9 @@ from rosa.bucle.pista import Pista
 from rosa.estado import acciones as A
 from rosa.estado import plantilla as P
 from rosa.estado.almacen import Almacen
+from rosa import certeza as CERTEZA
 from rosa import indice_semantico, reranker
+from rosa.bucle import vivero as VIVERO
 from rosa.fuentes import clinicaltrials, crossref, europepmc, exa, openalex, opentargets, pdf, pubmed, unpaywall
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
@@ -101,6 +103,14 @@ def _criterio(ctx: "Ctx", inv: dict[str, Any]) -> str:
     """El criterio de relevancia de este paso: objetivo, pregunta de la corrida
     y preguntas abiertas propias (ver contexto.preguntas_abiertas)."""
     return T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"], pregunta=_pregunta_de(ctx))
+
+
+def destino_de_propuesta(afirmaciones: list[dict[str, Any]], fuentes: list[dict[str, Any]]) -> tuple[str, str, str]:
+    """('nace' | 'vivero', nivel, motivo). Una propuesta del generador nace como
+    hipótesis solo si su evidencia ya da para certeza baja por regla (dos
+    cohortes distintas); si no, va al vivero a esperar la segunda cohorte."""
+    nivel, motivo = CERTEZA.techo({"afirmaciones": afirmaciones, "procedencia": {"fuentes": fuentes}})
+    return ("nace" if CERTEZA.NIVELES.index(nivel) >= 1 else "vivero"), nivel, motivo
 
 
 def _consulta_del_paso(ctx: "Ctx", inv: dict[str, Any], extra: str = "") -> str:
@@ -657,7 +667,7 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     preguntas = _criterio(ctx, inv)
     previas = ctx.corrida().get("_consultasHechas", [])
     nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
-    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
+    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
     consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][:5]
     consultas += consultas_por_nombre(nombres, consultas, previas)
     if not consultas:
@@ -1478,14 +1488,14 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
         pista.accion(f"Generando hipótesis a partir de {len(validas)} afirmaciones sostenidas y las preguntas abiertas")
         try:
             mundo = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv, texto_af[:1500]))
-            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=mundo, afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id), criterios_revision="\n".join(e["criteriosRevision"]))
-            propuestas = list(pred.hipotesis)[:3]
+            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=mundo, afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id) + "\n\n" + T.vivero_texto(inv), criterios_revision="\n".join(e["criteriosRevision"]))
+            propuestas = list(pred.hipotesis)[: politicas.MAX_PROPUESTAS_POR_ITERACION]
         except PresupuestoAgotado:
             pista.cerrar("Presupuesto agotado antes de generar", "detenida")
             raise
         ahora = P.ahora_ms()
         fuentes = ctx.fuentes()
-        existentes_titulos = {V.normalizar(h["titulo"]) for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id}
+        existentes_titulos = {V.normalizar(h["titulo"]) for h in e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id} | {V.normalizar(t) for t in VIVERO.titulos(inv)}
         for hp in propuestas:
             if V.normalizar(hp.titulo) in existentes_titulos:
                 continue
@@ -1500,6 +1510,15 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
                 if a["fuenteId"] in fuentes and a["fuenteId"] + a["localizador"] not in vistas:
                     vistas.add(a["fuenteId"] + a["localizador"])
                     fuentes_h.append(_fuente_publica(fuentes[a["fuenteId"]], a))
+            # Regla del 15 de septiembre: nace solo si su evidencia ya da para certeza
+            # baja (dos cohortes distintas); con una sola cohorte va al vivero.
+            destino, nivel_nace, motivo_nace = destino_de_propuesta(afirmaciones, fuentes_h)
+            if destino == "vivero":
+                semilla = VIVERO.nueva_semilla(ctx.investigacion_id, ctx.numero, ahora, hp, afirmaciones, fuentes_h, motivo_nace, ctx.corrida_id)
+                ctx.mutar(lambda e2, s=semilla: VIVERO.anadir(e2, ctx.investigacion_id, s, ahora), "vivero")
+                existentes_titulos.add(V.normalizar(hp.titulo))
+                pista.nota(f"Al vivero, no nace todavía: '{hp.titulo[:60]}' ({motivo_nace}). Le falta: {semilla['falta'][:120]}")
+                continue
             derivada = hp.derivada_de if hp.derivada_de and any(h["id"] == hp.derivada_de for h in e["hipotesis"]) else None
             h = P.nueva_hipotesis(
                 ctx.investigacion_id,

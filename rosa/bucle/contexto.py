@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from rosa import certeza as CERTEZA
 from rosa import indice_semantico, politicas
 
 
@@ -386,6 +387,26 @@ def hipotesis_vivas(hipotesis: list[dict[str, Any]], investigacion_id: str, maxi
             lineas.append(f"    depende más de: {k.get('loMasFragil', '')}")
             lineas.append(f"    subiría si: {k.get('subiria', '')}")
             lineas.append(f"    bajaría si: {k.get('bajaria', '')}")
+            escalera = k.get("escalera") or []
+            cohortes = CERTEZA.cohortes_distintas(h)
+            if escalera:
+                lineas.append(f"    peldaño siguiente (por regla): para subir a {escalera[0]['a'].replace('_', ' ')} le falta {escalera[0]['falta']}. Cohortes distintas hoy: {len(cohortes)}" + (f" ({', '.join(cohortes)})" if cohortes else ""))
+    return "\n".join(lineas)
+
+
+def vivero_texto(inv: dict[str, Any], maximo: int = 8) -> str:
+    """Las ideas del vivero para el plan, las consultas y el generador: no son
+    hipótesis todavía; cada una dice qué le falta para nacer. Buscar esa
+    evidencia es un paso tan válido como subir una hipótesis viva."""
+    semillas = list(inv.get("vivero") or [])
+    if not semillas:
+        return "Vivero de ideas: vacío."
+    semillas.sort(key=lambda s: -(s.get("actualizadaEn") or 0))
+    lineas = [f"Vivero de ideas ({len(semillas)}; no son hipótesis todavía: nacen cuando su evidencia dé para certeza baja):"]
+    for s in semillas[:maximo]:
+        cohortes = CERTEZA.cohortes_distintas({"procedencia": {"fuentes": s.get("fuentes", [])}})
+        lineas.append(f"- {s['id']} (desde la iteración {s.get('iteracion')}, {len(s.get('afirmaciones', []))} afirmaciones, cohortes: {', '.join(cohortes) or 'ninguna identificada'}) {s['titulo']}")
+        lineas.append(f"    le falta: {s.get('falta', '')}")
     return "\n".join(lineas)
 
 

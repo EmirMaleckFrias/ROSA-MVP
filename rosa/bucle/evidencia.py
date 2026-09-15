@@ -32,7 +32,9 @@ from typing import Any
 
 import numpy as np
 
+from rosa import certeza as CERTEZA
 from rosa import indice_semantico
+from rosa import politicas
 from rosa import killer as K
 from rosa import vigilancia
 from rosa.bucle import contexto as T
@@ -200,4 +202,74 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
             pista.resultado(f"{h['titulo'][:60]}: {len(aceptadas)} afirmaciones nuevas")
     if pista:
         pista.cerrar(f"{resumen['anadidas']} afirmaciones enlazadas a {len(resumen['ids'])} hipótesis ({resumen['enContra']} en contra) de {resumen['candidatas']} candidatas" if resumen["anadidas"] else f"{resumen['candidatas']} candidatas, ninguna pertinente")
+    return resumen
+
+
+def _texto_semilla(s: dict[str, Any]) -> str:
+    c = s.get("comprobacion") or {}
+    return f"Título: {s['titulo']}\nEnunciado: {s['enunciado']}\nMecanismo: {s.get('mecanismo', '')}\nComprobación: biomarcador {c.get('biomarcador', '')}; cohorte {c.get('cohorte', '')}; diseño {c.get('diseno', '')}"
+
+
+async def acumular_vivero(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any]:
+    """La misma acumulación sobre las ideas del vivero: las que llegan al
+    listón (certeza baja por regla) nacen como hipótesis; las que llevan
+    demasiadas iteraciones sin ganar nada se retiran con su motivo."""
+    from rosa.bucle import vivero as VIVERO
+    from rosa.bucle.pasos import PresupuestoAgotado, _fuente_publica
+
+    resumen: dict[str, Any] = {"semillas": 0, "anadidas": 0, "nacidas": [], "retiradas": []}
+    semillas = [dict(x) for x in (ctx.inv().get("vivero") or [])]
+    if not semillas:
+        return resumen
+    resumen["semillas"] = len(semillas)
+    afs = afirmaciones_nuevas(ctx.corrida(), iteracion)
+    pseudo = [VIVERO.como_hipotesis(x) for x in semillas]
+    candidatas = await elegir_candidatas(pseudo, afs, pista) if afs else {}
+    fuentes = ctx.fuentes()
+    for s_, ph in zip(semillas, pseudo):
+        cands = [(a, sc) for a, sc in candidatas.get(s_["id"], []) if not _ya_tiene(ph, a)]
+        aceptadas: list[tuple[dict[str, Any], str, str]] = []
+        if cands:
+            lista = "\n".join(f"{i + 1}. [{a['veredicto']}, {a.get('tipo', 'dato')}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for i, (a, _) in enumerate(cands))
+            try:
+                pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=_texto_semilla(s_), afirmaciones=K.como_dato(lista))
+                for r in list(getattr(pred, "relaciones", []) or []):
+                    indice, relacion, motivo = getattr(r, "indice", 0), getattr(r, "relacion", ""), getattr(r, "motivo", "") or ""
+                    if 1 <= int(indice) <= len(cands) and relacion in RELACIONES_QUE_CUENTAN:
+                        aceptadas.append((cands[int(indice) - 1][0], relacion, motivo))
+            except PresupuestoAgotado:
+                raise
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+        ahora = P.ahora_ms()
+
+        def fn(e2: dict[str, Any], s_=s_, aceptadas=aceptadas, ahora=ahora) -> bool:
+            inv2 = next((i for i in e2["investigaciones"] if i["id"] == ctx.investigacion_id), None)
+            x = next((y for y in (inv2 or {}).get("vivero", []) if y["id"] == s_["id"]), None)
+            if x is None:
+                return False
+            ids_f = {f["id"] for f in x["fuentes"]}
+            for a, relacion, motivo in aceptadas:
+                x["afirmaciones"].append(_entrada(a, relacion, motivo, iteracion))
+                f = fuentes.get(a["fuenteId"])
+                if f and a["fuenteId"] not in ids_f:
+                    x["fuentes"].append(_fuente_publica(f, a))
+                    ids_f.add(a["fuenteId"])
+            if aceptadas:
+                x["actualizadaEn"] = ahora
+                x["historial"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas ({sum(1 for _, r, _ in aceptadas if r == 'contradice')} en contra)")
+            x["falta"] = VIVERO.falta_de(x)
+            nivel, _ = CERTEZA.techo(VIVERO.como_hipotesis(x))
+            if CERTEZA.NIVELES.index(nivel) >= 1:
+                h = VIVERO.nacer(e2, x, iteracion, ahora, ctx.corrida_id)
+                resumen["nacidas"].append(h["id"])
+            elif not aceptadas and iteracion - int(x.get("iteracion", iteracion)) >= politicas.ITERACIONES_MAX_EN_VIVERO:
+                VIVERO.retirar(e2, x, f"{politicas.ITERACIONES_MAX_EN_VIVERO} iteraciones sin evidencia nueva; le seguía faltando: {x['falta'][:120]}", ahora)
+                resumen["retiradas"].append(x["titulo"])
+            return True
+
+        ctx.mutar(fn, "vivero")
+        resumen["anadidas"] += len(aceptadas)
+    if pista:
+        pista.resultado(f"Vivero: {resumen['semillas']} ideas, {resumen['anadidas']} afirmaciones nuevas, {len(resumen['nacidas'])} nacen, {len(resumen['retiradas'])} se retiran")
     return resumen
