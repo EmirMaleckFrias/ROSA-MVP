@@ -60,7 +60,7 @@ def test_buscar_mapea_a_la_forma_de_las_otras_bases(con_clave):
     b = articulos[1]
     assert b["doi"] == "10.1002/alz.13579" and b["referencia"] == "Chen y Smith, 2024" and b["resumen"].startswith("Full text")
     assert articulos[2]["pmid"] == "39912345" and articulos[2]["doi"] is None
-    assert articulos[3]["preprint"] is True and articulos[3]["doi"] == "10.1101/2026.02.01.123456v1"
+    assert articulos[3]["preprint"] is True and articulos[3]["doi"] == "10.1101/2026.02.01.123456"
     metodo, url, kwargs = con_clave[0]
     assert metodo == "POST" and url.endswith("/search")
     assert kwargs["json"]["category"] == "publication" and kwargs["json"]["startPublishedDate"].startswith("2023-01-01")

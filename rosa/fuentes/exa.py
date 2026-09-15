@@ -67,8 +67,11 @@ def doi_de_url(url: str) -> str | None:
     if not m:
         return None
     doi = m.group(0).rstrip(".,;)/")
-    # Quitar sufijos de sitios que añaden segmentos tras el DOI (/full, /pdf).
-    doi = re.sub(r"/(full|pdf|abstract|html)$", "", doi, flags=re.IGNORECASE)
+    # Quitar sufijos de sitios que añaden segmentos tras el DOI (/full, .pdf).
+    doi = re.sub(r"[./](full|pdf|abstract|html|full-text)$", "", doi, flags=re.IGNORECASE)
+    # bioRxiv y medRxiv ponen la versión (v1, v2) en la URL; el DOI no la lleva.
+    if doi.lower().startswith("10.1101/"):
+        doi = re.sub(r"v\d+$", "", doi)
     return doi.lower()
 
 
@@ -84,7 +87,13 @@ def _autores(valor: Any) -> list[str]:
         n = n.strip()
         if not n:
             continue
-        apellidos.append(n.split(" ")[-1] if " " in n else n)
+        partes = n.split(" ")
+        # "Chen W" (apellido e iniciales) frente a "Ana Pérez" (nombre y apellido):
+        # si el último trozo son una o dos mayúsculas, es una inicial.
+        if len(partes) > 1 and len(partes[-1].rstrip(".")) <= 2 and partes[-1].rstrip(".").isupper():
+            apellidos.append(partes[0])
+        else:
+            apellidos.append(partes[-1])
     return apellidos[:12]
 
 
