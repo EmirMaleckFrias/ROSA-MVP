@@ -107,6 +107,23 @@ siguen activos para cuando entren datos controlados.
   artefactos con cinco pestanas de procedencia, siete skills, imagen de
   celula unica. Ver README, seccion "Lo que Rosa tomo de Claude Science".
 
+## Bases de datos: SQLite en el bucle, Convex para las personas (decisión del 15 de septiembre de 2026)
+
+Emir decidió aplazar la migración a Convex como fuente de verdad: hoy no
+cambia mucho y costaría una o dos semanas (75 puntos de mutación del estado
+entero, documentos de más de 1 MiB, permisos para las claves privadas).
+SQLite se queda como memoria de trabajo del proceso del bucle por su
+velocidad (microsegundos por escritura, sin red). Queda anotado para cuando
+haga falta, en este orden:
+
+1. Paso barato (dos o tres días): el frontend lee del espejo de Convex por
+   suscripción reactiva en vez de `/api/estado` y SSE; solo las acciones van
+   al servidor. Con eso la interfaz en Vercel funciona con el bucle en
+   cualquier sitio y varias personas ven lo mismo a la vez.
+2. Paso largo: mover la escritura a mutations de Convex con permisos, partir
+   el estado en documentos, y usar la búsqueda vectorial nativa de Convex en
+   lugar del índice en numpy. Hacerlo cuando el bucle esté estable.
+
 ## Herramientas evaluadas el 15 de septiembre y lo que queda
 
 Hecho: reranker por el gateway, índice semántico del registro, conectores de
