@@ -576,6 +576,21 @@
   font-size: 13.5px;
 }
 
+.acceso-opciones-proveedor {
+  margin: 10px 0 8px;
+}
+
+.acceso-instalacion-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+}
+
+.acceso-instalacion-fila label {
+  display: block;
+  margin-bottom: 4px;
+}
+
 .acceso-instalacion small {
   color: var(--text-3);
 }

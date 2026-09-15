@@ -1,6 +1,13 @@
 """Avisos transaccionales sin modelos. SQLite privado, fuera del espejo.
 
-Resend: https://resend.com/docs/dashboard/emails/idempotency-keys
+Dos transportes, a elegir en la configuración (`proveedor`):
+- "resend": la API HTTP de Resend, con clave de idempotencia por envío
+  (https://resend.com/docs/dashboard/emails/idempotency-keys).
+- "smtp": un servidor SMTP con STARTTLS o TLS implícito, pensado para la
+  cuenta de Google Workspace del equipo (smtp.gmail.com, puerto 587, usuario
+  la propia dirección y una contraseña de aplicación) o cualquier otro. No
+  hace falta verificar un dominio en un tercero: el correo sale del buzón
+  corporativo que ya existe. Añadido el 15 de septiembre de 2026.
 Un solo trabajador por proceso. Nunca se reintenta fuera de la ventana de
 idempotencia del proveedor; aceptado no significa entregado al buzón.
 """
@@ -10,9 +17,11 @@ import asyncio
 import json
 import os
 import re
+import smtplib
 import sqlite3
 import time
 import uuid
+from email.message import EmailMessage
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -20,7 +29,9 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-BASE = {"remitente": "", "url": "http://localhost:5174", "hora": 8, "zona": "America/Santo_Domingo", "clave": ""}
+BASE = {"remitente": "", "url": "http://localhost:5174", "hora": 8, "zona": "America/Santo_Domingo", "clave": "",
+        "proveedor": "resend", "smtpServidor": "", "smtpPuerto": 587, "smtpUsuario": ""}
+PROVEEDORES = ("resend", "smtp")
 ASUNTOS = {
     "hipotesisNueva": "Hay nuevas hipótesis para revisar",
     "permisoPendiente": "Rosa necesita tu atención",
@@ -86,21 +97,41 @@ class Correo:
         fila = self.db.execute("SELECT json FROM ajustes WHERE id=1").fetchone()
         return BASE | (json.loads(fila[0]) if fila else {})
 
+    @staticmethod
+    def _listo(c):
+        """Si con esta configuración se puede enviar: clave y remitente siempre;
+        con SMTP, además servidor y usuario."""
+        if not (c["clave"] and c["remitente"]):
+            return False
+        if c.get("proveedor", "resend") == "smtp":
+            return bool(c.get("smtpServidor") and c.get("smtpUsuario"))
+        return True
+
     def estado(self):
         c = self._config()
         return {**{k: v for k, v in c.items() if k != "clave"}, "claveGuardada": bool(c["clave"]),
-                "configurado": bool(c["clave"] and c["remitente"]), "error": self.error,
+                "configurado": self._listo(c), "error": self.error,
                 "historial": [dict(r) for r in self.db.execute(
                     "SELECT id,tipo,destinatario,estado,creado,intentos,error,proveedor FROM cola ORDER BY creado DESC LIMIT 30")]}
 
     def configurar(self, cambios):
         c = self._config()
-        for k in ("remitente", "url", "zona", "clave"):
+        for k in ("remitente", "url", "zona", "clave", "proveedor", "smtpServidor", "smtpUsuario"):
             if k in cambios:
                 if not isinstance(cambios[k], str) or len(cambios[k]) > 500:
                     raise ValueError("Configuración de correo inválida")
                 if k != "clave" or cambios[k]:
                     c[k] = cambios[k].strip()
+        if c["proveedor"] not in PROVEEDORES:
+            raise ValueError("Proveedor de correo desconocido: usa 'resend' o 'smtp'")
+        if "smtpPuerto" in cambios:
+            c["smtpPuerto"] = cambios["smtpPuerto"]
+        if type(c["smtpPuerto"]) is not int or not 1 <= c["smtpPuerto"] <= 65535:
+            raise ValueError("El puerto SMTP debe ser un número entre 1 y 65535")
+        if c["smtpServidor"] and not re.fullmatch(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", c["smtpServidor"]):
+            raise ValueError("El servidor SMTP debe ser un nombre de máquina, como smtp.gmail.com")
+        if c["proveedor"] == "smtp" and c["smtpUsuario"] and any(ord(x) < 33 or ord(x) > 126 for x in c["smtpUsuario"]):
+            raise ValueError("El usuario SMTP contiene caracteres inválidos")
         if cambios.get("borrarClave") is True:
             c["clave"] = ""
         if c["remitente"]:
@@ -141,8 +172,8 @@ class Correo:
     def prueba(self, destino):
         c = self._config()
         destino = direccion(destino)
-        if not c["clave"] or not c["remitente"]:
-            raise ValueError("Guarda el remitente y la clave de Resend primero")
+        if not self._listo(c):
+            raise ValueError("Guarda primero el remitente y la clave del proveedor (y, con SMTP, el servidor y el usuario)")
         ahora = time.time()
         if self.db.execute("SELECT 1 FROM cola WHERE tipo='prueba' AND creado>?", (ahora - 60,)).fetchone():
             raise ValueError("Espera un minuto antes de enviar otra prueba")
@@ -153,7 +184,7 @@ class Correo:
         ahora = time.time() if ahora is None else ahora
         c = self._config()
         def habilitado(destino, tipo):
-            if not destino or not c['clave'] or not c['remitente']:
+            if not destino or not self._listo(c):
                 return False
             p = self.preferencias(destino)
             return p['correo']['activo'] and p['cuando'].get(tipo, False)
@@ -230,6 +261,10 @@ class Correo:
         with self.db:
             self.db.execute("UPDATE cola SET intentos=intentos+1,primero=COALESCE(primero,?) WHERE id=?", (ahora, r["id"]))
         error, reintentar, proveedor = None, False, None
+        if c.get("proveedor", "resend") == "smtp":
+            proveedor, error, reintentar = await asyncio.to_thread(self._enviar_smtp, c, r["id"], json.loads(r["carga"]))
+            self._cerrar_envio(r, ahora, error, reintentar, proveedor)
+            return
         try:
             resp = await cliente.post("https://api.resend.com/emails", headers={"Authorization": "Bearer " + c["clave"], "Idempotency-Key": r["id"]}, json=json.loads(r["carga"]))
             if resp.is_success:
@@ -243,6 +278,9 @@ class Correo:
         except (httpx.HTTPError, ValueError):
             # Nunca guardar respuesta cruda, petición ni excepción con secretos.
             error, reintentar = "No se pudo confirmar el envío; se reintentará con el mismo identificador", True
+        self._cerrar_envio(r, ahora, error, reintentar, proveedor)
+
+    def _cerrar_envio(self, r, ahora, error, reintentar, proveedor):
         estado = "aceptado" if error is None else ("pendiente" if reintentar and r["intentos"] < 4 else "fallido")
         actual = self.db.execute('SELECT estado FROM cola WHERE id=?', (r['id'],)).fetchone()
         if error and actual and actual[0] == 'cancelado':
@@ -252,6 +290,42 @@ class Correo:
                             (estado, error, proveedor, ahora + 60 * 2 ** r["intentos"], r["id"]))
             if r['tipo'] == 'acceso' and estado != 'pendiente':
                 self.db.execute("UPDATE cola SET carga='{}' WHERE id=?", (r['id'],))
+
+    @staticmethod
+    def _enviar_smtp(c, id_, carga):
+        """Un envío por SMTP en un hilo aparte (smtplib es bloqueante). Devuelve
+        (identificador, error, reintentar). El Message-ID lleva el id de la
+        cola: si el servidor lo recibe dos veces, el buzón puede deduplicarlo.
+        Nunca se guarda la respuesta cruda del servidor ni la contraseña."""
+        mensaje = EmailMessage()
+        mensaje["From"] = carga["from"]
+        mensaje["To"] = ", ".join(carga["to"])
+        mensaje["Subject"] = carga["subject"]
+        mensaje["Message-ID"] = f"<{id_}@rosa.alzheimerproject>"
+        mensaje.set_content(carga["text"])
+        try:
+            if c["smtpPuerto"] == 465:
+                servidor = smtplib.SMTP_SSL(c["smtpServidor"], c["smtpPuerto"], timeout=20)
+            else:
+                servidor = smtplib.SMTP(c["smtpServidor"], c["smtpPuerto"], timeout=20)
+                servidor.ehlo()
+                servidor.starttls()
+                servidor.ehlo()
+            with servidor:
+                servidor.login(c["smtpUsuario"], c["clave"])
+                servidor.send_message(mensaje)
+            return mensaje["Message-ID"], None, False
+        except smtplib.SMTPAuthenticationError:
+            return None, "El servidor SMTP rechazó el usuario o la contraseña. Con Google Workspace hace falta una contraseña de aplicación, no la de la cuenta", False
+        except smtplib.SMTPRecipientsRefused:
+            return None, "El servidor SMTP rechazó al destinatario", False
+        except smtplib.SMTPSenderRefused:
+            return None, "El servidor SMTP rechazó al remitente: debe ser la misma cuenta que el usuario o un alias suyo", False
+        except smtplib.SMTPResponseException as ex:
+            transitorio = 400 <= ex.smtp_code < 500
+            return None, ("El servidor SMTP pidió esperar; se reintentará" if transitorio else "El servidor SMTP rechazó el mensaje"), transitorio
+        except (OSError, smtplib.SMTPException):
+            return None, "No se pudo conectar con el servidor SMTP; se reintentará", True
 
     async def correr(self):
         async with httpx.AsyncClient(timeout=20, follow_redirects=False) as cliente:

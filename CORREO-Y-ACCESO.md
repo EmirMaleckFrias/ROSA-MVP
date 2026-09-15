@@ -6,15 +6,40 @@ solo se crea cuando se confirma el enlace enviado al buzón corporativo.
 La pantalla para introducir un código queda pendiente del diseño del usuario;
 por ahora se confirma con un enlace de un solo uso, válido durante 15 minutos.
 
+## Dos transportes: Google Workspace por SMTP o Resend
+
+Desde el 15 de septiembre de 2026 el correo de Rosa sale por uno de dos
+caminos, a elegir en «Configurar correo de esta instalación» (la puerta) o en
+Ajustes:
+
+- **Google Workspace u otro servidor SMTP** (por defecto). Envía desde el
+  buzón corporativo que ya existe (`smtp.gmail.com`, puerto 587 con STARTTLS
+  o 465 con TLS), con el usuario de esa cuenta y una **contraseña de
+  aplicación** (Cuenta de Google, Seguridad, Verificación en dos pasos,
+  Contraseñas de aplicaciones), nunca la contraseña normal. No hay que
+  registrar nada en un tercero ni verificar un dominio, y el correo llega a
+  cualquier persona del equipo desde el primer día. El remitente debe ser la
+  misma cuenta o un alias suyo; Google rechaza otros.
+- **Resend**, como estaba: clave de API y dominio verificado.
+
+`rosa/correo.py` guarda `proveedor`, `smtpServidor`, `smtpPuerto` y
+`smtpUsuario` junto al remitente y la clave; `_enviar_smtp` corre en un hilo
+(smtplib es bloqueante) y pone el id de la cola en el `Message-ID`. Política
+de reintentos: usuario o contraseña rechazados y destinatario o remitente
+rechazados no se reintentan; una respuesta 4xx del servidor o la red caída
+sí, con el mismo mensaje. Pruebas en `rosa/tests/test_correo_smtp.py` con
+un servidor falso, sin red ni contraseñas reales.
+
 ## Primera instalación
 
-1. Crear una cuenta en [Resend](https://resend.com), verificar el dominio que
-   enviará los correos y generar una clave con permiso de envío. No se ha
-   contratado ningún plan ni creado ninguna cuenta desde este cambio.
+1. Con Google Workspace: generar una contraseña de aplicación de la cuenta
+   corporativa que enviará los correos. Con Resend: crear la cuenta,
+   verificar el dominio y generar una clave con permiso de envío.
 2. Arrancar el backend actualizado y abrir Rosa **en el equipo del servidor**.
    La pantalla de acceso muestra «Configurar correo de esta instalación».
-3. Guardar el remitente verificado, la clave y la URL de Rosa. La URL local
-   solo funciona en ese equipo. Para otros equipos hace falta un despliegue
+3. Elegir el proveedor y guardar los datos (con SMTP: cuenta, contraseña de
+   aplicación, servidor y puerto; con Resend: remitente y clave) y la URL de
+   Rosa. La URL local solo funciona en ese equipo. Para otros equipos hace falta un despliegue
    HTTPS accesible, con los hosts admitidos configurados en el servidor.
 4. Solicitar el enlace usando la cuenta corporativa y confirmarlo. La primera
    cuenta verificada administra la conexión de correo. Completar este paso

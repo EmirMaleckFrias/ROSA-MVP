@@ -311,29 +311,55 @@ export function Acceso({ children }: { children: ReactNode }) {
 }
 
 function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
+  const [proveedor, setProveedor] = useState<'smtp' | 'resend'>('smtp');
   const [remitente, setRemitente] = useState('');
   const [clave, setClave] = useState('');
+  const [servidor, setServidor] = useState('smtp.gmail.com');
+  const [puerto, setPuerto] = useState('587');
+  const [usuario, setUsuario] = useState('');
   const [url, setUrl] = useState(window.location.origin);
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const smtp = proveedor === 'smtp';
   return (
-    <details className="acceso-instalacion">
+    <details className="acceso-instalacion" open>
       <summary>Configurar correo de esta instalación</summary>
       <p>Disponible solo en el equipo de Rosa, antes de registrar la primera cuenta. Esa primera cuenta verificada administrará la conexión de correo.</p>
-      <p>
-        Crea una cuenta en{' '}
-        <a href="https://resend.com" target="_blank" rel="noreferrer">
-          Resend
-        </a>
-        , verifica tu dominio y genera una clave con permiso de envío. No pegues la clave en el chat.
-      </p>
+      <div className="acceso-opciones acceso-opciones-proveedor" role="group" aria-label="Proveedor de correo">
+        <button type="button" aria-pressed={smtp} onClick={() => setProveedor('smtp')}>
+          <span>Google Workspace (SMTP)</span>
+        </button>
+        <button type="button" aria-pressed={!smtp} onClick={() => setProveedor('resend')}>
+          <span>Resend</span>
+        </button>
+      </div>
+      {smtp ? (
+        <p>
+          Sale desde el buzón corporativo que ya existe, sin registrar nada en un tercero. Hace falta una{' '}
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+            contraseña de aplicación
+          </a>{' '}
+          de esa cuenta de Google (requiere verificación en dos pasos), no la contraseña normal. No la pegues en el chat.
+        </p>
+      ) : (
+        <p>
+          Crea una cuenta en{' '}
+          <a href="https://resend.com" target="_blank" rel="noreferrer">
+            Resend
+          </a>
+          , verifica tu dominio y genera una clave con permiso de envío. No pegues la clave en el chat.
+        </p>
+      )}
       <form
         onSubmit={async (e) => {
           e.preventDefault();
           setOcupado(true);
           setMensaje('');
           try {
-            await api('configuracion', { remitente, clave, url });
+            const datos = smtp
+              ? { proveedor, remitente: remitente || usuario, clave, url, smtpServidor: servidor, smtpPuerto: Number(puerto), smtpUsuario: usuario }
+              : { proveedor, remitente, clave, url };
+            await api('configuracion', datos);
             setClave('');
             await onGuardar();
             setMensaje('Conexión guardada. Solicita tu enlace con el formulario de arriba.');
@@ -344,10 +370,31 @@ function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
           }
         }}
       >
-        <label htmlFor="instalacion-remitente">Remitente verificado en Resend</label>
-        <input id="instalacion-remitente" type="email" required value={remitente} onChange={(e) => setRemitente(e.target.value)} />
-        <label htmlFor="instalacion-clave">Clave privada de envío</label>
-        <input id="instalacion-clave" type="password" autoComplete="new-password" required value={clave} onChange={(e) => setClave(e.target.value)} />
+        {smtp ? (
+          <>
+            <label htmlFor="instalacion-usuario">Cuenta de Google Workspace (usuario y remitente)</label>
+            <input id="instalacion-usuario" type="email" required placeholder="tu.nombre@alzheimerproject.com" value={usuario} onChange={(e) => setUsuario(e.target.value)} />
+            <label htmlFor="instalacion-clave">Contraseña de aplicación (16 letras)</label>
+            <input id="instalacion-clave" type="password" autoComplete="new-password" required value={clave} onChange={(e) => setClave(e.target.value.replace(/\s+/g, ''))} />
+            <div className="acceso-instalacion-fila">
+              <div>
+                <label htmlFor="instalacion-servidor">Servidor SMTP</label>
+                <input id="instalacion-servidor" required value={servidor} onChange={(e) => setServidor(e.target.value)} />
+              </div>
+              <div>
+                <label htmlFor="instalacion-puerto">Puerto</label>
+                <input id="instalacion-puerto" type="number" min={1} max={65535} required value={puerto} onChange={(e) => setPuerto(e.target.value)} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <label htmlFor="instalacion-remitente">Remitente verificado en Resend</label>
+            <input id="instalacion-remitente" type="email" required value={remitente} onChange={(e) => setRemitente(e.target.value)} />
+            <label htmlFor="instalacion-clave">Clave privada de envío</label>
+            <input id="instalacion-clave" type="password" autoComplete="new-password" required value={clave} onChange={(e) => setClave(e.target.value)} />
+          </>
+        )}
         <label htmlFor="instalacion-url">Dirección web de Rosa</label>
         <input id="instalacion-url" type="url" required value={url} onChange={(e) => setUrl(e.target.value)} />
         <small>Localhost sirve solo en este equipo. Para acceso desde otros equipos necesitas un despliegue HTTPS.</small>
