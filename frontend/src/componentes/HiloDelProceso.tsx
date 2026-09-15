@@ -11,6 +11,7 @@ import type { Corrida, EstadoRosa, Investigacion, TipoPista } from '../datos/tip
 import { pendientesDeRevision } from '../lib/hipotesis';
 import { useMovimientoReducido } from '../lib/movimiento';
 import { rutaDe, type Pantalla } from '../lib/ruta';
+import { proponiendoPlan } from '../lib/etiquetas';
 
 export type Etapa = 'plan' | 'literatura' | 'verificar' | 'mundo' | 'hipotesis' | 'candidatas' | 'laboratorio';
 
@@ -82,7 +83,8 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
     }
   }
   const esperan: Partial<Record<Etapa, number>> = {};
-  if (corrida && (corrida.estado === 'esperando_plan' || corrida.estado === 'esperando_aprobacion')) esperan.plan = 1;
+  // Solo cuenta como "te espera" cuando hay un plan que aprobar; mientras Rosa lo escribe no hay nada que hacer.
+  if (corrida && (corrida.estado === 'esperando_aprobacion' || (corrida.estado === 'esperando_plan' && !proponiendoPlan(corrida, it)))) esperan.plan = 1;
   const pendientes = pendientesDeRevision(hip);
   if (pendientes > 0) esperan.hipotesis = pendientes;
   const propuestos = hip.filter((h) => h.experimento && h.experimento.estado === 'propuesto' && h.candidata).length;

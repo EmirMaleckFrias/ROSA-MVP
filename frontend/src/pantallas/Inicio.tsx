@@ -10,7 +10,7 @@ import { Resumen } from '../componentes/Resumen';
 import { Aparece } from '../componentes/Animado';
 import { Chip, Momento, Vacio } from '../componentes/piezas';
 import { digest, loQueEspera } from '../lib/digest';
-import { ESTADO_CORRIDA } from '../lib/etiquetas';
+import { ESTADO_CORRIDA, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
 
@@ -60,7 +60,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                 {corrida ? (
                   <div className="ahora">
                     <Chip tono={corrida.estado === 'en_marcha' ? 'acento' : corrida.estado === 'esperando_plan' || corrida.estado === 'esperando_aprobacion' || corrida.estado === 'pausada_por_presupuesto' ? 'aviso' : undefined}>
-                      Corrida {corrida.numero} · {ESTADO_CORRIDA[corrida.estado]}
+                      Corrida {corrida.numero} · {etiquetaCorrida(corrida, it)}
                     </Chip>
                     <p>
                       {corrida.estado === 'en_marcha' && enCurso ? (
@@ -69,7 +69,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                           {pistasVivas > 0 && ` (${pistasVivas} ${pistasVivas === 1 ? 'pista' : 'pistas'} en paralelo)`}
                         </>
                       ) : corrida.estado === 'esperando_plan' ? (
-                        `El plan de la iteración ${corrida.iteracionActual} espera tu aprobación`
+                        proponiendoPlan(corrida, it) ? `Rosa está escribiendo el plan de la iteración ${corrida.iteracionActual}; en uno o dos minutos te lo enseña` : `El plan de la iteración ${corrida.iteracionActual} espera tu aprobación`
                       ) : corrida.motivoCierre ? (
                         corrida.motivoCierre
                       ) : (

@@ -3,30 +3,22 @@
 // y las pantallas nunca ensenan la clave interna.
 
 import type {
+  AccionEspera,
   Afirmacion,
+  AlcancePermiso,
   Bloqueo,
   CambioAprendizaje,
+  CategoriaCaso,
   CertezaEvidencia,
+  ClaseAccion,
   ClaseEvidencia,
+  ClasificacionCita,
+  ClasificacionDatos,
+  Corrida,
   DecisionKiller,
   DimensionesResultado,
   DireccionEvidencia,
   Ejecucion,
-  EtapaDecision,
-  FactorCerteza,
-  InterpretacionEjecucion,
-  MetodoRegistrado,
-  NivelAprendizaje,
-  PasoRutaTerapeutica,
-  ProcedenciaDataset,
-  Reproduccion,
-  ResultadoLaboratorio,
-  AccionEspera,
-  AlcancePermiso,
-  CategoriaCaso,
-  ClaseAccion,
-  ClasificacionCita,
-  ClasificacionDatos,
   EstadoCaso,
   EstadoCorrida,
   EstadoHallazgo,
@@ -36,7 +28,17 @@ import type {
   EstadoPaso,
   EstadoPista,
   EstadoSupuesto,
+  EtapaDecision,
+  FactorCerteza,
+  InterpretacionEjecucion,
+  Iteracion,
+  MetodoRegistrado,
+  NivelAprendizaje,
   NivelAutonomia,
+  PasoRutaTerapeutica,
+  ProcedenciaDataset,
+  Reproduccion,
+  ResultadoLaboratorio,
   TipoAfirmacion,
   TipoArtefacto,
   TipoEstudio,
@@ -60,6 +62,21 @@ export const ESTADO_CORRIDA: Record<EstadoCorrida, string> = {
   detenida: 'Detenida',
   terminada: 'Terminada',
 };
+
+/** Verdadero mientras Rosa escribe el plan: la corrida está en `esperando_plan`
+ * pero todavía no hay un plan que aprobar (la iteración no existe, o la última
+ * ya se aprobó o se cerró y Rosa propone la siguiente). El servidor deja la
+ * corrida en `esperando_plan` desde que se crea, y las llamadas al cerebro
+ * para la misión, la pregunta y el plan tardan uno o dos minutos. */
+export function proponiendoPlan(corrida: Pick<Corrida, 'estado'>, iteracion: Pick<Iteracion, 'planAprobado' | 'terminadaEn'> | null): boolean {
+  return corrida.estado === 'esperando_plan' && (!iteracion || iteracion.planAprobado || iteracion.terminadaEn !== null);
+}
+
+/** La etiqueta del estado de una corrida tal como la ve la persona: distingue
+ * "Rosa está proponiendo el plan" de "Esperando que apruebes el plan". */
+export function etiquetaCorrida(corrida: Pick<Corrida, 'estado'>, iteracion: Pick<Iteracion, 'planAprobado' | 'terminadaEn'> | null): string {
+  return proponiendoPlan(corrida, iteracion) ? 'Rosa está proponiendo el plan' : ESTADO_CORRIDA[corrida.estado];
+}
 
 export const ESTADO_INVESTIGACION: Record<EstadoInvestigacion, string> = {
   activa: 'Activa',

@@ -19,7 +19,7 @@ import { Trazabilidad } from '../componentes/Trazabilidad';
 import { ResumenEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Barra, Chip, Confirmar, Momento, Seccion, SoloDetalle, Vacio } from '../componentes/piezas';
 import { IconPause, IconPlay } from '../componentes/icons';
-import { ALCANCE, ESTADO_CORRIDA } from '../lib/etiquetas';
+import { ALCANCE, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
 
@@ -93,7 +93,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
         <div>
           <h2>Corrida {corrida.numero}</h2>
           <div className="corrida-estado">
-            <Chip tono={tono}>{ESTADO_CORRIDA[corrida.estado]}</Chip>
+            <Chip tono={tono}>{etiquetaCorrida(corrida, iteracion)}</Chip>
             <span className="meta">Iteración {corrida.iteracionActual}</span>
             <span className="meta">
               Empezó <Momento t={corrida.empezadaEn} ahora={ahora} />
@@ -272,6 +272,19 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       )}
 
       <PreguntaDeCampana corrida={corrida} />
+
+      {viva && proponiendoPlan(corrida, iteracion) && (
+        <Seccion titulo={`Iteración ${iteracion ? iteracion.numero + 1 : corrida.iteracionActual}`} nota="Rosa escribe el plan">
+          <div className="tarjeta">
+            <p>
+              <span className="shimmer-text">Rosa está proponiendo el plan de esta iteración</span>
+            </p>
+            <p className="meta">
+              Primero fija la misión de la investigación, después la pregunta de esta corrida y por último los pasos con su presupuesto. Son dos o tres llamadas al cerebro y suelen tardar uno o dos minutos. Cuando el plan esté listo aparecerá aquí para que lo apruebes, lo edites o lo dejes autoaprobar. Todavía no hay nada que aprobar.
+            </p>
+          </div>
+        </Seccion>
+      )}
 
       {iteracion && (
         <Seccion
