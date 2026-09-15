@@ -234,6 +234,12 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
               <strong>{formatearCompacto(corrida.gasto.tokensSalida)}</strong>
               <span>tokens de salida</span>
             </div>
+            {(corrida.gasto.exaUsd ?? 0) > 0 && (
+              <div className="gasto-item" title="Búsquedas semánticas en Exa: 7 USD por mil búsquedas y 1 USD por mil páginas. Se suma al coste por decisión.">
+                <strong>{(corrida.gasto.exaUsd ?? 0).toFixed(3)} USD</strong>
+                <span>en Exa</span>
+              </div>
+            )}
             <div className="gasto-item" title="Cuanto del contexto del cerebro está ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras días.">
               <strong>{formatearPorcentaje(contextoPct)}</strong>
               <span>

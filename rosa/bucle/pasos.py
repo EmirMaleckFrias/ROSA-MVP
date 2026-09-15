@@ -322,14 +322,15 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
     return fragmentos
 
 
-NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)"}
+NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)", "gris": "Exa (literatura gris: reguladores, registros, portales del campo)"}
 
 
 def bases_disponibles() -> list[str]:
-    """Las bases que el planificador puede elegir ahora. Exa solo con clave."""
+    """Las bases que el planificador puede elegir ahora. Exa y la literatura
+    gris (que va por Exa) solo con clave."""
     bases = ["pubmed", "europepmc", "preprints"]
     if exa.disponible():
-        bases.append("exa")
+        bases.extend(["exa", "gris"])
     return bases
 
 
@@ -356,11 +357,19 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             ids, total = await pubmed.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA)
             pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta['consulta']}&retmax={MAX_FUENTES_POR_CONSULTA}", "resultados": f"{total} PMID, se traen {len(ids)}"})
             articulos = await pubmed.detalles(ids)
-        elif base == "exa":
+        elif base in ("exa", "gris"):
             # Búsqueda semántica: la consulta es una pregunta en lenguaje natural.
-            # Exa no da un total: identificados = traídos.
-            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA)
-            pista.accion("search (neural, publicaciones)", {"base": "Exa", "parametros": f"category=publication&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
+            # Los pasajes destacados se guían con las preguntas abiertas, para
+            # que el pasaje que vuelve sea el que responde. Exa no da un total:
+            # identificados = traídos. "gris" busca sin categoría y acotado a los
+            # dominios de reguladores, registros y portales del campo.
+            gris = base == "gris"
+            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA, categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=preguntas[:500] or None)
+            pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
+            _anotar_coste_exa(ctx, coste_exa)
+            if articulos:
+                # Orden por afinidad del mejor pasaje con las preguntas, cuando Exa la da.
+                articulos.sort(key=lambda a: -(a.get("similitud") or 0.0))
         else:
             articulos, total = await europepmc.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA, solo_preprints=(base == "preprints"))
             pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={consulta['consulta']}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={MAX_FUENTES_POR_CONSULTA}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
@@ -445,6 +454,20 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         pista.fallar(f"{nombre_base} no respondió: {str(ex)[:160]}. No es 'sin resultados': la consulta no llegó.")
         _contar_fallo_fuente(ctx, nombre_base, str(ex))
     return resultado
+
+
+def _anotar_coste_exa(ctx: Ctx, usd: float) -> None:
+    """El gasto en Exa se suma al gasto de la corrida (`gasto.exaUsd`), junto al
+    de los modelos, para que el coste por decisión lo incluya."""
+    if not usd:
+        return
+
+    def fn(e: dict[str, Any]) -> bool:
+        c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
+        c["gasto"]["exaUsd"] = round(float(c["gasto"].get("exaUsd") or 0.0) + float(usd), 6)
+        return True
+
+    ctx.mutar(fn, "gasto_exa")
 
 
 def _contar_fallo_fuente(ctx: Ctx, base: str, error: str) -> None:

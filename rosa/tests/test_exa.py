@@ -22,6 +22,7 @@ RESPUESTA = {
             "author": "Ana Pérez; Luis Gómez; Marta Ruiz; Juan Díaz",
             "score": 0.61,
             "highlights": ["GFAP increased 3.2 years before NfL.", "Effect was restricted to amyloid-positive carriers."],
+            "highlightScores": [0.71, 0.44],
         },
         {
             "url": "https://doi.org/10.1002/alz.13579",
@@ -68,6 +69,7 @@ def test_buscar_mapea_a_la_forma_de_las_otras_bases(con_clave):
     assert kwargs["json"]["category"] == "publication" and kwargs["json"]["startPublishedDate"].startswith("2023-01-01")
     assert kwargs["json"]["type"] == "auto" and "deep" not in kwargs["json"]["type"]
     assert kwargs["json"]["contents"] == {"highlights": True}
+    assert a["similitud"] == 0.71 and b["similitud"] is None
 
 
 def test_la_clave_va_solo_en_la_cabecera(con_clave):
@@ -118,3 +120,44 @@ def test_el_plan_puede_elegir_exa_solo_con_clave_y_si_no_se_desvia(monkeypatch):
     assert "exa" in pasos.bases_disponibles()
     assert pasos.base_efectiva({"base": "exa", "consulta": "q", "tema": "t"})["base"] == "exa"
     assert pasos.NOMBRES_BASE["exa"].startswith("Exa")
+    assert "gris" in pasos.bases_disponibles() and pasos.NOMBRES_BASE["gris"].startswith("Exa")
+
+
+def test_pasajes_guiados_y_ventana_de_fechas(con_clave):
+    asyncio.run(exa.buscar("¿Qué se sabía?", maximo=6, pregunta_pasajes="¿GFAP precede a NfL?", hasta_fecha="2026-03-15", desde_fecha="2025-01-01", categoria=None, dominios=exa.DOMINIOS_GRIS))
+    _, _, kwargs = con_clave[0]
+    cuerpo = kwargs["json"]
+    assert cuerpo["contents"] == {"highlights": {"query": "¿GFAP precede a NfL?"}}
+    assert cuerpo["startPublishedDate"].startswith("2025-01-01") and cuerpo["endPublishedDate"].startswith("2026-03-15T23:59:59")
+    assert "category" not in cuerpo and "fda.gov" in cuerpo["includeDomains"] and "alzforum.org" in cuerpo["includeDomains"]
+
+
+def test_enlaces_filtra_solo_lo_bibliografico(monkeypatch):
+    monkeypatch.setattr(config, "CLAVE_EXA", "x")
+    respuesta = {"costDollars": {"total": 0.001}, "results": [{"url": "https://ejemplo.org/articulo", "extras": {"links": [
+        "https://doi.org/10.1002/alz.13579", "https://www.nature.com/articles/s41591-025-01234-5", "https://pubmed.ncbi.nlm.nih.gov/39912345/",
+        "https://twitter.com/algo", "https://ejemplo.org/about", "https://doi.org/10.1002/alz.13579", "https://www.medrxiv.org/content/10.1101/2024.01.25.24301779v2"]}}]}
+
+    async def pedir_falso(metodo, url, limitador, **kwargs):
+        assert url.endswith("/contents") and kwargs["json"]["extras"]["links"] == 300
+        return httpx.Response(200, json=respuesta, request=httpx.Request(metodo, url))
+
+    monkeypatch.setattr(exa, "pedir", pedir_falso)
+    refs, coste = asyncio.run(exa.enlaces("https://ejemplo.org/articulo"))
+    assert coste == 0.001
+    assert [r["doi"] or r["pmid"] for r in refs] == ["10.1002/alz.13579", "39912345", "10.1101/2024.01.25.24301779"]
+    # nature.com sin prefijo de DOI no pasa el filtro bibliográfico (no es doi.org ni PubMed): no se inventa nada.
+    assert all("nature.com" not in r["url"] for r in refs)
+
+
+def test_conector_de_referencias_registrado(monkeypatch):
+    import rosa.conectores.exa as modulo
+    from rosa.conectores.base import REGISTRO
+
+    monkeypatch.setattr(config, "CLAVE_EXA", "x")
+    importlib.reload(modulo)
+    assert REGISTRO["exa_referencias"].estado == "disponible" and REGISTRO["exa_referencias"].grupo == "literatura"
+    monkeypatch.setattr(config, "CLAVE_EXA", "")
+    importlib.reload(modulo)
+    assert REGISTRO["exa_referencias"].estado == "requiere_cuenta"
+

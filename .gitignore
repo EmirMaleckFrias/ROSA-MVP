@@ -15,6 +15,6 @@ rosa.db-shm
 pdfs/
 *.log
 node_modules/
-datos/
+/datos/
 # Convex: el CLI puede escribir la URL del deployment aqui
 frontend/.env.local

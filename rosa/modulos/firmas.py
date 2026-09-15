@@ -33,8 +33,8 @@ class PasoPropuesto(BaseModel):
 
 
 class Consulta(BaseModel):
-    base: Literal["pubmed", "europepmc", "preprints", "exa"] = Field(description="pubmed, europepmc y preprints reciben una consulta booleana; exa es búsqueda semántica y recibe una pregunta o hipótesis en lenguaje natural, sin operadores")
-    consulta: str = Field(description="La cadena exacta que se envia a la base: con operadores booleanos para pubmed, europepmc y preprints; una frase en lenguaje natural para exa")
+    base: Literal["pubmed", "europepmc", "preprints", "exa", "gris"] = Field(description="pubmed, europepmc y preprints reciben una consulta booleana; exa es búsqueda semántica de publicaciones y recibe una pregunta o hipótesis en lenguaje natural, sin operadores; gris es la misma búsqueda semántica acotada a reguladores (FDA, EMA), registros de ensayos, la OMS, el NIA y los portales del campo (Alzforum), para lo que PubMed no indexa")
+    consulta: str = Field(description="La cadena exacta que se envia a la base: con operadores booleanos para pubmed, europepmc y preprints; una frase en lenguaje natural para exa y gris")
     tema: str = Field(description="Tema corto al que sirve la consulta")
 
 
@@ -156,8 +156,9 @@ class GenerarConsultas(dspy.Signature):
     (PubMed con sintaxis de PubMed, Europe PMC o preprints), con operadores booleanos y
     sinonimos; ninguna repite consultas ya hechas. Si `bases_disponibles` incluye exa, al
     menos una consulta va a exa escrita como pregunta en lenguaje natural (recupera por
-    significado el trabajo que no comparte vocabulario con la hipótesis); si no la
-    incluye, no se usa exa."""
+    significado el trabajo que no comparte vocabulario con la hipótesis), y gris se usa
+    cuando la pregunta toca regulación, ensayos registrados o guías (FDA, EMA, OMS,
+    Alzforum); si no las incluye, no se usan exa ni gris."""
 
     objetivo: str = dspy.InputField()
     preguntas_abiertas: str = dspy.InputField()

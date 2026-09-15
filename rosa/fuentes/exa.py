@@ -130,6 +130,8 @@ def _articulo(r: dict[str, Any]) -> dict[str, Any]:
         "resumen": resumen,
         "destacados": destacados,
         "puntuacionExa": r.get("score"),
+        # Coseno del mejor pasaje con la pregunta que los guio (si Exa lo da).
+        "similitud": max((float(x) for x in (r.get("highlightScores") or []) if isinstance(x, (int, float))), default=None),
     }
 
 
@@ -141,24 +143,43 @@ def _coste(d: dict[str, Any]) -> float:
         return 0.0
 
 
-async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, dominios: list[str] | None = None, categoria: str | None = "publication") -> tuple[list[dict[str, Any]], int, float]:
+# Literatura gris que PubMed no indexa: reguladores, registros de ensayos,
+# preprints y los portales del campo del Alzheimer.
+DOMINIOS_GRIS = ["fda.gov", "ema.europa.eu", "clinicaltrials.gov", "who.int", "nia.nih.gov", "alzforum.org", "alz.org", "biorxiv.org", "medrxiv.org", "isrctn.com", "clinicaltrialsregister.eu"]
+
+
+async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, dominios: list[str] | None = None, categoria: str | None = "publication", pregunta_pasajes: str | None = None, hasta_fecha: str | None = None, desde_fecha: str | None = None) -> tuple[list[dict[str, Any]], int, float]:
     """Búsqueda semántica. `texto` va en lenguaje natural (una pregunta o una
     hipótesis), no con operadores booleanos. Devuelve (artículos, n, coste
-    en USD). Exa no da un total: `n` es el número de resultados traídos."""
+    en USD). Exa no da un total: `n` es el número de resultados traídos.
+
+    `pregunta_pasajes` guía los pasajes destacados con una pregunta distinta
+    de la de búsqueda (la pregunta abierta o la hipótesis): así el pasaje que
+    vuelve es el que responde, y `similitud` (coseno del mejor pasaje) sirve
+    para ordenar antes de gastar una llamada al modelo. `hasta_fecha` (ISO,
+    AAAA-MM-DD) limita a lo publicado antes de esa fecha: "qué se sabía antes
+    de que Rosa propusiera esto". `desde_fecha` limita a lo posterior: la
+    vigilancia de novedades desde la última comprobación."""
+    destacados: Any = {"query": pregunta_pasajes[:500]} if pregunta_pasajes else True
     cuerpo: dict[str, Any] = {
         "query": texto[:1000],
         "type": "auto",
         "numResults": max(1, min(maximo, 100)),
         # La guía de Exa para agentes (septiembre de 2026) marca numSentences y
-        # highlightsPerUrl como obsoletos: highlights se pide con `true`.
-        "contents": {"highlights": True},
+        # highlightsPerUrl como obsoletos: highlights se pide con `true` o con
+        # un objeto {query}.
+        "contents": {"highlights": destacados},
     }
     if categoria:
         cuerpo["category"] = categoria
-    if desde_anio:
+    if desde_fecha:
+        cuerpo["startPublishedDate"] = f"{desde_fecha[:10]}T00:00:00.000Z"
+    elif desde_anio:
         cuerpo["startPublishedDate"] = f"{desde_anio}-01-01T00:00:00.000Z"
+    if hasta_fecha:
+        cuerpo["endPublishedDate"] = f"{hasta_fecha[:10]}T23:59:59.000Z"
     if dominios:
-        cuerpo["includeDomains"] = dominios[:50]
+        cuerpo["includeDomains"] = dominios[:1200]
     r = await pedir("POST", f"{BASE}/search", _limitador, headers=_cabeceras(), json=cuerpo)
     d = json_de(r)
     resultados = d.get("results") or []
@@ -187,3 +208,32 @@ async def contenidos(urls: list[str], maximo_caracteres: int = 20000) -> tuple[l
     d = json_de(r)
     filas = [{"url": x.get("url"), "titulo": (x.get("title") or "").strip(), "texto": x.get("text") or "", "fecha": (x.get("publishedDate") or "")[:10] or None} for x in (d.get("results") or []) if isinstance(x, dict)]
     return filas, _coste(d)
+
+
+_ENLACE_BIBLIO = re.compile(r"(doi\.org/10\.|pubmed\.ncbi\.nlm\.nih\.gov/\d|biorxiv\.org/content/|medrxiv\.org/content/|europepmc\.org/(article|abstract)/)", re.IGNORECASE)
+
+
+async def enlaces(url: str, maximo: int = 300) -> tuple[list[dict[str, Any]], float]:
+    """Los enlaces bibliográficos de la página de un artículo (su lista de
+    referencias, si la editorial la publica en la página): DOI, PubMed,
+    bioRxiv, medRxiv, Europe PMC. Es el vecindario de citas de un trabajo,
+    para el precedente y para el Árbol. Cada enlace vuelve con su DOI o PMID
+    cuando la URL lo lleva."""
+    cuerpo = {"urls": [url], "extras": {"links": max(1, min(maximo, 1000))}}
+    r = await pedir("POST", f"{BASE}/contents", _limitador, headers=_cabeceras(), json=cuerpo)
+    d = json_de(r)
+    salida: list[dict[str, Any]] = []
+    vistos: set[str] = set()
+    for x in d.get("results") or []:
+        for enlace in ((x.get("extras") or {}).get("links") or []):
+            if not isinstance(enlace, str) or not _ENLACE_BIBLIO.search(enlace):
+                continue
+            doi = doi_de_url(enlace)
+            pm = _PMID.search(enlace)
+            clave = doi or (pm.group(1) if pm else enlace)
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            salida.append({"url": enlace, "doi": doi, "pmid": pm.group(1) if pm else None})
+    return salida, _coste(d)
+

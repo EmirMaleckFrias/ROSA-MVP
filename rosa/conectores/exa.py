@@ -55,7 +55,26 @@ if config.CLAVE_EXA:
         ids = [a["doi"] or a["url"] for a in articulos]
         return Resultado({"articulos": articulos, "costeUsd": coste}, len(articulos), ids, None, (bool(articulos), f"{len(articulos)} documentos parecidos"))
 
+    @conector(
+        "exa_referencias",
+        "Exa (referencias de un artículo)",
+        "Los enlaces bibliográficos (DOI, PubMed, preprints) que aparecen en la página de un artículo: su lista de referencias cuando la editorial la publica",
+        "El vecindario de citas de un trabajo, para el precedente y para el Árbol",
+        _esq(url="URL de la página del artículo"),
+        _LICENCIA,
+        "5 por segundo (límite propio de Rosa)",
+        _DOC,
+        clave="si",
+        grupo="literatura",
+    )
+    async def exa_referencias(url: str) -> Resultado:
+        refs, coste = await exa.enlaces(url)
+        ids = [x["doi"] or x["pmid"] or x["url"] for x in refs]
+        con_id = sum(1 for x in refs if x["doi"] or x["pmid"])
+        return Resultado({"referencias": refs, "costeUsd": coste}, len(refs), ids, None, (con_id == len(refs) and len(refs) > 0, f"{con_id} de {len(refs)} enlaces con DOI o PMID" if refs else "la página no expone enlaces bibliográficos"))
+
 else:
     _MOTIVO = "Falta la clave de Exa: ROSA_EXA_KEY en el .env del servidor (se crea en dashboard.exa.ai). Sin ella Rosa busca solo en PubMed, Europe PMC y OpenAlex."
     inerte("exa_publicaciones", "Exa (índice de publicaciones)", "Busca publicaciones por significado, en lenguaje natural", "Encuentra el trabajo que no comparte vocabulario con la pregunta", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)
     inerte("exa_similares", "Exa (documentos parecidos)", "Documentos parecidos a una URL dada", "La pregunta de novedad al revés", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)
+    inerte("exa_referencias", "Exa (referencias de un artículo)", "Los enlaces bibliográficos de la página de un artículo", "El vecindario de citas de un trabajo", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)

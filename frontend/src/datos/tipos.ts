@@ -244,6 +244,8 @@ export type EstadoCorrida =
   | 'terminada';
 
 export interface Gasto {
+  /** Dólares gastados en Exa (búsqueda semántica) en esta corrida; solo si se usó. */
+  exaUsd?: number;
   tokensEntrada: number;
   tokensSalida: number;
   llamadas: number;
