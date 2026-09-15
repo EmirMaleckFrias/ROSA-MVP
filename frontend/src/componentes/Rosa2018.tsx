@@ -2202,7 +2202,7 @@ export function ConocimientoOperativoDelLaboratorio({ inv }: { inv: Investigacio
   const [tipo, setTipo] = useState<ConocimientoOperativo['tipo']>('protocolo');
   const lista = inv.conocimientoOperativo ?? [];
   return (
-    <Seccion titulo="Conocimiento operativo del laboratorio" nota="Lo que el laboratorio sabe y nunca se pública: que protocolo no es fiable, que lote de anticuerpo da fondo, que medición tiene un artefacto conocido. Entra como evidencia de clase 'conocimiento operativo', con su estatus: Rosa lo lee al proponer experimentos y lo cita en el dossier, pero no lo mezcla con la literatura ni lo cuenta como observación.">
+    <Seccion titulo="Conocimiento operativo del laboratorio" nota="Lo que el laboratorio sabe y nunca se publica: que protocolo no es fiable, que lote de anticuerpo da fondo, que medición tiene un artefacto conocido. Entra como evidencia de clase 'conocimiento operativo', con su estatus: Rosa lo lee al proponer experimentos y lo cita en el dossier, pero no lo mezcla con la literatura ni lo cuenta como observación.">
       {lista.length === 0 && <p className="meta">Nada registrado todavía.</p>}
       <ul className="lista-plana">
         {lista.map((x) => (
