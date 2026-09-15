@@ -33,6 +33,7 @@ RESPUESTA = {
         },
         {"url": "https://pubmed.ncbi.nlm.nih.gov/39912345/", "title": "A PubMed record", "publishedDate": "2026-01-05"},
         {"url": "https://www.biorxiv.org/content/10.1101/2026.02.01.123456v1.full", "title": "A preprint", "publishedDate": "2026-02-01"},
+        {"url": "https://doi.org/10.1101/2024.01.25.24301779", "title": "A medRxiv preprint behind doi.org", "publishedDate": "2024-01-26"},
         {"title": "sin url, se ignora"},
     ],
 }
@@ -53,7 +54,7 @@ def con_clave(monkeypatch):
 
 def test_buscar_mapea_a_la_forma_de_las_otras_bases(con_clave):
     articulos, n, coste = asyncio.run(exa.buscar("¿GFAP sube antes que NfL en portadores de APOE4?", maximo=10, desde_anio=2023))
-    assert n == 4 and coste == 0.008
+    assert n == 5 and coste == 0.008
     a = articulos[0]
     assert a["doi"] == "10.1038/s41591-025-01234-5" and a["anio"] == 2025 and a["referencia"] == "Pérez et al., 2025"
     assert "3.2 years" in a["resumen"] and a["titulo"].startswith("Plasma GFAP")
@@ -61,10 +62,12 @@ def test_buscar_mapea_a_la_forma_de_las_otras_bases(con_clave):
     assert b["doi"] == "10.1002/alz.13579" and b["referencia"] == "Chen y Smith, 2024" and b["resumen"].startswith("Full text")
     assert articulos[2]["pmid"] == "39912345" and articulos[2]["doi"] is None
     assert articulos[3]["preprint"] is True and articulos[3]["doi"] == "10.1101/2026.02.01.123456"
+    assert articulos[4]["preprint"] is True and articulos[4]["doi"] == "10.1101/2024.01.25.24301779"
     metodo, url, kwargs = con_clave[0]
     assert metodo == "POST" and url.endswith("/search")
     assert kwargs["json"]["category"] == "publication" and kwargs["json"]["startPublishedDate"].startswith("2023-01-01")
     assert kwargs["json"]["type"] == "auto" and "deep" not in kwargs["json"]["type"]
+    assert kwargs["json"]["contents"] == {"highlights": True}
 
 
 def test_la_clave_va_solo_en_la_cabecera(con_clave):
@@ -83,7 +86,7 @@ def test_sin_clave_no_hay_resultado_sino_no_pude_comprobar(monkeypatch):
 
 def test_similares_y_contenidos_usan_sus_endpoints(con_clave):
     parecidos, _ = asyncio.run(exa.similares("https://doi.org/10.1002/alz.13579", maximo=4))
-    assert len(parecidos) == 4 and con_clave[-1][1].endswith("/findSimilar")
+    assert len(parecidos) == 5 and con_clave[-1][1].endswith("/findSimilar")
     textos, _ = asyncio.run(exa.contenidos(["https://doi.org/10.1002/alz.13579"]))
     assert con_clave[-1][1].endswith("/contents") and con_clave[-1][2]["json"]["text"]["maxCharacters"] == 20000
     assert isinstance(textos, list)

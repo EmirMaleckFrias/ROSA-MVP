@@ -109,10 +109,14 @@ def _articulo(r: dict[str, Any]) -> dict[str, Any]:
     resumen = (r.get("summary") or "").strip() or " ".join(destacados) or (r.get("text") or "")[:1500]
     pm = _PMID.search(url)
     pmc = _PMCID.search(url) if "ncbi.nlm.nih.gov/pmc" in url or "europepmc.org" in url else None
+    doi = doi_de_url(url)
+    # Preprint por dominio o por prefijo de DOI (10.1101 es bioRxiv y medRxiv,
+    # también cuando la URL es un enlace doi.org).
+    preprint = any(d in url for d in ("biorxiv.org", "medrxiv.org", "arxiv.org", "researchsquare.com", "ssrn.com")) or bool(doi and doi.startswith("10.1101/"))
     return {
         "exa": r.get("id") or url,
         "url": url,
-        "doi": doi_de_url(url),
+        "doi": doi,
         "pmid": pm.group(1) if pm else None,
         "pmcid": pmc.group(1) if pmc else None,
         "titulo": (r.get("title") or "").strip(),
@@ -121,7 +125,7 @@ def _articulo(r: dict[str, Any]) -> dict[str, Any]:
         "anio": anio,
         "fecha": fecha[:10] or None,
         "tipo": "publication",
-        "preprint": any(d in url for d in ("biorxiv.org", "medrxiv.org", "arxiv.org", "researchsquare.com", "ssrn.com")),
+        "preprint": preprint,
         "pdf": url if url.lower().endswith(".pdf") else None,
         "resumen": resumen,
         "destacados": destacados,
@@ -137,7 +141,7 @@ def _coste(d: dict[str, Any]) -> float:
         return 0.0
 
 
-async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, dominios: list[str] | None = None, categoria: str | None = "publication", destacados: int = 3) -> tuple[list[dict[str, Any]], int, float]:
+async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, dominios: list[str] | None = None, categoria: str | None = "publication") -> tuple[list[dict[str, Any]], int, float]:
     """Búsqueda semántica. `texto` va en lenguaje natural (una pregunta o una
     hipótesis), no con operadores booleanos. Devuelve (artículos, n, coste
     en USD). Exa no da un total: `n` es el número de resultados traídos."""
@@ -145,7 +149,9 @@ async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, do
         "query": texto[:1000],
         "type": "auto",
         "numResults": max(1, min(maximo, 100)),
-        "contents": {"highlights": {"numSentences": 3, "highlightsPerUrl": max(1, destacados)}},
+        # La guía de Exa para agentes (septiembre de 2026) marca numSentences y
+        # highlightsPerUrl como obsoletos: highlights se pide con `true`.
+        "contents": {"highlights": True},
     }
     if categoria:
         cuerpo["category"] = categoria
@@ -163,7 +169,7 @@ async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, do
 async def similares(url: str, maximo: int = 6, categoria: str | None = "publication") -> tuple[list[dict[str, Any]], float]:
     """Documentos parecidos a uno dado: la pregunta de novedad al revés
     (¿qué se parece a este trabajo?)."""
-    cuerpo: dict[str, Any] = {"url": url, "numResults": max(1, min(maximo, 50)), "excludeSourceDomain": False, "contents": {"highlights": {"numSentences": 2, "highlightsPerUrl": 2}}}
+    cuerpo: dict[str, Any] = {"url": url, "numResults": max(1, min(maximo, 50)), "excludeSourceDomain": False, "contents": {"highlights": True}}
     if categoria:
         cuerpo["category"] = categoria
     r = await pedir("POST", f"{BASE}/findSimilar", _limitador, headers=_cabeceras(), json=cuerpo)
