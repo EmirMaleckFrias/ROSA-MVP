@@ -1094,7 +1094,30 @@ export interface Decision {
  *  puntue en lo demas. */
 export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada';
 
+/** Una publicación que apareció después de la última comprobación de vigilancia. */
+export interface NovedadVigilada {
+  titulo: string;
+  referencia: string;
+  url: string | null;
+  doi: string | null;
+  fecha: string | null;
+  preprint: boolean;
+  pasaje: string;
+  similitud: number | null;
+}
+
+/** Vigilancia de literatura por hipótesis (Exa, una búsqueda al día). */
+export interface Vigilancia {
+  ultimaComprobacion: number | null;
+  comprobaciones: number;
+  costeUsd: number;
+  nuevas: NovedadVigilada[];
+  ultimoError?: string | null;
+}
+
 export interface Hipotesis {
+  /** Qué se publicó sobre esta hipótesis desde la última comprobación (solo con Exa). */
+  vigilancia?: Vigilancia;
   id: Id;
   investigacionId: Id;
   titulo: string;
@@ -1564,6 +1587,7 @@ export type TipoEvento =
   | 'analisis'
   | 'aprendizaje'
   | 'mision'
+  | 'vigilancia'
   | 'dependencias';
 
 export interface Evento {

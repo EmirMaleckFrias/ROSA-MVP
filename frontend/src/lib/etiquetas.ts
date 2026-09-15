@@ -466,6 +466,7 @@ export const TIPO_EVENTO: Record<TipoEvento, string> = {
   incidencia: 'Incidencia',
   presupuesto: 'Presupuesto',
   corrida_estado: 'Corrida',
+  vigilancia: 'Vigilancia de literatura',
   hecho_nuevo: 'Modelo de mundo',
   retraccion: 'Retractación',
   literatura_nueva: 'Literatura nueva',

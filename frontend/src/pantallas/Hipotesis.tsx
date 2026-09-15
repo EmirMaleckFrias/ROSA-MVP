@@ -455,6 +455,55 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
+      {h.vigilancia && (
+        <Seccion
+          detalle
+          titulo="Vigilancia de literatura"
+          nota="Una búsqueda semántica al día (Exa) de lo publicado sobre esta hipótesis desde la última comprobación. Sin modelos: solo publicaciones con su enlace y el pasaje que más se parece al enunciado. Decidir si una novedad cambia algo te toca a ti."
+          resumen={`${h.vigilancia.nuevas.length} novedad${h.vigilancia.nuevas.length === 1 ? '' : 'es'} en ${h.vigilancia.comprobaciones} comprobación${h.vigilancia.comprobaciones === 1 ? '' : 'es'}`}
+        >
+          <p className="meta">
+            {h.vigilancia.ultimaComprobacion ? (
+              <>
+                Última comprobación <Momento t={h.vigilancia.ultimaComprobacion} ahora={ahora} />
+              </>
+            ) : (
+              'Todavía sin comprobar'
+            )}
+            {' · '}
+            {h.vigilancia.comprobaciones} comprobación{h.vigilancia.comprobaciones === 1 ? '' : 'es'} · {h.vigilancia.costeUsd.toFixed(3)} USD
+          </p>
+          {h.vigilancia.ultimoError && <p className="tono-aviso">{h.vigilancia.ultimoError}</p>}
+          {h.vigilancia.nuevas.length === 0 ? (
+            <p className="meta">Nada nuevo desde la creación de la hipótesis.</p>
+          ) : (
+            <ul className="lista-limpia">
+              {h.vigilancia.nuevas.map((n) => (
+                <li key={n.url ?? n.titulo} style={{ marginBottom: 10 }}>
+                  <div>
+                    {n.url ? (
+                      <a className="enlace" href={n.url} target="_blank" rel="noopener noreferrer">
+                        {n.titulo}
+                      </a>
+                    ) : (
+                      <strong>{n.titulo}</strong>
+                    )}{' '}
+                    {n.preprint && <Chip tono="aviso">preprint</Chip>}
+                  </div>
+                  <p className="meta" style={{ margin: '2px 0' }}>
+                    {n.referencia}
+                    {n.fecha ? ` · ${n.fecha}` : ''}
+                    {n.doi ? ` · ${n.doi}` : ''}
+                    {n.similitud !== null ? ` · afinidad ${n.similitud.toFixed(2)}` : ''}
+                  </p>
+                  {n.pasaje && <p style={{ margin: 0, fontSize: 13 }}>{n.pasaje}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Seccion>
+      )}
+
       <Seccion titulo="Verificación" nota="Cada afirmación contrastada con su fuente, con su tipo (dato, literatura, interpretación). Lo bloqueante impide aceptar.">
         <Verificacion afirmaciones={h.afirmaciones} cobertura={cobertura} ocultarCitas={aCiegas} onVerTrayectoria={(_, celda) => onAbrirProcedencia('codigo', celda)} />
       </Seccion>

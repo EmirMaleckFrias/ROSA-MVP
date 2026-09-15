@@ -113,6 +113,7 @@ class Supervisor:
             try:
                 self._tick()
                 await self._atender_peticiones()
+                await self._vigilar_si_toca()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             with contextlib.suppress(asyncio.TimeoutError):
@@ -126,6 +127,24 @@ class Supervisor:
 
     def parar(self) -> None:
         self._parar.set()
+
+    async def _vigilar_si_toca(self) -> None:
+        """Vigilancia de literatura (rosa/vigilancia.py): una pasada por hora;
+        cada hipótesis viva se comprueba como mucho una vez al día. Sin Exa no
+        hace nada. Un fallo no tumba el bucle."""
+        from rosa import vigilancia
+
+        ahora = P.ahora_ms()
+        ultima = getattr(self, "_ultima_vigilancia", 0)
+        if ahora - ultima < 3600 * 1000:
+            return
+        self._ultima_vigilancia = ahora
+        try:
+            resumen = await vigilancia.vigilar(self.almacen, ahora)
+            if resumen["comprobadas"] or resumen["errores"]:
+                print(f"Vigilancia de literatura: {resumen['comprobadas']} hipótesis comprobadas, {resumen['conNovedades']} con novedades ({resumen['nuevas']} publicaciones), {resumen['costeUsd']} USD, {resumen['errores']} sin respuesta")
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
     # -- por tick --------------------------------------------------------------
 
