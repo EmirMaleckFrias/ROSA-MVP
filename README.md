@@ -264,10 +264,13 @@ un SQLite local que es la fuente de verdad. Una función sin servidor es
 efímera, pierde el disco entre llamadas y corta la ejecución a los pocos
 minutos. La división correcta:
 
-- **Vercel sirve la interfaz** (`frontend/`, preset Vite, salida `dist/`),
-  con una regla de reescritura que manda `/api/*` al backend. Así la
-  interfaz y la API comparten origen y la cookie de sesión (SameSite=Strict)
-  sigue valiendo.
+- **Vercel sirve la interfaz.** `vercel.json` en la raíz fija el preset Vite,
+  la instalación y la construcción dentro de `frontend/` y la salida
+  `frontend/dist`, por encima del preset FastAPI del proyecto. Cuando exista
+  el backend público, se añade una regla `rewrites` que mande `/api/(.*)` a
+  su URL: así la interfaz y la API comparten origen y la cookie de sesión
+  (SameSite=Strict) sigue valiendo. Hasta entonces la interfaz desplegada
+  muestra la puerta con «No se puede conectar con Rosa», que es la verdad.
 - **Rosa corre en una máquina persistente**: una VPS o un servicio de
   procesos largos (Fly.io, Railway, Render), o el equipo del servidor
   expuesto con un túnel HTTPS (Cloudflare Tunnel, Tailscale). Con HTTPS
