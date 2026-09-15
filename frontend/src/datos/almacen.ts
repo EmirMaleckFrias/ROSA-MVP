@@ -18,23 +18,7 @@ import { descargar } from '../componentes/piezas';
 import type { CostesInvestigacion } from '../componentes/Rosa2018';
 import { estadoDeMuestra } from './muestra';
 import { iniciarSimulacion } from './simulacion';
-import type {
-  AlcancePermiso,
-  AnclaComentario,
-  Avisos,
-  ClaseAccion,
-  ClasificacionDatos,
-  Dataset,
-  EstadoRosa,
-  Investigacion,
-  MetodoRegistrado,
-  NivelAutonomia,
-  PasoPlan,
-  PoliticaEsperas,
-  PreguntaCampana,
-  ProcedenciaDataset,
-  RevisionHumana,
-  TipoArtefacto, CampoEnmendable, EstadoArea, NivelPermisoConector, EstadoEspejo, ConocimientoOperativo } from './tipos';
+import type { AlcancePermiso, AnclaComentario, Avisos, CampoEnmendable, ClaseAccion, ClasificacionDatos, ConocimientoOperativo, Dataset, EstadoArea, EstadoEspejo, EstadoRosa, Investigacion, MetodoRegistrado, NivelAutonomia, NivelPermisoConector, ParadaCorrida, PasoPlan, PoliticaEsperas, PreguntaCampana, ProcedenciaDataset, RevisionHumana, TipoArtefacto } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -418,9 +402,11 @@ export const acciones = {
     aplicar((e) => A.detenerCorrida(e, id, motivo, Date.now(), vigilarDias));
     enviar('detenerCorrida', { corrida_id: id, motivo, vigilar_literatura_dias: vigilarDias });
   },
-  /** Arranca una corrida nueva (solo con servidor: el bucle propone el plan). */
-  iniciarCorrida: (investigacionId: string) => {
-    enviar('iniciarCorrida', { investigacion_id: investigacionId });
+  /** Arranca una corrida nueva (solo con servidor: el bucle propone el plan).
+   *  `parada`: horas, iteraciones, llamadas o texto que la detienen, lo que
+   *  llegue primero, además de la condición de la investigación. */
+  iniciarCorrida: (investigacionId: string, parada: ParadaCorrida | null = null) => {
+    enviar('iniciarCorrida', parada ? { investigacion_id: investigacionId, parada } : { investigacion_id: investigacionId });
   },
   ampliarPresupuesto: (id: string, limite: number) => {
     aplicar((e) => A.ampliarPresupuesto(e, id, limite, Date.now()));

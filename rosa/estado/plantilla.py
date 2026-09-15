@@ -133,7 +133,7 @@ def _politicas() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | None = None) -> dict[str, Any]:
+def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | None = None, parada: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "id": nuevo_id("cor"),
         "investigacionId": investigacion_id,
@@ -154,6 +154,9 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         "autoAprobarPlanSegundos": None,
         "arnes": _arnes(),
         "pregunta": None,
+        # Parada propia de la corrida (horas, iteraciones, llamadas, texto); lo que
+        # llegue primero. None: solo vale la condición de la investigación.
+        "parada": parada,
     }
 
 

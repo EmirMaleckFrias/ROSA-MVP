@@ -65,3 +65,76 @@ def texto_automatizacion(partes: dict[str, Any]) -> str:
     if partes.get("resto"):
         frase += f'. El resto ("{partes["resto"][:80]}") lo decides tu con el botón de detener'
     return frase + "."
+
+
+# ---------------------------------------------------------------------------
+# Parada por corrida (15 de septiembre de 2026): al crear una corrida nueva la
+# persona puede fijar cuánto debe durar como mucho (horas), cuántas
+# iteraciones, cuántas llamadas, o una condición en texto. Se detiene con lo
+# que llegue primero, y la condición de parada de la investigación sigue
+# valiendo además. Todo opcional: sin nada, la corrida se comporta como antes.
+# ---------------------------------------------------------------------------
+
+LIMITES_PARADA = {"horas": (0.05, 24 * 14), "iteraciones": (1, 200), "llamadas": (10, 100_000)}
+
+
+def normalizar_parada(d: Any) -> dict[str, Any] | None:
+    """La parada tal como la guarda la corrida: números acotados o None, texto
+    recortado. None si no hay ninguna condición."""
+    if not isinstance(d, dict):
+        return None
+    salida: dict[str, Any] = {"horas": None, "iteraciones": None, "llamadas": None, "texto": ""}
+    for clave, (minimo, maximo) in LIMITES_PARADA.items():
+        v = d.get(clave)
+        if v in (None, "", False):
+            continue
+        try:
+            n = float(str(v).replace(",", "."))
+        except ValueError:
+            continue
+        if n <= 0:
+            continue
+        n = max(minimo, min(maximo, n))
+        salida[clave] = round(n, 2) if clave == "horas" else int(n)
+    texto = d.get("texto")
+    if isinstance(texto, str) and texto.strip():
+        salida["texto"] = texto.strip()[:300]
+    if salida["horas"] is None and salida["iteraciones"] is None and salida["llamadas"] is None and not salida["texto"]:
+        return None
+    return salida
+
+
+def _horas_texto(h: float) -> str:
+    if h < 1:
+        m = int(round(h * 60))
+        return f"{m} minutos" if m != 1 else "1 minuto"
+    return f"{h:g} {'hora' if h == 1 else 'horas'}"
+
+
+def resumen_parada(p: dict[str, Any] | None) -> str:
+    """Una línea para la persona y para el plan: '2 horas o 6 iteraciones, lo
+    que llegue primero'."""
+    if not p:
+        return ""
+    partes = []
+    if p.get("horas"):
+        partes.append(_horas_texto(float(p["horas"])))
+    if p.get("iteraciones"):
+        partes.append(f"{p['iteraciones']} {'iteración' if p['iteraciones'] == 1 else 'iteraciones'}")
+    if p.get("llamadas"):
+        partes.append(f"{p['llamadas']} llamadas al modelo")
+    if p.get("texto"):
+        partes.append(f"«{p['texto']}»")
+    if not partes:
+        return ""
+    return partes[0] if len(partes) == 1 else ", ".join(partes[:-1]) + " o " + partes[-1] + ", lo que llegue primero"
+
+
+def texto_condicion(inv: dict[str, Any], c: dict[str, Any] | None) -> str:
+    """La condición completa que ve el planificador: la de esta corrida (si la
+    hay) y la de la investigación, que siempre vale."""
+    propia = resumen_parada((c or {}).get("parada"))
+    base = (inv.get("condicionParada") or "").strip() or "Sin condición de parada declarada"
+    if not propia:
+        return base
+    return f"Esta corrida: como mucho {propia}. Además sigue valiendo la condición de la investigación: {base}"

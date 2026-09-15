@@ -4218,3 +4218,21 @@ details.versiones > :not(summary) {
 .conclusion-escalera li {
   margin: 4px 0;
 }
+
+/* Nueva corrida: la parada propia (horas, iteraciones, llamadas, texto). */
+.nueva-corrida {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(100%, 560px);
+}
+
+.nueva-corrida-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.nueva-corrida-texto {
+  grid-column: 1 / -1;
+}

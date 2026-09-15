@@ -1,6 +1,7 @@
 // Que parte de una condicion de parada mide Rosa sola. Espejo de rosa/parada.py:
 // misma regla en los dos lados, para que la interfaz lo muestre al escribirla.
 
+import type { ParadaCorrida } from '../datos/tipos';
 import type { CondicionAutomatizada } from '../datos/tipos';
 
 export function partesAutomatizadas(texto: string): CondicionAutomatizada {
@@ -41,4 +42,65 @@ export function textoAutomatizacion(p: CondicionAutomatizada): string {
   let frase = `Rosa para sola al llegar a ${medibles.join(' o ')} (y al agotar el presupuesto de la mision)`;
   if (p.resto) frase += `. El resto ("${p.resto.slice(0, 80)}") lo decides tu con el boton de detener`;
   return `${frase}.`;
+}
+
+
+// ---------------------------------------------------------------------------
+// La parada propia de una corrida (15 de septiembre de 2026): lo que la
+// persona fija al crearla (horas, iteraciones, llamadas, texto) y que la
+// detiene con lo que llegue primero, además de la condición de parada de la
+// investigación. Espejo de rosa/parada.py (normalizar_parada, resumen_parada).
+// ---------------------------------------------------------------------------
+
+const LIMITES_PARADA: Record<'horas' | 'iteraciones' | 'llamadas', [number, number]> = { horas: [0.05, 24 * 14], iteraciones: [1, 200], llamadas: [10, 100_000] };
+
+export interface ParadaBorrador {
+  horas: string;
+  iteraciones: string;
+  llamadas: string;
+  texto: string;
+}
+
+export const BORRADOR_VACIO: ParadaBorrador = { horas: '', iteraciones: '', llamadas: '', texto: '' };
+
+function numeroParada(v: string, clave: 'horas' | 'iteraciones' | 'llamadas'): number | null {
+  const n = Number(v.replace(',', '.'));
+  if (!v.trim() || !Number.isFinite(n) || n <= 0) return null;
+  const [minimo, maximo] = LIMITES_PARADA[clave];
+  const acotado = Math.max(minimo, Math.min(maximo, n));
+  return clave === 'horas' ? Math.round(acotado * 100) / 100 : Math.floor(acotado);
+}
+
+/** Del formulario a la parada que viaja al servidor; null si no se fijó nada. */
+export function normalizarParada(b: ParadaBorrador): ParadaCorrida | null {
+  const p: ParadaCorrida = { horas: numeroParada(b.horas, 'horas'), iteraciones: numeroParada(b.iteraciones, 'iteraciones'), llamadas: numeroParada(b.llamadas, 'llamadas'), texto: b.texto.trim().slice(0, 300) };
+  if (p.horas === null && p.iteraciones === null && p.llamadas === null && !p.texto) return null;
+  return p;
+}
+
+export function borradorDe(p: ParadaCorrida | null | undefined): ParadaBorrador {
+  if (!p) return { ...BORRADOR_VACIO };
+  return { horas: p.horas === null ? '' : String(p.horas), iteraciones: p.iteraciones === null ? '' : String(p.iteraciones), llamadas: p.llamadas === null ? '' : String(p.llamadas), texto: p.texto ?? '' };
+}
+
+function horasTexto(h: number): string {
+  if (h < 1) {
+    const m = Math.round(h * 60);
+    return m === 1 ? '1 minuto' : `${m} minutos`;
+  }
+  return `${h} ${h === 1 ? 'hora' : 'horas'}`;
+}
+
+/** "2 horas o 6 iteraciones, lo que llegue primero". Vacío sin parada. */
+export function resumenParada(p: ParadaCorrida | null | undefined): string {
+  if (!p) return '';
+  const partes: string[] = [];
+  if (p.horas) partes.push(horasTexto(p.horas));
+  if (p.iteraciones) partes.push(`${p.iteraciones} ${p.iteraciones === 1 ? 'iteración' : 'iteraciones'}`);
+  if (p.llamadas) partes.push(`${p.llamadas} llamadas al modelo`);
+  if (p.texto) partes.push(`«${p.texto}»`);
+  if (partes.length === 0) return '';
+  if (partes.length === 1) return partes[0] ?? '';
+  const ultima = partes[partes.length - 1] ?? '';
+  return `${partes.slice(0, -1).join(', ')} o ${ultima}, lo que llegue primero`;
 }

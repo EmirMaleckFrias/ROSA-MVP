@@ -22,6 +22,7 @@ import { IconPause, IconPlay } from '../componentes/icons';
 import { ALCANCE, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
+import { BORRADOR_VACIO, borradorDe, normalizarParada, resumenParada, type ParadaBorrador } from '../lib/parada';
 
 type PropsCorrida = { inv: Investigacion; estado: EstadoRosa; ahora: number; irA: (hash: string) => void };
 
@@ -53,6 +54,67 @@ export function Corrida({ inv, estado, ahora, irA }: PropsCorrida) {
     );
   }
   return <CorridaViva key={corrida.id} inv={inv} estado={estado} ahora={ahora} irA={irA} corrida={corrida} />;
+}
+
+/** El botón "Nueva corrida" con su parada: cuánto debe durar como mucho, en
+ *  horas, iteraciones o llamadas, o una condición en texto. Se detiene con lo
+ *  que llegue primero; la condición de la investigación sigue valiendo. Los
+ *  campos vienen rellenos con la parada de la corrida anterior. */
+function NuevaCorrida({ inv, anterior }: { inv: Investigacion; anterior: CorridaTipo['parada'] }) {
+  const [abierto, setAbierto] = useState(false);
+  const [b, setB] = useState<ParadaBorrador>(() => borradorDe(anterior));
+  const parada = normalizarParada(b);
+  const campo = (clave: keyof ParadaBorrador) => (e: React.ChangeEvent<HTMLInputElement>) => setB((x) => ({ ...x, [clave]: e.target.value }));
+  if (!abierto) {
+    return (
+      <div className="acciones">
+        <button type="button" className="btn btn-primario" onClick={() => setAbierto(true)} title="Elige cuánto debe durar la corrida y Rosa propone el plan de la iteración 1 sobre el modelo de mundo actual">
+          <IconPlay size={13} /> Nueva corrida
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="tarjeta nueva-corrida"
+      onSubmit={(e) => {
+        e.preventDefault();
+        acciones.iniciarCorrida(inv.id, parada);
+        setAbierto(false);
+      }}
+    >
+      <p className="meta">
+        Cuánto debe durar esta corrida como mucho. Se detiene con lo que llegue primero. Deja todo vacío para que solo mande la condición de la investigación: «{inv.condicionParada || 'sin condición declarada'}».
+      </p>
+      <div className="nueva-corrida-campos">
+        <label className="campo">
+          <span className="campo-etiqueta">Horas</span>
+          <input type="number" inputMode="decimal" min={0.05} step={0.25} placeholder="por ejemplo 2" value={b.horas} onChange={campo('horas')} />
+        </label>
+        <label className="campo">
+          <span className="campo-etiqueta">Iteraciones</span>
+          <input type="number" inputMode="numeric" min={1} step={1} placeholder="por ejemplo 6" value={b.iteraciones} onChange={campo('iteraciones')} />
+        </label>
+        <label className="campo">
+          <span className="campo-etiqueta">Llamadas al modelo</span>
+          <input type="number" inputMode="numeric" min={10} step={10} placeholder="por ejemplo 800" value={b.llamadas} onChange={campo('llamadas')} />
+        </label>
+        <label className="campo nueva-corrida-texto">
+          <span className="campo-etiqueta">Otra condición, en palabras</span>
+          <input type="text" maxLength={300} placeholder="por ejemplo: hasta que una hipótesis llegue a certeza baja" value={b.texto} onChange={campo('texto')} />
+          <small>Rosa automatiza lo que puede medir (tiempo, iteraciones, llamadas); lo demás lo decides tú con el botón de detener.</small>
+        </label>
+      </div>
+      <div className="acciones">
+        <button type="submit" className="btn btn-primario">
+          <IconPlay size={13} /> {parada ? `Empezar: se detiene con ${resumenParada(parada)}` : 'Empezar sin parada propia'}
+        </button>
+        <button type="button" className="btn" onClick={() => { setAbierto(false); setB(borradorDe(anterior) ?? BORRADOR_VACIO); }}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corrida: CorridaTipo }) {
@@ -104,6 +166,11 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
               </span>
             )}
             {corrida.motivoCierre && <span className="meta">{corrida.motivoCierre}</span>}
+            {corrida.parada && resumenParada(corrida.parada) && (
+              <span className="meta" title="Parada fijada al crear esta corrida; además sigue valiendo la condición de parada de la investigación">
+                Se detiene con {resumenParada(corrida.parada)}
+              </span>
+            )}
             {corrida.arnes && (
               <span className="meta" title={`Firmas ${corrida.arnes.firmas} · programas optimizados: ${corrida.arnes.optimizados}`}>
                 Rosa {corrida.arnes.commit}
@@ -111,13 +178,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             )}
           </div>
         </div>
-        {!viva && estado.conexion !== 'muestra' && (
-          <div className="acciones">
-            <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)} title="Rosa propone el plan de la iteración 1 sobre el modelo de mundo actual">
-              <IconPlay size={13} /> Nueva corrida
-            </button>
-          </div>
-        )}
+        {!viva && estado.conexion !== 'muestra' && <NuevaCorrida inv={inv} anterior={corrida.parada ?? null} />}
         {viva && (
           <div className="acciones">
             {corrida.estado === 'en_marcha' ? (

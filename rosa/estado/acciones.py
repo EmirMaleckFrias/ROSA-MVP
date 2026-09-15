@@ -1543,19 +1543,29 @@ def borrar_plan_guardado(e: Estado, id_: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | None = None) -> str | bool:
-    """Arranca una corrida nueva si la investigacion no tiene ninguna viva.
-    El bucle la ve en `esperando_plan` sin iteraciones y propone el plan."""
+def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | None = None, parada: dict | None = None) -> str | bool:
+    """Arranca una corrida nueva si la investigación no tiene ninguna viva.
+    El bucle la ve en `esperando_plan` sin iteraciones y propone el plan.
+    `parada` (opcional): horas, iteraciones, llamadas o texto que detienen
+    esta corrida, lo que llegue primero, además de la condición de la
+    investigación. Si fija llamadas y no hay tope de presupuesto, el tope es
+    ese mismo número, para que las dos cifras cuenten lo mismo."""
+    from rosa import parada as PARADA
+
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv:
         return False
     ultima = ultima_corrida_de(e, investigacion_id)
     if ultima and ultima["estado"] not in ("detenida", "terminada"):
         return False
-    c = P.nueva_corrida(investigacion_id, (ultima["numero"] + 1) if ultima else 1, ahora, limite)
+    parada_n = PARADA.normalizar_parada(parada)
+    if limite is None and parada_n and parada_n.get("llamadas"):
+        limite = int(parada_n["llamadas"])
+    c = P.nueva_corrida(investigacion_id, (ultima["numero"] + 1) if ultima else 1, ahora, limite, parada_n)
     e["corridas"].append(c)
     if inv.get("estado") == "cerrada":
         con_evento(e, investigacion_id, "corrida_estado", "Investigación reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     inv["estado"] = "activa"
-    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteración 1", f"#/investigaciones/{investigacion_id}/corrida", ahora)
+    resumen = PARADA.resumen_parada(parada_n)
+    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteración 1" + (f". Se detiene con {resumen}" if resumen else ""), f"#/investigaciones/{investigacion_id}/corrida", ahora)
     return c["id"]

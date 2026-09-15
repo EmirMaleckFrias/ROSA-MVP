@@ -28,7 +28,7 @@ import traceback
 from typing import Any
 
 from rosa import sesgo as SESGO
-from rosa import certeza as CERTEZA, config, politicas, priorizacion as PR, torneo
+from rosa import certeza as CERTEZA, config, parada as PARADA, politicas, priorizacion as PR, torneo
 from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
 from rosa.bucle import evidencia as EV
@@ -1036,7 +1036,7 @@ class Supervisor:
                 objetivo=inv["objetivo"] + (f"\nPregunta de esta campana: {pregunta}" if pregunta else ""),
                 relevancia=inv["relevancia"],
                 limites="; ".join(inv["limites"]) or "Ninguno declarado",
-                condicion_parada=inv["condicionParada"],
+                condicion_parada=PARADA.texto_condicion(inv, c),
                 modelo_de_mundo=mundo,
                 resumen_iteracion_anterior=anterior["resumen"] if anterior else "",
                 indicaciones_humanas=T.indicaciones_humanas(anterior, pendientes_solo=True) if anterior else "Ninguna.",
@@ -1409,9 +1409,28 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
     "N iteraciones", "N minutos" u "N horas" de corrida, y "N llamadas".
     Lo demás ("cuando el modelo de mundo deje de cambiar") lo decide la
     investigadora con el botón de detener. Devuelve el motivo o None.
-    Además, el presupuesto de la misión en dinero y en horas para la corrida."""
-    t = texto.lower()
+    Además, el presupuesto de la misión en dinero y en horas para la corrida,
+    y la parada propia de la corrida (`c["parada"]`: horas, iteraciones,
+    llamadas o texto fijados al crearla), lo que llegue primero."""
     ahora = ahora if ahora is not None else P.ahora_ms()
+    propia = c.get("parada") or {}
+    if propia:
+        horas_propias = propia.get("horas")
+        if horas_propias and (ahora - c["empezadaEn"]) / 3_600_000 >= float(horas_propias):
+            return f"Se cumplió el tiempo fijado para esta corrida ({PARADA.resumen_parada({'horas': horas_propias})})"
+        if propia.get("iteraciones") and numero >= int(propia["iteraciones"]):
+            return f"Se alcanzaron las {int(propia['iteraciones'])} iteraciones fijadas para esta corrida"
+        if propia.get("llamadas") and c["gasto"].get("llamadas", 0) >= int(propia["llamadas"]):
+            return f"Se alcanzaron las {int(propia['llamadas'])} llamadas fijadas para esta corrida"
+        if propia.get("texto"):
+            motivo_texto = _parada_por_texto(str(propia["texto"]), numero, c, ahora)
+            if motivo_texto:
+                return motivo_texto + " (fijada para esta corrida)"
+    return _parada_por_texto(texto, numero, c, ahora, mision)
+
+
+def _parada_por_texto(texto: str, numero: int, c: dict[str, Any], ahora: int, mision: dict[str, Any] | None = None) -> str | None:
+    t = texto.lower()
     if mision and mision.get("presupuesto"):
         pres = mision["presupuesto"]
         usd = c["gasto"].get("usd", 0.0)

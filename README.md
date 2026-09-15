@@ -312,6 +312,21 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Parada propia de cada corrida (15 de septiembre de 2026, noche)
+
+Al pulsar "Nueva corrida" se elige cuánto debe durar como mucho: horas,
+iteraciones, llamadas al modelo, o una condición en palabras. La corrida se
+detiene con lo que llegue primero, y la condición de parada de la
+investigación sigue valiendo además. Los campos vienen rellenos con la
+parada de la corrida anterior; vacíos, la corrida se comporta como antes.
+Lo que se fija queda en `corrida.parada` (`rosa/parada.py`:
+`normalizar_parada`, `resumen_parada`, `texto_condicion`), lo comprueba el
+bucle en cada paso y al cerrar cada iteración (`_condicion_de_parada`), lo ve
+el planificador como parte de la condición, y la cabecera de la corrida lo
+enseña ("Se detiene con 2 horas o 6 iteraciones, lo que llegue primero"). Si
+se fijan llamadas y no hay tope de presupuesto, el tope pasa a ser ese mismo
+número. Pruebas: `rosa/tests/test_parada_corrida.py`, `frontend/src/lib/parada.test.ts`.
+
 ## Vivero de ideas: una hipótesis nace cuando su evidencia da para certeza baja (15 de septiembre de 2026, noche)
 
 Regla de Emir: el valor de una corrida es cuánto suben las hipótesis que ya

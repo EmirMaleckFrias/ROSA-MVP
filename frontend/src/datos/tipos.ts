@@ -455,6 +455,18 @@ export interface Corrida {
   /** La pregunta concreta de esta campana, formulada por Rosa desde la meta
    *  y aprobada con el primer plan. Falta en corridas anteriores. */
   pregunta?: PreguntaCampana | null;
+  /** Parada propia de esta corrida, fijada al crearla: horas, iteraciones,
+   *  llamadas o texto; se detiene con lo que llegue primero, además de la
+   *  condición de parada de la investigación. Null o ausente: solo la de la
+   *  investigación. */
+  parada?: ParadaCorrida | null;
+}
+
+export interface ParadaCorrida {
+  horas: number | null;
+  iteraciones: number | null;
+  llamadas: number | null;
+  texto: string;
 }
 
 export type EstadoPaso = 'pendiente' | 'en_curso' | 'hecho' | 'fallido' | 'omitido';
