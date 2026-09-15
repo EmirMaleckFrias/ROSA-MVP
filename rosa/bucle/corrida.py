@@ -393,6 +393,7 @@ class Supervisor:
                 resumen_tecnico=resumen,
                 hechos_nuevos="\n".join(f"- {h['enunciado']}" for h in hechos) or "Ninguno",
                 hipotesis_nuevas="\n".join(f"- {h['titulo']}: {h['enunciado']} Para que sirve: {h['relevancia']['justificacion']}" for h in hipotesis) or "Ninguna",
+                estado_hipotesis="\n".join(f"- {h['titulo']}: decisión del Killer «{h.get('decisionKiller') or 'sin decisión todavía'}», estado «{h.get('estado')}»" for h in hipotesis) or "Ninguna",
                 sin_comprobar="\n".join(f"- {x.get('texto') or x.get('titulo')}" for x in sin_comprobar) or "Nada",
                 conclusiones="\n".join(conclusiones) or "Ninguna hipótesis todavía",
                 busqueda=busqueda,
@@ -1152,7 +1153,8 @@ class Supervisor:
         texto = resumen + ("\n\n" + " ".join(str(v) for v in (llano or {}).values() if isinstance(v, str)) if llano else "")
         corpus = RR.corpus_del_registro(e, inv["id"], it, c)
         runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("investigacionId") == inv["id"])
-        regla = RR.comprobaciones_deterministas(texto, corpus, it, runs_ok)
+        de_la_iteracion = [h for h in e.get("hipotesis", []) if h.get("investigacionId") == inv["id"] and h.get("iteracion") == it.get("numero")]
+        regla = RR.comprobaciones_deterministas(texto, corpus, it, runs_ok, hipotesis=de_la_iteracion)
         hallazgos = list(regla)
         juez = None
         try:

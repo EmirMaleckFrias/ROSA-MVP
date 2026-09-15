@@ -158,7 +158,10 @@ class GenerarConsultas(dspy.Signature):
     menos una consulta va a exa escrita como pregunta en lenguaje natural (recupera por
     significado el trabajo que no comparte vocabulario con la hipótesis), y gris se usa
     cuando la pregunta toca regulación, ensayos registrados o guías (FDA, EMA, OMS,
-    Alzforum); si no las incluye, no se usan exa ni gris."""
+    Alzforum); si no las incluye, no se usan exa ni gris. Los nombres propios (fármacos,
+    ensayos, cohortes: lecanemab, INVOKE-2, evoke) se buscan por nombre exacto, entre
+    comillas, en PubMed o Europe PMC, una consulta por nombre, además de las conceptuales:
+    la búsqueda por significado los pierde."""
 
     objetivo: str = dspy.InputField()
     preguntas_abiertas: str = dspy.InputField()
@@ -166,6 +169,7 @@ class GenerarConsultas(dspy.Signature):
     consultas_previas: str = dspy.InputField(desc="Cadenas ya enviadas en esta corrida, para no repetirlas")
     indicaciones_humanas: str = dspy.InputField()
     bases_disponibles: str = dspy.InputField(desc="Bases que Rosa puede consultar ahora, separadas por comas")
+    nombres_propios: str = dspy.InputField(desc="Fármacos, ensayos y cohortes nombrados en el objetivo y las preguntas; cada uno necesita una consulta por nombre exacto")
     consultas: list[Consulta] = dspy.OutputField()
 
 
@@ -357,12 +361,15 @@ class ExplicarEnLlano(dspy.Signature):
     verbos siguen la certeza: alta "indica", moderada "probablemente", baja "puede que",
     muy baja "no está claro si". Ausencia de evidencia no es evidencia de ausencia; una
     fuente que no respondió se dice como "no pudimos comprobar". Cada término técnico se
-    explica en el glosario en una frase. No se añade nada que no este en el material."""
+    explica en el glosario en una frase. No se añade nada que no este en el material.
+    Cada hipótesis se nombra con su estado real: si el Killer la descartó o la suspendió,
+    se dice descartada o suspendida y por qué, nunca "pendiente de validación"."""
 
     objetivo: str = dspy.InputField()
     resumen_tecnico: str = dspy.InputField(desc="El resumen de la iteración tal como lo escribio Rosa")
     hechos_nuevos: str = dspy.InputField()
     hipotesis_nuevas: str = dspy.InputField(desc="Título, enunciado y para que sirve, de cada una")
+    estado_hipotesis: str = dspy.InputField(desc="Decisión del Killer y estado de cada hipótesis nueva; el resumen las presenta con ese estado")
     sin_comprobar: str = dspy.InputField()
     conclusiones: str = dspy.InputField(desc="Certeza y dirección de cada hipótesis de la investigación, y su cambio respecto a la iteración anterior")
     busqueda: str = dspy.InputField(desc="Fuentes consultadas con resultados, afirmaciones verificadas por veredicto, fuentes que no respondieron")

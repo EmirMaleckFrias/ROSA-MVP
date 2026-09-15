@@ -378,6 +378,22 @@ def trocear_texto(texto: str, tamano: int = 2500, minimo: int = 200) -> list[str
 NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)", "gris": "Exa (literatura gris: reguladores, registros, portales del campo)"}
 
 
+def consultas_por_nombre(nombres: list[str], consultas: list[dict[str, Any]], previas: list[str], maximo: int = 4) -> list[dict[str, Any]]:
+    """Red de seguridad determinista: cada nombre propio del objetivo que
+    ninguna consulta del plan (ni ninguna hecha antes) nombra, va como consulta
+    por nombre exacto a Europe PMC. Así una corrida no termina sin haber
+    buscado los ensayos que la persona escribió en el objetivo."""
+    hechas = [q.get("consulta", "").lower() for q in consultas] + [p_.lower() for p_ in previas]
+    salida = []
+    for n in nombres:
+        if any(n.lower() in h for h in hechas):
+            continue
+        salida.append({"base": "europepmc", "consulta": f'"{n}"', "tema": f"Por nombre exacto: {n}", "_por_nombre": True})
+        if len(salida) >= maximo:
+            break
+    return salida
+
+
 def bases_disponibles() -> list[str]:
     """Las bases que el planificador puede elegir ahora. Exa y la literatura
     gris (que va por Exa) solo con clave."""
@@ -589,8 +605,10 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     e = ctx.e
     preguntas = T.preguntas_abiertas(e["hechos"], ctx.investigacion_id, inv["objetivo"])
     previas = ctx.corrida().get("_consultasHechas", [])
-    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()))
+    nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
+    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
     consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][:5]
+    consultas += consultas_por_nombre(nombres, consultas, previas)
     if not consultas:
         return "El modelo no propuso consultas"
     crudos = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)

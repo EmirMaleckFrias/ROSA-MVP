@@ -170,6 +170,44 @@ def terminos_clave(texto: str, maximo: int = 6) -> list[str]:
     return vistos
 
 
+_SUFIJOS_FARMACO = ("mab", "tide", "nib", "stat", "ast", "vir", "pril", "sartan", "gliptin", "mide")
+_GENERICAS = {"alzheimer", "covid", "gwas", "pet", "mri", "csf", "adni", "apoe", "gfap", "nfl", "mci", "dcl", "cdr", "cdr-sb", "mmse", "sd", "ic", "hr", "or", "rr", "iqr", "usd", "fda", "ema", "oms", "who", "nia", "nih", "doi", "pmid", "rosa", "grade", "prisma", "pubmed"}
+
+
+def nombres_propios(texto: str) -> list[str]:
+    """Fármacos, ensayos y cohortes nombrados en un texto: lo que hay que
+    buscar por nombre exacto porque la búsqueda por significado lo pierde.
+    Reglas sin modelo: siglas con cifra o guion (INVOKE-2, AL002,
+    TRAILBLAZER-ALZ 2), palabras en mayúsculas de cuatro letras o más que no
+    son términos generales, fármacos por sufijo (-mab, -tide, -nib) y nombres
+    de ensayo en minúscula pegados a "+" o "/" (evoke/evoke+)."""
+    vistos: list[str] = []
+
+    def anadir(x: str) -> None:
+        x = x.strip(" ,.;:()")
+        # Ni genéricas, ni repetidas, ni una sigla que es trozo de un nombre ya
+        # recogido (INVOKE dentro de INVOKE-2); "evoke" y "evoke+" son dos ensayos.
+        if len(x) < 3 or x.lower() in _GENERICAS or x.lower() in {v.lower() for v in vistos}:
+            return
+        if x.isupper() and any(x.lower() in v.lower() for v in vistos):
+            return
+        vistos.append(x)
+
+    for m in re.finditer(r"[A-Z]{2,}[A-Z0-9\-]*\d[A-Z0-9\-]*(?:\s\d)?|[A-Z]{2,}-[A-Z]+(?:\s\d)?", texto or ""):
+        anadir(m.group(0))
+    for m in re.finditer(r"\b[A-Z]{4,}\b", texto or ""):
+        anadir(m.group(0))
+    for m in re.finditer(r"\b([a-z]{4,}\+)", texto or ""):
+        anadir(m.group(1))
+    for m in re.finditer(r"\b([a-z]{8,})\b", texto or ""):
+        if any(m.group(1).endswith(s) for s in _SUFIJOS_FARMACO):
+            anadir(m.group(1))
+    for m in re.finditer(r"\b([a-z]{4,})/([a-z]{4,}\+?)", texto or ""):
+        anadir(m.group(1))
+        anadir(m.group(2))
+    return vistos[:12]
+
+
 def hipotesis_vivas(hipotesis: list[dict[str, Any]], investigacion_id: str, maximo: int = 8) -> str:
     """Las hipótesis en competencia con su estado de creencia, para que el
     plan y las consultas elijan lo que las discrimina: que evidencia subiría

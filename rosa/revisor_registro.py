@@ -119,12 +119,90 @@ def corpus_del_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | Non
     for t in textos:
         numeros |= _numeros(t)
         ids.update(_DOI.findall(t)); ids.update(_NCT.findall(t)); ids.update(_GSE.findall(t))
-    return {"numeros": numeros, "ids": {str(i).lower().rstrip(".") for i in ids}, "textos": textos}
+    return {"numeros": numeros, "ids": {str(i).lower().rstrip(".") for i in ids}, "textos": textos, "recuentos": recuentos_del_registro(e, inv_id, it, corrida)}
 
 
-def comprobaciones_deterministas(texto: str, corpus: dict[str, Any], it: dict[str, Any] | None, ejecuciones_ok: int) -> list[dict[str, Any]]:
+_RECUENTO = re.compile(r"(\d{1,5})(?:\s+de\s+(\d{1,5}))?\s+(hechos?|afirmaci(?:ó|o)n(?:es)?|fuentes?|art(?:í|i)culos?|publicaciones?|b(?:ú|u)squedas?|consultas?|hip(?:ó|o)tesis|ejecuci(?:ó|o)n(?:es)?|pasos?|pistas?)\b", re.IGNORECASE)
+_CLAVE_RECUENTO = {"hecho": "hechos", "afirmaci": "afirmaciones", "fuente": "fuentes", "art": "fuentes", "publicaci": "fuentes", "b": "consultas", "consulta": "consultas", "hip": "hipotesis", "ejecuci": "ejecuciones", "paso": "pasos", "pista": "pistas"}
+_KILLER_CERRADA = {"descartar", "descartar_en_contexto", "suspender"}
+
+
+def _clave_recuento(sustantivo: str) -> str:
+    s_ = sustantivo.lower()
+    for prefijo, clave in _CLAVE_RECUENTO.items():
+        if s_.startswith(prefijo):
+            return clave
+    return s_
+
+
+def recuentos_del_texto(texto: str) -> list[tuple[int, str, str]]:
+    """Los "N cosas" del texto: (n, clave, tal como aparece). "40 de 59 hechos"
+    da los dos números con la misma clave."""
+    salida = []
+    for m in _RECUENTO.finditer(texto or ""):
+        clave = _clave_recuento(m.group(3))
+        salida.append((int(m.group(1)), clave, m.group(0)))
+        if m.group(2):
+            salida.append((int(m.group(2)), clave, m.group(0)))
+    return salida
+
+
+def recuentos_del_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, corrida: dict[str, Any] | None) -> dict[str, set[int]]:
+    """Los recuentos que el registro admite para cada palabra: total de la
+    investigación, lo de esta iteración y los desgloses (por veredicto, por
+    base). Un resumen que dice "59 hechos" cuando el registro tiene 40 en
+    total y 11 nuevos se contradice con el registro, y eso se ve sin juez."""
+    c = corrida or {}
+    desde = int((it or {}).get("empezadaEn") or 0)
+    numero = (it or {}).get("numero")
+    hechos = [h for h in e.get("hechos", []) if h.get("investigacionId") == inv_id]
+    hips = [h for h in e.get("hipotesis", []) if h.get("investigacionId") == inv_id]
+    afs = list(c.get("_afirmaciones", []))
+    afs_it = [a for a in afs if a.get("iteracion") == numero]
+    consultas = list((c.get("busqueda") or {}).get("consultas") or [])
+    consultas_it = [q for q in consultas if q.get("iteracion") == numero]
+    por_base: dict[str, int] = {}
+    for q in consultas_it:
+        por_base[q.get("base", "")] = por_base.get(q.get("base", ""), 0) + 1
+    por_veredicto: dict[str, int] = {}
+    for a in afs_it:
+        por_veredicto[a.get("veredicto", "")] = por_veredicto.get(a.get("veredicto", ""), 0) + 1
+    fuentes = c.get("_fuentes") or {}
+    b = c.get("busqueda") or {}
+    ejecuciones = [r for r in e.get("ejecuciones", []) if r.get("investigacionId") == inv_id]
+    plan = (it or {}).get("plan", []) or []
+    pistas = (it or {}).get("pistas", []) or []
+    return {
+        "hechos": {len(hechos), sum(1 for h in hechos if int(h.get("actualizadoEn") or 0) >= desde and desde)},
+        "afirmaciones": {len(afs), len(afs_it), *por_veredicto.values()},
+        "fuentes": {len(fuentes), int(b.get("identificados") or 0), int(b.get("cribados") or 0), int(b.get("textoCompleto") or 0), int(b.get("traidos") or 0), sum(1 for f in fuentes.values() if f.get("relevancia", 0) and int(f.get("_iteracion") or 0) == numero) if numero else 0},
+        "consultas": {len(consultas), len(consultas_it), *por_base.values()},
+        "hipotesis": {len(hips), sum(1 for h in hips if h.get("iteracion") == numero)},
+        "ejecuciones": {len(ejecuciones), sum(1 for r in ejecuciones if r.get("estado") == "completado")},
+        "pasos": {len(plan), sum(1 for p_ in plan if p_.get("estado") == "hecho")},
+        "pistas": {len(pistas), sum(1 for p_ in pistas if p_.get("estado") == "hecha")},
+    }
+
+
+def comprobaciones_deterministas(texto: str, corpus: dict[str, Any], it: dict[str, Any] | None, ejecuciones_ok: int, hipotesis: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Los hallazgos que se pueden derivar sin modelo."""
     hallazgos: list[dict[str, Any]] = []
+    # Recuentos ("59 hechos", "2 búsquedas") frente a lo que el registro admite.
+    recuentos = corpus.get("recuentos") or {}
+    malos = []
+    for n, clave, tal_cual in recuentos_del_texto(texto):
+        admitidos = recuentos.get(clave)
+        if admitidos and n not in admitidos:
+            malos.append(f"«{tal_cual.strip()}» (el registro admite {', '.join(str(x) for x in sorted(admitidos))})")
+    if malos:
+        hallazgos.append({"clase": "contradiccion_con_registro", "gravedad": "media", "detalle": "Recuentos del texto que no cuadran con el registro: " + "; ".join(malos[:6]), "origen": "regla"})
+    # Una hipótesis que el Killer descartó o suspendió no puede aparecer como pendiente o viva.
+    t_bajo = (texto or "").lower()
+    for h in hipotesis or []:
+        decision = h.get("decisionKiller")
+        titulo = (h.get("titulo") or "").strip()
+        if decision in _KILLER_CERRADA and titulo and titulo[:40].lower() in t_bajo and not re.search(r"descart|suspend", t_bajo):
+            hallazgos.append({"clase": "contradiccion_con_registro", "gravedad": "alta", "detalle": f"El texto habla de «{titulo[:80]}» y el Killer la dejó en «{decision}»; el texto no lo dice", "origen": "regla"})
     sueltas = sorted(n for n in _numeros(texto) if n not in corpus["numeros"] and not any(abs(float(n) - float(x)) < 1e-9 for x in corpus["numeros"] if _es_num(x)))
     if sueltas:
         hallazgos.append({"clase": "contradiccion_con_registro", "gravedad": "media", "detalle": f"Cifras del texto que no aparecen en ninguna afirmación, ejecución, hecho ni pista del registro: {', '.join(sueltas[:8])}" + (" ..." if len(sueltas) > 8 else ""), "origen": "regla"})
