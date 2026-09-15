@@ -36,6 +36,9 @@ USER_AGENT = f"Rosa/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
 CLAVE_NCBI = os.environ.get("ROSA_NCBI_KEY", "")
 CLAVE_OPENALEX = os.environ.get("ROSA_OPENALEX_KEY", "")
 CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
+# Exa (exa.ai): búsqueda semántica de publicaciones. Sin clave, Rosa no la usa
+# y los conectores de Exa quedan en el catálogo como "requiere cuenta".
+CLAVE_EXA = os.environ.get("ROSA_EXA_KEY", "")
 # Token de acceso a la API. Obligatorio si el servidor escucha fuera de 127.0.0.1:
 # sin el, cualquier equipo de la red podria arrancar corridas y gastar en el gateway.
 ROSA_TOKEN = os.environ.get("ROSA_TOKEN", "")

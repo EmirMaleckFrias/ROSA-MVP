@@ -41,7 +41,7 @@ from rosa.bucle.pista import Pista
 from rosa.estado import acciones as A
 from rosa.estado import plantilla as P
 from rosa.estado.almacen import Almacen
-from rosa.fuentes import clinicaltrials, crossref, europepmc, openalex, opentargets, pdf, pubmed, unpaywall
+from rosa.fuentes import clinicaltrials, crossref, europepmc, exa, openalex, opentargets, pdf, pubmed, unpaywall
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
 from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, presupuesto_ok
@@ -322,18 +322,45 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
     return fragmentos
 
 
+NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)"}
+
+
+def bases_disponibles() -> list[str]:
+    """Las bases que el planificador puede elegir ahora. Exa solo con clave."""
+    bases = ["pubmed", "europepmc", "preprints"]
+    if exa.disponible():
+        bases.append("exa")
+    return bases
+
+
+def base_efectiva(consulta: dict[str, Any]) -> dict[str, Any]:
+    """Si el planificador eligió una base que no está disponible (exa sin clave),
+    la consulta va a Europe PMC, que admite lenguaje natural razonablemente,
+    con una nota. Nunca se pierde una consulta por falta de clave."""
+    if consulta.get("base") not in bases_disponibles():
+        return {**consulta, "base": "europepmc", "tema": consulta.get("tema", ""), "_desviada_de": consulta.get("base")}
+    return consulta
+
+
 async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[str, str], preguntas: str) -> dict[str, int]:
     base = consulta["base"]
-    nombre_base = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)"}[base]
+    nombre_base = NOMBRES_BASE[base]
     pista = ctx.pista(paso["id"], "literatura", consulta["tema"][:80] or consulta["consulta"][:80], nombre_base)
     resultado = {"identificados": 0, "cribados": 0, "textoCompleto": 0, "leidos": 0}
     try:
         pista.accion(f"Consulta: {consulta['consulta']}")
+        if consulta.get("_desviada_de"):
+            pista.nota(f"El plan la dirigía a {consulta['_desviada_de']}, que no está disponible (sin clave); va a {nombre_base}")
         ahora = P.ahora_ms()
         if base == "pubmed":
             ids, total = await pubmed.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA)
             pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta['consulta']}&retmax={MAX_FUENTES_POR_CONSULTA}", "resultados": f"{total} PMID, se traen {len(ids)}"})
             articulos = await pubmed.detalles(ids)
+        elif base == "exa":
+            # Búsqueda semántica: la consulta es una pregunta en lenguaje natural.
+            # Exa no da un total: identificados = traídos.
+            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA)
+            pista.accion("search (neural, publicaciones)", {"base": "Exa", "parametros": f"category=publication&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
         else:
             articulos, total = await europepmc.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA, solo_preprints=(base == "preprints"))
             pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={consulta['consulta']}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={MAX_FUENTES_POR_CONSULTA}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
@@ -437,8 +464,8 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     e = ctx.e
     preguntas = T.preguntas_abiertas(e["hechos"], ctx.investigacion_id, inv["objetivo"])
     previas = ctx.corrida().get("_consultasHechas", [])
-    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""))
-    consultas = [c.model_dump() for c in pred.consultas][:5]
+    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()))
+    consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][:5]
     if not consultas:
         return "El modelo no propuso consultas"
     crudos = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)
@@ -1529,9 +1556,21 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
             termino = " ".join(T.terminos_clave(h["titulo"], maximo=4))
             obras, total, coste = await openalex.buscar(termino, maximo=6)
             pista.accion(f"OpenAlex: {termino}", {"base": "OpenAlex", "parametros": f"filter=title_and_abstract.search:{termino}", "resultados": f"{total} obras, {coste} USD"})
+            candidatas = list(obras[:5])
+            if exa.disponible():
+                # Por significado, con el enunciado entero: la pregunta de novedad
+                # difícil es "¿alguien ya propuso esto con otras palabras?".
+                try:
+                    obras_exa, n_exa, coste_exa = await exa.buscar(h["enunciado"][:600], maximo=6)
+                    pista.accion("Exa: enunciado completo", {"base": "Exa", "parametros": "category=publication&numResults=6", "resultados": f"{n_exa} documentos, {coste_exa:.4f} USD"})
+                    vistos = {o.get("doi") for o in candidatas if o.get("doi")}
+                    candidatas.extend(o for o in obras_exa[:5] if not (o.get("doi") and o["doi"] in vistos))
+                    total += n_exa
+                except FuenteNoDisponible as ex:
+                    pista.nota(f"Exa no respondió: {str(ex)[:80]}; la novedad se comprueba solo con OpenAlex")
             mejor = 0
             mejor_ref = ""
-            for o in obras[:5]:
+            for o in candidatas:
                 if not o["titulo"]:
                     continue
                 try:

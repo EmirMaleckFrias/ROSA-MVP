@@ -253,6 +253,40 @@ largo ronda los 100 MB). Arrancar Docker Desktop antes de una demostracion con
 datos reales: sin runtime de aislamiento, los analisis quedan en "no ejecutado"
 con el motivo.
 
+## Exa: búsqueda semántica de publicaciones (15 de septiembre de 2026)
+
+Exa (exa.ai) recupera por significado, con embeddings, sobre un índice de
+unos 350 millones de publicaciones (`category="publication"`). Rosa lo usa
+como complemento de PubMed, Europe PMC y OpenAlex, no en su lugar:
+
+- **Búsqueda de literatura.** El planificador (`GenerarConsultas`) recibe las
+  bases disponibles y, si Exa está, escribe al menos una consulta en lenguaje
+  natural para ella; las demás siguen siendo booleanas. Los resultados pasan
+  por el mismo cribado, la misma fusión por DOI, PMID o título y el mismo
+  registro que los de las otras bases (`rosa/fuentes/exa.py` los devuelve con
+  la misma forma). Si el plan elige Exa y no hay clave, la consulta se desvía
+  a Europe PMC con una nota: nunca se pierde por falta de clave.
+- **Novedad del Killer.** Además de OpenAlex por términos clave, Exa busca el
+  enunciado entero de la hipótesis: es la herramienta para "¿alguien ya
+  propuso esto con otras palabras?". Los candidatos de las dos bases se
+  puntúan juntos con el mismo programa de relevancia.
+- **Conectores** `exa_publicaciones` y `exa_similares` (documentos parecidos
+  a una URL) en el catálogo, con registro de consulta e invariante (cuántos
+  resultados traen DOI resuelto). Sin clave quedan como "requiere cuenta"
+  con el motivo.
+
+Solo se usan los endpoints de recuperación (`search`, `contents`,
+`findSimilar`); nunca `answer`, `research` ni los tipos `deep`, que razonan
+con modelos de Exa fuera del AI Gateway. La clave va en `ROSA_EXA_KEY` en el
+`.env` del servidor (se crea en dashboard.exa.ai; 20 USD de crédito inicial y
+10 al mes gratis) y viaja solo en la cabecera `x-api-key`. Exa devuelve URL:
+Rosa extrae el DOI de la URL cuando lo lleva y el PMID de las de PubMed; lo
+demás queda como URL. Coste: 7 USD por mil búsquedas y 1 USD por mil páginas;
+Rosa anota `costDollars` en la pista. Lo que se envía a Exa es la consulta o
+el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
+externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
+sin red en `rosa/tests/test_exa.py`.
+
 ## Despliegue: Vercel para la interfaz, un proceso persistente para Rosa
 
 El proyecto `rosa-mvp` de Vercel está hoy configurado con el preset FastAPI

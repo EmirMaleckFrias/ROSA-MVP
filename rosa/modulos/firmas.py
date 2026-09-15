@@ -33,8 +33,8 @@ class PasoPropuesto(BaseModel):
 
 
 class Consulta(BaseModel):
-    base: Literal["pubmed", "europepmc", "preprints"]
-    consulta: str = Field(description="La cadena exacta que se envia a la base, con operadores booleanos")
+    base: Literal["pubmed", "europepmc", "preprints", "exa"] = Field(description="pubmed, europepmc y preprints reciben una consulta booleana; exa es búsqueda semántica y recibe una pregunta o hipótesis en lenguaje natural, sin operadores")
+    consulta: str = Field(description="La cadena exacta que se envia a la base: con operadores booleanos para pubmed, europepmc y preprints; una frase en lenguaje natural para exa")
     tema: str = Field(description="Tema corto al que sirve la consulta")
 
 
@@ -154,13 +154,17 @@ class GenerarConsultas(dspy.Signature):
     para discriminar entre las hipótesis vivas (la evidencia que subiría o bajaría su
     certeza, incluida la que las contradiria). Entre 2 y 5 consultas, cada una a una base
     (PubMed con sintaxis de PubMed, Europe PMC o preprints), con operadores booleanos y
-    sinonimos; ninguna repite consultas ya hechas."""
+    sinonimos; ninguna repite consultas ya hechas. Si `bases_disponibles` incluye exa, al
+    menos una consulta va a exa escrita como pregunta en lenguaje natural (recupera por
+    significado el trabajo que no comparte vocabulario con la hipótesis); si no la
+    incluye, no se usa exa."""
 
     objetivo: str = dspy.InputField()
     preguntas_abiertas: str = dspy.InputField()
     hipotesis_vivas: str = dspy.InputField(desc="Las hipótesis en competencia con lo que las subiría o bajaría")
     consultas_previas: str = dspy.InputField(desc="Cadenas ya enviadas en esta corrida, para no repetirlas")
     indicaciones_humanas: str = dspy.InputField()
+    bases_disponibles: str = dspy.InputField(desc="Bases que Rosa puede consultar ahora, separadas por comas")
     consultas: list[Consulta] = dspy.OutputField()
 
 
