@@ -495,6 +495,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                     {n.fecha ? ` · ${n.fecha}` : ''}
                     {n.doi ? ` · ${n.doi}` : ''}
                     {n.similitud !== null ? ` · afinidad ${n.similitud.toFixed(2)}` : ''}
+                    {n.terminos && n.terminos.length > 0 ? ` · nombra ${n.terminos.join(', ')}` : ''}
                   </p>
                   {n.pasaje && <p style={{ margin: 0, fontSize: 13 }}>{n.pasaje}</p>}
                 </li>

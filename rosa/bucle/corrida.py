@@ -141,8 +141,8 @@ class Supervisor:
         self._ultima_vigilancia = ahora
         try:
             resumen = await vigilancia.vigilar(self.almacen, ahora)
-            if resumen["comprobadas"] or resumen["errores"]:
-                print(f"Vigilancia de literatura: {resumen['comprobadas']} hipótesis comprobadas, {resumen['conNovedades']} con novedades ({resumen['nuevas']} publicaciones), {resumen['costeUsd']} USD, {resumen['errores']} sin respuesta")
+            if resumen["comprobadas"] or resumen["errores"] or resumen.get("retiradas"):
+                print(f"Vigilancia de literatura: {resumen['comprobadas']} hipótesis comprobadas, {resumen['conNovedades']} con novedades ({resumen['nuevas']} publicaciones), {resumen['costeUsd']} USD, {resumen['errores']} sin respuesta, {resumen.get('retiradas', 0)} novedades retiradas por no nombrar la hipótesis")
         except Exception:  # noqa: BLE001
             traceback.print_exc()
 

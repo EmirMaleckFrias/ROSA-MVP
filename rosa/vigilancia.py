@@ -16,12 +16,25 @@ No se vuelve a avisar de lo ya conocido: se descartan las publicaciones cuyo
 DOI o PMID ya está en la procedencia de la hipótesis o en novedades
 anteriores. Una hipótesis se vuelve a comprobar como muy pronto 24 horas
 después de la última vez, así que reiniciar Rosa no repite consultas.
+
+Filtro de pertinencia, sin modelos: Exa devuelve siempre los N documentos
+más parecidos, aunque ninguno hable de la hipótesis (la primera pasada real
+trajo 116 "novedades" para 19 hipótesis, casi todas ruido). Una publicación
+cuenta como novedad solo si su título o su pasaje nombran los términos
+clave de la hipótesis (siglas, genes, biomarcadores: GFAP, NfL, APOE...):
+al menos dos cuando la hipótesis tiene tres o más, al menos uno si tiene
+menos. Los términos que coinciden quedan en la novedad, para que se vea por
+qué entró. `depurar` aplica la misma regla a lo ya guardado en cada pasada y
+retira los eventos de vigilancia de las hipótesis que se quedan sin nada.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+import re
+
+from rosa.bucle import contexto as T
 from rosa.bucle.pasos import fecha_iso_de_ms
 from rosa.estado import acciones as A
 from rosa.estado import plantilla as P
@@ -47,6 +60,33 @@ def _claves_conocidas(h: dict[str, Any]) -> set[str]:
         if n.get("url"):
             claves.add(f"url:{n['url']}")
     return claves
+
+
+def terminos_de(h: dict[str, Any]) -> list[str]:
+    """Los términos con los que se reconoce que una publicación habla de la
+    hipótesis: primero siglas, genes y biomarcadores (mayúsculas o cifras),
+    después palabras largas del dominio si no hay bastantes."""
+    texto = f"{h.get('titulo', '')} {h.get('enunciado', '')}"
+    fuertes: list[str] = []
+    for tok in re.findall(r"[A-Za-z][A-Za-z0-9\-]{1,}", texto):
+        # Siglas, genes y biomarcadores: dos mayúsculas o una cifra (GFAP, NfL, APOE, BACE1, p-tau181).
+        if (sum(c.isupper() for c in tok) >= 2 or re.search(r"\d", tok)) and tok.lower() not in {x.lower() for x in fuertes}:
+            fuertes.append(tok)
+    resto = [x for x in T.terminos_clave(texto, maximo=12) if x.lower() not in {f.lower() for f in fuertes}]
+    elegidos = fuertes + resto[: max(0, 3 - len(fuertes))]
+    return elegidos[:8]
+
+
+def coincidencias(terminos: list[str], texto: str) -> list[str]:
+    t = (texto or "").lower()
+    return [x for x in terminos if x.lower() in t]
+
+
+def es_pertinente(terminos: list[str], n: dict[str, Any]) -> list[str]:
+    """Los términos que coinciden si la novedad es pertinente; [] si no."""
+    hallados = coincidencias(terminos, f"{n.get('titulo', '')} {n.get('pasaje', '')}")
+    exigidos = 2 if len(terminos) >= 3 else 1
+    return hallados if len(hallados) >= exigidos else []
 
 
 def toca(h: dict[str, Any], ahora: int) -> bool:
@@ -81,6 +121,7 @@ async def comprobar_hipotesis(h: dict[str, Any], ahora: int) -> tuple[list[dict[
     except FuenteNoDisponible as ex:
         return [], 0.0, str(ex)[:160]
     conocidas = _claves_conocidas(h)
+    terminos = terminos_de(h)
     nuevas = []
     for a in articulos:
         clave_doi = f"doi:{a['doi']}" if a.get("doi") else None
@@ -89,7 +130,11 @@ async def comprobar_hipotesis(h: dict[str, Any], ahora: int) -> tuple[list[dict[
             continue
         if not a.get("titulo"):
             continue
-        nuevas.append(_nueva(a))
+        candidata = _nueva(a)
+        candidata["terminos"] = es_pertinente(terminos, candidata)
+        if not candidata["terminos"]:
+            continue
+        nuevas.append(candidata)
         if clave_doi:
             conocidas.add(clave_doi)
         if clave_url:
@@ -97,14 +142,47 @@ async def comprobar_hipotesis(h: dict[str, Any], ahora: int) -> tuple[list[dict[
     return nuevas, coste, None
 
 
+def depurar(almacen: Any) -> int:
+    """Aplica la regla de pertinencia a las novedades ya guardadas y retira los
+    eventos de vigilancia de las hipótesis que se quedan sin ninguna. Devuelve
+    cuántas novedades se retiraron. Idempotente."""
+    retiradas = {"n": 0}
+
+    def fn(e: dict[str, Any]) -> bool:
+        vacias: set[str] = set()
+        for h in e.get("hipotesis", []):
+            v = h.get("vigilancia")
+            if not v or not v.get("nuevas"):
+                continue
+            terminos = terminos_de(h)
+            filtradas = []
+            for n in v["nuevas"]:
+                hallados = es_pertinente(terminos, n)
+                if hallados:
+                    n["terminos"] = hallados
+                    filtradas.append(n)
+                else:
+                    retiradas["n"] += 1
+            v["nuevas"] = filtradas
+            if not filtradas:
+                vacias.add(h["id"])
+        if vacias:
+            e["eventos"] = [ev for ev in e.get("eventos", []) if not (ev.get("tipo") == "vigilancia" and any(str(ev.get("ruta") or "").endswith(f"/hipotesis/{hid}") for hid in vacias))]
+        return retiradas["n"] > 0 or bool(vacias)
+
+    almacen.mutar(fn, "vigilancia_depurar")
+    return retiradas["n"]
+
+
 async def vigilar(almacen: Any, ahora: int | None = None) -> dict[str, Any]:
     """Una pasada sobre todas las hipótesis vivas a las que les toca. Escribe
     en el estado y devuelve un resumen {comprobadas, conNovedades, nuevas,
-    costeUsd, errores}."""
+    costeUsd, errores, retiradas}."""
     ahora = P.ahora_ms() if ahora is None else ahora
-    resumen = {"comprobadas": 0, "conNovedades": 0, "nuevas": 0, "costeUsd": 0.0, "errores": 0}
+    resumen = {"comprobadas": 0, "conNovedades": 0, "nuevas": 0, "costeUsd": 0.0, "errores": 0, "retiradas": 0}
     if not exa.disponible():
         return resumen
+    resumen["retiradas"] = depurar(almacen)
     pendientes = [dict(h) for h in almacen.estado.get("hipotesis", []) if toca(h, ahora)]
     for h in pendientes:
         nuevas, coste, error = await comprobar_hipotesis(h, ahora)
@@ -139,7 +217,8 @@ async def vigilar(almacen: Any, ahora: int | None = None) -> dict[str, Any]:
             v["nuevas"] = (nuevas + list(v.get("nuevas") or []))[:MAX_NUEVAS_GUARDADAS]
             if nuevas:
                 cuantas = "1 publicación nueva" if len(nuevas) == 1 else f"{len(nuevas)} publicaciones nuevas"
-                texto = f"Vigilancia: {cuantas} sobre «{x['titulo'][:70]}» desde la última comprobación"
+                nombran = sorted({t_ for n in nuevas for t_ in n.get("terminos", [])})[:4]
+                texto = f"Vigilancia: {cuantas} sobre «{x['titulo'][:70]}» desde la última comprobación" + (f" (nombran {', '.join(nombran)})" if nombran else "")
                 A.con_evento(e, x["investigacionId"], "vigilancia", texto, f"#/investigaciones/{x['investigacionId']}/hipotesis/{x['id']}", ahora)
             return True
 

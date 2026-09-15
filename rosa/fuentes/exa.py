@@ -62,7 +62,7 @@ def doi_de_url(url: str) -> str | None:
     for patron, prefijo in _EDITORIALES:
         e = patron.search(url)
         if e:
-            return (prefijo + e.group(1)).lower()
+            return (prefijo + re.sub(r"\.(pdf|full|html|abstract)$", "", e.group(1), flags=re.IGNORECASE)).lower()
     m = _DOI.search(url)
     if not m:
         return None

@@ -1104,6 +1104,8 @@ export interface NovedadVigilada {
   preprint: boolean;
   pasaje: string;
   similitud: number | null;
+  /** Términos clave de la hipótesis que nombra (por eso entró como novedad). */
+  terminos?: string[];
 }
 
 /** Vigilancia de literatura por hipótesis (Exa, una búsqueda al día). */
