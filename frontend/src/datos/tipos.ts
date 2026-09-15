@@ -1339,6 +1339,12 @@ export type FactorCerteza = 'riesgo_de_sesgo' | 'inconsistencia' | 'evidencia_in
 
 export interface ConclusionHipotesis {
   certeza: CertezaEvidencia;
+  /** Techo por regla (rosa/certeza.py): el nivel máximo con lo que hay contado
+   * (cohortes distintas, evidencia directa no sintética). Si `acotada`, el juez
+   * había dicho más y la regla lo bajó. Ausente en conclusiones anteriores. */
+  techo?: { nivel: CertezaEvidencia; motivo: string; acotada: boolean; certezaDelJuez: CertezaEvidencia } | null;
+  /** Qué le falta para cada nivel por encima del actual, por regla. */
+  escalera?: { de: CertezaEvidencia; a: CertezaEvidencia; falta: string }[];
   direccion: DireccionEvidencia;
   conclusion: string;
   /** Por que este grado: los factores GRADE que lo bajaron o subieron. */

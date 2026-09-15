@@ -28,7 +28,7 @@ import traceback
 from typing import Any
 
 from rosa import sesgo as SESGO
-from rosa import config, politicas, priorizacion as PR, torneo
+from rosa import certeza as CERTEZA, config, politicas, priorizacion as PR, torneo
 from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
 from rosa.bucle import pasos as PASOS
@@ -525,18 +525,25 @@ class Supervisor:
             sostenidas = [a for a in h["afirmaciones"] if a["veredicto"] in ("sostenida", "parcial") and not a.get("sintetico")]
             fuentes = {f["referencia"] for f in h["procedencia"]["fuentes"]}
             anterior = h.get("conclusion")
+            # El nivel del juez queda bajo el techo por regla (rosa/certeza.py): solo
+            # literatura de una cohorte no pasa de muy baja; sin datos reales, de baja.
+            factores = [{"factor": f.factor, "efecto": f.efecto, "explicacion": f.explicacion.strip()} for f in c.factores][:8]
+            acotada = CERTEZA.acotar(c.certeza, h, factores)
+            certeza_final = acotada["certeza"]
             cambio = None
-            if anterior and (anterior.get("certeza") != c.certeza or anterior.get("direccion") != c.direccion):
+            if anterior and (anterior.get("certeza") != certeza_final or anterior.get("direccion") != c.direccion):
                 cambio = {"de": {"certeza": anterior.get("certeza"), "direccion": anterior.get("direccion"), "iteracion": anterior.get("iteracion")}, "motivo": (c.factores[0].explicacion.strip() if c.factores else "")}
             no_comprobado = [f"{k}: {v['detalle']}" for k, v in h["novedad"].items() if str(v.get("detalle", "")).startswith("No comprobado") and k != "agora"]
             consultas = ctx.corrida()["busqueda"]["consultas"]
             conclusion = {
-                "certeza": c.certeza,
+                "certeza": certeza_final,
+                "techo": acotada["techo"],
+                "escalera": CERTEZA.escalera(h, certeza_final, factores),
                 "direccion": c.direccion,
                 "hipotesisBreve": c.hipotesis_breve.strip(),
-                "enunciado": frase_plantilla(c.direccion, c.certeza, c.hipotesis_breve.strip() or h["titulo"]),
+                "enunciado": frase_plantilla(c.direccion, certeza_final, c.hipotesis_breve.strip() or h["titulo"]),
                 "conclusion": c.conclusion.strip(),
-                "factores": [{"factor": f.factor, "efecto": f.efecto, "explicacion": f.explicacion.strip()} for f in c.factores][:8],
+                "factores": factores,
                 "base": {"afirmaciones": len(h["afirmaciones"]), "sostenidas": len(sostenidas), "fuentes": len(fuentes), "datos": sum(1 for a in sostenidas if a["tipo"] == "dato"), "interpretaciones": sum(1 for a in sostenidas if a["tipo"] == "interpretacion")},
                 "aFavor": list(c.a_favor),
                 "enContra": list(c.en_contra),

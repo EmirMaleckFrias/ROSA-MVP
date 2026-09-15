@@ -156,6 +156,25 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
           </span>
         </div>
         <p className="meta">{g.nota}</p>
+        {conclusion.techo && (
+          <p className="meta">
+            Nivel máximo con lo que hay, por regla: <strong>{CERTEZA_EVIDENCIA[conclusion.techo.nivel].etiqueta.replace('Certeza ', '')}</strong>, porque {conclusion.techo.motivo}.
+            {conclusion.techo.acotada && ` El juez había dicho «${CERTEZA_EVIDENCIA[conclusion.techo.certezaDelJuez].etiqueta.toLowerCase()}»; la regla lo acotó.`}
+          </p>
+        )}
+        {conclusion.escalera && conclusion.escalera.length > 0 && (
+          <div className="conclusion-escalera">
+            <h4>Para subir</h4>
+            <ol>
+              {conclusion.escalera.map((p) => (
+                <li key={p.a}>
+                  <strong>A {CERTEZA_EVIDENCIA[p.a].etiqueta.replace('Certeza ', 'certeza ')}:</strong> {p.falta}.
+                </li>
+              ))}
+            </ol>
+            {conclusion.subiria && <p className="meta">Lo que el juez pide en concreto: {conclusion.subiria}</p>}
+          </div>
+        )}
         <p className="conclusion-enunciado">{conclusion.enunciado}</p>
         {conclusion.cambio && (
           <p className="meta">

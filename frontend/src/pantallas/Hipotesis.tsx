@@ -85,7 +85,7 @@ function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: numb
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <span className={`tono-${r.tono === 'vacio' ? 'aviso' : r.tono}`}>{r.frase}</span>
           {h.conclusion && (
-            <Chip tono={CERTEZA_EVIDENCIA[h.conclusion.certeza].tono} title={CERTEZA_EVIDENCIA[h.conclusion.certeza].nota}>
+            <Chip tono={CERTEZA_EVIDENCIA[h.conclusion.certeza].tono} title={h.conclusion.escalera?.[0] ? `Para subir a ${CERTEZA_EVIDENCIA[h.conclusion.escalera[0].a].etiqueta.toLowerCase()}: ${h.conclusion.escalera[0].falta}` : CERTEZA_EVIDENCIA[h.conclusion.certeza].nota}>
               {CERTEZA_EVIDENCIA[h.conclusion.certeza].etiqueta}
             </Chip>
           )}

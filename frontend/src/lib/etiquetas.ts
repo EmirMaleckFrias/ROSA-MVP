@@ -176,7 +176,7 @@ export const CERTEZA_EVIDENCIA: Record<CertezaEvidencia, { etiqueta: string; ton
   alta: { etiqueta: 'Certeza alta', tono: 'ok', nota: 'Varios estudios independientes y directos coinciden. Es muy poco probable que más investigación cambie la conclusión.', verbo: 'la evidencia indica que' },
   moderada: { etiqueta: 'Certeza moderada', tono: 'aviso', nota: 'Evidencia consistente pero de una sola cohorte, indirecta o imprecisa. Más investigación podría cambiarla.', verbo: 'probablemente' },
   baja: { etiqueta: 'Certeza baja', tono: 'aviso', nota: 'Solo indicios, inferencias o estudios con limitaciones serias. Es probable que más investigación la cambie.', verbo: 'puede que' },
-  muy_baja: { etiqueta: 'Certeza muy baja', tono: 'mal', nota: 'No hay evidencia directa o es contradictoria. Cualquier estimación es muy incierta.', verbo: 'no está claro si' },
+  muy_baja: { etiqueta: 'Certeza muy baja', tono: 'borde', nota: 'El punto de partida de toda hipótesis nueva: solo literatura indirecta, de una cohorte, sin réplica ni datos propios. No es un fallo; es lo que hay que subir, y abajo dice cómo.', verbo: 'no está claro si' },
 };
 
 export const DIRECCION_EVIDENCIA: Record<DireccionEvidencia, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' }> = {
