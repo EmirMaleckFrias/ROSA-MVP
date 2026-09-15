@@ -127,7 +127,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   if (conclusion === null) {
     return (
       <Seccion titulo="Conclusión de Rosa">
-        <p className="meta">Rosa todavía no escribio su conclusión sobre esta hipótesis. La escribe al crearla y la rehace al cerrar cada iteración.</p>
+        <p className="meta">Rosa todavía no escribió su conclusión sobre esta hipótesis. La escribe al crearla y la rehace al cerrar cada iteración con la evidencia que le haya llegado desde entonces.</p>
       </Seccion>
     );
   }
@@ -137,7 +137,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   return (
     <Seccion
       titulo="Conclusión de Rosa"
-      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración."
+      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración: lo que Rosa lee después de nacer la hipótesis se le suma (a favor, indirecto o en contra) y la certeza se recalcula."
       acciones={
         <span className="meta">
           Iteración {conclusion.iteracion} · <Momento t={conclusion.fecha} ahora={ahora} />

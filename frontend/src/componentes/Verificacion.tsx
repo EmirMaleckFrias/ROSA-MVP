@@ -58,6 +58,14 @@ export function Verificacion({ afirmaciones, cobertura = null, ocultarCitas = fa
                   <Chip tono={a.tipo === 'interpretacion' ? 'aviso' : 'borde'} title={tipoAfirmacion(a.tipo).nota}>
                     {tipoAfirmacion(a.tipo).etiqueta}
                   </Chip>
+                  {a.relacion && (
+                    <>
+                      <br />
+                      <Chip tono={a.relacion === 'contradice' ? 'mal' : a.relacion === 'apoya' ? 'ok' : 'aviso'} title={`${a.motivoRelacion ?? ''}${a.iteracion ? ` Enlazada al cerrar la iteración ${a.iteracion}, después de nacer la hipótesis.` : ''}`.trim()}>
+                        {a.relacion === 'contradice' ? 'En contra' : a.relacion === 'apoya' ? 'A favor' : 'Apoyo indirecto'}
+                      </Chip>
+                    </>
+                  )}
                 </span>
                 <span className="verif-texto">
                   <span className="texto-comentable" data-campo="afirmacion">

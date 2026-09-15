@@ -31,6 +31,7 @@ from rosa import sesgo as SESGO
 from rosa import certeza as CERTEZA, config, politicas, priorizacion as PR, torneo
 from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
+from rosa.bucle import evidencia as EV
 from rosa.bucle import pasos as PASOS
 from rosa.bucle.pasos import Ctx
 from rosa.estado import acciones as A
@@ -512,7 +513,7 @@ class Supervisor:
                 "juez",
                 self.programas.concluir,
                 hipotesis=T.hipotesis_texto(h),
-                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO: no cuenta como evidencia' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
+                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO: no cuenta como evidencia' if a.get('sintetico') else ''}{MARCA_RELACION.get(a.get('relacion'), '')}{', añadida en la iteración ' + str(a['iteracion']) if a.get('relacion') and a.get('iteracion') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
                 supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
                 partidos="\n".join(f"- {p['resultado']} por {p['ejeDecisivo']}: {p['resumenDebate']}" for p in h["partidos"]) or "Sin partidos todavía",
                 novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()) + f". Cohortes distintas entre las fuentes: {len(PR.cohortes_de(h))}" + (f" ({', '.join(PR.cohortes_de(h))})" if PR.cohortes_de(h) else "") + ". " + SESGO.texto_para_grade(h["procedencia"]["fuentes"]),
@@ -1218,7 +1219,21 @@ class Supervisor:
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()
         llano = await self._explicar_en_llano(ctx, inv, resumen, hechos_nuevos, hip_nuevas, sin_comprobar)
-        for h in [x for x in e["hipotesis"] if x["investigacionId"] == inv["id"] and x["estado"] not in ("descartada",)][:8]:
+        # Acumulación de evidencia: lo leído en esta iteración vuelve a las hipótesis
+        # vivas (a favor, indirecto o en contra) antes de rehacer sus conclusiones.
+        con_evidencia: set[str] = set()
+        try:
+            pista_ev = ctx.pista(None, "modelo", "Evidencia nueva para las hipótesis vivas", "Sonnet 5")
+            acumulado = await EV.acumular(ctx, it["numero"], pista_ev)
+            con_evidencia = set(acumulado.get("ids", []))
+        except PresupuestoAgotado:
+            raise
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+        e = self.almacen.estado
+        vivas = [x for x in e["hipotesis"] if x["investigacionId"] == inv["id"] and x["estado"] not in ("descartada",)]
+        vivas.sort(key=lambda x: (x["id"] not in con_evidencia, -x.get("elo", 0)))
+        for h in vivas[: max(8, len(con_evidencia))]:
             if h.get("_conclusionIntentada") != it["numero"]:
                 await self._concluir_hipotesis(ctx, h)
         ahora = P.ahora_ms()
@@ -1334,6 +1349,7 @@ def _terminar_corrida(e: dict[str, Any], corrida_id: str, motivo: str) -> bool:
     return True
 
 
+MARCA_RELACION = {"contradice": ", EN CONTRA de la hipótesis", "apoya_indirecta": ", apoyo indirecto (otra población, desenlace o plataforma)", "apoya": ", a favor"}
 VERBO_CERTEZA = {"alta": "La evidencia reunida sostiene que", "moderada": "La evidencia reunida probablemente sostiene que", "baja": "La evidencia sugiere, con limitaciones, que", "muy_baja": "La evidencia es muy incierta sobre si"}
 VERBO_CONTRA = {"alta": "La evidencia reunida contradice que", "moderada": "La evidencia reunida probablemente contradice que", "baja": "La evidencia sugiere, con limitaciones, que no se cumple que", "muy_baja": "La evidencia es muy incierta sobre si"}
 

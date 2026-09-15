@@ -237,7 +237,7 @@ def hipotesis_texto(h: dict[str, Any]) -> str:
 
 
 def hipotesis_para_torneo(h: dict[str, Any]) -> str:
-    afs = "\n".join(f"  - [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"][:8])
+    afs = "\n".join(f"  - [{a['veredicto']}{', EN CONTRA' if a.get('relacion') == 'contradice' else (', indirecta' if a.get('relacion') == 'apoya_indirecta' else '')}] {a['texto']} {a['cita']}" for a in h["afirmaciones"][:8])
     sup = "\n".join(f"  - [{s['estado']}] {s['texto']}" for s in h["supuestos"][:6])
     return f"{hipotesis_texto(h)}\nAfirmaciones:\n{afs or '  (ninguna)'}\nSupuestos:\n{sup or '  (ninguno)'}\nRevisiones automaticas: " + "; ".join(f"{r['tipo']}: {r['resumen']}" for r in h["revisionesAutomaticas"] if r["estado"] != "pendiente")
 

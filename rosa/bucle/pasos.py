@@ -1191,7 +1191,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "pasa", "detalle": "Identificación por regla: " + "; ".join(grafo_previo["supuestosCumplidos"])[:300]})
         elif grafo_previo["identificacion"] in ("acotado", "sin_resolver"):
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "no_comprobable", "detalle": f"Identificación {grafo_previo['identificacion']}: faltan " + "; ".join(grafo_previo["supuestosFaltantes"])[:300]})
-    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{', EN CONTRA de la hipótesis' if a.get('relacion') == 'contradice' else (', apoyo indirecto' if a.get('relacion') == 'apoya_indirecta' else '')}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
     mundo_h = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, f"{h['titulo']}. {h['enunciado']}", maximo=40)
     try:
         pred = await ctx.llamar(

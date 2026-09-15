@@ -312,6 +312,38 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Acumulación de evidencia y techo de certeza (15 de septiembre de 2026, noche)
+
+Hasta hoy una hipótesis nacía con las afirmaciones y fuentes que la motivaron
+y ahí se quedaba: lo que Rosa leía después no se le sumaba (solo un resultado
+de laboratorio o un análisis in silico), y la conclusión se rehacía al cerrar
+cada iteración sobre la misma evidencia. Por eso 23 de 25 hipótesis estaban en
+certeza muy baja sin moverse.
+
+- **Acumulación** (`rosa/bucle/evidencia.py`, al cerrar cada iteración). Para
+  cada hipótesis viva: candidatas entre las afirmaciones sostenidas de la
+  iteración (embeddings y coseno; sin embeddings, términos clave compartidos),
+  quitando las que ya tiene, las de otra entidad y las sospechosas de
+  inyección; un modelo de volumen decide por población, marcador y sentido si
+  cada una la apoya, la apoya de forma indirecta, la contradice o no habla de
+  ella (`AsignarEvidencia`; en la duda, fuera); las aceptadas entran con su
+  cita, cohorte, relación e iteración, la fuente entra en la procedencia (y
+  con ella la cohorte), queda línea en el registro y evento, y la conclusión
+  se rehace primero para las que ganaron evidencia. El juez, el Killer y el
+  torneo ven las marcas «EN CONTRA» y «apoyo indirecto».
+- **Techo por regla** (`rosa/certeza.py`). El nivel del juez queda acotado por
+  lo contado: solo literatura de una cohorte, muy baja (baja si documenta un
+  efecto grande); dos o más cohortes, como mucho baja; evidencia directa
+  (laboratorio o análisis sobre datos reales, nunca sintéticos) de una
+  cohorte, como mucho moderada; con réplica, alta. La **escalera** dice por
+  regla qué falta para cada nivel, y la interfaz la enseña junto a la
+  etiqueta; «muy baja» va en tono neutro como punto de partida.
+
+Con esto, encontrar una segunda cohorte en la literatura sube una hipótesis
+de muy baja a baja sin intervención; pasar de baja exige datos (un dataset
+público aprobado y el análisis congelado, o el laboratorio). Pruebas:
+`rosa/tests/test_evidencia.py`, `rosa/tests/test_certeza.py`.
+
 ## Conocimiento y criterio: el modelo de mundo se lee bajo demanda (15 de septiembre de 2026, noche)
 
 La corrida 2 sobre biomarcadores y beneficio clínico juzgó la relevancia con

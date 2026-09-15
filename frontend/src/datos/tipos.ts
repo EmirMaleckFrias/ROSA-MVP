@@ -635,6 +635,14 @@ export interface Afirmacion {
    *  observacion no pertenece a una hipotesis, se enlaza a todas las
    *  compatibles (plan completo, seccion 8). */
   afirmacionId?: string;
+  /** Cómo se relaciona con la hipótesis cuando llegó después de nacer esta
+   *  (acumulación de evidencia al cerrar cada iteración). Ausente en las que
+   *  la motivaron al nacer. */
+  relacion?: 'apoya' | 'apoya_indirecta' | 'contradice';
+  /** Iteración en la que se le añadió, si llegó después. */
+  iteracion?: number;
+  /** Por qué el modelo la relacionó así (población, marcador, sentido). */
+  motivoRelacion?: string;
   /** Nivel de medicion (plan completo, seccion 3): una conclusion de la
    *  discusion no se convierte en un resultado medido. */
   nivelMedicion?: 'medida' | 'resultado_analisis' | 'interpretacion_autor' | 'interpretacion_rosa';
