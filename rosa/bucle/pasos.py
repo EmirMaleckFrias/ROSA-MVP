@@ -92,6 +92,23 @@ class ModeloBloqueado(RuntimeError):
 SEGUNDOS_MAX_LLAMADA = 600  # una llamada al gateway que tarda mas de esto es un fallo, no una espera
 
 
+def _pregunta_de(ctx: "Ctx") -> str | None:
+    """El enunciado de la pregunta de la corrida, si Rosa ya la formuló."""
+    return ((ctx.corrida().get("pregunta") or {}).get("enunciado")) or None
+
+
+def _criterio(ctx: "Ctx", inv: dict[str, Any]) -> str:
+    """El criterio de relevancia de este paso: objetivo, pregunta de la corrida
+    y preguntas abiertas propias (ver contexto.preguntas_abiertas)."""
+    return T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"], pregunta=_pregunta_de(ctx))
+
+
+def _consulta_del_paso(ctx: "Ctx", inv: dict[str, Any], extra: str = "") -> str:
+    """Con qué se eligen los hechos del modelo de mundo para un paso: el
+    objetivo, la pregunta de la corrida y lo propio del paso."""
+    return " ".join(x for x in (inv["objetivo"], _pregunta_de(ctx) or "", extra) if x)[:2000]
+
+
 @dataclass
 class Ctx:
     almacen: Almacen
@@ -637,7 +654,7 @@ def _contar_fallo_fuente(ctx: Ctx, base: str, error: str) -> None:
 async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     e = ctx.e
-    preguntas = T.preguntas_abiertas(e["hechos"], ctx.investigacion_id, inv["objetivo"])
+    preguntas = _criterio(ctx, inv)
     previas = ctx.corrida().get("_consultasHechas", [])
     nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
     pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
@@ -686,11 +703,12 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
 
 async def paso_ensayos(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
-    preguntas = T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"])
-    terminos = T.terminos_clave(preguntas + " " + paso.get("detalle", ""), maximo=3)
+    terminos = T.terminos_registro(inv["objetivo"], _pregunta_de(ctx), paso.get("detalle", ""), maximo=3)
     pista = ctx.pista(paso["id"], "ensayos", "Ensayos registrados sobre " + (", ".join(terminos) or "el objetivo"), "ClinicalTrials.gov v2")
     try:
-        termino = " ".join(terminos)
+        # Nombres propios y siglas unidos con OR: ClinicalTrials.gov está en inglés y su
+        # sintaxis (Essie) trata el espacio como AND, así que "A B C" no devuelve nada.
+        termino = " OR ".join(terminos)
         pista.accion("GET /api/v2/studies", {"base": "ClinicalTrials.gov v2", "parametros": f"query.cond=Alzheimer Disease&query.term={termino}&pageSize=25&countTotal=true", "resultados": "..."})
         estudios, total = await clinicaltrials.buscar("Alzheimer Disease", termino=termino, maximo=25)
         pista.resultado(f"{total} estudios; se registran {len(estudios)}")
@@ -722,7 +740,7 @@ async def paso_ensayos(ctx: Ctx, paso: dict[str, Any]) -> str:
 
 async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
-    preguntas = T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"])
+    preguntas = _criterio(ctx, inv)
     pendientes = sorted([f for f in ctx.fuentes().values() if not f.get("extraida") and f.get("retraccion") != "retractado"], key=lambda f: -f.get("relevancia", 0))[:MAX_FUENTES_EXTRAER]
     if not pendientes:
         return "No hay fuentes nuevas de las que extraer"
@@ -931,7 +949,8 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
         pista.cerrar("Sin afirmaciones sostenidas nuevas: el modelo de mundo no cambia")
         return "Sin afirmaciones sostenidas nuevas"
     pista.accion(f"Leyendo el modelo de mundo y {len(validas)} afirmaciones sostenidas o parciales")
-    pred = await ctx.llamar("cerebro", ctx.programas.mundo, objetivo=inv["objetivo"], modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id), afirmaciones_sostenidas=texto)
+    mundo = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv, texto[:1500]))
+    pred = await ctx.llamar("cerebro", ctx.programas.mundo, objetivo=inv["objetivo"], modelo_de_mundo=mundo, afirmaciones_sostenidas=texto)
     ahora = P.ahora_ms()
     fuentes = ctx.fuentes()
     anadidos = 0
@@ -979,7 +998,7 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
     ctx.mutar(aplicar, "modelo_de_mundo")
     pista.resultado(f"{anadidos} hechos y {preguntas} preguntas nuevas")
     # Instantanea del modelo de mundo como artefacto.
-    contenido = "# Modelo de mundo\n\n" + T.modelo_de_mundo(ctx.e["hechos"], ctx.investigacion_id, maximo=500)
+    contenido = "# Modelo de mundo\n\n" + T.modelo_de_mundo(ctx.e["hechos"], ctx.investigacion_id, maximo=500, investigaciones=ctx.e["investigaciones"])
     ctx.mutar(lambda e2: A.guardar_artefacto(e2, ctx.investigacion_id, "Modelo de mundo", "modelo_mundo", contenido, f"Iteración {ctx.numero}: {anadidos} hechos y {preguntas} preguntas nuevas", ctx.numero, ahora), "artefacto")
     pista.cerrar(f"{anadidos} hechos, {preguntas} preguntas")
     return f"{anadidos} hechos y {preguntas} preguntas nuevas en el modelo de mundo"
@@ -1172,7 +1191,8 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "pasa", "detalle": "Identificación por regla: " + "; ".join(grafo_previo["supuestosCumplidos"])[:300]})
         elif grafo_previo["identificacion"] in ("acotado", "sin_resolver"):
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "no_comprobable", "detalle": f"Identificación {grafo_previo['identificacion']}: faltan " + "; ".join(grafo_previo["supuestosFaltantes"])[:300]})
-    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    mundo_h = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, f"{h['titulo']}. {h['enunciado']}", maximo=40)
     try:
         pred = await ctx.llamar(
             "juez",
@@ -1182,7 +1202,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
             afirmaciones=afs_texto,
             supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
-            modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id, maximo=40) + "\n\nOtras hipotesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], ctx.investigacion_id),
+            modelo_de_mundo=mundo_h + "\n\nOtras hipótesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], ctx.investigacion_id),
             comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
             criterios_revision="\n".join(e["criteriosRevision"]),
         )
@@ -1409,7 +1429,7 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
         pista.nota("Menos de dos hipótesis vivas: no hay torneo")
         return 0
     texto_af, _ = T.afirmaciones_sostenidas(ctx.afirmaciones())
-    evidencia = (texto_af[:6000] + "\n\nModelo de mundo:\n" + T.modelo_de_mundo(ctx.e["hechos"], ctx.investigacion_id, maximo=30))
+    evidencia = (texto_af[:6000] + "\n\nModelo de mundo:\n" + await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv), maximo=30))
     jugados = 0
     cambios: list[str] = []
     for a, b in pares:
@@ -1457,7 +1477,8 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
     if validas:
         pista.accion(f"Generando hipótesis a partir de {len(validas)} afirmaciones sostenidas y las preguntas abiertas")
         try:
-            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id), afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id), criterios_revision="\n".join(e["criteriosRevision"]))
+            mundo = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv, texto_af[:1500]))
+            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=mundo, afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id), criterios_revision="\n".join(e["criteriosRevision"]))
             propuestas = list(pred.hipotesis)[:3]
         except PresupuestoAgotado:
             pista.cerrar("Presupuesto agotado antes de generar", "detenida")
@@ -1679,7 +1700,7 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
             regs.append(reg_s)
             ctxb["interactores"] = [{"simbolo": i_["interactor"], "puntuacion": i_["puntuacion"]} for i_ in (inter or [])[:8]]
     if pista:
-        pista.accion(f"Bases para {simbolo or diana[:30] or 'la diana'}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": ", ".join(candidatos[:3]) or diana[:40], "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'ningun candidato resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
+        pista.accion(f"Bases para {simbolo or diana[:30] or 'la diana'}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": ", ".join(candidatos[:3]) or diana[:40], "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'ningún candidato resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
 
     def aplicar(e: dict[str, Any]) -> bool:
         x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)

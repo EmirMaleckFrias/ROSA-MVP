@@ -838,7 +838,7 @@ def pedir_analisis(e: Estado, hipotesis_id: str, dataset_id: str, pregunta: str,
     if h.get("_analisisPedido"):
         return False
     h["_analisisPedido"] = {"datasetId": dataset_id, "pregunta": pregunta.strip(), "pedidoEn": ahora}
-    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "investigadora", "texto": f"Análisis pedido sobre {ds['nombre']}: {pregunta.strip() or 'aplicar la prediccion falsable de la hipotesis'}", "creadoEn": ahora})
+    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "investigadora", "texto": f"Análisis pedido sobre {ds['nombre']}: {pregunta.strip() or 'aplicar la predicción falsable de la hipótesis'}", "creadoEn": ahora})
     con_evento(e, h["investigacionId"], "analisis", f"Análisis in silico pedido sobre {ds['nombre']}: {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 

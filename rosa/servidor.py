@@ -530,7 +530,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         app.state.modelos = modelos_
         async with app.state.semaforo_preguntas:
             try:
-                r = await asyncio.wait_for(H.preguntar(modelos_.cerebro, almacen.estado, investigacion_id, pregunta[:2000], f"Objetivo: {inv['objetivo']}. {_texto_mision(inv)}"), timeout=600)
+                r = await asyncio.wait_for(H.preguntar(modelos_.cerebro, almacen.estado, investigacion_id, pregunta[:2000], f"Objetivo: {inv['objetivo']}. {_texto_mision(inv)}", almacen=almacen), timeout=600)
                 r["pregunta"], r["quien"], r["error"] = pregunta[:2000], quien, None
             except Exception as ex:  # noqa: BLE001
                 print(f"preguntar con herramientas fallo: {type(ex).__name__}: {str(ex)[:300]}", file=sys.stderr)

@@ -18,6 +18,7 @@ from typing import Any
 
 import dspy
 
+from rosa import indice_semantico
 from rosa import conectores as CON
 from rosa import killer as K
 from rosa.conectores.base import PERMISOS
@@ -59,7 +60,7 @@ def _permitido(nombre: str, origen: str) -> bool:
     return True
 
 
-def herramientas(estado: dict[str, Any], investigacion_id: str, registro: list[dict[str, Any]], origen: str = "persona", solo: list[str] | None = None) -> list[dspy.Tool]:
+def herramientas(estado: dict[str, Any], investigacion_id: str, registro: list[dict[str, Any]], origen: str = "persona", solo: list[str] | None = None, almacen: Any = None) -> list[dspy.Tool]:
     """Las herramientas para un ReAct: cada conector disponible y permitido,
     más la búsqueda en el proyecto y el modelo de mundo. `registro` recibe
     cada consulta hecha."""
@@ -93,9 +94,22 @@ def herramientas(estado: dict[str, Any], investigacion_id: str, registro: list[d
         return _recortar(buscar_proyecto(estado, investigacion_id, consulta))
 
     async def leer_modelo_de_mundo(tema: str) -> str:
+        # Por significado si hay índice semántico y almacén (encuentra "astrocitos
+        # antes que axones" aunque el hecho diga GFAP y NfL); si no, por texto.
         hechos = [h for h in estado.get("hechos", []) if h["investigacionId"] == investigacion_id and h.get("estado") in ("sabido", "abierto")]
-        t = tema.lower()
-        hits = [h for h in hechos if t in (h.get("enunciado", "") + " " + h.get("tema", "")).lower()][:12]
+        hits: list[dict[str, Any]] = []
+        if almacen is not None and indice_semantico.disponible():
+            try:
+                por_id = {h["id"]: h for h in hechos}
+                for hit in await indice_semantico.de_almacen(almacen).buscar(tema, k=12, investigacion_id=investigacion_id, tipos=("hecho",)):
+                    h = por_id.get(str(hit["id"]).split(":", 1)[-1])
+                    if h is not None:
+                        hits.append(h)
+            except Exception:  # noqa: BLE001  el índice nunca tumba una herramienta
+                hits = []
+        if not hits:
+            t = tema.lower()
+            hits = [h for h in hechos if t in (h.get("enunciado", "") + " " + h.get("tema", "")).lower()][:12]
         return _recortar([{"id": h["id"], "tipo": h.get("tipo"), "estado": h.get("estado"), "enunciado": h.get("enunciado"), "fuentes": [p.get("referencia") for p in h.get("procedencia", [])][:3]} for h in hits] or "Sin hechos sobre ese tema en el modelo de mundo")
 
     tools.append(dspy.Tool(buscar_en_proyecto, name="buscar_en_proyecto", desc="Busca en el propio proyecto: hipótesis, hechos, artefactos, decisiones, fuentes y datasets de esta investigación. Usar antes de preguntar a una persona por algo que ya esta decidido.", args={"consulta": {"type": "string", "description": "Palabras del dominio, un identificador o una frase"}}, arg_types={"consulta": str}))
@@ -155,11 +169,11 @@ def buscar_proyecto(estado: dict[str, Any], investigacion_id: str, consulta: str
     return hits[:maximo]
 
 
-async def preguntar(programas_lm: dspy.LM, estado: dict[str, Any], investigacion_id: str, pregunta: str, contexto: str, origen: str = "persona") -> dict[str, Any]:
+async def preguntar(programas_lm: dspy.LM, estado: dict[str, Any], investigacion_id: str, pregunta: str, contexto: str, origen: str = "persona", almacen: Any = None) -> dict[str, Any]:
     """Una pregunta con herramientas. Devuelve respuesta, límites, las
     herramientas usadas y los registros de consulta."""
     registro: list[dict[str, Any]] = []
-    tools = herramientas(estado, investigacion_id, registro, origen=origen)
+    tools = herramientas(estado, investigacion_id, registro, origen=origen, almacen=almacen)
     agente = dspy.ReAct(PreguntarConHerramientas, tools=tools, max_iters=MAX_ITERACIONES)
     with dspy.context(lm=programas_lm):
         pred = await agente.acall(pregunta=pregunta, contexto=contexto)

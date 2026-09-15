@@ -512,7 +512,7 @@ class Supervisor:
                 "juez",
                 self.programas.concluir,
                 hipotesis=T.hipotesis_texto(h),
-                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO: no cuenta como evidencia' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
+                afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO: no cuenta como evidencia' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna",
                 supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
                 partidos="\n".join(f"- {p['resultado']} por {p['ejeDecisivo']}: {p['resumenDebate']}" for p in h["partidos"]) or "Sin partidos todavía",
                 novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()) + f". Cohortes distintas entre las fuentes: {len(PR.cohortes_de(h))}" + (f" ({', '.join(PR.cohortes_de(h))})" if PR.cohortes_de(h) else "") + ". " + SESGO.texto_para_grade(h["procedencia"]["fuentes"]),
@@ -889,7 +889,7 @@ class Supervisor:
                 antes = h.pop("_conclusionAnterior", None) or {}
                 despues = h.get("conclusion") or {}
                 h.pop("_recalcularPorFuente", None)
-                L += [f"## {h['titulo']}", f"Antes: certeza {antes.get('certeza', 'sin conclusion')}, dirección {antes.get('direccion', '?')}. {antes.get('enunciado', '')}", f"Ahora: certeza {despues.get('certeza', 'sin conclusion')}, dirección {despues.get('direccion', '?')}. {despues.get('enunciado', '')}", f"Bloqueos ahora: {', '.join(h.get('bloqueos', [])) or 'ninguno'}", ""]
+                L += [f"## {h['titulo']}", f"Antes: certeza {antes.get('certeza', 'sin conclusión')}, dirección {antes.get('direccion', '?')}. {antes.get('enunciado', '')}", f"Ahora: certeza {despues.get('certeza', 'sin conclusión')}, dirección {despues.get('direccion', '?')}. {despues.get('enunciado', '')}", f"Bloqueos ahora: {', '.join(h.get('bloqueos', [])) or 'ninguno'}", ""]
                 if h.get("experimento") and h["experimento"].get("estado") in ("asignado", "en_curso"):
                     L.append("Experimento en marcha: el recálculo no lo cancela ni lo autoriza; decide una persona.")
                     L.append("")
@@ -1021,6 +1021,7 @@ class Supervisor:
         plan: list[dict[str, Any]] = []
         try:
             pregunta = (c.get("pregunta") or {}).get("enunciado") or (next((x for x in self.almacen.estado["corridas"] if x["id"] == c["id"]), {}).get("pregunta") or {}).get("enunciado")
+            mundo = await T.modelo_de_mundo_para(self.almacen, inv["id"], inv["objetivo"] + (f" {pregunta}" if pregunta else ""))
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.plan,
@@ -1028,7 +1029,7 @@ class Supervisor:
                 relevancia=inv["relevancia"],
                 limites="; ".join(inv["limites"]) or "Ninguno declarado",
                 condicion_parada=inv["condicionParada"],
-                modelo_de_mundo=T.modelo_de_mundo(e["hechos"], inv["id"]),
+                modelo_de_mundo=mundo,
                 resumen_iteracion_anterior=anterior["resumen"] if anterior else "",
                 indicaciones_humanas=T.indicaciones_humanas(anterior, pendientes_solo=True) if anterior else "Ninguna.",
                 hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]),
@@ -1413,7 +1414,7 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
 
 def _informe(inv: dict[str, Any], it: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], afs: list[dict], bloqueadas: list[dict], consultas: list[dict] | None = None) -> str:
     lineas = [f"# {inv['titulo']}: iteración {it['numero']}", "", resumen, "", "## Plan ejecutado", T.plan_ejecutado(it), "", f"## Hechos nuevos ({len(hechos)})"]
-    lineas += [f"- {h['enunciado']} <" + "; ".join(f"{p['referencia']}{', pag. ' + str(p['pagina']) if p['pagina'] else ''}" for p in h["procedencia"]) + ">" for h in hechos] or ["Ninguno"]
+    lineas += [f"- {h['enunciado']} <" + "; ".join(f"{p['referencia']}{', pág. ' + str(p['pagina']) if p['pagina'] else ''}" for p in h["procedencia"]) + ">" for h in hechos] or ["Ninguno"]
     lineas += ["", f"## Hipótesis nuevas en la cola ({len(hipotesis)})"] + ([f"- {h['titulo']}" for h in hipotesis] or ["Ninguna"])
     lineas += ["", f"## Afirmaciones ({len(afs)}), bloqueadas {len(bloqueadas)}"]
     for a in afs[:80]:

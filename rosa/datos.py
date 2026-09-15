@@ -218,7 +218,7 @@ def esquema_para_modelo(ruta: Path, procedencia: dict, incluir_filas: bool = Fal
     dic = procedencia.get("diccionario") or []
     if dic:
         lineas.append("Diccionario de columnas:")
-        lineas += [f"- {c['columna']} ({c['tipo']}{', ' + c['unidad'] if c.get('unidad') else ''}): {c['descripcion'] or 'sin descripcion'}" for c in dic]
+        lineas += [f"- {c['columna']} ({c['tipo']}{', ' + c['unidad'] if c.get('unidad') else ''}): {c['descripcion'] or 'sin descripción'}" for c in dic]
     lineas += ["Resumen estadístico:", resumen]
     if incluir_filas and procedencia.get("permiteLlmTerceros"):
         lineas += ["Primeras filas (autorizado por el libro de procedencia):", muestra[:4000]]

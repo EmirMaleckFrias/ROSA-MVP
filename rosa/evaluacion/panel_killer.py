@@ -119,7 +119,7 @@ def plantar(h: dict[str, Any], fallo: str) -> dict[str, Any] | None:
 
 
 def _afs_texto(h: dict[str, Any]) -> str:
-    return "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTETICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    return "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
 
 
 def _mision_texto(inv: dict[str, Any]) -> str:

@@ -312,6 +312,39 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Conocimiento y criterio: el modelo de mundo se lee bajo demanda (15 de septiembre de 2026, noche)
+
+La corrida 2 sobre biomarcadores y beneficio clínico juzgó la relevancia con
+las preguntas abiertas heredadas de la investigación anterior (GFAP, NfL,
+APOE ε4, Alzheimer autosómico dominante): Exa trajo los artículos correctos
+sobre donanemab, AL002 y semaglutida y el cribado los excluyó "por ser
+Alzheimer esporádico, no ADAD". Tres cambios en `rosa/bucle/contexto.py`:
+
+- **El criterio de relevancia empieza por el objetivo y la pregunta de la
+  corrida** (`preguntas_abiertas`, que reciben el reranker, el cribado, el
+  generador de consultas y el extractor). Después van las preguntas abiertas
+  propias por prioridad. Una pregunta heredada de otra investigación solo
+  entra si nombra algo del objetivo (un nombre propio o dos términos clave),
+  y va marcada «(heredada)». El conocimiento heredado sigue en el modelo de
+  mundo; lo que no hereda es la decisión de qué se lee.
+- **El modelo de mundo por paso** (`modelo_de_mundo_para`): un mapa del árbol
+  (cuántos hechos por estado, temas, cuántos heredados y de qué
+  investigación), el núcleo que entra siempre (preguntas abiertas propias y
+  hechos descartados con su motivo) y, hasta el tope, los hechos más
+  parecidos a lo que se hace en ese paso según el índice semántico (el plan
+  recibe los parecidos al objetivo y la pregunta; el Killer, los parecidos a
+  la hipótesis). Sin índice, se completa por prioridad como antes. Cada hecho
+  heredado lleva `[heredado de «título»]`, siguiendo la cadena de copias
+  hasta la investigación original, para que un dato medido en Alzheimer
+  familiar no se use como si valiera para los ensayos en esporádico.
+- **La herramienta `leer_modelo_de_mundo`** del bucle ReAct busca por
+  significado con el mismo índice cuando lo hay; por texto si no.
+
+Además, la consulta a ClinicalTrials.gov usa solo nombres propios y siglas
+(`terminos_registro`) unidos con OR: antes mandaba palabras sueltas en
+castellano ("mantiene precedencia GFAP", 0 estudios). Pruebas en
+`rosa/tests/test_criterio_y_mundo.py`.
+
 ## Reranker, índice semántico, PubTator 3 y banco de objetivos (15 de septiembre de 2026, tarde)
 
 Cuatro piezas que atacan lo que la revisión de la primera corrida señaló:

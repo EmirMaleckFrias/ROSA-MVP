@@ -78,7 +78,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
             f"Célula o tejido: {tarjeta.get('celula') or 'sin especificar'}",
             f"Etapa: {tarjeta.get('etapa') or 'sin especificar'}",
             f"Intervención: {tarjeta.get('intervencion') or 'ninguna'} ({tarjeta.get('direccion', 'sin_intervencion')})",
-            f"Predicción falsable: {tarjeta.get('prediccionFalsable') or 'SIN PREDICCION FALSABLE'}",
+            f"Predicción falsable: {tarjeta.get('prediccionFalsable') or 'SIN PREDICCIÓN FALSABLE'}",
             "Riesgos: " + ("; ".join(tarjeta.get("riesgos", [])) or "ninguno declarado"),
             f"Paso de la ruta terapéutica: {tarjeta.get('pasoRuta', 'mecanismo').replace('_', ' ')}. Completar este paso no completa la ruta (mecanismo, opciones de intervención, compromiso de diana, efecto funcional, selectividad y toxicidad, exposición, replicación independiente, evidencia en la población).",
         ]
@@ -102,7 +102,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
     L += ["", "## 3. Evidencia con procedencia", f"{len(sostenidas)} afirmaciones sostenidas o parciales de {len(h['afirmaciones'])}; {len(h['procedencia']['fuentes'])} fuentes; {len(cohortes)} cohortes distintas identificadas" + (f" ({', '.join(cohortes)})" if cohortes else "") + "."]
     for a in sostenidas:
         clase = a.get("clase") or ("dato" if a["tipo"] == "dato" else "literatura")
-        L.append(f"- [{a['veredicto']}, {a['tipo']}, clase {clase}{', SINTETICO' if a.get('sintetico') else ''}] {a['texto']} {a['cita']}")
+        L.append(f"- [{a['veredicto']}, {a['tipo']}, clase {clase}{', SINTÉTICO' if a.get('sintetico') else ''}] {a['texto']} {a['cita']}")
         if a.get("fragmento"):
             L.append(f"    Pasaje literal: \"{a['fragmento'][:300]}\"")
     if otras:

@@ -90,12 +90,12 @@ class Indice:
         self._cache = None
 
     def pendientes(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Los items cuyo texto cambió o que no están en el índice."""
+        """Los ítems cuyo texto cambió o que no están en el índice."""
         actuales = {r["id"]: r["hash"] for r in self.db.execute("SELECT id, hash FROM vectores")}
         return [x for x in items if x.get("texto") and actuales.get(x["id"]) != _hash(x["texto"])]
 
     async def indexar(self, items: list[dict[str, Any]]) -> int:
-        """items: {id, tipo, investigacionId, texto}. Incrusta solo lo nuevo o
+        """ítems: {id, tipo, investigacionId, texto}. Incrusta solo lo nuevo o
         cambiado. Devuelve cuántos vectores se escribieron."""
         if not disponible():
             return 0
