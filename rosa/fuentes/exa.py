@@ -145,6 +145,10 @@ def _coste(d: dict[str, Any]) -> float:
 
 # Literatura gris que PubMed no indexa: reguladores, registros de ensayos,
 # preprints y los portales del campo del Alzheimer.
+# Patentes y financiación: el índice de Exa las cubre, y una hipótesis ya
+# patentada o ya financiada no es nueva aunque no esté publicada.
+DOMINIOS_PATENTES = ["patents.google.com", "patentscope.wipo.int", "freepatentsonline.com", "patents.justia.com", "worldwide.espacenet.com"]
+DOMINIOS_FINANCIACION = ["reporter.nih.gov", "grantome.com", "cordis.europa.eu", "gtr.ukri.org", "alzdiscovery.org", "alz.org"]
 DOMINIOS_GRIS = ["fda.gov", "ema.europa.eu", "clinicaltrials.gov", "who.int", "nia.nih.gov", "alzforum.org", "alz.org", "biorxiv.org", "medrxiv.org", "isrctn.com", "clinicaltrialsregister.eu"]
 
 

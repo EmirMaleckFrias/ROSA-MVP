@@ -18,6 +18,7 @@ Reglas que se cumplen aqui:
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import math
 import re
 import traceback
@@ -454,6 +455,55 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         pista.fallar(f"{nombre_base} no respondió: {str(ex)[:160]}. No es 'sin resultados': la consulta no llegó.")
         _contar_fallo_fuente(ctx, nombre_base, str(ex))
     return resultado
+
+
+def fecha_iso_de_ms(ms: Any) -> str | None:
+    """AAAA-MM-DD a partir de milisegundos desde la época; None si no hay."""
+    try:
+        return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).date().isoformat() if ms else None
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def estado_por_puntuacion(mejor: int, alto: str, parcial: str, ninguno: str) -> str:
+    """La misma regla que el precedente en la literatura: 8 o más es "ya
+    existe", de 5 a 7 es parcial, menos es nada claro."""
+    return alto if mejor >= 8 else parcial if mejor >= 5 else ninguno
+
+
+async def _novedad_exa_dominios(ctx: Ctx, h: dict[str, Any], pista: Pista, novedad: dict[str, Any], clave: str, dominios: list[str], pregunta: str, estados: tuple[str, str, str], etiqueta: str) -> None:
+    """Una comprobación de novedad sobre un conjunto de dominios de Exa
+    (patentes, financiación): búsqueda semántica del enunciado, acotada a lo
+    publicado antes de que Rosa propusiera la hipótesis, y cribado de los tres
+    mejores con el programa de relevancia. Sin Exa queda "no comprobado" con
+    el motivo, nunca "no hay"."""
+    if not exa.disponible():
+        novedad[clave] = {"estado": "no_comprobado", "detalle": f"No comprobado: requiere Exa (ROSA_EXA_KEY) para buscar en {etiqueta}", "url": None}
+        return
+    try:
+        docs, n, coste = await exa.buscar(h["enunciado"][:600], maximo=5, categoria=None, dominios=dominios, pregunta_pasajes=h["enunciado"][:500], hasta_fecha=fecha_iso_de_ms(h.get("creadaEn")))
+        pista.accion(f"Exa ({etiqueta}): enunciado completo", {"base": "Exa", "parametros": f"includeDomains={','.join(dominios[:3])}...&numResults=5&endPublishedDate=creación de la hipótesis", "resultados": f"{n} documentos, {coste:.4f} USD"})
+        _anotar_coste_exa(ctx, coste)
+        mejor, mejor_ref, mejor_url = 0, "", None
+        for d in [x for x in docs if x.get("titulo")][:3]:
+            try:
+                p = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=f"{pregunta}: {h['enunciado']}", titulo=d["titulo"], resumen=(d.get("resumen") or "")[:2500])
+                if int(p.puntuacion) > mejor:
+                    mejor, mejor_ref, mejor_url = int(p.puntuacion), f"{d['titulo'][:90]} ({d.get('fecha') or 'sin fecha'})", d.get("url")
+            except PresupuestoAgotado:
+                raise
+            except Exception:  # noqa: BLE001
+                continue
+        estado = estado_por_puntuacion(mejor, *estados)
+        if estado == estados[0]:
+            detalle = f"Ya existe algo muy cercano en {etiqueta}: {mejor_ref} (puntuación {mejor}/10)"
+        elif estado == estados[1]:
+            detalle = f"Relación parcial en {etiqueta}: {mejor_ref} (puntuación {mejor}/10)"
+        else:
+            detalle = f"Nada claro en {etiqueta} entre {n} documentos anteriores a la hipótesis"
+        novedad[clave] = {"estado": estado, "detalle": detalle, "url": mejor_url if estado != estados[2] else None}
+    except FuenteNoDisponible as ex:
+        novedad[clave] = {"estado": "no_comprobado", "detalle": f"No comprobado: Exa no respondió al buscar en {etiqueta} ({str(ex)[:60]})", "url": None}
 
 
 def _anotar_coste_exa(ctx: Ctx, usd: float) -> None:
@@ -1584,8 +1634,11 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                 # Por significado, con el enunciado entero: la pregunta de novedad
                 # difícil es "¿alguien ya propuso esto con otras palabras?".
                 try:
-                    obras_exa, n_exa, coste_exa = await exa.buscar(h["enunciado"][:600], maximo=6)
-                    pista.accion("Exa: enunciado completo", {"base": "Exa", "parametros": "category=publication&numResults=6", "resultados": f"{n_exa} documentos, {coste_exa:.4f} USD"})
+                    # Solo lo publicado antes de que Rosa propusiera la hipótesis: la
+                    # novedad honesta, también cuando se vuelve a juzgar meses después.
+                    obras_exa, n_exa, coste_exa = await exa.buscar(h["enunciado"][:600], maximo=6, pregunta_pasajes=h["enunciado"][:500], hasta_fecha=fecha_iso_de_ms(h.get("creadaEn")))
+                    pista.accion("Exa: enunciado completo", {"base": "Exa", "parametros": "category=publication&numResults=6&endPublishedDate=creación de la hipótesis&highlights.query=enunciado", "resultados": f"{n_exa} documentos, {coste_exa:.4f} USD"})
+                    _anotar_coste_exa(ctx, coste_exa)
                     vistos = {o.get("doi") for o in candidatas if o.get("doi")}
                     candidatas.extend(o for o in obras_exa[:5] if not (o.get("doi") and o["doi"] in vistos))
                     total += n_exa
@@ -1612,6 +1665,10 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                 novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"Sin precedente claro entre {total} obras que casan con: {termino}"}
         except FuenteNoDisponible as ex:
             novedad["precedente"] = {"estado": "no_comprobado", "detalle": f"No comprobado: OpenAlex no respondió ({str(ex)[:60]})"}
+
+        # Patentes y financiación (Exa): una idea ya protegida o ya financiada no es nueva.
+        await _novedad_exa_dominios(ctx, h, pista, novedad, "patentes", exa.DOMINIOS_PATENTES, "Alguien ya patentó o reivindicó esto", ("patente_relacionada", "parcial", "sin_patente"), "patentes")
+        await _novedad_exa_dominios(ctx, h, pista, novedad, "financiacion", exa.DOMINIOS_FINANCIACION, "Alguien ya financió un proyecto para comprobar esto", ("proyecto_financiado", "parcial", "sin_proyecto"), "convocatorias y proyectos financiados")
 
         # Conectores: genetica humana, farmacos y datos publicos para la misma diana.
         consultas = await _novedad_por_conectores(ctx, h, genes[:1], novedad, pista)

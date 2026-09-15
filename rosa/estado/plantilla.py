@@ -241,6 +241,9 @@ def novedad_pendiente() -> dict[str, Any]:
         "genetica": {"estado": "no_comprobado", "detalle": "No comprobado todavía"},
         "farmacos": {"estado": "no_comprobado", "detalle": "No comprobado todavía"},
         "datosPublicos": {"estado": "no_comprobado", "detalle": "No comprobado todavía", "series": []},
+        # Exa (15 de septiembre de 2026): patentes y proyectos financiados anteriores a la hipótesis.
+        "patentes": {"estado": "no_comprobado", "detalle": "No comprobado todavía", "url": None},
+        "financiacion": {"estado": "no_comprobado", "detalle": "No comprobado todavía", "url": None},
         "agora": {"estado": "no_nominada", "detalle": "No comprobado: Agora no tiene API pública estable. No se afirma ausencia."},
         "precedente": {"estado": "sin_precedente", "detalle": "No comprobado todavía"},
     }

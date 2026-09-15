@@ -347,7 +347,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </div>
       </Seccion>
 
-      <Seccion detalle titulo="Novedad" nota="Consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora, la genética humana (GWAS Catalog, ClinVar), los fármacos contra la diana (ChEMBL, DGIdb), los datos públicos para comprobarla (GEO, CELLxGENE) y si alguien ya lo propuso en la literatura.">
+      <Seccion detalle titulo="Novedad" nota="Consultas baratas antes de gastar una corrida: Open Targets, ClinicalTrials.gov, Agora, la genética humana (GWAS Catalog, ClinVar), los fármacos contra la diana (ChEMBL, DGIdb), los datos públicos para comprobarla (GEO, CELLxGENE) y si alguien ya lo propuso en la literatura. Con Exa, además, patentes y proyectos financiados anteriores a la hipótesis: una idea ya protegida o ya financiada no es nueva aunque no esté publicada.">
         <div className="novedad novedad-4">
           <div className="novedad-item">
             <strong>Open Targets</strong>
@@ -405,6 +405,44 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                   ))}
                 </ul>
               )}
+            </div>
+          )}
+          {h.novedad.patentes && (
+            <div className="novedad-item">
+              <strong>Patentes (vía Exa)</strong>
+              <Chip tono={h.novedad.patentes.estado === 'sin_patente' ? 'ok' : h.novedad.patentes.estado === 'parcial' ? 'aviso' : h.novedad.patentes.estado === 'patente_relacionada' ? 'mal' : 'borde'}>
+                {h.novedad.patentes.estado === 'sin_patente' ? 'Sin patente cercana' : h.novedad.patentes.estado === 'parcial' ? 'Relación parcial' : h.novedad.patentes.estado === 'patente_relacionada' ? 'Ya patentado o muy cercano' : 'No comprobado'}
+              </Chip>
+              <p>
+                {h.novedad.patentes.detalle}
+                {h.novedad.patentes.url && (
+                  <>
+                    {' '}
+                    <a className="enlace" href={h.novedad.patentes.url} target="_blank" rel="noopener noreferrer">
+                      ver
+                    </a>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+          {h.novedad.financiacion && (
+            <div className="novedad-item">
+              <strong>Proyectos financiados (vía Exa)</strong>
+              <Chip tono={h.novedad.financiacion.estado === 'sin_proyecto' ? 'ok' : h.novedad.financiacion.estado === 'parcial' ? 'aviso' : h.novedad.financiacion.estado === 'proyecto_financiado' ? 'mal' : 'borde'}>
+                {h.novedad.financiacion.estado === 'sin_proyecto' ? 'Sin proyecto cercano' : h.novedad.financiacion.estado === 'parcial' ? 'Relación parcial' : h.novedad.financiacion.estado === 'proyecto_financiado' ? 'Ya financiado' : 'No comprobado'}
+              </Chip>
+              <p>
+                {h.novedad.financiacion.detalle}
+                {h.novedad.financiacion.url && (
+                  <>
+                    {' '}
+                    <a className="enlace" href={h.novedad.financiacion.url} target="_blank" rel="noopener noreferrer">
+                      ver
+                    </a>
+                  </>
+                )}
+              </p>
             </div>
           )}
           <div className="novedad-item">

@@ -831,6 +831,10 @@ export interface Novedad {
   genetica?: { estado: 'no_comprobado' | 'vinculo_conocido' | 'sin_vinculo'; detalle: string };
   farmacos?: { estado: 'no_comprobado' | 'farmacos_existentes' | 'sin_farmacos'; detalle: string };
   datosPublicos?: { estado: 'no_comprobado' | 'hay_datos' | 'sin_datos'; detalle: string; series: { accession: string; titulo: string; n?: number | string | null; plataforma?: string | null }[] };
+  /** Exa: patentes y proyectos financiados anteriores a la hipótesis. Una idea ya
+   *  protegida o ya financiada no es nueva aunque no esté publicada. */
+  patentes?: { estado: 'no_comprobado' | 'patente_relacionada' | 'parcial' | 'sin_patente'; detalle: string; url: string | null };
+  financiacion?: { estado: 'no_comprobado' | 'proyecto_financiado' | 'parcial' | 'sin_proyecto'; detalle: string; url: string | null };
   agora: { estado: 'no_nominada' | 'nominada'; detalle: string };
   /** Si alguien ya lo propuso en la literatura (comprobacion tipo Owl). */
   precedente: { estado: 'sin_precedente' | 'parcial' | 'ya_publicado' | 'no_comprobado'; detalle: string };

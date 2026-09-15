@@ -161,3 +161,83 @@ def test_conector_de_referencias_registrado(monkeypatch):
     importlib.reload(modulo)
     assert REGISTRO["exa_referencias"].estado == "requiere_cuenta"
 
+
+
+def test_ayudas_de_la_novedad_por_fecha_y_puntuacion():
+    from rosa.bucle import pasos
+    from rosa.estado import plantilla
+
+    assert pasos.fecha_iso_de_ms(1757900000000) == "2025-09-15"
+    assert pasos.fecha_iso_de_ms(None) is None and pasos.fecha_iso_de_ms("x") is None
+    assert pasos.estado_por_puntuacion(9, "ya", "parcial", "nada") == "ya"
+    assert pasos.estado_por_puntuacion(5, "ya", "parcial", "nada") == "parcial"
+    assert pasos.estado_por_puntuacion(4, "ya", "parcial", "nada") == "nada"
+    n = plantilla.novedad_pendiente()
+    assert n["patentes"]["estado"] == "no_comprobado" and n["financiacion"]["url"] is None
+    assert "patents.google.com" in exa.DOMINIOS_PATENTES and "reporter.nih.gov" in exa.DOMINIOS_FINANCIACION
+
+
+def test_novedad_por_dominios_sin_clave_queda_no_comprobado(monkeypatch):
+    from rosa.bucle import pasos
+
+    monkeypatch.setattr(config, "CLAVE_EXA", "")
+
+    class Pista:
+        def accion(self, *a, **k):
+            raise AssertionError("sin clave no se llama a Exa")
+
+        def nota(self, *a, **k):
+            pass
+
+    novedad = {}
+    h = {"enunciado": "GFAP precede a NfL", "creadaEn": 1757900000000}
+    asyncio.run(pasos._novedad_exa_dominios(None, h, Pista(), novedad, "patentes", exa.DOMINIOS_PATENTES, "Alguien ya patentó esto", ("patente_relacionada", "parcial", "sin_patente"), "patentes"))
+    assert novedad["patentes"]["estado"] == "no_comprobado" and "ROSA_EXA_KEY" in novedad["patentes"]["detalle"]
+
+
+def test_novedad_por_dominios_con_exa_y_juez_simulado(monkeypatch):
+    from rosa.bucle import pasos
+
+    monkeypatch.setattr(config, "CLAVE_EXA", "x")
+    llamadas = []
+
+    async def pedir_falso(metodo, url, limitador, **kwargs):
+        llamadas.append(kwargs["json"])
+        return httpx.Response(200, json=RESPUESTA, request=httpx.Request(metodo, url))
+
+    monkeypatch.setattr(exa, "pedir", pedir_falso)
+
+    class Pred:
+        puntuacion = 9
+
+    class Programas:
+        relevancia = object()
+
+    class Ctx:
+        programas = Programas()
+        corrida_id = "c1"
+
+        async def llamar(self, rol, programa, **kw):
+            assert rol == "volumen" and "patentó" in kw["preguntas_abiertas"]
+            return Pred()
+
+        def mutar(self, fn, nombre):
+            e = {"corridas": [{"id": "c1", "gasto": {}}]}
+            fn(e)
+            self.gasto = e["corridas"][0]["gasto"]
+
+    class Pista:
+        def accion(self, *a, **k):
+            pass
+
+        def nota(self, *a, **k):
+            pass
+
+    ctx = Ctx()
+    novedad = {}
+    h = {"enunciado": "GFAP precede a NfL en portadores de APOE4", "creadaEn": 1757900000000}
+    asyncio.run(pasos._novedad_exa_dominios(ctx, h, Pista(), novedad, "patentes", exa.DOMINIOS_PATENTES, "Alguien ya patentó esto", ("patente_relacionada", "parcial", "sin_patente"), "patentes"))
+    assert novedad["patentes"]["estado"] == "patente_relacionada" and novedad["patentes"]["url"]
+    cuerpo = llamadas[0]
+    assert cuerpo["includeDomains"] == exa.DOMINIOS_PATENTES and cuerpo["endPublishedDate"].startswith("2025-09-15") and "category" not in cuerpo
+    assert ctx.gasto["exaUsd"] == 0.008
