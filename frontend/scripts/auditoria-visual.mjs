@@ -14,7 +14,22 @@ const MODOS = ['sencillo', 'detalle'];
 const SALIDA = new URL('../auditoria/', import.meta.url).pathname;
 mkdirSync(SALIDA, { recursive: true });
 
-const estado = await (await fetch(`${BASE}/api/estado`)).json();
+// El estado está tras la puerta: se lee con la credencial interna del servidor
+// (datos/_token_interno), la misma que usan después las páginas del navegador.
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+let tokenInterno = '';
+try {
+  tokenInterno = readFileSync(resolve(process.cwd(), '..', 'datos', '_token_interno'), 'utf8').trim();
+} catch {
+  console.warn('Sin datos/_token_interno: si Rosa exige sesión, todas las pantallas serán la puerta.');
+}
+const respuestaEstado = await fetch(`${BASE}/api/estado`, { headers: tokenInterno ? { 'x-rosa-interno': tokenInterno } : {} });
+if (!respuestaEstado.ok) {
+  console.error(`No se pudo leer el estado (${respuestaEstado.status}); sin credencial interna la auditoría solo vería la puerta.`);
+  process.exit(1);
+}
+const estado = await respuestaEstado.json();
 const inv = estado.investigaciones[0]?.id;
 const hip = estado.hipotesis.find((h) => h.investigacionId === inv)?.id;
 const rutas = ['#/', '#/nueva', '#/ajustes'];
@@ -151,14 +166,6 @@ const AUDITAR = () => {
 // La puerta de Rosa: sin sesión no se carga nada. La auditoría entra con la
 // credencial interna del servidor (datos/_token_interno, solo legible en la
 // máquina donde corre Rosa) y simula el estado de sesión que la puerta pide.
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-let tokenInterno = '';
-try {
-  tokenInterno = readFileSync(resolve(process.cwd(), '..', 'datos', '_token_interno'), 'utf8').trim();
-} catch {
-  console.warn('Sin datos/_token_interno: si Rosa exige sesión, todas las pantallas serán la puerta.');
-}
 const SESION_AUDITORIA = { correo: 'auditoria@alzheimerproject.com', administrador: false, correoConfigurado: true, instalacionLocal: false };
 
 const navegador = await chromium.launch();
