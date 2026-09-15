@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import unquote
 
 from rosa import config
 from rosa.fuentes.base import FuenteNoDisponible, Limitador, json_de, pedir, referencia_corta
@@ -230,7 +231,12 @@ async def enlaces(url: str, maximo: int = 300) -> tuple[list[dict[str, Any]], fl
     vistos: set[str] = set()
     for x in d.get("results") or []:
         for enlace in ((x.get("extras") or {}).get("links") or []):
-            if not isinstance(enlace, str) or not _ENLACE_BIBLIO.search(enlace):
+            if not isinstance(enlace, str):
+                continue
+            # Las editoriales duplican cada referencia con el DOI codificado
+            # (%2F, %28): se decodifica para reconocerlo y no contarlo dos veces.
+            enlace = unquote(enlace)
+            if not _ENLACE_BIBLIO.search(enlace):
                 continue
             doi = doi_de_url(enlace)
             pm = _PMID.search(enlace)

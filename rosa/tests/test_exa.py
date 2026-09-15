@@ -136,7 +136,7 @@ def test_enlaces_filtra_solo_lo_bibliografico(monkeypatch):
     monkeypatch.setattr(config, "CLAVE_EXA", "x")
     respuesta = {"costDollars": {"total": 0.001}, "results": [{"url": "https://ejemplo.org/articulo", "extras": {"links": [
         "https://doi.org/10.1002/alz.13579", "https://www.nature.com/articles/s41591-025-01234-5", "https://pubmed.ncbi.nlm.nih.gov/39912345/",
-        "https://twitter.com/algo", "https://ejemplo.org/about", "https://doi.org/10.1002/alz.13579", "https://www.medrxiv.org/content/10.1101/2024.01.25.24301779v2"]}}]}
+        "https://twitter.com/algo", "https://ejemplo.org/about", "https://doi.org/10.1002/alz.13579", "https://doi.org/10.1002%2Falz.13579", "https://www.medrxiv.org/content/10.1101/2024.01.25.24301779v2"]}}]}
 
     async def pedir_falso(metodo, url, limitador, **kwargs):
         assert url.endswith("/contents") and kwargs["json"]["extras"]["links"] == 300
