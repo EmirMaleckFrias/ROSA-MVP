@@ -2285,6 +2285,7 @@ export interface CostesInvestigacion {
   corridas: number;
   llamadas: number;
   usdModelo: number;
+  usdExa?: number;
   horasRevision: number;
   tarifaHoraRevisionUsd: number;
   usdRevision: number;
@@ -2326,7 +2327,7 @@ export function CostesPorDecision({ investigacionId }: { investigacionId: string
           <div className="metricas">
             <div className="gasto-item">
               <strong>{usd(c.usdTotal)}</strong>
-              <span>total: {usd(c.usdModelo)} de modelo + {c.horasRevision.toFixed(2).replace('.', ',')} h de revisión a {c.tarifaHoraRevisionUsd} $/h</span>
+              <span>total: {usd(c.usdModelo)} de modelo{(c.usdExa ?? 0) > 0 ? ` + ${usd(c.usdExa ?? 0)} en Exa` : ''} + {c.horasRevision.toFixed(2).replace('.', ',')} h de revisión a {c.tarifaHoraRevisionUsd} $/h</span>
             </div>
             <div className="gasto-item">
               <strong>{usd(c.usdPorDossier)}</strong>

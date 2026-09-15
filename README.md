@@ -270,10 +270,35 @@ como complemento de PubMed, Europe PMC y OpenAlex, no en su lugar:
   enunciado entero de la hipótesis: es la herramienta para "¿alguien ya
   propuso esto con otras palabras?". Los candidatos de las dos bases se
   puntúan juntos con el mismo programa de relevancia.
-- **Conectores** `exa_publicaciones` y `exa_similares` (documentos parecidos
-  a una URL) en el catálogo, con registro de consulta e invariante (cuántos
-  resultados traen DOI resuelto). Sin clave quedan como "requiere cuenta"
-  con el motivo.
+- **Conectores** `exa_publicaciones`, `exa_similares` (documentos parecidos
+  a una URL) y `exa_referencias` (los enlaces bibliográficos de la página de
+  un artículo) en el catálogo, con registro de consulta e invariante. Sin
+  clave quedan como "requiere cuenta" con el motivo.
+
+Ampliado el 15 de septiembre en cuatro partes:
+
+- **Pasajes guiados y afinidad.** Los pasajes destacados se piden con la
+  pregunta abierta (o el enunciado) como guía; Exa devuelve la similitud del
+  mejor pasaje, que ordena los artículos antes del cribado y queda en cada
+  uno (`similitud`).
+- **Literatura gris.** Base «gris» del planificador: la misma búsqueda
+  semántica acotada a FDA, EMA, registros de ensayos, OMS, NIA, Alzforum y
+  preprints (`exa.DOMINIOS_GRIS`).
+- **Novedad honesta y más amplia.** El precedente, las patentes (Google
+  Patents, WIPO, Espacenet, Justia, FPO) y los proyectos financiados (NIH
+  RePORTER, Grantome, CORDIS, UKRI, ADDF) se buscan solo entre lo publicado
+  antes de que Rosa propusiera la hipótesis (`endPublishedDate`), con la
+  misma regla de puntuación que el precedente. Dos apartados nuevos en
+  "Novedad" de cada hipótesis.
+- **Vigilancia diaria** (`rosa/vigilancia.py`): una búsqueda al día por
+  hipótesis viva de lo publicado desde la última comprobación, sin modelos,
+  con evento en la línea de tiempo y sección plegable en la hipótesis. No
+  repite lo conocido y no afirma "nada nuevo" si Exa no responde.
+- **Texto de la página como último recurso** para el texto completo, en
+  partes con localizador explícito ("texto web, parte N"): sirve para
+  verificar contra el pasaje literal, no sustituye la cita a la página.
+- **Gasto.** Cada búsqueda suma a `gasto.exaUsd` de la corrida; el coste por
+  decisión (`rosa/costes.py`) incluye Exa (`usdExa`), con la vigilancia.
 
 Solo se usan los endpoints de recuperación (`search`, `contents`,
 `findSimilar`); nunca `answer`, `research` ni los tipos `deep`, que razonan

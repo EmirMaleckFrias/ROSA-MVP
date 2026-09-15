@@ -42,11 +42,13 @@ def costes_de_investigacion(e: dict[str, Any], investigacion_id: str, llamadas_p
     con_dossier = {_hip_de(a) for a in dossiers} - {None}
     candidatas = [h for h in hipotesis if h.get("candidata")]
     usd_modelo = round(sum(float((c.get("gasto") or {}).get("usd") or 0.0) for c in corridas), 4)
+    # Exa (búsqueda semántica): gasto en las corridas más la vigilancia diaria de las hipótesis.
+    usd_exa = round(sum(float((c.get("gasto") or {}).get("exaUsd") or 0.0) for c in corridas) + sum(float((h.get("vigilancia") or {}).get("costeUsd") or 0.0) for h in hipotesis), 4)
     llamadas = sum(int((c.get("gasto") or {}).get("llamadas") or 0) for c in corridas)
     segundos_revision = sum(float(d.get("segundosRevision") or 0.0) for d in de_persona)
     horas_revision = round(segundos_revision / 3600, 3)
     usd_revision = round(horas_revision * politicas.TARIFA_HORA_REVISION_USD, 2)
-    usd_total = round(usd_modelo + usd_revision, 2)
+    usd_total = round(usd_modelo + usd_exa + usd_revision, 2)
     por_iteracion: list[dict[str, Any]] = []
     for c in corridas:
         agrupado: dict[int, list[dict[str, Any]]] = {}
@@ -66,6 +68,7 @@ def costes_de_investigacion(e: dict[str, Any], investigacion_id: str, llamadas_p
         "corridas": len(corridas),
         "llamadas": llamadas,
         "usdModelo": usd_modelo,
+        "usdExa": usd_exa,
         "horasRevision": horas_revision,
         "tarifaHoraRevisionUsd": politicas.TARIFA_HORA_REVISION_USD,
         "usdRevision": usd_revision,
@@ -81,5 +84,5 @@ def costes_de_investigacion(e: dict[str, Any], investigacion_id: str, llamadas_p
         "segundosMediosPorDecision": round(segundos_revision / len(de_persona), 1) if de_persona else None,
         "porIteracion": por_iteracion,
         "tendenciaUsdPorIteracion": tendencia,
-        "nota": "El coste total suma los dólares del modelo (tokens por la tabla de precios de Rosa) y las horas de revisión humana valoradas a la tarifa declarada en políticas. Las cifras por dossier, candidata y decisión dividen ese total.",
+        "nota": "El coste total suma los dólares del modelo (tokens por la tabla de precios de Rosa), los de Exa (búsquedas semánticas y vigilancia) y las horas de revisión humana valoradas a la tarifa declarada en políticas. Las cifras por dossier, candidata y decisión dividen ese total.",
     }

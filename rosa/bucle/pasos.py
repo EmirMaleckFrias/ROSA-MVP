@@ -320,7 +320,59 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
                 pista.resultado(f"{datos['referencia']}: texto completo en {len(secciones)} secciones (Europe PMC)")
         except FuenteNoDisponible as ex:
             pista.nota(f"Europe PMC sin texto completo para {datos['pmcid']}: {str(ex)[:120]}")
+    # 3. Último recurso: el texto limpio de la página, por Exa. Sin número de
+    #    página, así que el localizador lo dice ("texto web, parte N"): sirve
+    #    para verificar contra el pasaje literal, no sustituye a la cita a la
+    #    página exacta de un PDF.
+    if not any(fr["localizador"] != "resumen" for fr in fragmentos) and exa.disponible():
+        url = datos.get("url") or (f"https://doi.org/{datos['doi']}" if datos.get("doi") else None)
+        if url:
+            try:
+                paginas, coste = await exa.contenidos([url], maximo_caracteres=40000)
+                _anotar_coste_exa(ctx, coste)
+                texto = (paginas[0].get("texto") if paginas else "") or ""
+                trozos = trocear_texto(texto)
+                for i, t in enumerate(trozos[: MAX_FRAGMENTOS_POR_FUENTE * 2], start=1):
+                    fragmentos.append({"localizador": f"texto web, parte {i}", "texto": t, "encabezado": datos.get("titulo", ""), "_url": url})
+                if trozos:
+                    pista.resultado(f"{datos['referencia']}: texto de la página en {min(len(trozos), MAX_FRAGMENTOS_POR_FUENTE * 2)} partes (Exa, sin paginación)")
+                else:
+                    pista.nota(f"{datos['referencia']}: Exa no devolvió texto para {url[:80]}")
+            except FuenteNoDisponible as ex:
+                pista.nota(f"Exa sin texto para {datos['referencia']}: {str(ex)[:120]}")
     return fragmentos
+
+
+def trocear_texto(texto: str, tamano: int = 2500, minimo: int = 200) -> list[str]:
+    """Parte un texto largo en trozos de unos `tamano` caracteres cortando en
+    saltos de párrafo (o en punto y espacio si el párrafo es enorme). Los
+    trozos más cortos que `minimo` se pegan al anterior; el texto vacío da []."""
+    texto = (texto or "").strip()
+    if not texto:
+        return []
+    parrafos = [p.strip() for p in re.split(r"\n\s*\n", texto) if p.strip()]
+    trozos: list[str] = []
+    actual = ""
+    for p in parrafos:
+        while len(p) > tamano:
+            corte = p.rfind(". ", 0, tamano)
+            corte = corte + 1 if corte >= minimo else tamano
+            trozo, p = p[:corte].strip(), p[corte:].strip()
+            if actual:
+                trozos.append(actual)
+                actual = ""
+            trozos.append(trozo)
+        if len(actual) + len(p) + 1 > tamano and actual:
+            trozos.append(actual)
+            actual = p
+        else:
+            actual = f"{actual}\n{p}".strip() if actual else p
+    if actual:
+        if trozos and len(actual) < minimo:
+            trozos[-1] = f"{trozos[-1]}\n{actual}"
+        else:
+            trozos.append(actual)
+    return trozos
 
 
 NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)", "gris": "Exa (literatura gris: reguladores, registros, portales del campo)"}

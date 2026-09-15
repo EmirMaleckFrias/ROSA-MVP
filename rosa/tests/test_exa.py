@@ -241,3 +241,28 @@ def test_novedad_por_dominios_con_exa_y_juez_simulado(monkeypatch):
     cuerpo = llamadas[0]
     assert cuerpo["includeDomains"] == exa.DOMINIOS_PATENTES and cuerpo["endPublishedDate"].startswith("2025-09-15") and "category" not in cuerpo
     assert ctx.gasto["exaUsd"] == 0.008
+
+
+def test_trocear_texto_corta_en_parrafos_y_frases():
+    from rosa.bucle.pasos import trocear_texto
+
+    assert trocear_texto("") == [] and trocear_texto("   \n\n ") == []
+    corto = trocear_texto("Un párrafo.\n\nOtro párrafo.")
+    assert corto == ["Un párrafo.\nOtro párrafo."]
+    largo = "Frase de relleno número uno. " * 400
+    trozos = trocear_texto(largo, tamano=2500)
+    assert len(trozos) >= 4 and all(len(t) <= 2600 for t in trozos) and all(t.endswith(".") for t in trozos)
+    assert "".join(t.replace("\n", " ") for t in trozos).replace(" ", "") == largo.replace(" ", "")
+
+
+def test_costes_incluyen_exa_de_corridas_y_vigilancia():
+    from rosa.costes import costes_de_investigacion
+
+    e = {
+        "corridas": [{"id": "c1", "investigacionId": "inv", "numero": 1, "gasto": {"usd": 1.0, "llamadas": 10, "exaUsd": 0.021}}],
+        "hipotesis": [{"id": "h1", "investigacionId": "inv", "vigilancia": {"costeUsd": 0.014}}, {"id": "h2", "investigacionId": "inv"}],
+        "decisiones": [],
+        "artefactos": [],
+    }
+    c = costes_de_investigacion(e, "inv", {})
+    assert c["usdModelo"] == 1.0 and c["usdExa"] == 0.035 and abs(c["usdTotal"] - 1.035) < 0.006 and "Exa" in c["nota"]
