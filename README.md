@@ -253,6 +253,32 @@ largo ronda los 100 MB). Arrancar Docker Desktop antes de una demostracion con
 datos reales: sin runtime de aislamiento, los analisis quedan en "no ejecutado"
 con el motivo.
 
+## Despliegue: Vercel para la interfaz, un proceso persistente para Rosa
+
+El proyecto `rosa-mvp` de Vercel está hoy configurado con el preset FastAPI
+y raíz `.`, es decir, para desplegar el backend como funciones sin servidor.
+Eso no puede funcionar para Rosa: el backend es un proceso que vive (el
+bucle de investigación con tareas asyncio de horas, el flujo SSE, el
+trabajador de correo cada cinco segundos, el espejo de Convex) y escribe en
+un SQLite local que es la fuente de verdad. Una función sin servidor es
+efímera, pierde el disco entre llamadas y corta la ejecución a los pocos
+minutos. La división correcta:
+
+- **Vercel sirve la interfaz** (`frontend/`, preset Vite, salida `dist/`),
+  con una regla de reescritura que manda `/api/*` al backend. Así la
+  interfaz y la API comparten origen y la cookie de sesión (SameSite=Strict)
+  sigue valiendo.
+- **Rosa corre en una máquina persistente**: una VPS o un servicio de
+  procesos largos (Fly.io, Railway, Render), o el equipo del servidor
+  expuesto con un túnel HTTPS (Cloudflare Tunnel, Tailscale). Con HTTPS
+  público, esa dirección va en «Dirección web de Rosa» de la configuración de
+  correo, porque es la que viaja en los enlaces de acceso.
+
+Vercel además bloquea un despliegue si el correo del autor del commit no
+pertenece a la cuenta de GitHub conectada; el autor se fija con
+`git config user.email` (hoy `emir.malek@alzheimerproject.com`, que debe
+estar verificado en GitHub).
+
 ## Como se investiga
 
 1. **Nueva investigacion**: titulo, objetivo, que cuenta como relevante,
