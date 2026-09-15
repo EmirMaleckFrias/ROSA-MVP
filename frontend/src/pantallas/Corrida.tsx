@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { iteracionActualDe } from '../datos/acciones';
-import type { AlcancePermiso, EstadoRosa, Investigacion } from '../datos/tipos';
+import type { AlcancePermiso, Corrida as CorridaTipo, EstadoRosa, Investigacion } from '../datos/tipos';
 import { PlanEnVivo } from '../componentes/PlanEnVivo';
 import { FormularioMision, PreguntaDeCampana, RevisionDeRegistro } from '../componentes/Rosa2018';
 import { Presupuesto } from '../componentes/Presupuesto';
@@ -23,22 +23,15 @@ import { ALCANCE, ESTADO_CORRIDA } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
 
-export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estado: EstadoRosa; ahora: number; irA: (hash: string) => void }) {
-  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0] ?? null;
-  const [indicacion, setIndicacion] = useState('');
-  const [verResueltas, setVerResueltas] = useState(false);
-  const [verBusqueda, setVerBusqueda] = useState(false);
-  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
-  const [vigilar, setVigilar] = useState(true);
-  const [indicacionProceso, setIndicacionProceso] = useState<Record<string, string>>({});
-  const viva = corrida !== null && corrida.estado !== 'detenida' && corrida.estado !== 'terminada';
-  // El reloj de la corrida avanza cada segundo en pantalla mientras esta viva;
-  // el servidor guarda gasto.segundos solo de vez en cuando (cada 5 s de reloj
-  // y solo si coincide con una vuelta del bucle), asi que sin esto el tiempo
-  // saltaba "de la nada". Al terminar se ensena el valor guardado. Va antes
-  // del retorno temprano porque los hooks no pueden ser condicionales.
-  const segundosDeCorrida = useSegundosDeCorrida(corrida?.empezadaEn ?? 0, corrida?.gasto.segundos ?? 0, viva);
+type PropsCorrida = { inv: Investigacion; estado: EstadoRosa; ahora: number; irA: (hash: string) => void };
 
+/** La pantalla de la corrida. Decide si hay corrida y monta un componente u
+ *  otro: así los hooks de la corrida viva nunca son condicionales (una
+ *  investigación que pasa de "sin corridas" a "corrida 1" cambiaba el número
+ *  de hooks del mismo componente, y React fallaba al arrancar la primera
+ *  corrida: "Rendered more hooks than during the previous render"). */
+export function Corrida({ inv, estado, ahora, irA }: PropsCorrida) {
+  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0] ?? null;
   if (!corrida) {
     return (
       <div className="contenido">
@@ -59,6 +52,23 @@ export function Corrida({ inv, estado, ahora, irA }: { inv: Investigacion; estad
       </div>
     );
   }
+  return <CorridaViva key={corrida.id} inv={inv} estado={estado} ahora={ahora} irA={irA} corrida={corrida} />;
+}
+
+function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corrida: CorridaTipo }) {
+  const [indicacion, setIndicacion] = useState('');
+  const [verResueltas, setVerResueltas] = useState(false);
+  const [verBusqueda, setVerBusqueda] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [vigilar, setVigilar] = useState(true);
+  const [indicacionProceso, setIndicacionProceso] = useState<Record<string, string>>({});
+  const viva = corrida.estado !== 'detenida' && corrida.estado !== 'terminada';
+  // El reloj de la corrida avanza cada segundo en pantalla mientras esta viva;
+  // el servidor guarda gasto.segundos solo de vez en cuando (cada 5 s de reloj
+  // y solo si coincide con una vuelta del bucle), asi que sin esto el tiempo
+  // saltaba "de la nada". Al terminar se ensena el valor guardado.
+  const segundosDeCorrida = useSegundosDeCorrida(corrida.empezadaEn, corrida.gasto.segundos, viva);
+
 
   const iteracion = iteracionActualDe(estado, corrida);
   const anteriores = estado.iteraciones.filter((i) => i.corridaId === corrida.id && i.id !== iteracion?.id).sort((a, b) => b.numero - a.numero);

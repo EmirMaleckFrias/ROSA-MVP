@@ -392,6 +392,11 @@ uv run python rosa/prueba_gateway.py       # los tres modelos responden
 uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # trazas en :5000
 ```
 
+En `frontend/`, además de `npm test` y `npm run build`, `npm run lint` corre la
+regla de los hooks de React (ningún hook condicional): un hook tras un
+return temprano rompe la pantalla al cambiar de estado, como pasó al arrancar
+la primera corrida el 15 de septiembre de 2026.
+
 ## Documentos
 
 - `TRASPASO.md`: decisiones, reglas de trabajo, modelos, contratos.

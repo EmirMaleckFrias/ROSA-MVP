@@ -183,6 +183,19 @@ fuera de ASCII o no existe en `styles.css` (la primera pasada convirtió
 `seccion` en `sección` y los estilos desaparecieron). La auditoría visual
 revisa cualquier título, no solo los que están dentro de una sección.
 
+## Reglas de los hooks: `npm run lint`
+
+El 15 de septiembre de 2026, al arrancar la primera corrida de una
+investigación, la pantalla pasó de "sin corridas" a "corrida 1" dentro del
+mismo componente con más hooks que en el render anterior y React falló
+("Rendered more hooks than during the previous render"); el límite de error
+lo mostró en vez de dejar la pantalla en negro. La pantalla se dividió en un
+componente que decide y otro (`CorridaViva`) con todos los hooks
+incondicionales, y `Corrida.hooks.test.tsx` hace esa transición sobre la
+misma raíz. Para que no vuelva a pasar en ninguna pantalla, `npm run lint`
+corre ESLint con una sola regla, `react-hooks/rules-of-hooks`, como error;
+se pasa antes de cada commit junto a `tsc` y los tests.
+
 ## Si una pantalla falla al pintarse
 
 `componentes/Limite.tsx` es un limite de error de React. Sin el, un fallo al
