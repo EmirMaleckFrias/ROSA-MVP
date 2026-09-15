@@ -1,12 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { estadoDeMuestra } from '../datos/muestra';
-import { alternar, buscar, construirArbol, paso, posicionInicial, visiblesIniciales, type Posicion } from './arbol';
+import { alternar, buscar, construirArbol, incorporarNovedades, paso, posicionInicial, visiblesIniciales, type Posicion } from './arbol';
 
 describe('el arbol de la investigacion', () => {
   const e = estadoDeMuestra();
   const inv = e.investigaciones[0]!;
   const g = construirArbol(e, inv);
   const hip = e.hipotesis.filter((h) => h.investigacionId === inv.id);
+
+  it('muestra cualquier tipo de nodo nuevo con sus conexiones', () => {
+    for (const nodo of g.nodos) {
+      const anteriores = new Set(g.nodos.filter((n) => n.id !== nodo.id).map((n) => n.id));
+      const visibles = incorporarNovedades(g, anteriores, new Set(['objetivo']));
+      expect(visibles.has(nodo.id)).toBe(true);
+      for (const vecino of g.vecinos.get(nodo.id) ?? []) expect(visibles.has(vecino)).toBe(true);
+    }
+  });
+
+  it('no despliega nodos plegados al recibir el mismo grafo y elimina los borrados', () => {
+    const anteriores = new Set(g.nodos.map((n) => n.id));
+    expect(incorporarNovedades(g, anteriores, new Set(['objetivo', 'borrado']))).toEqual(new Set(['objetivo']));
+  });
 
   it('tiene tronco, ramas y hojas, y ningun enlace suelto', () => {
     expect(g.porId.get('objetivo')?.tipo).toBe('objetivo');

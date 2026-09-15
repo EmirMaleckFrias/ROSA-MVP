@@ -179,8 +179,19 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   return { nodos, enlaces, vecinos, porId: new Map(nodos.map((n) => [n.id, n])), iteracionMax };
 }
 
-/** Lo que se ve al abrir: el tronco, las ramas, las hipotesis vivas y los
- *  experimentos. Lo demas se despliega al pulsar. */
+/** Incorpora novedades sin volver a desplegar los nodos que la persona plegó. */
+export function incorporarNovedades(g: Grafo, anteriores: Set<string>, visibles: Set<string>): Set<string> {
+  const siguiente = new Set([...visibles].filter((id) => g.porId.has(id)));
+  for (const n of g.nodos) {
+    if (anteriores.has(n.id)) continue;
+    siguiente.add(n.id);
+    // Muestra el contexto inmediato para que la novedad no aparezca aislada.
+    for (const vecino of g.vecinos.get(n.id) ?? []) siguiente.add(vecino);
+  }
+  return siguiente;
+}
+
+/** Al abrir: tronco, ramas, hipótesis vivas y experimentos. */
 export function visiblesIniciales(g: Grafo, hip: Hipotesis[]): Set<string> {
   const v = new Set<string>();
   for (const n of g.nodos) {
@@ -415,4 +426,3 @@ function separarEtiquetas(g: Grafo, ids: string[], posiciones: Map<string, Posic
     }
   }
 }
-

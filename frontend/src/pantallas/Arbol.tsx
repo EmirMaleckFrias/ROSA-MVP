@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Vacio } from '../componentes/piezas';
-import { alternar, buscar, construirArbol, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
+import { alternar, buscar, construirArbol, incorporarNovedades, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
 import { useMovimientoReducido } from '../lib/movimiento';
 
 const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12 };
@@ -136,6 +136,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
   const [hasta, setHasta] = useState<number>(grafo.iteracionMax);
+  const anterior = useRef({ ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax });
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
@@ -154,17 +155,13 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return { x: (clientX - caja.left) * escala - ancho / 2, y: (clientY - caja.top) * escala - alto / 2 };
   };
 
-  // Si el estado trae nodos nuevos (una hipotesis nueva), entran solos al arbol.
+  // Sigue las novedades del servidor, sin restablecer la exploración de la persona.
   useEffect(() => {
-    setVisibles((v) => {
-      const base = visiblesIniciales(grafo, hip);
-      const nuevo = new Set(v);
-      for (const id of base) nuevo.add(id);
-      for (const id of v) if (!grafo.porId.has(id)) nuevo.delete(id);
-      return nuevo;
-    });
-    setHasta((h) => Math.max(h, grafo.iteracionMax));
-  }, [grafo, hip]);
+    const previo = anterior.current;
+    setVisibles((v) => incorporarNovedades(grafo, previo.ids, v));
+    setHasta((h) => h >= previo.iteracionMax ? grafo.iteracionMax : h);
+    anterior.current = { ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax };
+  }, [grafo]);
 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
@@ -423,6 +420,9 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
         </aside>
       </div>
       <div className="grafo-tiempo">
+        <button type="button" className="btn btn-s" aria-pressed={hasta === grafo.iteracionMax} onClick={() => setHasta(grafo.iteracionMax)}>
+          {hasta === grafo.iteracionMax ? 'En vivo' : 'Volver al presente'}
+        </button>
         <label htmlFor="grafo-iteracion">
           Cómo creció: hasta la iteración <strong>{hasta}</strong> de {grafo.iteracionMax}
         </label>
