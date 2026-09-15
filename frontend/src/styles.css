@@ -4186,3 +4186,13 @@ details.versiones > :not(summary) {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ---------------------------------------------------------------------- 15
+   Búsqueda por significado (índice semántico) dentro de la búsqueda global.
+   ---------------------------------------------------------------------- */
+
+.busqueda-semantica {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}

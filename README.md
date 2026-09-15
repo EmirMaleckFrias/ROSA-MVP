@@ -312,6 +312,56 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Reranker, índice semántico, PubTator 3 y banco de objetivos (15 de septiembre de 2026, tarde)
+
+Cuatro piezas que atacan lo que la revisión de la primera corrida señaló:
+demasiadas llamadas de Sonnet a candidatos que no venían al caso, hipótesis
+repetidas con otras palabras, aristas causales sin evidencia contada, y
+ningún número que diga si un cambio mejora o empeora.
+
+- **Reranker** (`rosa/reranker.py`). Un reranker recibe una pregunta y N
+  documentos y devuelve la pertinencia de cada uno en una sola llamada; es
+  un modelo pequeño (Cohere rerank-v3.5) y va por el AI Gateway como todo lo
+  demás (`/v2/rerank`). Rosa trae hasta 30 candidatos por consulta
+  (`MAX_FUENTES_CON_RERANKER`), el reranker ordena, y Sonnet solo criba los
+  12 mejores (`MAX_CRIBADO_MODELO`); los demás quedan registrados como
+  excluidos "fuera del corte del reranker" con su pertinencia, nunca se
+  pierden en silencio. En la novedad del Killer ordena los candidatos de
+  OpenAlex y Exa antes de juzgarlos. Si el gateway no responde, Rosa sigue
+  como antes (cribado completo). `ROSA_RERANK_MODELO=` vacío lo apaga.
+- **Índice semántico del registro** (`rosa/indice_semantico.py`). Cada
+  hecho, hipótesis y fuente de una investigación se convierte en un vector
+  (embedding `openai/text-embedding-3-small`, por el gateway) y se guarda en
+  SQLite (`datos/_indice/<base>.db`), con coseno en numpy: no hay servicio
+  aparte. Se reindexa cada 10 minutos solo lo que cambió (por hash). Dos
+  usos: la **redundancia semántica** del Killer (una hipótesis nueva con
+  similitud de 0,90 o más con una existente lo dice, y si la parecida ya
+  está descartada con 0,95 o más, falla la prueba), y la **búsqueda por
+  significado** en la búsqueda global de la interfaz (`GET /api/buscar`),
+  que encuentra "astrocitos antes que axones" aunque el hecho diga GFAP y
+  NfL. `ROSA_EMBEDDINGS_MODELO=` vacío lo apaga.
+- **PubTator 3** (`rosa/conectores/pubtator.py`): tres conectores sin clave
+  sobre la API del NCBI. `pubtator_entidad` resuelve un término a su
+  identificador (`@GENE_GFAP`, `@DISEASE_Alzheimer_Disease`);
+  `pubtator_relaciones` devuelve las relaciones extraídas de la literatura y
+  cuántas publicaciones sostienen cada una (GFAP con Alzheimer: 343 el 15 de
+  septiembre); `pubtator_literatura` busca artículos que co-mencionan
+  entidades por identificador, sin depender de sinónimos. Es la evidencia
+  contada para las aristas del grafo causal.
+- **Banco de objetivos** (`rosa/evaluacion/banco.py`,
+  `banco_objetivos.jsonl`): cinco objetivos con respuesta conocida (nombres
+  propios que deben buscarse, títulos que deben aparecer, temas que no
+  deberían dominar) y una puntuación de 0 a 1 por criterio sobre el registro
+  de una corrida real, sin modelos: cobertura de nombres, títulos
+  esperados, fuera de objetivo, y "estado honesto" (una hipótesis que el
+  Killer cerró no puede aparecer como viva en el resumen). Se corre con
+  `python -m rosa.evaluacion.banco <corrida_id>` después de cada cambio del
+  bucle; la primera corrida real habría sacado 0 de 7 en nombres buscados.
+
+Pruebas sin red: `rosa/tests/test_reranker_indice.py`,
+`rosa/tests/test_banco_y_pubtator.py`; `rosa/tests/conftest.py` apaga el
+reranker y los embeddings en la suite para que nunca salga a la red.
+
 ## Despliegue: Vercel para la interfaz, un proceso persistente para Rosa
 
 El proyecto `rosa-mvp` de Vercel está hoy configurado con el preset FastAPI

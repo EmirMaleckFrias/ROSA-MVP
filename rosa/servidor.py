@@ -554,6 +554,22 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
         return SK.catalogo()
 
+    @app.get("/api/buscar")
+    async def buscar_por_significado(q: str, investigacion: str | None = None, k: int = 8):
+        """Búsqueda por significado en el registro (hechos, hipótesis, fuentes)
+        con el índice semántico; complementa a la búsqueda por palabras de la
+        interfaz. Sin clave del gateway devuelve una lista vacía y lo dice."""
+        from rosa import indice_semantico
+
+        if not indice_semantico.disponible():
+            return {"disponible": False, "resultados": []}
+        indice = indice_semantico.de_almacen(almacen)
+        try:
+            resultados = await indice.buscar(q[:500], k=max(1, min(k, 30)), investigacion_id=investigacion or None)
+        except Exception as ex:  # noqa: BLE001
+            return {"disponible": True, "resultados": [], "error": f"No se pudo buscar: {str(ex)[:120]}"}
+        return {"disponible": True, "resultados": resultados}
+
     @app.get("/api/conectores")
     async def conectores_actuales() -> list[dict[str, Any]]:
         from rosa.conectores import catalogo

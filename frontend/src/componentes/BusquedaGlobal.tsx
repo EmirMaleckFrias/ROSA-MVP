@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa } from '../datos/tipos';
 import { buscar, type Resultado } from '../lib/buscar';
+import { cabeceras } from '../datos/almacen';
 import { IconSearch, IconX } from './icons';
 import { Chip } from './piezas';
 
@@ -22,6 +23,39 @@ export function BusquedaGlobal({ estado, investigacionId, abierta, onCerrar }: {
   const [indice, setIndice] = useState(0);
   const entrada = useRef<HTMLInputElement>(null);
   const resultados = useMemo(() => (investigacionId ? buscar(estado, investigacionId, q) : []), [estado, investigacionId, q]);
+  // Por significado (índice semántico del servidor): se pide con retardo, solo
+  // con servidor conectado y a partir de cuatro letras; nunca bloquea la lista
+  // por palabras, que sale al instante.
+  const [semanticos, setSemanticos] = useState<{ id: string; tipo: string; texto: string; similitud: number }[]>([]);
+  useEffect(() => {
+    if (!abierta || estado.conexion === 'muestra' || q.trim().length < 4) {
+      setSemanticos([]);
+      return;
+    }
+    let vivo = true;
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/buscar?q=${encodeURIComponent(q.trim())}${investigacionId ? `&investigacion=${encodeURIComponent(investigacionId)}` : ''}&k=6`, { headers: cabeceras(false), cache: 'no-store' });
+        if (!r.ok) throw new Error(String(r.status));
+        const d = (await r.json()) as { disponible: boolean; resultados: { id: string; tipo: string; texto: string; similitud: number }[] };
+        if (vivo) setSemanticos(d.disponible ? d.resultados : []);
+      } catch {
+        if (vivo) setSemanticos([]);
+      }
+    }, 350);
+    return () => {
+      vivo = false;
+      window.clearTimeout(t);
+    };
+  }, [q, abierta, estado.conexion, investigacionId]);
+  const rutaSemantica = (r: { id: string; tipo: string }): string | null => {
+    const [tipo, id] = r.id.split(':', 2);
+    if (!investigacionId || !id) return null;
+    if (tipo === 'hipotesis') return `#/investigaciones/${investigacionId}/hipotesis/${id}`;
+    if (tipo === 'hecho') return `#/investigaciones/${investigacionId}/mundo`;
+    if (tipo === 'fuente') return `#/investigaciones/${investigacionId}/panorama`;
+    return null;
+  };
 
   useEffect(() => {
     if (abierta) {
@@ -81,6 +115,34 @@ export function BusquedaGlobal({ estado, investigacionId, abierta, onCerrar }: {
               </li>
             ))}
           </ul>
+        )}
+        {semanticos.length > 0 && (
+          <div className="busqueda-semantica">
+            <p className="meta" style={{ margin: '8px 0 4px' }}>Por significado (índice semántico)</p>
+            <ul className="busqueda-resultados">
+              {semanticos.map((r) => {
+                const ruta = rutaSemantica(r);
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className="busqueda-item"
+                      onClick={() => {
+                        if (ruta) {
+                          window.location.hash = ruta;
+                          onCerrar();
+                        }
+                      }}
+                    >
+                      <Chip>{r.tipo === 'hecho' ? 'Hecho' : r.tipo === 'hipotesis' ? 'Hipótesis' : 'Fuente'}</Chip>
+                      <span className="busqueda-titulo">{r.texto.slice(0, 120)}</span>
+                      <span className="meta">similitud {r.similitud.toFixed(2)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
         <p className="meta busqueda-pie">Flechas para moverte, Enter para abrir, Escape para cerrar.</p>
       </div>

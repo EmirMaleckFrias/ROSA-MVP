@@ -107,6 +107,25 @@ siguen activos para cuando entren datos controlados.
   artefactos con cinco pestanas de procedencia, siete skills, imagen de
   celula unica. Ver README, seccion "Lo que Rosa tomo de Claude Science".
 
+## Herramientas evaluadas el 15 de septiembre y lo que queda
+
+Hecho: reranker por el gateway, índice semántico del registro, conectores de
+PubTator 3, banco de objetivos (ver README). Queda, por orden de valor:
+
+1. Correr una corrida sobre el objetivo `biomarcador_beneficio_clinico` del
+   banco y comparar la puntuación con la primera corrida real (0 de 7
+   nombres buscados). Es la cifra de referencia de todo lo demás.
+2. Regla en el revisor de registro para cifras del resumen que no aparecen
+   en ningún pasaje (hoy solo cuenta hechos e hipótesis; las cifras
+   sueltas las juzga el modelo).
+3. GROBID (extracción de PDF con estructura, propio servidor Docker) para
+   el texto completo cuando Europe PMC no lo trae; y OpenCitations o
+   Semantic Scholar para citas entrantes en la novedad.
+4. Lens.org (patentes con API propia, requiere cuenta) si las patentes por
+   Exa resultan insuficientes; OSF y Zenodo para depositar los dossieres
+   con DOI (requieren cuenta institucional).
+5. Clave de Exa: se pegó en el chat; rotarla en dashboard.exa.ai.
+
 ## Inmediato
 
 1. Puerta de reproduccion: 3 de 3 superadas con datos publicos (Blalock

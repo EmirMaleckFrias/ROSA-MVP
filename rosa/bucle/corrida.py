@@ -114,6 +114,7 @@ class Supervisor:
                 self._tick()
                 await self._atender_peticiones()
                 await self._vigilar_si_toca()
+                await self._indexar_si_toca()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             with contextlib.suppress(asyncio.TimeoutError):
@@ -127,6 +128,22 @@ class Supervisor:
 
     def parar(self) -> None:
         self._parar.set()
+
+    async def _indexar_si_toca(self) -> None:
+        """Índice semántico del registro (rosa/indice_semantico.py): incrusta lo
+        nuevo o cambiado cada diez minutos. Céntimos; sin clave no hace nada."""
+        from rosa import indice_semantico
+
+        ahora = P.ahora_ms()
+        if ahora - getattr(self, "_ultima_indexacion", 0) < 10 * 60 * 1000:
+            return
+        self._ultima_indexacion = ahora
+        try:
+            n = await indice_semantico.indexar_estado(self.almacen)
+            if n:
+                print(f"Índice semántico: {n} textos nuevos o cambiados incrustados")
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
     async def _vigilar_si_toca(self) -> None:
         """Vigilancia de literatura (rosa/vigilancia.py): una pasada por hora;

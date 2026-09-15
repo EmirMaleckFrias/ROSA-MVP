@@ -77,6 +77,10 @@ MAX_HECHOS_EN_CONTEXTO = 60
 # Literatura: cuantas fuentes por consulta, cuantas se leen a fondo, y el
 # umbral de relevancia (0 a 10) para cribar.
 MAX_FUENTES_POR_CONSULTA = 12
+# Con reranker (rosa/reranker.py) se traen más candidatos por consulta y el
+# modelo solo criba los mejores: el corte lo hace el reranker por pertinencia.
+MAX_FUENTES_CON_RERANKER = 30
+MAX_CRIBADO_MODELO = 12
 MAX_FUENTES_EXTRAER = 14
 MAX_FRAGMENTOS_POR_FUENTE = 6
 RELEVANCIA_MINIMA = 5

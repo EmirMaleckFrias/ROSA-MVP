@@ -42,6 +42,7 @@ from rosa.bucle.pista import Pista
 from rosa.estado import acciones as A
 from rosa.estado import plantilla as P
 from rosa.estado.almacen import Almacen
+from rosa import indice_semantico, reranker
 from rosa.fuentes import clinicaltrials, crossref, europepmc, exa, openalex, opentargets, pdf, pubmed, unpaywall
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
@@ -49,6 +50,34 @@ from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_
 from rosa.modulos.firmas import Programas
 
 MAX_FUENTES_POR_CONSULTA = politicas.MAX_FUENTES_POR_CONSULTA
+MAX_FUENTES_CON_RERANKER = politicas.MAX_FUENTES_CON_RERANKER
+MAX_CRIBADO_MODELO = politicas.MAX_CRIBADO_MODELO
+
+
+def maximo_por_consulta() -> int:
+    """Cuántos candidatos se traen por consulta: más si el reranker va a cortar."""
+    return MAX_FUENTES_CON_RERANKER if reranker.disponible() else MAX_FUENTES_POR_CONSULTA
+
+
+async def cortar_con_reranker(pregunta: str, articulos: list[dict[str, Any]], pista: Pista | None, maximo: int = MAX_CRIBADO_MODELO) -> tuple[list[dict[str, Any]], list[tuple[dict[str, Any], float]]]:
+    """Ordena los artículos por pertinencia con el reranker del gateway y
+    devuelve (los que ve el modelo, los que quedan fuera con su pertinencia).
+    Si el reranker no está o falla, todos pasan al modelo, como antes."""
+    if len(articulos) <= maximo or not reranker.disponible():
+        return articulos, []
+    try:
+        orden = await reranker.reordenar(pregunta, [reranker.texto_de_articulo(a) for a in articulos])
+    except FuenteNoDisponible as ex:
+        if pista:
+            pista.nota(f"Reranker no disponible ({str(ex)[:80]}); el modelo criba todos los candidatos")
+        return articulos, []
+    puntuacion = {i: s for i, s in orden}
+    ordenados = sorted(range(len(articulos)), key=lambda i: -puntuacion.get(i, -1.0))
+    dentro = [articulos[i] for i in ordenados[:maximo]]
+    fuera = [(articulos[i], puntuacion.get(i, 0.0)) for i in ordenados[maximo:]]
+    if pista:
+        pista.accion("Reranker", {"base": "AI Gateway", "parametros": f"model={reranker.MODELO}&documentos={len(articulos)}&top_n={maximo}", "resultados": f"{len(dentro)} al modelo, {len(fuera)} fuera del corte"})
+    return dentro, fuera
 MAX_FUENTES_EXTRAER = politicas.MAX_FUENTES_EXTRAER
 MAX_FRAGMENTOS_POR_FUENTE = politicas.MAX_FRAGMENTOS_POR_FUENTE
 MAX_PAGINAS_PDF = 14
@@ -423,8 +452,8 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             pista.nota(f"El plan la dirigía a {consulta['_desviada_de']}, que no está disponible (sin clave); va a {nombre_base}")
         ahora = P.ahora_ms()
         if base == "pubmed":
-            ids, total = await pubmed.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA)
-            pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta['consulta']}&retmax={MAX_FUENTES_POR_CONSULTA}", "resultados": f"{total} PMID, se traen {len(ids)}"})
+            ids, total = await pubmed.buscar(consulta["consulta"], maximo=maximo_por_consulta())
+            pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta['consulta']}&retmax={maximo_por_consulta()}", "resultados": f"{total} PMID, se traen {len(ids)}"})
             articulos = await pubmed.detalles(ids)
         elif base in ("exa", "gris"):
             # Búsqueda semántica: la consulta es una pregunta en lenguaje natural.
@@ -433,15 +462,15 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             # identificados = traídos. "gris" busca sin categoría y acotado a los
             # dominios de reguladores, registros y portales del campo.
             gris = base == "gris"
-            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA, categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=preguntas[:500] or None)
+            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=maximo_por_consulta(), categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=preguntas[:500] or None)
             pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
             _anotar_coste_exa(ctx, coste_exa)
             if articulos:
                 # Orden por afinidad del mejor pasaje con las preguntas, cuando Exa la da.
                 articulos.sort(key=lambda a: -(a.get("similitud") or 0.0))
         else:
-            articulos, total = await europepmc.buscar(consulta["consulta"], maximo=MAX_FUENTES_POR_CONSULTA, solo_preprints=(base == "preprints"))
-            pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={consulta['consulta']}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={MAX_FUENTES_POR_CONSULTA}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
+            articulos, total = await europepmc.buscar(consulta["consulta"], maximo=maximo_por_consulta(), solo_preprints=(base == "preprints"))
+            pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={consulta['consulta']}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={maximo_por_consulta()}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
         resultado["identificados"] = total
 
         def anotar(e: dict[str, Any]) -> bool:
@@ -457,8 +486,13 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             pista.cerrar(f"{total} resultados, ninguno traído", "hecha")
             return resultado
 
+        # Corte previo por pertinencia con el reranker del gateway: el modelo
+        # solo puntúa a los mejores; los demás quedan excluidos con su cifra.
+        al_modelo, fuera = await cortar_con_reranker(f"{preguntas}\n{consulta['tema']}", [a for a in articulos if a.get("titulo")], pista)
         # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA.
         puntuados: list[tuple[int, dict[str, Any], str]] = []
+        for a, s in fuera:
+            puntuados.append((min(RELEVANCIA_MINIMA - 1, int(round(s * 10))), a, f"fuera del corte del reranker (pertinencia {s:.2f}); no se gastó una llamada al modelo"))
         sem = asyncio.Semaphore(4)
 
         async def puntuar(a: dict[str, Any]) -> None:
@@ -472,7 +506,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
                     # Un fallo del modelo no vuelve irrelevante al articulo: se conserva con nota.
                     puntuados.append((RELEVANCIA_MINIMA, a, f"sin puntuar (el modelo no respondió: {str(ex)[:60]}); se conserva para no perderlo"))
 
-        await asyncio.gather(*(puntuar(a) for a in articulos if a.get("titulo")))
+        await asyncio.gather(*(puntuar(a) for a in al_modelo))
         puntuados.sort(key=lambda x: -x[0])
         relevantes = [x for x in puntuados if x[0] >= RELEVANCIA_MINIMA]
         descartados = [x for x in puntuados if x[0] < RELEVANCIA_MINIMA]
@@ -1110,6 +1144,19 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         parecidas = [(x, c) for x, c in parecidas if c]
         if parecidas:
             deterministas.append({"comprobacion": "redundancia", "resultado": "no_comprobable", "detalle": "Comparte entidades canónicas con: " + "; ".join(f"{x['titulo'][:60]} ({', '.join(c)})" for x, c in parecidas[:3]) + ". El juez decide si es la misma hipótesis con otras palabras."})
+    # Redundancia por significado (índice semántico): también contra las
+    # descartadas, porque repetir una descartada con otras palabras es el
+    # anclaje que más cuesta ver.
+    if not any(c["comprobacion"] == "redundancia" for c in deterministas):
+        try:
+            semejantes = await indice_semantico.hipotesis_parecidas(ctx.almacen, h)
+        except FuenteNoDisponible as ex:
+            semejantes = []
+            if pista:
+                pista.nota(f"Índice semántico sin respuesta: {str(ex)[:80]}")
+        if semejantes:
+            resultado = "falla" if any(x["estado"] == "descartada" and x["similitud"] >= 0.95 for x in semejantes) else "no_comprobable"
+            deterministas.append({"comprobacion": "redundancia", "resultado": resultado, "detalle": "Por significado se parece a: " + "; ".join(f"{x['titulo'][:60]} (similitud {x['similitud']:.2f}, {x['estado']}{', Killer: ' + x['decisionKiller'] if x.get('decisionKiller') else ''})" for x in semejantes[:3]) + (". Repite casi literalmente una hipótesis ya descartada." if resultado == "falla" else ". El juez decide si es la misma hipótesis con otras palabras.")})
     # Riesgo de sesgo por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE):
     # el modelo responde las preguntas de senalizacion de cada fuente primaria y
     # el veredicto lo pone la regla del instrumento. Sustituye al juicio libre.
@@ -1714,6 +1761,7 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                     total += n_exa
                 except FuenteNoDisponible as ex:
                     pista.nota(f"Exa no respondió: {str(ex)[:80]}; la novedad se comprueba solo con OpenAlex")
+            candidatas, _fuera = await cortar_con_reranker(f"Alguien ya propuso o demostró esto: {h['enunciado']}", [o for o in candidatas if o.get("titulo")], pista, maximo=5)
             mejor = 0
             mejor_ref = ""
             for o in candidatas:
