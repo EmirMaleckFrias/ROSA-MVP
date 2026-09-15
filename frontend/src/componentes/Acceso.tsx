@@ -327,7 +327,7 @@ function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
       <p>Disponible solo en el equipo de Rosa, antes de registrar la primera cuenta. Esa primera cuenta verificada administrará la conexión de correo.</p>
       <div className="acceso-opciones acceso-opciones-proveedor" role="group" aria-label="Proveedor de correo">
         <button type="button" aria-pressed={smtp} onClick={() => setProveedor('smtp')}>
-          <span>Google Workspace (SMTP)</span>
+          <span>Google Workspace</span>
         </button>
         <button type="button" aria-pressed={!smtp} onClick={() => setProveedor('resend')}>
           <span>Resend</span>
