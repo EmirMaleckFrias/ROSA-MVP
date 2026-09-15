@@ -70,6 +70,27 @@ class Acceso:
             self.db.execute("INSERT INTO sesiones VALUES (?,?,?)", (huella(sesion), email, ahora + DURACION))
         return sesion, email
 
+    def entrar_sin_verificar(self, email):
+        """Entrada sin enlace de correo, solo mientras no haya proveedor de
+        correo configurado (pedida por Emir el 15 de septiembre de 2026 para
+        que el equipo pueda entrar antes de conectar el correo). Se exige el
+        dominio corporativo; la cuenta se crea o se reutiliza y la sesión
+        dura lo mismo que una verificada. En cuanto se configura el correo,
+        esta puerta se cierra y solo vale el enlace. No hay más comprobación
+        de identidad que la dirección escrita: es acceso abierto al dominio."""
+        email = direccion(email.strip().lower())
+        if email.rsplit("@", 1)[1] != "alzheimerproject.com":
+            raise ValueError("Solo se admiten cuentas @alzheimerproject.com")
+        c = self.correo._config()
+        if c["clave"] and c["remitente"]:
+            raise ValueError("El correo ya está configurado: entra con el enlace que llega a tu buzón")
+        ahora = time.time()
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO cuentas VALUES (?,?)", (email, ahora))
+            sesion = secrets.token_urlsafe(32)
+            self.db.execute("INSERT INTO sesiones VALUES (?,?,?)", (huella(sesion), email, ahora + DURACION))
+        return sesion, email
+
     def usuario(self, token):
         if not token or len(token) > 100:
             return None

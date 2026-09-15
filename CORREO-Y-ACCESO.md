@@ -6,6 +6,20 @@ solo se crea cuando se confirma el enlace enviado al buzón corporativo.
 La pantalla para introducir un código queda pendiente del diseño del usuario;
 por ahora se confirma con un enlace de un solo uso, válido durante 15 minutos.
 
+## Entrada sin verificación mientras no hay correo
+
+Pedida por Emir el 15 de septiembre de 2026 ("abre el login para que puedan
+entrar personas sin configurar el proveedor"). Mientras el correo de Rosa no
+esté configurado, la puerta muestra «Entrar sin verificación»: quien escriba
+una dirección `@alzheimerproject.com` entra con una sesión normal de 12 horas
+(`POST /api/acceso/entrar_sin_verificar`, que exige la cabecera `X-Rosa` como
+toda escritura). No hay más comprobación de identidad que la dirección
+escrita: es acceso abierto al dominio, y así se le dice a quien entra. En
+cuanto se configura un proveedor (SMTP o Resend), esa puerta devuelve 403
+para todos y solo vale el enlace verificado; las sesiones ya abiertas duran
+hasta caducar. La primera cuenta creada, verificada o no, administra el
+correo.
+
 ## Dos transportes: Google Workspace por SMTP o Resend
 
 Desde el 15 de septiembre de 2026 el correo de Rosa sale por uno de dos

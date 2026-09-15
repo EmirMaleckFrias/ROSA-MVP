@@ -516,6 +516,29 @@
   color: var(--text);
 }
 
+.acceso-local {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.acceso-local-titulo {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.acceso-local p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.acceso .acceso-sin-verificar {
+  margin-top: 4px;
+}
+
 .acceso-mensaje {
   margin: 14px 0 0;
   padding: 10px 12px;

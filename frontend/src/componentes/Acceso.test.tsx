@@ -90,4 +90,31 @@ describe('acceso corporativo', () => {
     await act(async () => otro.click());
     expect(nodo.textContent).toContain('Continúa tu investigación');
   });
+  it('sin correo configurado ofrece entrar sin verificación y llama a /api/acceso/entrar_sin_verificar', async () => {
+    const fetch = vi.fn(async (url: string) => ({ ok: true, json: async () => (String(url).endsWith('/entrar_sin_verificar') ? { ok: true, verificada: false } : estado) }));
+    vi.stubGlobal('fetch', fetch);
+    const asignar = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign: asignar, hash: '', pathname: '/', search: '' });
+    await montar();
+    expect(nodo.textContent).toContain('Entrar sin verificación');
+    const campo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(campo, 'ana@alzheimerproject.com');
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const boton = [...nodo.querySelectorAll('button')].find((b) => b.textContent === 'Entrar sin verificación')!;
+    await act(async () => {
+      boton.click();
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(fetch.mock.calls.some((c) => String(c[0]).endsWith('/api/acceso/entrar_sin_verificar'))).toBe(true);
+    expect(asignar).toHaveBeenCalledWith('/');
+  });
+  it('con el correo configurado no aparece la entrada sin verificación', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...estado, correoConfigurado: true }) }));
+    await montar();
+    expect(nodo.textContent).not.toContain('Entrar sin verificación');
+  });
 });
+

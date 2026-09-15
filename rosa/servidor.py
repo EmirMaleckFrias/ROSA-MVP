@@ -127,7 +127,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
     @app.middleware("http")
     async def _guardias(request: Request, call_next):
         path = request.url.path
-        publico = path in ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion')
+        publico = path in ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion', '/api/acceso/entrar_sin_verificar')
         acceso = getattr(app.state, 'acceso', None)
         usuario = acceso.usuario(request.cookies.get(COOKIE)) if acceso else None
         request.state.usuario = usuario
@@ -204,6 +204,24 @@ def crear_app(almacen: Almacen) -> FastAPI:
         except ValueError as ex:
             raise HTTPException(400, str(ex)) from None
         respuesta = JSONResponse({'ok': True, 'correo': email})
+        seguro = urlsplit(app.state.correo._config()['url']).scheme == 'https'
+        respuesta.set_cookie(COOKIE, token, max_age=DURACION, httponly=True, secure=seguro, samesite='strict', path='/')
+        return respuesta
+
+    @app.post('/api/acceso/entrar_sin_verificar')
+    async def acceso_sin_verificar(request: Request):
+        # Mientras no haya proveedor de correo, cualquier persona con una
+        # dirección del dominio entra escribiéndola. La puerta se cierra sola
+        # al configurar el correo (lo comprueba Acceso.entrar_sin_verificar).
+        obj = await objeto_pequeno(request)
+        email = obj.get('correo')
+        if not isinstance(email, str):
+            raise HTTPException(400, 'Falta el correo corporativo')
+        try:
+            token, email = app.state.acceso.entrar_sin_verificar(email)
+        except ValueError as ex:
+            raise HTTPException(403, str(ex)) from None
+        respuesta = JSONResponse({'ok': True, 'correo': email, 'verificada': False})
         seguro = urlsplit(app.state.correo._config()['url']).scheme == 'https'
         respuesta.set_cookie(COOKIE, token, max_age=DURACION, httponly=True, secure=seguro, samesite='strict', path='/')
         return respuesta

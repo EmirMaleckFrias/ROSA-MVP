@@ -154,6 +154,24 @@ export function Acceso({ children }: { children: ReactNode }) {
       setOcupado(false);
     }
   }
+  async function entrarSinVerificar() {
+    const campo = document.getElementById('acceso-correo') as HTMLInputElement | null;
+    if (campo && !campo.checkValidity()) {
+      campo.reportValidity();
+      return;
+    }
+    setOcupado(true);
+    setMensaje('');
+    try {
+      await api('entrar_sin_verificar', { correo });
+      window.location.assign('/');
+    } catch (e) {
+      setTono('error');
+      setMensaje(e instanceof Error ? e.message : 'No se pudo entrar');
+    } finally {
+      setOcupado(false);
+    }
+  }
   async function confirmar() {
     setOcupado(true);
     setMensaje('');
@@ -286,7 +304,15 @@ export function Acceso({ children }: { children: ReactNode }) {
                   {!ocupado && <IconoFlecha />}
                 </button>
               </form>
-              {sesion && !sesion.correoConfigurado && <p className="acceso-aviso">Falta conectar el servicio de correo. No se puede crear una cuenta ni iniciar sesión sin verificarla.</p>}
+              {sesion && !sesion.correoConfigurado && (
+                <div className="acceso-local">
+                  <p className="acceso-local-titulo">El correo de Rosa aún no está conectado</p>
+                  <p>Mientras tanto se entra sin verificación: escribe arriba tu cuenta corporativa y pulsa aquí. En cuanto se conecte el correo, esta puerta se cierra y se entra solo con el enlace.</p>
+                  <button type="button" className="btn acceso-secundario acceso-sin-verificar" disabled={ocupado} onClick={() => void entrarSinVerificar()}>
+                    {ocupado ? 'Entrando…' : 'Entrar sin verificación'}
+                  </button>
+                </div>
+              )}
               {sesion === null && mensaje === '' && <p className="acceso-pista acceso-conectando">Conectando con Rosa…</p>}
               <p className="acceso-privacidad">
                 Acceso exclusivo para <span className="acceso-dominio">@{DOMINIO}</span>. Los avisos de tus corridas llegarán a esta misma cuenta.
