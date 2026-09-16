@@ -3927,6 +3927,9 @@ mark.fuerte {
   --grafo-dato-2: #0d9488;
   --grafo-dato-3: #14b8a6;
   --grafo-dato-nulo: #d6d3d1;
+  --grafo-lit-1: #b45309;
+  --grafo-lit-2: #d97706;
+  --grafo-lit-3: #fbbf24;
 }
 
 :root[data-theme='dark'] {
@@ -3938,7 +3941,10 @@ mark.fuerte {
   --grafo-dato-1: #14b8a6;
   --grafo-dato-2: #0f766e;
   --grafo-dato-3: #115e59;
-  --grafo-dato-nulo: #3f3f3c;
+  --grafo-dato-nulo: #52524e;
+  --grafo-lit-1: #fbbf24;
+  --grafo-lit-2: #d97706;
+  --grafo-lit-3: #92400e;
 }
 
 /* Muestra de la leyenda para "sin medición propia": gris con borde punteado, como el nodo. */

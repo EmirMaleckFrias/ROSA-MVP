@@ -50,16 +50,35 @@ type ModoColor = 'tipo' | 'dato';
  *  Los tokens viven en styles.css con pasos propios para el tema oscuro. */
 const ESCALA_DATO = ['var(--grafo-dato-0)', 'var(--grafo-dato-1)', 'var(--grafo-dato-2)', 'var(--grafo-dato-3)'];
 const NOMBRE_ESCALA = ['La medición misma (0 saltos)', 'A 1 salto de una medición', 'A 2 saltos', 'A 3 saltos o más'];
+/** Segunda escala, en ámbar, para lo que no tiene medición propia pero sí literatura
+ *  leída detrás (una fuente con su texto, no solo citada): más intenso cuanto más cerca
+ *  de la fuente. Sin ella, una investigación solo de literatura salía toda gris. */
+const ESCALA_LIT = ['var(--grafo-lit-1)', 'var(--grafo-lit-2)', 'var(--grafo-lit-3)'];
+const NOMBRE_ESCALA_LIT = ['Solo literatura, a 1 salto de una fuente leída', 'Solo literatura, a 2 saltos', 'Solo literatura, a 3 saltos o más'];
 const COLOR_SIN_DATO = 'var(--grafo-dato-nulo)';
 /** Escalón de la escala para un nodo: 0 a 3, o 'nulo' si no hay camino al dato. */
 function escalonDato(n: NodoArbol): number | 'nulo' {
   const d = n.profundidadDato ?? null;
   return d === null ? 'nulo' : Math.min(d, ESCALA_DATO.length - 1);
 }
+/** Escalón de la escala de literatura: 0 a 2 (1, 2, 3 o más saltos hasta una fuente leída), o 'nulo'. */
+function escalonLiteratura(n: NodoArbol): number | 'nulo' {
+  const d = n.profundidadLiteratura ?? null;
+  return d === null ? 'nulo' : Math.min(Math.max(d, 1), ESCALA_LIT.length) - 1;
+}
+/** Clave de leyenda del nodo en el modo por distancia: 'd0'..'d3', 'l0'..'l2' o 'nulo'. */
+function claveDistancia(n: NodoArbol): string {
+  const d = escalonDato(n);
+  if (d !== 'nulo') return `d${d}`;
+  const l = escalonLiteratura(n);
+  return l === 'nulo' ? 'nulo' : `l${l}`;
+}
 function colorPorDato(n: NodoArbol): string {
   if (SIN_DISTANCIA.has(n.tipo)) return COLOR[n.tipo];
-  const e = escalonDato(n);
-  return e === 'nulo' ? COLOR_SIN_DATO : ESCALA_DATO[e]!;
+  const d = escalonDato(n);
+  if (d !== 'nulo') return ESCALA_DATO[d]!;
+  const l = escalonLiteratura(n);
+  return l === 'nulo' ? COLOR_SIN_DATO : ESCALA_LIT[l]!;
 }
 
 function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
@@ -219,7 +238,8 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
   const colorDe = (n: NodoArbol) => (modoColor === 'dato' ? colorPorDato(n) : COLOR[n.tipo]);
   // Sin camino al dato: relleno gris y borde punteado (solo en el modo por distancia).
-  const sinDato = (n: NodoArbol) => modoColor === 'dato' && !SIN_DISTANCIA.has(n.tipo) && escalonDato(n) === 'nulo';
+  // Punteado solo para lo que no tiene ni medición ni literatura leída detrás.
+  const sinDato = (n: NodoArbol) => modoColor === 'dato' && !SIN_DISTANCIA.has(n.tipo) && claveDistancia(n) === 'nulo';
   // Resaltar solo al pasar el ratón (como Obsidian): el nodo y sus vecinos vivos, el
   // resto atenuado. La selección (el último nodo abierto) conserva su anillo y su
   // panel, pero no atenúa a los demás: sin ratón encima se ve el árbol entero
@@ -343,7 +363,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   for (const n of nodosVisibles) {
     cuentas[n.tipo] = (cuentas[n.tipo] ?? 0) + 1;
     if (SIN_DISTANCIA.has(n.tipo)) continue;
-    const e = String(escalonDato(n));
+    const e = claveDistancia(n);
     cuentasDato[e] = (cuentasDato[e] ?? 0) + 1;
   }
 
@@ -453,15 +473,20 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               <h3>Leyenda</h3>
               {modoColor === 'dato' ? (
                 <>
-                  <p className="meta">El color dice a cuántos saltos está cada nodo de una medición propia (un análisis in silico validado, un resultado del laboratorio o una observación original sostenida): cuanto más claro, más lejos del dato. El tronco, las áreas, los clusters y las entidades canónicas conservan su color: son estructura o nombres, no evidencia.</p>
+                  <p className="meta">El color dice a cuántos saltos está cada nodo de una medición propia (un análisis in silico validado, un resultado del laboratorio o una observación original sostenida): en verde, cuanto más claro más lejos del dato. Lo que solo tiene literatura detrás va en ámbar, más intenso cuanto más cerca de una fuente leída con su texto. El tronco, las áreas, los clusters y las entidades canónicas conservan su color: son estructura o nombres, no evidencia.</p>
                   <ul className="grafo-leyenda">
                     {ESCALA_DATO.map((c, i) => (
-                      <li key={i}>
-                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA[i]} <span className="meta">{cuentasDato[String(i)] ?? 0}</span>
+                      <li key={`d${i}`}>
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA[i]} <span className="meta">{cuentasDato[`d${i}`] ?? 0}</span>
+                      </li>
+                    ))}
+                    {ESCALA_LIT.map((c, i) => (
+                      <li key={`l${i}`}>
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA_LIT[i]} <span className="meta">{cuentasDato[`l${i}`] ?? 0}</span>
                       </li>
                     ))}
                     <li>
-                      <span className="grafo-punto grafo-punto-nulo" aria-hidden="true" /> Sin medición propia: solo literatura <span className="meta">{cuentasDato.nulo ?? 0}</span>
+                      <span className="grafo-punto grafo-punto-nulo" aria-hidden="true" /> Sin medición propia ni literatura leída <span className="meta">{cuentasDato.nulo ?? 0}</span>
                     </li>
                   </ul>
                 </>

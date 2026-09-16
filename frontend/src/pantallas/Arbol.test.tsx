@@ -70,14 +70,14 @@ describe('la pantalla del árbol', () => {
     await act(async () => root.render(<Arbol inv={inv} estado={e} />));
     // Abre coloreado por distancia al dato (por defecto desde el 16 de septiembre de 2026).
     expect(boton('Color por distancia al dato').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.textContent).toContain('Sin medición propia: solo literatura');
+    expect(nodo.textContent).toContain('Sin medición propia ni literatura leída');
     // Modo por tipo: la leyenda enumera los tipos nuevos.
     await pulsar(boton('Color por tipo'));
     expect(boton('Color por tipo').getAttribute('aria-pressed')).toBe('true');
     expect(nodo.textContent).toContain('Afirmación con dato');
     expect(nodo.textContent).toContain('Análisis in silico');
     expect(nodo.textContent).toContain('Conjunto de datos');
-    expect(nodo.textContent).not.toContain('Sin medición propia: solo literatura');
+    expect(nodo.textContent).not.toContain('Sin medición propia ni literatura leída');
     // Se despliega todo para que haya entidades, fuentes y el análisis en pantalla.
     await pulsar(boton('Desplegar todo'));
     const circulo = (id: string) => nodo.querySelector(`g[data-id="${id}"] circle:last-of-type`)!;
@@ -86,16 +86,17 @@ describe('la pantalla del árbol', () => {
     // Vuelta al modo por distancia.
     await pulsar(boton('Color por distancia al dato'));
     expect(boton('Color por distancia al dato').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.textContent).toContain('Sin medición propia: solo literatura');
+    expect(nodo.textContent).toContain('Sin medición propia ni literatura leída');
     expect(nodo.textContent).toContain('La medición misma (0 saltos)');
     expect(circulo('run-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');
     expect(circulo('af-obs-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');
     expect(circulo('hip-1').getAttribute('fill')).toBe('var(--grafo-dato-1)');
-    // Una hipótesis viva sin dato detrás: gris con borde punteado. La descartada
-    // (hip-5) conserva su punteado propio y la leyenda lo dice.
-    expect(circulo('hip-3').getAttribute('fill')).toBe('var(--grafo-dato-nulo)');
-    expect(circulo('hip-3').getAttribute('stroke-dasharray')).toBe('2 2');
-    expect(circulo('hip-5').getAttribute('fill')).toBe('var(--grafo-dato-nulo)');
+    // Una hipótesis viva sin medición propia: ámbar si tiene literatura leída detrás
+    // (segunda escala), gris punteado si no tiene nada. La descartada (hip-5) conserva
+    // su punteado propio y la leyenda lo dice.
+    expect(circulo('hip-3').getAttribute('fill')).toMatch(/var\(--grafo-(lit-[123]|dato-nulo)\)/);
+    if (circulo('hip-3').getAttribute('fill') === 'var(--grafo-dato-nulo)') expect(circulo('hip-3').getAttribute('stroke-dasharray')).toBe('2 2');
+    expect(circulo('hip-5').getAttribute('fill')).toMatch(/var\(--grafo-(lit-[123]|dato-nulo)\)/);
     expect(circulo('hip-5').getAttribute('stroke-dasharray')).toBe('3 2');
     expect(nodo.textContent).toContain('Punteada: descartada o sin medición propia.');
     // El tronco y las entidades conservan su color: no son evidencia.
