@@ -14,7 +14,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from rosa import dianas as DI
+from rosa import experimento as XP
 from rosa import politicas
+from rosa import ruta as RUTA
 from rosa.priorizacion import cohortes_de
 
 ETIQUETA_BLOQUEO = {
@@ -40,16 +43,69 @@ def _fecha(t: int | None) -> str:
     return datetime.fromtimestamp(t / 1000).strftime("%d/%m/%Y %H:%M") if t else "sin fecha"
 
 
+def _dict(v: Any) -> dict[str, Any]:
+    """El valor si es un diccionario; si no (None, texto, lista), uno vacío."""
+    return v if isinstance(v, dict) else {}
+
+
+def _lineas_seguras(fn, que: str) -> list[str]:
+    """Las líneas de un texto por regla; si la regla falla, el dossier lo dice
+    en una línea en vez de caerse (el expediente tiene que salir siempre)."""
+    try:
+        return [l for l in str(fn() or "").splitlines() if l.strip()]
+    except Exception as ex:  # noqa: BLE001
+        return [f"{que}: no pude calcularlo ({type(ex).__name__})."]
+
+
+def _lineas_ruta(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
+    """La ruta terapéutica de la hipótesis (rosa/ruta.py): qué pasos están
+    cubiertos, cuál toca y si el paso declarado en la tarjeta es coherente. Se
+    usa la guardada por el bucle; si el registro no la trae, se evalúa aquí."""
+    return _lineas_seguras(lambda: RUTA.texto_ruta(h.get("ruta") or RUTA.evaluar_ruta(e, h)), "Ruta terapéutica")
+
+
+def _lineas_contrato(x: dict[str, Any]) -> list[str]:
+    """El contrato del experimento (rosa/experimento.py) y, si hay resultado,
+    el veredicto por lectura y la lectura del negativo."""
+    L = _lineas_seguras(lambda: XP.texto_contrato(x), "Contrato del experimento")
+    r = x.get("resultado") if isinstance(x.get("resultado"), dict) else {}
+    vs = [v for v in (r.get("veredictosPorLectura") or []) if isinstance(v, dict)]
+    if vs:
+        L.append("Veredicto por lectura (por regla, con la cifra que nombra cada lectura; sin cifra es no pude comprobar, no ausencia de efecto):")
+        for v in vs:
+            L.append(f"- {v.get('lectura') or 'sin nombre'} [{XP.etiqueta(XP.TIPOS_LECTURA, v.get('tipo'))}]: {str(v.get('veredicto') or 'no_evaluable').replace('_', ' ')}. {v.get('motivo') or ''}".rstrip())
+        L += _lineas_seguras(lambda: "Lectura del negativo: " + XP.texto_lectura_del_negativo(vs), "Lectura del negativo")
+    return L
+
+
+def _lineas_perfil_diana(h: dict[str, Any]) -> list[str]:
+    """La tabla del perfil por diana (rosa/dianas.py): qué dicen las bases
+    (genética humana, expresión por tejido y por célula, proteína, farmacología,
+    literatura) sobre la diana de la hipótesis, una fila por capa."""
+    perfil = h.get("perfilDiana")
+    if not isinstance(perfil, dict) or not perfil.get("capas"):
+        return []
+    return ["", "### Qué dicen las bases de la diana"] + _lineas_seguras(lambda: DI.texto_perfil(perfil), "Perfil de evidencia por diana")
+
+
 def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | None, corrida: dict[str, Any] | None, ahora: int) -> str:
     L: list[str] = []
-    bloqueos = h.get("bloqueos", [])
-    tarjeta = h.get("tarjeta") or {}
-    k = h.get("conclusion") or {}
-    mision = (inv or {}).get("mision") or {}
-    decisiones = [d for d in e.get("decisiones", []) if d["hipotesisId"] == h["id"]]
-    planes = {p["id"]: p for p in e.get("planesAnalisis", [])}
-    ejecuciones = [x for x in e.get("ejecuciones", []) if x.get("hipotesisId") == h["id"]]
-    x = h.get("experimento") or {}
+    # Un registro antiguo o corrompido puede traer estas piezas con otra forma
+    # (texto, lista, None): el expediente tiene que salir igual, diciendo qué falta.
+    bloqueos = h.get("bloqueos") if isinstance(h.get("bloqueos"), list) else []
+    tarjeta = _dict(h.get("tarjeta"))
+    k = _dict(h.get("conclusion"))
+    mision = _dict(_dict(inv).get("mision"))
+    decisiones = [d for d in e.get("decisiones", []) if isinstance(d, dict) and d.get("hipotesisId") == h["id"]]
+    planes = {p["id"]: p for p in e.get("planesAnalisis", []) if isinstance(p, dict) and "id" in p}
+    ejecuciones = [x for x in e.get("ejecuciones", []) if isinstance(x, dict) and x.get("hipotesisId") == h["id"]]
+    x = _dict(h.get("experimento"))
+    if not isinstance(x.get("resultado"), (dict, type(None))):
+        x = {**x, "resultado": {"veredicto": "no_evaluable", "resultado": "El resultado registrado tiene una forma que no pude leer.", "fecha": None}}
+    if not isinstance(h.get("procedencia"), dict) or not isinstance(h["procedencia"].get("fuentes"), list):
+        h = {**h, "procedencia": {**_dict(h.get("procedencia")), "fuentes": []}}
+    if not isinstance(h.get("afirmaciones"), list):
+        h = {**h, "afirmaciones": []}
 
     L += [f"# Dossier para el laboratorio: {h['titulo']}", "", f"Generado el {_fecha(ahora)}. Hipótesis {h['id']}, versión {h.get('version', 1)}. Investigación: {(inv or {}).get('titulo', '')}."]
     if corrida and corrida.get("arnes"):
@@ -79,13 +135,18 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
             f"Etapa: {tarjeta.get('etapa') or 'sin especificar'}",
             f"Intervención: {tarjeta.get('intervencion') or 'ninguna'} ({tarjeta.get('direccion', 'sin_intervencion')})",
             f"Predicción falsable: {tarjeta.get('prediccionFalsable') or 'SIN PREDICCIÓN FALSABLE'}",
-            "Riesgos: " + ("; ".join(tarjeta.get("riesgos", [])) or "ninguno declarado"),
-            f"Paso de la ruta terapéutica: {tarjeta.get('pasoRuta', 'mecanismo').replace('_', ' ')}. Completar este paso no completa la ruta (mecanismo, opciones de intervención, compromiso de diana, efecto funcional, selectividad y toxicidad, exposición, replicación independiente, evidencia en la población).",
+            "Riesgos: " + ("; ".join(str(r) for r in tarjeta["riesgos"]) if isinstance(tarjeta.get("riesgos"), list) and tarjeta["riesgos"] else "ninguno declarado"),
+            f"Paso de la ruta terapéutica declarado en la tarjeta: {(tarjeta.get('pasoRuta') or 'mecanismo').replace('_', ' ')}.",
         ]
     else:
         L.append("Sin tarjeta de hipótesis: falta el contrato mínimo (diana, célula, etapa, intervención, predicción falsable).")
-    c = h["comprobacion"]
-    L.append(f"Comprobación propuesta: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}.")
+    # La ruta terapéutica por regla (ocho pasos, de mecanismo a evidencia en la
+    # población): qué está cubierto con qué evidencia, qué toca y si el paso
+    # declarado va por delante de un paso vacío.
+    L += _lineas_ruta(e, h)
+    L += _lineas_perfil_diana(h)
+    c = _dict(h.get("comprobacion"))
+    L.append(f"Comprobación propuesta: biomarcador {c.get('biomarcador') or 'sin declarar'}; cohorte {c.get('cohorte') or 'sin declarar'}; diseño {c.get('diseno') or 'sin declarar'}.")
     if mision:
         L.append(f"Encaje con la misión: población {mision.get('poblacion') or '?'}; etapa {mision.get('etapa') or '?'}; célula o tejido {mision.get('celulaTejido') or '?'}; mecanismo {mision.get('mecanismo') or '?'}; intervención {mision.get('tipoIntervencion') or '?'}.")
     if h.get("versiones"):
@@ -162,13 +223,14 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L += ["Protocolo:", x.get("protocolo", ""), f"Ensayo: {x.get('ensayo', '')}", f"Controles: {x.get('controles') or 'no declarados'}", f"Tamaño muestral: {x.get('tamanoMuestral') or 'no declarado'}", f"Alternativa y como se distingue: {x.get('alternativa') or 'no declarada'}", f"La CONFIRMA si: {x.get('confirma') or 'sin criterio'}", f"La REFUTA si: {x.get('refuta') or 'sin criterio'}", f"Qué decisión cambia con el resultado: {x.get('decisionQueCambia') or 'no declarado'}", f"Coste estimado: {x.get('costeEstimado', '')}"]
         if x.get("analisisPedido"):
             L.append(f"Con datos existentes: {x['analisisPedido']}")
+        L += _lineas_contrato(x)
         if x.get("prerregistradoEn"):
             L.append(f"Prerregistrado el {_fecha(x['prerregistradoEn'])} (artefacto {x.get('prerregistroArtefactoId')}). Asignado a: {x.get('laboratorio')}.")
         else:
             L.append("Todavía no prerregistrado: al asignarlo a un laboratorio se congela.")
         if x.get("resultado"):
             r = x["resultado"]
-            L.append(f"Resultado recibido ({_fecha(r['fecha'])}): {r['veredicto']} / {r.get('clasificacion', 'sin clasificar')}. {r['resultado']}")
+            L.append(f"Resultado recibido ({_fecha(r.get('fecha'))}): {r.get('veredicto') or 'sin veredicto'} / {r.get('clasificacion') or 'sin clasificar'}. {r.get('resultado') or ''}".rstrip())
             if r.get("dimensiones"):
                 d = r["dimensiones"]
                 activas = [k for k, v in d.items() if k != "nota" and v]
@@ -188,7 +250,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L += ["", "### Conocimiento operativo del laboratorio (no publicado; clase conocimiento_operativo)"]
         L += [f"- [{x['tipo']}] {x['texto']} ({x['quien']}, {_fecha(x['fecha'])})" for x in operativo[:15]]
     L += ["", "## 7. Riesgos, alternativas y que se aprende con cada resultado"]
-    if tarjeta.get("riesgos"):
+    if isinstance(tarjeta.get("riesgos"), list) and tarjeta["riesgos"]:
         L += [f"- Riesgo: {r}" for r in tarjeta["riesgos"]]
     if k:
         L += [f"De que depende más: {k.get('loMasFragil', '')}", f"Subiría la certeza si: {k.get('subiria', '')}", f"Bajaría si: {k.get('bajaria', '')}"]

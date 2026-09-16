@@ -27,25 +27,28 @@ import re
 from typing import Any
 
 from rosa import politicas
+from rosa import dianas as DI
 from rosa import metodos as METODOS
 from rosa.priorizacion import cohortes_de
 
 BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")
 
-# Que hace cada una de las catorce comprobaciones cuando FALLA. Ninguna queda
-# sin consecuencia: una hipotesis ya publicada o sin fuentes primarias no
+# Qué hace cada una de las quince comprobaciones cuando FALLA. Ninguna queda
+# sin consecuencia: una hipótesis ya publicada o sin fuentes primarias no
 # llega a candidata "con aviso".
 #   descartar:  la evidencia no la sostiene (citas, fidelidad, supuestos).
 #   reformular: arreglable reescribiendo (causalidad, falsabilidad, factibilidad,
-#               redundancia, direccion de la evidencia, unidades, novedad: si ya
-#               esta publicada, hay que decir que anade).
-#   suspender:  hace falta mas o mejor evidencia antes de seguir (sin fuente
+#               redundancia, dirección de la evidencia, unidades, novedad: si ya
+#               está publicada, hay que decir qué añade; contexto humano: la diana
+#               no se expresa en humanos donde la tarjeta pone el mecanismo, así
+#               que hay que cambiar la diana, el tejido o explicar cómo llega).
+#   suspender:  hace falta más o mejor evidencia antes de seguir (sin fuente
 #               primaria, riesgo de sesgo serio en toda la evidencia, la diana no
-#               resuelve en las bases): lo decide una persona o una busqueda nueva.
+#               resuelve en las bases): lo decide una persona o una búsqueda nueva.
 #   avisar:     avanza con la certeza limitada (una sola cohorte: es un factor
-#               GRADE, no un fallo de la hipotesis).
+#               GRADE, no un fallo de la hipótesis).
 DESCARTAN = ("citas_reales", "fidelidad_evidencia", "supuestos")
-REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "novedad")
+REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "novedad", "contexto_humano")
 SUSPENDEN = ("fuente_primaria", "sesgo_evidencia", "identificadores_resuelven")
 AVISAN = ("independencia_cohortes",)
 # Las que, sin poder comprobarse, suspenden.
@@ -147,6 +150,13 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "identificadores_resuelven", "resultado": "falla", "detalle": f"'{diana}' no resuelve a un gen humano en MyGene: la diana es un proceso, un texto libre o un símbolo mal escrito; hay que nombrarla con identificador"})
     else:
         c.append({"comprobacion": "identificadores_resuelven", "resultado": "no_comprobable", "detalle": "Las bases no se han consultado todavía para esta diana"})
+    # 7. Contexto humano: la diana se expresa en humanos (HPA, GTEx) en la célula o
+    # el tejido que la tarjeta nombra. Lo resuelve rosa/dianas.py por regla sobre
+    # el perfil de evidencia por diana que guardó contexto_de_bases; sin perfil, o
+    # con un perfil de otra versión o de otro gen, queda no_comprobable (nunca
+    # falla por falta de dato). Falla solo si HPA no detecta la diana en cerebro y
+    # la hipótesis afirma un mecanismo cerebral.
+    c.append(DI.comprobacion_contexto_humano(h, h.get("perfilDiana")))
     # 8. Novedad con recuperacion.
     n = h.get("novedad", {})
     prec = n.get("precedente", {})

@@ -20,6 +20,7 @@ por presupuesto o esperando aprobacion: espera sin gastar.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import contextlib
 from datetime import datetime, timezone
@@ -34,6 +35,9 @@ from rosa import dependencias as DEP
 from rosa import sesgo as SESGO
 from rosa import certeza as CERTEZA, config, lecciones as LEC, parada as PARADA, politicas, priorizacion as PR, progreso as PROG, torneo
 from rosa import revisor_registro as RR
+# ROSA2018, 16 de septiembre de 2026: ruta terapéutica por regla, contrato del
+# experimento, mapa de la enfermedad, cifras de aprendizaje y perfil por diana.
+from rosa import cifras_aprendizaje as CIFRAS, dianas as DI, experimento as XP, mapa_enfermedad as MAPA, ruta as RUTA
 from rosa.bucle import contexto as T
 from rosa.bucle import evidencia as EV
 from rosa.bucle import pasos as PASOS
@@ -403,7 +407,7 @@ class Supervisor:
                 inv = next(i for i in e["investigaciones"] if i["id"] == h["investigacionId"])
                 deterministas = K.comprobaciones_deterministas(h, e)
                 try:
-                    pred = await ctx.llamar("juez", self.programas.killer, objetivo=inv["objetivo"], mision=PASOS._texto_mision(inv), hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna", supuestos="\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]) or "Sin supuestos", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], h["investigacionId"], maximo=30), comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas), criterios_revision="\n".join(criterios))
+                    pred = await ctx.llamar("juez", self.programas.killer, objetivo=inv["objetivo"], mision=PASOS._texto_mision(inv), hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna", supuestos="\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]) or "Sin supuestos", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], h["investigacionId"], maximo=30), comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas), criterios_revision="\n".join(criterios))
                     comprobaciones = K.fusionar(deterministas, [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in pred.revision.comprobaciones])
                     decision, _ = K.decidir(comprobaciones, bool((h.get("tarjeta") or {}).get("prediccionFalsable")), 1)
                 except Exception:  # noqa: BLE001
@@ -546,7 +550,7 @@ class Supervisor:
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.experimento,
-                hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
+                hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")),
                 afirmaciones="\n".join(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna (hipótesis humana)",
                 limites="; ".join(inv["limites"]) if inv and inv["limites"] else "Ninguno declarado",
                 mision=PASOS._texto_mision(inv) if inv else "Sin misión aprobada",
@@ -569,6 +573,12 @@ class Supervisor:
                 "ficheroDatos": None,
                 "analisisPedido": x.analisis_pedido.strip(),
             }
+            # El contrato del experimento (rosa/experimento.py): lecturas separadas
+            # (qué se mide, qué la confirma y qué la refuta), sistema experimental con
+            # lo que no representa, propósito BEST del biomarcador, nivel del desenlace
+            # y puente al beneficio. Una firma antigua sin esos campos deja los valores
+            # vacíos y la lista de problemas lo dice; no rompe.
+            _anadir_contrato(experimento, x)
         except PresupuestoAgotado:
             raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
         except Exception:  # noqa: BLE001
@@ -583,6 +593,7 @@ class Supervisor:
             if experimento and not y.get("experimento"):
                 y["experimento"] = experimento
                 y["procedencia"]["registro"].append("experimento propuesto por Rosa (protocolo, ensayo, controles, criterios, coste)")
+                y["procedencia"]["registro"].append(_linea_contrato(experimento))
                 A.recalcular_bloqueos(e, y)
             return True
 
@@ -653,6 +664,9 @@ class Supervisor:
             y["_conclusionIntentada"] = ctx.numero
             if conclusion:
                 y["conclusion"] = conclusion
+                # La ruta terapéutica se recalcula aquí porque es el momento en que
+                # cambia la evidencia contada (rosa/ruta.py, por regla, sin modelo).
+                y["ruta"] = _ruta_segura(e, y)
                 # La conclusión rehecha atiende lo pendiente de revisar (propagación de
                 # dependencias) y el peldaño siguiente de la escalera queda como cuestión.
                 if y.get("pendienteRevision"):
@@ -712,6 +726,14 @@ class Supervisor:
                 resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
         clasificacion = resultado.get("clasificacion") or "inconcluso"
         resultado["accionTomada"] = APRENDIZAJE_POR_RESULTADO.get(clasificacion, "")
+        # Veredicto por lectura (rosa/experimento.py): cada lectura del contrato se
+        # juzga por regla con la cifra que la nombra; sin cifra es "no pude comprobar".
+        # Si el juez no llegó a responder (fichero ausente, fallo), no hay nada que
+        # juzgar: lista vacía y rama None con su explicación.
+        juez_respondio = not (resultado["veredicto"] == "no_evaluable" and clasificacion == "fallo_tecnico" and not resultado.get("cifras"))
+        vs = _veredictos_por_lectura(x, resultado) if juez_respondio else []
+        resultado["veredictosPorLectura"] = vs
+        resultado["lecturaDelNegativo"] = _lectura_del_negativo(vs)
         # Un resultado prueba la version que se prerregistro; si la hipotesis cambio
         # despues, se dice y la conclusion actual lo tiene en cuenta.
         version_probada = x.get("versionPrerregistrada") or h.get("version", 1)
@@ -771,6 +793,9 @@ class Supervisor:
             y.pop("_conclusionIntentada", None)
             A.recalcular_bloqueos(e, y)
             A.con_evento(e, h["investigacionId"], "revision_automatica", f"Datos del laboratorio evaluados ({clasificacion.replace('_', ' ')}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+            # El resultado del laboratorio toca los pasos de efecto funcional y de
+            # selectividad y toxicidad de la ruta terapéutica: se recalcula.
+            y["ruta"] = _ruta_segura(e, y)
             return True
 
         self.almacen.mutar(fn, "resultado_experimento")
@@ -847,6 +872,7 @@ class Supervisor:
                     x["_llanoIntentado"] = True
                     if llano:
                         x["resumenLlano"] = llano
+                        _anadir_aprendizaje_al_llano(e2, it["corridaId"], x)
                     return True
 
                 self.almacen.mutar(fn, "en_llano")
@@ -1376,6 +1402,13 @@ class Supervisor:
             # bajados, hechos nuevos y fallidos de la iteración (rosa/progreso.py).
             c_prog = next(x for x in e2["corridas"] if x["id"] == c["id"])
             c_prog.setdefault("progreso", []).append(PROG.instantanea(e2, c_prog, it2, len(hechos_nuevos), len(hip_nuevas), len(bloqueadas), ahora))
+            # Vistas de programa por regla (ROSA2018): dónde está la evidencia por
+            # estadio, región y célula (mapa de la enfermedad), qué pasos de la ruta
+            # terapéutica cubre cada diana (mapa de ruta) y las tres cifras de
+            # aprendizaje. Cada una en su try: un fallo deja incidencia y no rompe el cierre.
+            # La métrica de la corrida (`PROG.metrica_de_corrida`) lee las cifras de
+            # la investigación a demanda, así que las ve en cuanto se escriben aquí.
+            _vistas_de_programa_al_cerrar(e2, inv["id"], it2, ahora)
             # Lecciones por regla: lo que esta iteración enseña a no repetir (rosa/lecciones.py).
             nuevas_lecciones = LEC.registrar(e2, LEC.generar_al_cerrar(e2, c_prog, it2, revision, ahora))
             if nuevas_lecciones:
@@ -1428,6 +1461,148 @@ class Supervisor:
 # ---------------------------------------------------------------------------
 # Ayudantes puros
 # ---------------------------------------------------------------------------
+
+
+def _ruta_segura(e: dict[str, Any], h: dict[str, Any]) -> dict[str, Any] | None:
+    """`RUTA.evaluar_ruta` sin que un fallo de la regla tumbe la mutación que
+    guarda la conclusión o el resultado: si falla, se deja la ruta anterior
+    (o None) y el error queda en la consola."""
+    try:
+        return RUTA.evaluar_ruta(e, h)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return h.get("ruta")
+
+
+def _anadir_contrato(experimento: dict[str, Any], propuesta: Any) -> None:
+    """Añade al experimento las claves del contrato (`XP.CLAVES_CONTRATO`), la
+    lista de problemas y la huella de las lecturas. Va aparte de la llamada al
+    modelo: si la regla del contrato fallara, el protocolo que el cerebro ya
+    devolvió (una llamada pagada) no se pierde; quedan los valores vacíos, un
+    problema que lo dice y el error en la consola."""
+    try:
+        experimento.update(XP.contrato_desde_propuesta(propuesta))
+        experimento["problemasContrato"] = XP.validar_contrato(experimento)
+        experimento["hashLecturas"] = XP.hash_lecturas(experimento)
+    except Exception as ex:  # noqa: BLE001
+        traceback.print_exc()
+        for k, v in XP.CLAVES_CONTRATO.items():
+            experimento.setdefault(k, copy.deepcopy(v))
+        experimento["problemasContrato"] = [f"no pude leer el contrato de la propuesta ({type(ex).__name__}): lecturas, sistema y propósito quedan sin declarar"]
+        try:
+            experimento["hashLecturas"] = XP.hash_lecturas(experimento)
+        except Exception:  # noqa: BLE001
+            experimento["hashLecturas"] = ""
+
+
+def _linea_contrato(experimento: dict[str, Any]) -> str:
+    """La línea del registro de procedencia que resume el contrato del experimento."""
+    lecturas = experimento.get("lecturas") if isinstance(experimento.get("lecturas"), list) else []
+    sistema = experimento.get("sistema") or {}
+    problemas = experimento.get("problemasContrato") if isinstance(experimento.get("problemasContrato"), list) else []
+    tipo = sistema.get("tipo") if isinstance(sistema, dict) else None
+    return f"contrato del experimento: {len(lecturas)} {'lectura' if len(lecturas) == 1 else 'lecturas'}, sistema {XP.etiqueta(XP.SISTEMAS_EXPERIMENTALES, tipo) if tipo else 'no declarado'}, {len(problemas)} {'problema' if len(problemas) == 1 else 'problemas'}"
+
+
+def _veredictos_por_lectura(experimento: dict[str, Any], resultado: dict[str, Any]) -> list[dict[str, Any]]:
+    """`XP.veredicto_por_lecturas` protegido: un experimento antiguo sin lecturas
+    da lista vacía, y un fallo de la regla también (con el error en consola)."""
+    try:
+        return XP.veredicto_por_lecturas(experimento, resultado)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return []
+
+
+def _lectura_del_negativo(veredictos: list[dict[str, Any]]) -> dict[str, Any]:
+    try:
+        r = XP.lectura_del_negativo(veredictos)
+        return {"rama": r.get("rama"), "explicacion": r.get("explicacion", "")}
+    except Exception as ex:  # noqa: BLE001
+        traceback.print_exc()
+        return {"rama": None, "explicacion": f"No pude leer el negativo por lecturas ({type(ex).__name__})."}
+
+
+def _cuestiones_por_hueco(e: dict[str, Any], investigacion_id: str, huecos: list[Any], ahora: int, maximo: int = 6) -> int:
+    """Cada hueco del mapa de la enfermedad (una combinación de estadio, región
+    o célula que la misión nombra y nada cubre) se abre como cuestión para que
+    el planificador busque en amplitud por ahí. No se repite una abierta con el
+    mismo texto; `CU.registrar` además funde las equivalentes y respeta el tope."""
+    abiertas = {str(c.get("texto") or "") for c in CU.abiertas(e, investigacion_id)}
+    nuevas = 0
+    for hueco in huecos[:maximo] if isinstance(huecos, list) else []:
+        if not isinstance(hueco, dict) or not isinstance(hueco.get("motivo"), str):
+            continue
+        texto = hueco["motivo"].strip()
+        if not texto or texto in abiertas:
+            continue
+        cuestion = CU.nueva(investigacion_id, texto, {"tipo": "analisis", "id": None}, "un hecho o una hipótesis que sitúe esa combinación por su contenido", ahora)
+        # `registrar` devuelve también la cuestión con la que se fundió o la que
+        # ya estaba resuelta: solo cuenta como nueva la que de verdad entró.
+        _, motivo = CU.registrar_con_motivo(e, cuestion)
+        abiertas.add(texto)
+        if motivo == "nueva":
+            nuevas += 1
+    return nuevas
+
+
+def _anadir_aprendizaje_al_llano(e: dict[str, Any], corrida_id: str, it: dict[str, Any]) -> None:
+    """Pega al resumen en llano de la iteración el párrafo de las cifras de
+    aprendizaje (clave `aprendizaje`) cuando las cifras guardadas en la
+    investigación son las de esa misma iteración. Sirve para el resumen en
+    llano que llega tarde (`_completar_en_llano_paso`), que si no se quedaría
+    sin ese párrafo aunque el cierre ya lo hubiera calculado."""
+    llano = it.get("resumenLlano")
+    if not isinstance(llano, dict) or llano.get("aprendizaje"):
+        return
+    c = next((x for x in e.get("corridas", []) if isinstance(x, dict) and x.get("id") == corrida_id), None)
+    inv = next((i for i in e.get("investigaciones", []) if isinstance(i, dict) and c and i.get("id") == c.get("investigacionId")), None)
+    cifras = (inv or {}).get("cifrasAprendizaje")
+    if isinstance(cifras, dict) and cifras.get("iteracion") == it.get("numero") and isinstance(cifras.get("texto"), str) and cifras["texto"]:
+        llano["aprendizaje"] = cifras["texto"]
+
+
+def _vistas_de_programa_al_cerrar(e2: dict[str, Any], inv_id: str, it2: dict[str, Any], ahora: int) -> None:
+    """Escribe en la investigación `mapaEnfermedad`, `mapaRuta` y
+    `cifrasAprendizaje` (cada uno con fecha e iteración), añade el texto de las
+    cifras al resumen en llano de la iteración y abre una cuestión por hueco
+    del mapa. Cada pieza va en su propio try: si falla, queda una incidencia y
+    las demás siguen; el cierre de la iteración nunca se cae por una vista."""
+    inv2 = next((i for i in e2["investigaciones"] if isinstance(i, dict) and i.get("id") == inv_id), None)
+    if inv2 is None:
+        return
+    if not isinstance(it2, dict):
+        it2 = {}  # iteración con forma rara: se escriben las vistas sin número ni resumen en llano
+    n = it2.get("numero")
+    try:
+        mapa = MAPA.mapa(e2, inv_id)
+        # Las etiquetas y definiciones se copian: el estado no debe compartir
+        # referencias con las constantes del módulo (una mutación las cambiaría).
+        inv2["mapaEnfermedad"] = {**mapa, "fecha": ahora, "iteracion": n, "etiquetas": copy.deepcopy(MAPA.ETIQUETAS), "definiciones": {"estadio": dict(MAPA.DEFINICIONES_ESTADIO), "nivel": dict(MAPA.DEFINICIONES_NIVEL)}}
+        abiertas = _cuestiones_por_hueco(e2, inv_id, list(mapa.get("huecos") or []), ahora)
+        if abiertas:
+            A.con_evento(e2, inv_id, "aprendizaje", f"El mapa de la enfermedad deja {abiertas} {'hueco' if abiertas == 1 else 'huecos'} que la misión nombra y nada cubre; quedan como cuestiones abiertas para buscar en amplitud", f"#/investigaciones/{inv_id}/investigacion", ahora)
+    except Exception as ex:  # noqa: BLE001
+        traceback.print_exc()
+        A.con_evento(e2, inv_id, "incidencia", f"No pude construir el mapa de la enfermedad al cerrar la iteración {n}: {type(ex).__name__}: {str(ex)[:160]}", f"#/investigaciones/{inv_id}/corrida", ahora)
+    try:
+        inv2["mapaRuta"] = {**RUTA.mapa_ruta(e2, inv_id), "fecha": ahora, "iteracion": n}
+    except Exception as ex:  # noqa: BLE001
+        traceback.print_exc()
+        A.con_evento(e2, inv_id, "incidencia", f"No pude construir el mapa de la ruta terapéutica al cerrar la iteración {n}: {type(ex).__name__}: {str(ex)[:160]}", f"#/investigaciones/{inv_id}/corrida", ahora)
+    try:
+        cifras = {**CIFRAS.resumen_cifras(e2, inv_id, ahora), "fecha": ahora, "iteracion": n}
+        inv2["cifrasAprendizaje"] = cifras
+        # El texto de las tres cifras entra al resumen en llano como párrafo aparte
+        # (clave `aprendizaje`), antes del detalle técnico; solo si hay resumen en
+        # llano: si falta, `_completar_en_llano` lo rellena después y el texto sigue
+        # disponible en la investigación.
+        llano = it2.get("resumenLlano")
+        if isinstance(llano, dict) and cifras.get("texto"):
+            llano["aprendizaje"] = cifras["texto"]
+    except Exception as ex:  # noqa: BLE001
+        traceback.print_exc()
+        A.con_evento(e2, inv_id, "incidencia", f"No pude calcular las cifras de aprendizaje al cerrar la iteración {n}: {type(ex).__name__}: {str(ex)[:160]}", f"#/investigaciones/{inv_id}/corrida", ahora)
 
 
 def _ordenar_plan(plan: list[dict[str, Any]], hay_novedad_pendiente: bool) -> list[dict[str, Any]]:

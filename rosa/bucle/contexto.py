@@ -169,6 +169,17 @@ async def modelo_de_mundo_para(almacen: Any, investigacion_id: str, consulta: st
 
     if CU.abiertas(e, investigacion_id, 1):
         texto += "\n\n" + CU.texto_abiertas(e, investigacion_id, maximo=8)
+    # Mapa del estado de la enfermedad (rosa/mapa_enfermedad.py): dónde está la
+    # evidencia por estadio, región, célula y nivel, y qué huecos nombra la misión.
+    # Si el cierre de la iteración ya lo guardó en la investigación se reutiliza
+    # (precalculado); si no, se calcula aquí. Un fallo no tumba el paso.
+    try:
+        from rosa import mapa_enfermedad as MAPA
+
+        inv = next((i for i in investigaciones if i.get("id") == investigacion_id), None)
+        texto += "\n\n" + MAPA.texto_mapa(e, investigacion_id, maximo=8, precalculado=(inv or {}).get("mapaEnfermedad"))
+    except Exception as ex:  # noqa: BLE001  el mapa nunca tumba un paso
+        texto += f"\n\nMapa del estado de la enfermedad: no pude construirlo ({type(ex).__name__})."
     return texto
 
 
@@ -491,11 +502,25 @@ def vivero_texto(inv: dict[str, Any], maximo: int = 8) -> str:
 
 def resultado_experimental(h: dict[str, Any]) -> str:
     x = h.get("experimento") or {}
-    r = x.get("resultado")
+    r = x.get("resultado") if isinstance(x, dict) else None
     if not r:
         return "Ninguno"
-    cifras = "; ".join(f"{c['nombre']}: {c['valor']}" for c in r.get("cifras", []))
-    return f"Veredicto contra el prerregistro: {r['veredicto']}. {r['resultado']} Motivo: {r['motivo']} Limitaciones: {r['limitaciones']} Cifras: {cifras or 'ninguna'}. Exploratorio (no prerregistrado): {r.get('exploratorio') or 'nada'}"
+    if not isinstance(r, dict):
+        return "Hay un resultado registrado con forma que no pude leer (no es un registro con veredicto); tratarlo como no comprobado."
+    cifras = "; ".join(f"{c.get('nombre')}: {c.get('valor')}" for c in (r.get("cifras") or []) if isinstance(c, dict))
+    texto = f"Veredicto contra el prerregistro: {r.get('veredicto')}. {r.get('resultado') or ''} Motivo: {r.get('motivo') or ''} Limitaciones: {r.get('limitaciones') or ''} Cifras: {cifras or 'ninguna'}. Exploratorio (no prerregistrado): {r.get('exploratorio') or 'nada'}"
+    if r.get("veredicto") in ("refuta", "inconcluso"):
+        # Un negativo se lee por lecturas separadas (rosa/experimento.py): si la
+        # diana quedó comprometida y el efecto no apareció, cuestiona el mecanismo;
+        # si la diana no se comprometió, habla del ensayo. El cerebro de la
+        # siguiente iteración tiene que saber cuál de las dos es.
+        try:
+            from rosa import experimento as XP
+
+            texto += " Lectura del negativo: " + XP.texto_lectura_del_negativo(r.get("veredictosPorLectura") or [])
+        except Exception as ex:  # noqa: BLE001
+            texto += f" Lectura del negativo: no pude leerla por lecturas ({type(ex).__name__})."
+    return texto
 
 
 def consultas_de_la_investigacion(e: dict[str, Any], investigacion_id: str) -> list[dict[str, Any]]:

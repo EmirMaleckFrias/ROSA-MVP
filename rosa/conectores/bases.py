@@ -13,7 +13,7 @@ from urllib.parse import quote
 
 from rosa import config
 from rosa.conectores.base import Resultado, conector
-from rosa.fuentes.base import Limitador, compartido, pedir
+from rosa.fuentes.base import FuenteNoDisponible, Limitador, compartido, pedir
 
 ALZHEIMER_MONDO = "MONDO_0004975"
 ALZHEIMER_EFO = "EFO_0000249"
@@ -110,7 +110,19 @@ async def uniprot_proteina(simbolo: str) -> Resultado:
 async def hpa_expresion(ensembl: str) -> Resultado:
     r = await pedir("GET", f"https://www.proteinatlas.org/{quote(ensembl)}.json", _lim["hpa"])
     d = r.json()
-    claves = {k: d.get(k) for k in ("Gene", "Gene description", "Protein class", "Biological process", "RNA tissue specificity", "RNA tissue specific nTPM", "RNA brain regional specificity", "RNA brain regional specific nTPM", "RNA single cell type specificity", "RNA single cell type specific nTPM", "Blood expression cluster", "Subcellular location") if k in d}
+    # Las claves de distribución ("Detected in all", "Not detected") son las que
+    # permiten decir "ausente" en vez de "no pude comprobar": sin ellas HPA solo
+    # lista lo enriquecido y nunca lo que no está. Las de núcleo único de cerebro y
+    # la nCPM por tipo celular (HPA 24 ya no devuelve la nTPM de célula única) son
+    # las que nombran los tipos celulares para la comprobación de contexto humano.
+    claves = {k: d.get(k) for k in (
+        "Gene", "Gene description", "Protein class", "Biological process",
+        "RNA tissue specificity", "RNA tissue distribution", "RNA tissue specific nTPM",
+        "RNA brain regional specificity", "RNA brain regional distribution", "RNA brain regional specific nTPM",
+        "RNA single cell type specificity", "RNA single cell type distribution", "RNA single cell type specific nTPM", "RNA single cell type specific nCPM",
+        "RNA single nuclei brain specificity", "RNA single nuclei brain distribution", "RNA single nuclei brain specific nCPM",
+        "Brain expression cluster", "Blood expression cluster", "RNA tissue cell type enrichment", "Subcellular location",
+    ) if k in d}
     return Resultado(claves, 1 if d.get("Gene") else 0, [ensembl], None, (bool(d.get("Gene")), f"gen {d.get('Gene')}"))
 
 
@@ -120,6 +132,27 @@ async def gtex_expresion(gencode: str, tejido: str = "Brain_Hippocampus") -> Res
     filas = r.json().get("data", [])
     datos = [{"gen": f.get("geneSymbol"), "tejido": f.get("tissueSiteDetailId"), "mediana": f.get("median"), "unidad": f.get("unit")} for f in filas]
     return Resultado(datos, len(datos), [gencode], "gtex_v10", (len(datos) == 1, f"{len(datos)} filas"))
+
+
+@conector("gtex_gen", "GTEx v10", "Resuelve un símbolo de gen al identificador GENCODE con versión (v39, GRCh38) que GTEx exige en sus consultas de expresión", "El gencodeId con versión (por ejemplo ENSG00000131095.14 para GFAP) que hace falta para preguntar a gtex_expresion; MyGene no lo da", _esq(simbolo="Símbolo HGNC, por ejemplo GFAP"), "Términos GTEx (datos abiertos del portal)", "No publicado; 3 por segundo en Rosa", "https://gtexportal.org/api/v2/redoc", grupo="expresion")
+async def gtex_gen(simbolo: str) -> Resultado:
+    # Comprobado en vivo el 16 de septiembre de 2026: data[0].gencodeId = 'ENSG00000131095.14' para GFAP; GTEx v10 usa GENCODE v39.
+    r = await pedir("GET", "https://gtexportal.org/api/v2/reference/gene", _lim["gtex"], params={"geneId": simbolo, "gencodeVersion": "v39", "genomeBuild": "GRCh38/hg38"})
+    cuerpo = r.json()
+    # Una respuesta con otra forma (una lista, "data" que no es lista) es un fallo de
+    # la fuente, no "el símbolo no resuelve": queda como "no pude comprobar".
+    if not isinstance(cuerpo, dict) or not isinstance(cuerpo.get("data"), list):
+        raise FuenteNoDisponible("GTEx devolvió una respuesta sin la lista 'data'")
+    filas = [f for f in cuerpo["data"] if isinstance(f, dict)]
+    # GTEx busca por prefijo: al pedir GFAP devuelve también GFAP-AS1. Solo vale la
+    # coincidencia exacta de símbolo; tomar la primera fila daría el GENCODE de OTRO
+    # gen y el perfil de la diana leería la expresión equivocada.
+    exactas = [f for f in filas if str(f.get("geneSymbol") or "").upper() == str(simbolo).upper() and f.get("gencodeId")]
+    f = exactas[0] if exactas else None
+    if not f:
+        return Resultado(None, 0, [], "v39", (False, f"ninguna de las {len(filas)} filas coincide exactamente con el símbolo en GENCODE v39" if filas else "el símbolo no resuelve a ningún gen en GENCODE v39"))
+    datos = {"simbolo": f.get("geneSymbol"), "gencode": f.get("gencodeId"), "tipo": f.get("geneType"), "cromosoma": f.get("chromosome"), "inicio": f.get("start"), "fin": f.get("end"), "hebra": f.get("strand"), "version_gencode": "v39", "genoma": "GRCh38/hg38"}
+    return Resultado(datos, len(filas), [f["gencodeId"]], "v39", (len(exactas) == 1, f"{len(exactas)} coincidencia exacta de símbolo entre {len(filas)} filas; gencodeId {f['gencodeId']}"))
 
 
 @conector("alphafold_estructura", "AlphaFold DB", "Modelo predicho de una proteína con su confianza (pLDDT) y versión", "Si hay estructura para razonar sobre un sitio de unión", _esq(uniprot="Accession UniProt, por ejemplo P02649"), "CC BY 4.0", "No publicado; 3 por segundo en Rosa", "https://alphafold.ebi.ac.uk/api-docs", grupo="estructuras")

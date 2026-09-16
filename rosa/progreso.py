@@ -14,6 +14,7 @@ de una corrida es cuánto suben las hipótesis que ya existen, no cuántas nacen
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from rosa import certeza as CERTEZA
@@ -91,6 +92,10 @@ def metrica_de_corrida(e: dict[str, Any], corrida_id: str) -> dict[str, Any] | N
         "hipotesisNuevas": sum(int(p.get("hipotesisNuevas") or 0) for p in serie),
         "fallidos": {k: sum(int((p.get("fallidos") or {}).get(k) or 0) for p in serie) for k in ("pasos", "pistas", "killer", "afirmacionesBloqueadas")},
         "banco": None,
+        # Las tres cifras de aprendizaje (rosa/cifras_aprendizaje.py) tal como las
+        # dejó el bucle en la investigación al cerrar la iteración; aquí solo se
+        # leen. None si todavía no se calcularon o si la investigación no está.
+        "aprendizaje": aprendizaje_de(e, c.get("investigacionId")),
     }
     try:
         from rosa.evaluacion import banco as B
@@ -104,6 +109,22 @@ def metrica_de_corrida(e: dict[str, Any], corrida_id: str) -> dict[str, Any] | N
     return metrica
 
 
+def aprendizaje_de(e: dict[str, Any], investigacion_id: Any) -> dict[str, Any] | None:
+    """Las cifras de aprendizaje de la investigación, recortadas a las tres
+    que van en la métrica: acierto prerregistrado (qué fracción de lo que Rosa
+    predijo por escrito salió como dijo), tiempo hasta decisión (horas desde
+    que nace una hipótesis hasta que el Killer o una persona la decide) y
+    reutilización heredada (cuántos hechos heredados de otra investigación
+    volvieron a usarse). No las calcula: las calcula el bucle al cerrar la
+    iteración y las deja en `investigacion.cifrasAprendizaje`. None si no
+    están, si la clave no es un diccionario o si la investigación no existe."""
+    inv = next((i for i in (e.get("investigaciones") or []) if isinstance(i, dict) and i.get("id") == investigacion_id), None)
+    cifras = inv.get("cifrasAprendizaje") if inv else None
+    if not isinstance(cifras, dict):
+        return None
+    return {k: (cifras.get(k) if isinstance(cifras.get(k), dict) else None) for k in ("acierto", "tiempo", "reutilizacion")}
+
+
 def resumen_metrica(m: dict[str, Any] | None) -> str:
     """Una línea para la persona: 'subió 3 peldaños netos en 4 iteraciones (0,21 por dólar)'."""
     if not m:
@@ -114,7 +135,39 @@ def resumen_metrica(m: dict[str, Any] | None) -> str:
         partes.append(f"{m['peldanosPorDolar']:g} por dólar")
     if m.get("hipotesisEnBajaOMas"):
         partes.append(f"{m['hipotesisEnBajaOMas']} {'hipótesis' } en certeza baja o más")
+    frase = frase_acierto(m.get("aprendizaje"))
+    if frase:
+        partes.append(frase)
     return "; ".join(partes)
+
+
+def _entero(v: Any) -> int | None:
+    """Un recuento como entero, o None si no es un número finito (un None, un
+    texto o un NaN heredado de un registro roto no se imprimen como cifra)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return int(v)
+
+
+def frase_acierto(aprendizaje: Any) -> str:
+    """La frase del acierto prerregistrado para la persona: 'acertó 1 de 2
+    predicciones prerregistradas (50 %)'. Acierto prerregistrado quiere decir
+    la fracción de predicciones que Rosa dejó escritas antes de ver los datos
+    y que después salieron como dijo. Solo cuando hay tasa (alguna predicción
+    con dirección ya evaluada): sin casos se calla, nunca dice '0 %'. Una tasa
+    que no sea un número finito (NaN, infinito, texto) también calla, en vez
+    de lanzar."""
+    if not isinstance(aprendizaje, dict) or not isinstance(aprendizaje.get("acierto"), dict):
+        return ""
+    acierto = aprendizaje["acierto"]
+    tasa = acierto.get("tasa")
+    if isinstance(tasa, bool) or not isinstance(tasa, (int, float)) or not math.isfinite(tasa):
+        return ""
+    aciertos, con_direccion = _entero(acierto.get("aciertos")), _entero(acierto.get("conDireccion"))
+    porcentaje = f"{round(float(tasa) * 100):d} %"
+    if aciertos is None or con_direccion is None:
+        return f"acierto de las predicciones prerregistradas: {porcentaje}"
+    return f"acertó {aciertos} de {con_direccion} {'predicción prerregistrada' if con_direccion == 1 else 'predicciones prerregistradas'} ({porcentaje})"
 
 
 def iteraciones_sin_avance(c: dict[str, Any]) -> int:

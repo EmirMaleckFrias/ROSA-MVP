@@ -32,6 +32,8 @@ from rosa import parada as PARADA
 from rosa import cuestiones as CU
 from rosa import dependencias as DEP
 from rosa import registro as REG
+from rosa import datasets_programa as DP
+from rosa import experimento as XP
 from rosa.estado import plantilla as P
 
 Estado = dict[str, Any]
@@ -1139,21 +1141,28 @@ def asignar_experimento(e: Estado, hipotesis_id: str, laboratorio: str, ahora: i
     x = h["experimento"]
     # Sin criterio de confirmación y de refutación no hay prerregistro que congelar:
     # es lo que separa un negativo interpretable de una lectura a posteriori.
-    interpretable = ((x.get("confirma") or "").strip() and (x.get("refuta") or "").strip()) or (x.get("ensayo") or "").strip()
+    # Con el contrato nuevo basta una lectura que tenga a la vez su criterio de
+    # confirmación y el de refutación, aunque los campos antiguos vengan vacíos.
+    lecturas = XP.normalizar_contrato(x)["lecturas"]
+    interpretable = ((x.get("confirma") or "").strip() and (x.get("refuta") or "").strip()) or (x.get("ensayo") or "").strip() or any(l["queConfirma"] and l["queRefuta"] for l in lecturas)
     if not x.get("prerregistradoEn") and not interpretable:
-        con_evento(e, h["investigacionId"], "incidencia", f"No se puede prerregistrar «{h['titulo'][:60]}»: faltan el criterio de confirmación o el de refutación", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+        con_evento(e, h["investigacionId"], "incidencia", f"No se puede prerregistrar «{str(h.get('titulo') or '')[:60]}»: faltan el criterio de confirmación o el de refutación", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
         return False
     x["laboratorio"] = lab
     x["estado"] = "asignado"
     if not x.get("prerregistradoEn"):
         corrida = ultima_corrida_de(e, h["investigacionId"])
         contenido = texto_prerregistro(h, lab, ahora, corrida.get("arnes") if corrida else None)
-        art_id = guardar_artefacto(e, h["investigacionId"], f"Prerregistro: {h['titulo'][:80]}", "informe", contenido, f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')} al asignarlo a {lab}", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1), "decisiones": [d["id"] for d in e.get("decisiones", []) if d.get("hipotesisId") == h["id"]][:30]}, "entorno": {"arnes": corrida.get("arnes") if corrida else None}})
+        art_id = guardar_artefacto(e, h["investigacionId"], f"Prerregistro: {str(h.get('titulo') or '')[:80]}", "informe", contenido, f"Congelado el {datetime.fromtimestamp(ahora / 1000).strftime('%d/%m/%Y %H:%M')} al asignarlo a {lab}", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1), "decisiones": [d["id"] for d in e.get("decisiones", []) if d.get("hipotesisId") == h["id"]][:30]}, "entorno": {"arnes": corrida.get("arnes") if corrida else None}})
         x["prerregistradoEn"] = ahora
         x["prerregistroArtefactoId"] = art_id
         x["versionPrerregistrada"] = h.get("version", 1)  # el resultado probara esta version
+        if lecturas:
+            # Huella de las lecturas congeladas (orden canónico): si después cambia
+            # una lectura, el hash deja de coincidir con el del artefacto.
+            x["hashLecturas"] = XP.hash_lecturas(x)
         h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} prerregistro congelado al asignar a {lab} (versión {h.get('version', 1)})")
-        con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Experimento prerregistrado y asignado a {lab}: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)
+        con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Experimento prerregistrado y asignado a {lab}: {h.get('titulo') or ''}", f"#/investigaciones/{h['investigacionId']}/artefactos/{art_id}", ahora)
     return True
 
 
@@ -1183,6 +1192,12 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
         "",
         "## Ensayo y criterios fijados de antemano",
         x["ensayo"],
+    ]
+    # Contrato del experimento (rosa/experimento.py): lecturas separadas con su
+    # criterio de confirmación y de refutación, sistema, propósito BEST, nivel y
+    # puente al beneficio, con el hash de las lecturas. Vacío si no hay contrato.
+    lineas += XP.bloque_prerregistro(x)
+    lineas += [
         "",
         "## Coste estimado",
         x["costeEstimado"],
@@ -1214,15 +1229,77 @@ def enmendar_experimento(e: Estado, hipotesis_id: str, campo: str, despues: str,
     if not h or not h.get("experimento") or campo not in CAMPOS_ENMENDABLES:
         return False
     x = h["experimento"]
-    if not x.get("prerregistradoEn") or x.get("resultado"):
+    if not isinstance(x, dict) or not x.get("prerregistradoEn") or x.get("resultado"):
         return False
-    nuevo, razon = despues.strip(), motivo.strip()
+    nuevo, razon, autor = str(despues or "").strip(), str(motivo or "").strip(), str(quien or "").strip() or "persona"
     if not nuevo or not razon or nuevo == (x.get(campo) or ""):
         return False
-    x.setdefault("enmiendas", []).append({"fecha": ahora, "quien": quien.strip() or "persona", "campo": campo, "antes": x.get(campo) or "", "despues": nuevo, "motivo": razon})
+    enmienda = {"fecha": ahora, "quien": autor, "campo": campo, "antes": x.get(campo) or "", "despues": nuevo, "motivo": razon}
     x[campo] = nuevo
-    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} enmienda {len(x['enmiendas'])} del prerregistro por {quien}: {campo} ({razon[:80]})")
-    con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Enmienda {len(x['enmiendas'])} del prerregistro ({campo}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    # Un registro antiguo (sin lecturas separadas) congela una lectura derivada del
+    # ensayo y del par confirma/refuta: enmendar esos campos cambia esa lectura y el
+    # hash guardado al prerregistrar dejaría de ser cierto en silencio. Se recalcula
+    # y la enmienda guarda el anterior y el nuevo, como hace enmendar_lectura. Un
+    # prerregistro anterior sin hash no lo inventa: el artefacto congelado no lo lleva.
+    if x.get("hashLecturas"):
+        hash_despues = XP.hash_lecturas(x)
+        if hash_despues != x["hashLecturas"]:
+            enmienda["hashAntes"], enmienda["hashDespues"] = x["hashLecturas"], hash_despues
+            x["hashLecturas"] = hash_despues
+    x.setdefault("enmiendas", []).append(enmienda)
+    _anotar_procedencia(h, f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} enmienda {len(x['enmiendas'])} del prerregistro por {autor}: {campo} ({razon[:80]})")
+    con_evento(e, h.get("investigacionId"), "hipotesis_decidida", f"Enmienda {len(x['enmiendas'])} del prerregistro ({campo}): {str(h.get('titulo') or '')[:80]}", f"#/investigaciones/{h.get('investigacionId')}/hipotesis/{h['id']}", ahora)
+    return True
+
+
+def _anotar_procedencia(h: dict, linea: str) -> None:
+    """Una línea más en el registro de procedencia de la hipótesis, si la
+    procedencia tiene la forma esperada (dict con lista `registro`). Con una
+    procedencia rota o como texto no se escribe nada y no se lanza: la acción
+    que la llama vale igual."""
+    if isinstance(h.get("procedencia"), dict) and isinstance(h["procedencia"].get("registro"), list):
+        h["procedencia"]["registro"].append(linea)
+
+
+CAMPOS_LECTURA_ENMENDABLES = ("queConfirma", "queRefuta", "control", "unidad")
+
+
+def enmendar_lectura(e: Estado, hipotesis_id: str, indice: int, campo: str, despues: str, motivo: str, quien: str, ahora: int) -> bool:
+    """Enmienda fechada de una lectura del contrato del experimento (una
+    lectura es una medida concreta con su criterio de confirmación y de
+    refutación, su control y su unidad; ver rosa/experimento.py). Misma regla
+    que `enmendar_experimento`: solo con prerregistro congelado y sin
+    resultado evaluado; queda escrito qué lectura, qué campo, el texto
+    anterior y el nuevo, quién, cuándo y por qué. `indice` es la posición en
+    `experimento.lecturas` tal como está guardada. El nombre y el tipo de la
+    lectura no se enmiendan: cambiarlos es otra lectura, no una corrección.
+    Como las lecturas cambian, se recalcula `hashLecturas` y la enmienda
+    guarda el hash anterior y el nuevo, para que se vea que ya no coincide
+    con el del artefacto congelado."""
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or not isinstance(h.get("experimento"), dict) or campo not in CAMPOS_LECTURA_ENMENDABLES:
+        return False
+    x = h["experimento"]
+    if not x.get("prerregistradoEn") or x.get("resultado"):
+        return False
+    lecturas = x.get("lecturas")
+    if not isinstance(lecturas, list) or isinstance(indice, bool) or not isinstance(indice, int) or not (0 <= indice < len(lecturas)):
+        return False
+    lectura = lecturas[indice]
+    if not isinstance(lectura, dict):
+        return False
+    nuevo, razon, autor = str(despues or "").strip(), str(motivo or "").strip(), str(quien or "").strip() or "persona"
+    antes = str(lectura.get(campo) or "").strip()
+    if not nuevo or not razon or nuevo == antes:
+        return False
+    hash_antes = x.get("hashLecturas") or XP.hash_lecturas(x)
+    lectura[campo] = nuevo
+    hash_despues = XP.hash_lecturas(x)
+    x["hashLecturas"] = hash_despues
+    nombre = str(lectura.get("nombre") or f"lectura {indice + 1}")
+    x.setdefault("enmiendas", []).append({"fecha": ahora, "quien": autor, "campo": f"lecturas[{indice}].{campo}", "lectura": nombre, "antes": antes, "despues": nuevo, "motivo": razon, "hashAntes": hash_antes, "hashDespues": hash_despues})
+    _anotar_procedencia(h, f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} enmienda {len(x['enmiendas'])} del prerregistro por {autor}: lectura «{nombre[:40]}», {campo} ({razon[:80]})")
+    con_evento(e, h.get("investigacionId"), "hipotesis_decidida", f"Enmienda {len(x['enmiendas'])} del prerregistro (lectura «{nombre[:40]}», {campo}): {str(h.get('titulo') or '')[:80]}", f"#/investigaciones/{h.get('investigacionId')}/hipotesis/{h['id']}", ahora)
     return True
 
 
@@ -1405,6 +1482,11 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
         "vigilarLiteraturaHasta": None,
         "mision": None,
         "puertaReproduccion": P.puerta_reproduccion(),
+        # Vistas de programa que el bucle recalcula al cerrar cada iteración
+        # (rosa/mapa_enfermedad.py, rosa/ruta.py, rosa/cifras_aprendizaje.py).
+        "mapaEnfermedad": None,
+        "mapaRuta": None,
+        "cifrasAprendizaje": None,
     }
     mision = datos.get("mision")
     if isinstance(mision, dict) and any(str(mision.get(k, "")).strip() for k in ("poblacion", "etapa", "mecanismo", "tipoIntervencion")):
@@ -1466,6 +1548,11 @@ def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora:
         "ramaDe": origen["id"],
         "vigilarLiteraturaHasta": None,
         "preguntasABases": [],
+        # Los mapas y las cifras son de la investigación de origen: la rama
+        # empieza sin ellos y el bucle los recalcula con sus propios hechos.
+        "mapaEnfermedad": None,
+        "mapaRuta": None,
+        "cifrasAprendizaje": None,
     }
     e["investigaciones"].append(rama)
     copiar_hechos(e, investigacion_id, nuevo)
@@ -1516,7 +1603,57 @@ def anadir_dataset(e: Estado, investigacion_id: str, dataset: dict, id_: str | N
     for k in ("columnasSinDiccionario", "valoresCentinela", "nombresDuplicados"):
         ds[k] = int(ds.get(k) or 0)
     inv["datasets"].append(ds)
+    _registrar_en_programa(e, investigacion_id, ds)
     return ds["id"]
+
+
+def _registrar_en_programa(e: Estado, investigacion_id: str, ds: dict) -> None:
+    """Deja el dataset subido en el registro del programa (`datasetsPrograma`,
+    fuente manual, deduplicado por origen o hash). El registro es un espejo
+    para la vista de programa: si falla por lo que sea, la acción de la
+    persona (subir o completar la procedencia) sigue valiendo y queda un
+    evento que lo dice, nunca una excepción que la deshaga."""
+    try:
+        _realinear_registro_programa(e, ds)
+        id_registro = DP.desde_dataset_subido(e, investigacion_id, ds, P.ahora_ms())
+        if id_registro:
+            # El id del registro del programa se guarda en el dataset para que,
+            # cuando la persona complete el origen, se actualice ese mismo
+            # registro en vez de abrirse otro (ver _realinear_registro_programa).
+            ds["registroProgramaId"] = id_registro
+    except Exception as ex:  # noqa: BLE001  el registro del programa nunca rompe la acción
+        try:
+            con_evento(e, investigacion_id, "incidencia", f"El dataset «{str(ds.get('nombre', ''))[:60]}» no se pudo anotar en el registro del programa: {type(ex).__name__}", f"#/investigaciones/{investigacion_id}", P.ahora_ms())
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _realinear_registro_programa(e: Estado, ds: dict) -> None:
+    """El registro del programa se identifica por (fuente, accession) y la
+    accession de un dataset subido es el origen declarado o, si no lo hay, el
+    hash del fichero. El servidor sube el fichero con hash y sin origen, y la
+    persona escribe el origen después en el libro de procedencia: sin esto, la
+    segunda anotación abriría un registro nuevo y el mismo fichero quedaría dos
+    veces. Aquí, antes de volver a anotar, el registro que ya tiene el dataset
+    (por su `registroProgramaId`) pasa a llevar la accession nueva y deja
+    escrito el cambio; si otro registro ya usa esa accession, `registrar` los
+    funde en uno."""
+    id_registro = ds.get("registroProgramaId")
+    proc = ds.get("procedencia") if isinstance(ds.get("procedencia"), dict) else {}
+    origen = str(proc.get("origen") or "").strip()
+    if not id_registro or not origen:
+        return
+    registros = e.get("datasetsPrograma")
+    if not isinstance(registros, list):
+        return
+    for r in registros:
+        if isinstance(r, dict) and r.get("id") == id_registro:
+            anterior = str(r.get("accession") or "")
+            if r.get("fuente") == "manual" and anterior.upper() != origen.upper():
+                r["accession"] = origen
+                if isinstance(r.get("registro"), list):
+                    r["registro"].append(f"origen declarado en el libro de procedencia: la accession pasa de {anterior or 'ninguna'} a {origen}")
+            return
 
 
 def actualizar_procedencia_dataset(e: Estado, investigacion_id: str, dataset_id: str, procedencia: dict) -> bool:
@@ -1543,11 +1680,15 @@ def actualizar_procedencia_dataset(e: Estado, investigacion_id: str, dataset_id:
     if procedencia.get("clase") in politicas.CLASES_EVIDENCIA:
         nueva["clase"] = procedencia["clase"]
     if procedencia.get("fechaObtencion") is None or isinstance(procedencia.get("fechaObtencion"), (int, float)):
-        nueva["fechaObtencion"] = procedencia.get("fechaObtencion", base["fechaObtencion"])
+        # base.get: un dataset subido con una procedencia parcial (sin fecha) no rompe.
+        nueva["fechaObtencion"] = procedencia.get("fechaObtencion", base.get("fechaObtencion"))
     if isinstance(procedencia.get("diccionario"), list):
         nueva["diccionario"] = [{"columna": str(c.get("columna", "")), "descripcion": str(c.get("descripcion", "")).strip(), "tipo": c.get("tipo", "texto"), "unidad": str(c.get("unidad", "")).strip()} for c in procedencia["diccionario"] if isinstance(c, dict) and str(c.get("columna", ""))]
         ds["columnasSinDiccionario"] = sum(1 for c in nueva["diccionario"] if not c["descripcion"])
     ds["procedencia"] = nueva
+    # El libro de procedencia trae el origen, la cohorte y el acceso: el registro
+    # del programa se actualiza con ellos (funde con el registro del mismo dataset).
+    _registrar_en_programa(e, investigacion_id, ds)
     return True
 
 

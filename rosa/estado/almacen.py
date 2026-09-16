@@ -345,6 +345,35 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_experimentos(estado)
     _migrar_rosa2018(estado)
     _migrar_grafo(estado)
+    _migrar_siete_modulos(estado)
+
+
+def _migrar_siete_modulos(estado: dict[str, Any]) -> None:
+    """Claves de los siete módulos del 16 de septiembre de 2026 (ruta
+    terapéutica, perfil de la diana, alternativas, mapa de la enfermedad,
+    mapa de rutas, cifras de aprendizaje, registro de datasets del programa).
+    Un estado guardado antes no las tiene: cada una entra vacía (None o lista)
+    y el bucle la rellena cuando toque. Idempotente: no pisa lo ya escrito.
+    Tolera registros con formas raras (una hipótesis que no sea dict se
+    salta; una lista de hipótesis o de investigaciones que no sea lista se
+    trata como vacía) para no romper nunca la carga del estado real."""
+    if not isinstance(estado.get("datasetsPrograma"), list):
+        estado["datasetsPrograma"] = []
+    hipotesis = estado.get("hipotesis")
+    for h in hipotesis if isinstance(hipotesis, list) else []:
+        if not isinstance(h, dict):
+            continue
+        h.setdefault("ruta", None)
+        h.setdefault("perfilDiana", None)
+        if not isinstance(h.get("alternativas"), list):
+            h["alternativas"] = []
+    investigaciones = estado.get("investigaciones")
+    for inv in investigaciones if isinstance(investigaciones, list) else []:
+        if not isinstance(inv, dict):
+            continue
+        inv.setdefault("mapaEnfermedad", None)
+        inv.setdefault("mapaRuta", None)
+        inv.setdefault("cifrasAprendizaje", None)
 
 
 def _migrar_grafo(estado: dict[str, Any]) -> None:
@@ -585,6 +614,7 @@ _TABLA: dict[str, Callable] = {
     "actualizarPregunta": A.actualizar_pregunta,
     "actualizarMetodo": A.actualizar_metodo,
     "enmendarExperimento": A.enmendar_experimento,
+    "enmendarLectura": A.enmendar_lectura,
     "registrarProtocoloReal": A.registrar_protocolo_real,
     "cambiarEstadoArea": A.cambiar_estado_area,
     "registrarEvaluacion": A.registrar_evaluacion,

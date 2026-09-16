@@ -404,6 +404,93 @@ def crear_app(almacen: Almacen) -> FastAPI:
             raise HTTPException(404, "Investigación desconocida")
         return r
 
+    @app.get("/api/investigaciones/{investigacion_id}/ruta")
+    async def ruta_de(investigacion_id: str) -> dict[str, Any]:
+        """La vista de programa de la ruta terapéutica (rosa/ruta.py): las
+        hipótesis vivas agrupadas por diana, cuántas cubren cada uno de los ocho
+        pasos y los huecos. Por regla, sin modelo; se calcula bajo demanda."""
+        from rosa import ruta as RUTA
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                if not any(i["id"] == investigacion_id for i in almacen.estado["investigaciones"]):
+                    return None
+                return RUTA.mapa_ruta(almacen.estado, investigacion_id)
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Investigación desconocida")
+        return r
+
+    @app.get("/api/investigaciones/{investigacion_id}/mapa")
+    async def mapa_de(investigacion_id: str) -> dict[str, Any]:
+        """El mapa del estado de la enfermedad (rosa/mapa_enfermedad.py): dónde
+        está la evidencia por estadio, región, célula y nivel, y los huecos que
+        nombra la misión; con su texto en castellano. Recalculado a demanda,
+        para el botón "Actualizar mapa" sin esperar al cierre de iteración."""
+        from rosa import mapa_enfermedad as MAPA
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                if not any(i["id"] == investigacion_id for i in almacen.estado["investigaciones"]):
+                    return None
+                m = MAPA.mapa(almacen.estado, investigacion_id)
+                return {"mapa": m, "texto": MAPA.texto_mapa(almacen.estado, investigacion_id, precalculado=m)}
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Investigación desconocida")
+        return r
+
+    @app.get("/api/investigaciones/{investigacion_id}/cifras")
+    async def cifras_de(investigacion_id: str) -> dict[str, Any]:
+        """Las tres cifras de aprendizaje (rosa/cifras_aprendizaje.py): acierto
+        prerregistrado, tiempo hasta decisión y reutilización heredada, con su
+        texto en llano y su glosario. Misma forma que `cifrasAprendizaje` en la
+        investigación, pero al momento."""
+        from rosa import cifras_aprendizaje as CIFRAS
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                if not any(i["id"] == investigacion_id for i in almacen.estado["investigaciones"]):
+                    return None
+                return CIFRAS.resumen_cifras(almacen.estado, investigacion_id, P.ahora_ms())
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Investigación desconocida")
+        return r
+
+    @app.get("/api/experimento/vocabularios")
+    async def vocabularios_experimento() -> dict[str, Any]:
+        """Los vocabularios cerrados del contrato del experimento (propósito BEST
+        del biomarcador, nivel del desenlace, sistema experimental, tipo de
+        lectura), cada clave con su etiqueta y su definición en una frase: la
+        interfaz los usa para los selectores y para explicar cada término."""
+        from rosa import experimento as XP
+
+        return XP.vocabularios()
+
+    @app.get("/api/hipotesis/{hipotesis_id}/contrato")
+    async def contrato_de(hipotesis_id: str) -> dict[str, Any]:
+        """El contrato del experimento de una hipótesis juzgado por regla: los
+        problemas (en castellano, uno por frase), el texto para la ficha y el
+        hash de las lecturas (lo que el prerregistro congela)."""
+        from rosa import experimento as XP
+
+        def armar() -> dict[str, Any] | None:
+            with almacen._lock:
+                h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
+                if not h:
+                    return None
+                x = h.get("experimento") or {}
+                return {"problemas": XP.validar_contrato(x), "texto": XP.texto_contrato(x), "hash": XP.hash_lecturas(x) if x else ""}
+
+        r = await asyncio.to_thread(armar)
+        if r is None:
+            raise HTTPException(404, "Hipótesis desconocida")
+        return r
+
     @app.get("/api/hipotesis/{hipotesis_id}/rocrate")
     async def rocrate_de(hipotesis_id: str) -> Response:
         """El expediente de la hipótesis como RO-Crate (zip) con procedencia

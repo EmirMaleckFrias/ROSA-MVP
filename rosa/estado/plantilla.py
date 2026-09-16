@@ -124,6 +124,9 @@ def estado_inicial() -> dict[str, Any]:
         "aprendizaje": [],
         "metodos": metodos_iniciales(),
         "politicas": _politicas(),
+        # Registro de datasets del programa (rosa/datasets_programa.py): cada conjunto
+        # público o subido que Rosa vio, con su acceso y en qué investigaciones se usó.
+        "datasetsPrograma": [],
     }
 
 
@@ -320,6 +323,12 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "fusionadaEn": None,
         "fusionPropuesta": None,
         "pendienteRevision": None,
+        # Ruta terapéutica por regla (rosa/ruta.py): estado de cada paso con su evidencia; la escribe el bucle al cerrar la conclusión, el Killer y el retorno del laboratorio.
+        "ruta": None,
+        # Perfil de la diana en bases públicas (rosa/dianas.py): seis capas con presente, ausente o no pude comprobar; lo escribe contexto_de_bases.
+        "perfilDiana": None,
+        # Explicaciones alternativas {texto, clase, queLaDistinguiria, iteracion}; clase en causa_inversa, confusor, seleccion, artefacto, otra.
+        "alternativas": [],
     }
     h.update(campos)
     return h

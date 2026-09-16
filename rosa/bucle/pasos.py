@@ -36,6 +36,9 @@ from rosa import cuestiones as CU
 from rosa import dependencias as DEP
 from rosa import causal as CAUSAL
 from rosa import conectores as CON
+from rosa import datasets_programa as DP
+from rosa import dianas as DI
+from rosa import ruta as RUTA
 from rosa import killer as K
 from rosa import verificador as V
 from rosa import torneo
@@ -1445,6 +1448,114 @@ async def _evaluar_sesgo_fuentes(ctx: Ctx, h: dict[str, Any], pista: Pista | Non
         ctx.mutar(fn, "riesgo_sesgo")
 
 
+CLASES_ALTERNATIVA = ("causa_inversa", "confusor", "seleccion", "artefacto", "otra")
+_ALT_INVERSA = re.compile(r"invers|reverse|revers", re.I)
+_ALT_CONFUSOR = re.compile(r"confusor|confund|confound|\bedad\b|\bage\b|ageing|aging|causa com[úu]n|common cause", re.I)
+_ALT_SELECCION = re.compile(r"selecci[óo]n|selection|supervivencia|survivor|survival|colider|collider", re.I)
+_ALT_ARTEFACTO = re.compile(r"artefact|artifact|batch|\blote\b|medici[óo]n|measurement|plataforma|platform|preanal[íi]tic|preanalytic|ensayo|assay", re.I)
+
+
+def clasificar_alternativa(texto: str) -> str:
+    """La clase de una explicación alternativa, por palabras: causa inversa
+    (Y causa X), confusor (una causa común, como la edad), selección
+    (supervivencia, colisionador), artefacto (medida, lote, plataforma) u
+    otra. Delega en la regla de rosa/causal.py cuando existe, para que el
+    grafo causal y la lista de alternativas clasifiquen igual; si no, aplica
+    una regla mínima equivalente. Nunca lanza."""
+    t = str(texto or "")
+    regla = getattr(CAUSAL, "_clasificar_alternativa", None) or getattr(CAUSAL, "clasificar_alternativa", None)
+    if callable(regla):
+        try:
+            clase = regla(t)
+            if clase in CLASES_ALTERNATIVA:
+                return clase
+        except Exception:  # noqa: BLE001
+            pass
+    if _ALT_INVERSA.search(t):
+        return "causa_inversa"
+    if _ALT_CONFUSOR.search(t):
+        return "confusor"
+    if _ALT_SELECCION.search(t):
+        return "seleccion"
+    if _ALT_ARTEFACTO.search(t):
+        return "artefacto"
+    return "otra"
+
+
+def alternativas_de_revision(alternativas: Any) -> list[dict[str, str]]:
+    """Las alternativas que devuelve `RevisionKiller` (objetos con `texto` y
+    `que_la_distinguiria`, o cadenas sueltas de un programa antiguo) como
+    lista de {texto, queLaDistinguiria}, sin vacíos ni repetidos."""
+    salida: list[dict[str, str]] = []
+    vistos: set[str] = set()
+    for a in (alternativas if isinstance(alternativas, (list, tuple)) else []):
+        if isinstance(a, str):
+            texto, dist = a, ""
+        elif isinstance(a, dict):
+            texto, dist = a.get("texto") or "", a.get("que_la_distinguiria") or a.get("queLaDistinguiria") or ""
+        else:
+            texto, dist = getattr(a, "texto", "") or "", getattr(a, "que_la_distinguiria", "") or ""
+        texto = str(texto).strip()
+        if not texto or V.normalizar(texto) in vistos:
+            continue
+        vistos.add(V.normalizar(texto))
+        salida.append({"texto": texto[:400], "queLaDistinguiria": str(dist).strip()[:400]})
+    return salida
+
+
+def anadir_alternativas(x: dict[str, Any], nuevas: list[dict[str, str]], iteracion: int | None) -> int:
+    """Escribe en `x["alternativas"]` las alternativas nuevas con la forma
+    {texto, clase, queLaDistinguiria, iteracion}, sin repetir textos ya
+    presentes (por texto normalizado). Un registro antiguo sin la clave o con
+    algo que no es lista arranca de cero. Devuelve cuántas entraron."""
+    previas = x.get("alternativas")
+    lista = [a for a in previas if isinstance(a, dict) and a.get("texto")] if isinstance(previas, list) else []
+    vistos = {V.normalizar(str(a.get("texto") or "")) for a in lista}
+    n = 0
+    for a in nuevas:
+        clave = V.normalizar(a["texto"])
+        if not clave or clave in vistos:
+            continue
+        vistos.add(clave)
+        lista.append({"texto": a["texto"], "clase": clasificar_alternativa(a["texto"]), "queLaDistinguiria": a.get("queLaDistinguiria", ""), "iteracion": iteracion})
+        n += 1
+    x["alternativas"] = lista
+    return n
+
+
+def datasets_para_plan(e: dict[str, Any], investigacion_id: str | None, pregunta: str | None, maximo: int = 12) -> str:
+    """El texto de `datasets_disponibles` para la firma `ProponerPlan`: el
+    registro de datasets del programa (los de esta investigación primero) y,
+    debajo, los que coinciden con la pregunta de la corrida por términos
+    (accession, tipo, acceso, con qué coinciden); los de acceso controlado
+    llevan su aviso y no se proponen para análisis. Nunca lanza: si el
+    registro falla, lo dice."""
+    # La pregunta y el id llegan a veces como None o como algo que no es texto
+    # (un registro antiguo, una llamada de prueba): se normalizan una vez.
+    pregunta = str(pregunta).strip() if isinstance(pregunta, str) else ("" if pregunta is None else str(pregunta).strip())
+    investigacion_id = investigacion_id if isinstance(investigacion_id, str) and investigacion_id else None
+    try:
+        texto = DP.texto_registro(e, investigacion_id, maximo=maximo)
+    except Exception as ex:  # noqa: BLE001
+        texto = f"No pude leer el registro de datasets del programa ({type(ex).__name__})."
+    try:
+        casan = DP.coincidencias(e, pregunta) if pregunta else []
+    except Exception:  # noqa: BLE001
+        casan = []
+    if casan:
+        lineas = ["Coinciden con la pregunta de esta corrida:"]
+        for c in casan[:maximo]:
+            acceso = c.get("acceso") or "desconocido"
+            linea = f"- {c.get('accession') or c.get('id')} ({c.get('fuente') or 'fuente sin registrar'}; tipo {c.get('tipo') or 'sin comprobar'}; acceso {acceso}): coincide en {', '.join(c.get('coincide') or []) or 'nada concreto'}"
+            if c.get("aviso") or acceso == "controlado":
+                linea += f". AVISO: {c.get('aviso') or 'acceso controlado; el proyecto no lo pide, no se propone para análisis'}"
+            lineas.append(linea)
+        texto += "\n" + "\n".join(lineas)
+    elif pregunta:
+        texto += "\nNingún dataset del registro coincide por términos con la pregunta de esta corrida."
+    return texto
+
+
 async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: Pista | None, profundidad: int = 0) -> str:
     """El Hypothesis Killer sobre la versión actual de la hipótesis. Devuelve
     la decisión. Si decide reformular, reformula (versión nueva) y vuelve a
@@ -1513,7 +1624,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             ctx.programas.killer,
             objetivo=inv["objetivo"],
             mision=_texto_mision(inv),
-            hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
+            hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")),
             afirmaciones=afs_texto,
             supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
             modelo_de_mundo=mundo_h + "\n\nOtras hipótesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], ctx.investigacion_id),
@@ -1522,7 +1633,11 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         )
         rev = pred.revision
         del_juez = [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in rev.comprobaciones]
-        resumen, sugerida, falta, alternativas, invalidante = rev.resumen.strip(), rev.reformulacion_sugerida.strip(), rev.que_haria_falta.strip(), list(rev.alternativas)[:4], rev.supuesto_invalidante.strip()
+        alternativas_rev = alternativas_de_revision(getattr(rev, "alternativas", None))[:4]
+        # `alternativas` sigue siendo la lista de textos que el grafo causal y el
+        # mensaje de procedencia ya esperaban; la forma completa va a x["alternativas"].
+        alternativas = [a["texto"] for a in alternativas_rev]
+        resumen, sugerida, falta, invalidante = rev.resumen.strip(), rev.reformulacion_sugerida.strip(), rev.que_haria_falta.strip(), rev.supuesto_invalidante.strip()
         contradice_a = [c.strip() for c in (getattr(rev, "contradice_a", None) or []) if isinstance(c, str) and c.strip()][:6]
     except PresupuestoAgotado:
         raise
@@ -1530,6 +1645,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         if pista:
             pista.error(f"El Killer no respondió para {h['titulo'][:50]}: {str(ex)[:100]}; la hipótesis queda suspendida hasta la siguiente revisión")
         del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondió: {str(ex)[:120]}", "", "Repetir la revisión cuando el modelo responda", [], ""
+        alternativas_rev = []
         contradice_a = []
     comprobaciones = K.fusionar(deterministas, del_juez)
     # El supuesto invalidante del juez solo tumba si algun supuesto esta contradicho
@@ -1583,6 +1699,17 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         indep = next((c["resultado"] for c in comprobaciones if c["comprobacion"] == "independencia_cohortes"), None)
         x["grafoCausal"] = CAUSAL.grafo_local(x, alternativas, True if indep == "pasa" else False if indep == "falla" else None, ahora)
         CAUSAL.registrar_relacion(e2, x, x["grafoCausal"], ahora)
+        # Ruta terapéutica por regla (rosa/ruta.py): el grafo causal recién
+        # calculado cambia el paso 'mecanismo', así que se recalcula aquí. Nunca
+        # tumba al Killer: si la regla falla, la ruta queda como estaba.
+        try:
+            x["ruta"] = RUTA.evaluar_ruta(e2, x)
+        except Exception as ex:  # noqa: BLE001
+            x.setdefault("ruta", None)
+            x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"No pude calcular la ruta terapéutica por regla: {type(ex).__name__}", "creadoEn": ahora})
+        # Explicaciones alternativas del Killer, con su clase y qué las
+        # distinguiría, para la ficha de la hipótesis (frontend Alternativas.tsx).
+        anadir_alternativas(x, alternativas_rev, ctx.numero)
         for r in x["revisionesAutomaticas"]:
             if r["tipo"] == "completa":
                 r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"Killer: {decision}. {resumen}", fecha=ahora)
@@ -1630,7 +1757,7 @@ async def _auditar_descarte(ctx: Ctx, h: dict[str, Any], decision: dict[str, Any
     juzga si la decisión del Killer resiste. Un desacuerdo no revierte nada:
     va a la persona con las dos posturas."""
     try:
-        pred = await ctx.llamar("cerebro", ctx.programas.auditar_descarte, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), decision=f"{decision['decision']}: {decision['motivo']}", comprobaciones_fallidas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in fallidas) or "ninguna", evidencia=evidencia + "\n\nSupuestos:\n" + "\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]))
+        pred = await ctx.llamar("cerebro", ctx.programas.auditar_descarte, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), decision=f"{decision['decision']}: {decision['motivo']}", comprobaciones_fallidas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in fallidas) or "ninguna", evidencia=evidencia + "\n\nSupuestos:\n" + "\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]))
         au = pred.auditoria
         auditoria = {"quien": ctx.modelos.cerebro.model, "acuerdo": bool(au.acuerdo), "motivo": (au.motivo.strip() + (f" Mejor argumento a favor: {au.mejor_argumento_a_favor.strip()}" if not au.acuerdo else ""))[:600], "fecha": P.ahora_ms(), "comprobacionDiscutida": au.comprobacion_discutida.strip()[:80]}
     except PresupuestoAgotado:
@@ -1681,7 +1808,7 @@ async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pist
         ctx.mutar(agotada, "reformulacion_agotada")
         return False
     try:
-        pred = await ctx.llamar("cerebro", ctx.programas.reformular, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h), motivo=motivo, afirmaciones=texto_af[:8000] or "Ninguna", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id, maximo=30))
+        pred = await ctx.llamar("cerebro", ctx.programas.reformular, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), motivo=motivo, afirmaciones=texto_af[:8000] or "Ninguna", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], ctx.investigacion_id, maximo=30))
         r = pred.reformulacion
         t = r.tarjeta
         cambios = {"titulo": r.titulo, "enunciado": r.enunciado, "mecanismo": r.mecanismo, "comprobacion": {"biomarcador": r.biomarcador, "cohorte": r.cohorte, "diseno": r.diseno}, "tarjeta": {"diana": t.diana, "celula": t.celula, "etapa": t.etapa, "intervencion": t.intervencion, "direccion": t.direccion, "prediccionFalsable": t.prediccion_falsable, "riesgos": [x.strip() for x in t.riesgos if x.strip()][:6], "pasoRuta": getattr(t, "paso_ruta", "mecanismo") or "mecanismo"}}
@@ -1820,6 +1947,29 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
     return jugados
 
 
+def hechos_que_motivan(hechos: Any, investigacion_id: str, respaldo: Any, maximo: int = 12) -> list[str]:
+    """Ids de los hechos del modelo de mundo de esta investigación que comparten
+    una afirmación (afirmacionIds) o una fuente (procedencia[].fuenteId) con las
+    afirmaciones que respaldan una hipótesis nueva. Los descartados no cuentan.
+    Es una regla sobre el registro, no una lectura del prompt: el modelo de
+    mundo llega al generador como texto sin ids. Tolera filas raras."""
+    ids_af = {str(a.get("id")) for a in (respaldo if isinstance(respaldo, list) else []) if isinstance(a, dict) and a.get("id")}
+    ids_fuente = {str(a.get("fuenteId")) for a in (respaldo if isinstance(respaldo, list) else []) if isinstance(a, dict) and a.get("fuenteId")}
+    if not ids_af and not ids_fuente:
+        return []
+    salida: list[str] = []
+    for x in (hechos if isinstance(hechos, list) else []):
+        if not isinstance(x, dict) or x.get("investigacionId") != investigacion_id or x.get("estado") == "descartado" or not isinstance(x.get("id"), str):
+            continue
+        afs = x.get("afirmacionIds") if isinstance(x.get("afirmacionIds"), list) else []
+        proc = x.get("procedencia") if isinstance(x.get("procedencia"), list) else []
+        if any(str(a) in ids_af for a in afs) or any(isinstance(p_, dict) and str(p_.get("fuenteId")) in ids_fuente for p_ in proc):
+            salida.append(x["id"])
+        if len(salida) >= maximo:
+            break
+    return salida
+
+
 async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     e = ctx.e
@@ -1884,7 +2034,15 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
                 coste={"literatura": round(len(respaldo) * 0.15, 2), "analisis": 0},
                 tarjeta={"diana": (hp.diana or "").strip(), "celula": (hp.celula or "").strip(), "etapa": (hp.etapa or "").strip(), "intervencion": (hp.intervencion or "").strip(), "direccion": hp.direccion or "sin_intervencion", "prediccionFalsable": (hp.prediccion_falsable or "").strip(), "riesgos": [r.strip() for r in (hp.riesgos or []) if r.strip()][:6], "pasoRuta": getattr(hp, "paso_ruta", "mecanismo") or "mecanismo"},
             )
-            h["procedencia"] = P.procedencia_vacia(f"Generada en la iteración {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuación.", ahora, codigo=f"programas.hipotesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[f"iteración {ctx.numero}: generar -> {hp.titulo[:60]}"])
+            # Los hechos del modelo de mundo que motivaron la hipótesis, por regla:
+            # el generador recibe el modelo de mundo como texto sin ids, así que se
+            # toman los hechos de esta investigación enlazados con las afirmaciones
+            # o las fuentes que la respaldan (afirmacionIds y procedencia.fuenteId).
+            # Se anotan en la línea del registro para que la regla de reutilización
+            # de rosa/cifras_aprendizaje.py (hecho nombrado en la procedencia) dispare.
+            hechos_motivo = hechos_que_motivan(e["hechos"], ctx.investigacion_id, respaldo)
+            linea_registro = f"iteración {ctx.numero}: generar -> {hp.titulo[:60]}" + (f" a partir de los hechos {', '.join(hechos_motivo)}" if hechos_motivo else "")
+            h["procedencia"] = P.procedencia_vacia(f"Generada en la iteración {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuación.", ahora, codigo=f"programas.hipotesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[linea_registro])
             h["procedencia"]["fuentes"] = fuentes_h
             h["_entidades"] = list(hp.entidades_novedad)[:6]
             h["_corridaOrigen"] = ctx.corrida_id
@@ -1980,6 +2138,7 @@ async def _novedad_por_conectores(ctx: Ctx, h: dict[str, Any], genes: list[str],
         pista.accion(f"GEO y CELLxGENE: {bio}", {"base": "GEO gds, CELLxGENE Discover", "parametros": f"Alzheimer {bio}", "resultados": f"{(geo or {}).get('total', '?')} series GEO; {reg_cx.get('n') if cx is not None else '?'} colecciones"})
         fallos_d = [n for n, r_ in (("GEO", reg_geo), ("CELLxGENE", reg_cx)) if r_.get("error")]
         series = [{"accession": s_["accession"], "titulo": s_["titulo"], "n": s_.get("n_muestras"), "plataforma": s_.get("plataforma")} for s_ in (geo or {}).get("series", [])[:5]]
+        registrar_datasets_programa(ctx, (geo or {}).get("series") if isinstance(geo, dict) else None, cx, pista)
         n_geo = (geo or {}).get("total", 0)
         n_cx = (reg_cx.get("n") or 0) if not reg_cx.get("error") else 0
         if len(fallos_d) == 2 or (fallos_d and not (n_geo or n_cx)):
@@ -1991,6 +2150,46 @@ async def _novedad_por_conectores(ctx: Ctx, h: dict[str, Any], genes: list[str],
             else:
                 novedad["datosPublicos"] = {"estado": "sin_datos", "detalle": f"Ninguna serie GEO humana con 'Alzheimer {bio}' ni colección CELLxGENE: comprobarla exige datos propios o del laboratorio", "series": []}
     return regs
+
+
+def registrar_datasets_programa(ctx: Ctx, series_geo: Any, colecciones_cx: Any, pista: Pista | None) -> int:
+    """Cada serie GEO y cada colección CELLxGENE que el paso de novedad vio
+    entra al registro de datasets del programa (rosa/datasets_programa.py),
+    con esta investigación como uso, en una sola mutación. Una fila rara (sin
+    accession, no diccionario) se salta sin romper el paso; si el conector
+    no respondió no se registra nada, porque no hay accession que registrar.
+    Devuelve cuántas filas se registraron."""
+    filas_geo = [s_ for s_ in (series_geo if isinstance(series_geo, list) else []) if isinstance(s_, dict)]
+    filas_cx = [c_ for c_ in (colecciones_cx if isinstance(colecciones_cx, list) else []) if isinstance(c_, dict)]
+    if not filas_geo and not filas_cx:
+        return 0
+    ahora = P.ahora_ms()
+    cuenta = {"n": 0}
+
+    def aplicar(e2: dict[str, Any]) -> bool:
+        for s_ in filas_geo:
+            try:
+                if DP.desde_geo(e2, s_.get("accession") or "", s_, ctx.investigacion_id, ahora):
+                    cuenta["n"] += 1
+            except Exception:  # noqa: BLE001  una fila rara no tumba el paso
+                continue
+        for c_ in filas_cx:
+            try:
+                if DP.desde_cellxgene(e2, c_, ctx.investigacion_id, ahora):
+                    cuenta["n"] += 1
+            except Exception:  # noqa: BLE001
+                continue
+        return True
+
+    try:
+        ctx.mutar(aplicar, "datasets_programa")
+    except Exception as ex:  # noqa: BLE001
+        if pista:
+            pista.nota(f"No pude registrar los datasets del programa: {str(ex)[:100]}")
+        return 0
+    if pista and cuenta["n"]:
+        pista.nota(f"{cuenta['n']} datasets públicos anotados en el registro del programa (GEO y CELLxGENE)")
+    return cuenta["n"]
 
 
 ALIAS_GEN = {"NFL": "NEFL", "NF-L": "NEFL", "P-TAU": "MAPT", "PTAU": "MAPT", "P-TAU181": "MAPT", "P-TAU217": "MAPT", "TAU": "MAPT", "ABETA": "APP", "AB42": "APP", "AB40": "APP", "APOE4": "APOE", "APOE-E4": "APOE", "TREM-2": "TREM2"}
@@ -2017,14 +2216,32 @@ def simbolos_de_genes(texto: str) -> list[str]:
     return vistos[:6]
 
 
+def contexto_al_dia(h: dict[str, Any]) -> bool:
+    """Si el contexto de bases de la hipótesis ya está calculado para su
+    versión actual y no hace falta volver a las bases. Una hipótesis anterior
+    a la integración del perfil de diana tiene `contextoBases` de la versión
+    pero ningún `perfilDiana`: si su diana resolvió a un gen (hay Ensembl), el
+    perfil falta y hay que calcularlo una vez; si no resolvió, no hay a quién
+    preguntar y el contexto sigue al día. Un `contextoBases` que no es
+    diccionario (registro roto) cuenta como no calculado."""
+    ctxb = h.get("contextoBases")
+    if not isinstance(ctxb, dict) or ctxb.get("version") != h.get("version", 1):
+        return False
+    perfil = h.get("perfilDiana")
+    if isinstance(perfil, dict) and perfil.get("version") == h.get("version", 1):
+        return True
+    ids = ctxb.get("identificadores") if isinstance(ctxb.get("identificadores"), dict) else {}
+    return not ids.get("ensembl")
+
+
 async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -> None:
     """El contexto de la diana desde las bases: identificadores (MyGene),
     funcion (UniProt), expresion en cerebro (Human Protein Atlas), interactores
     (STRING) y rutas (Reactome). Se calcula una vez por hipotesis y version, y
     se ensena en la tarjeta. El Killer usa los identificadores en la
     comprobacion `identificadores_resuelven`."""
-    diana = ((h.get("tarjeta") or {}).get("diana") or "").strip()
-    if (h.get("contextoBases") or {}).get("version") == h.get("version", 1):
+    diana = ((h.get("tarjeta") or {}).get("diana") or "").strip() if isinstance(h.get("tarjeta"), dict) else ""
+    if contexto_al_dia(h):
         return
     candidatos = simbolos_de_genes(" ".join([diana, (h.get("comprobacion") or {}).get("biomarcador") or "", h.get("titulo", "")]))
     if not diana and not candidatos:
@@ -2040,9 +2257,22 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
             simbolo = cand
             break
         ids = None
+    perfil: dict[str, Any] | None = None
     if simbolo:
         if ids:
             ctxb["identificadores"] = {k: ids.get(k) for k in ("simbolo", "nombre", "ensembl", "uniprot", "entrez")}
+            # GTEx exige el identificador GENCODE con versión (ENSG...14), que MyGene
+            # no da: lo resuelve gtex_gen y se guarda antes de pedir el perfil de la
+            # diana, que con él consulta la mediana de expresión en el tejido.
+            try:
+                reg_gc, gc = await CON.consultar("gtex_gen", resumen=f"GTEx GENCODE: {simbolo}", simbolo=simbolo)
+                regs.append(reg_gc)
+                if isinstance(gc, dict) and gc.get("gencode"):
+                    ids["gencode"] = gc["gencode"]
+                    ctxb["identificadores"]["gencode"] = gc["gencode"]
+            except Exception as ex:  # noqa: BLE001
+                if pista:
+                    pista.nota(f"GTEx no resolvió el GENCODE de {simbolo}: {str(ex)[:80]}")
             if ids.get("uniprot"):
                 reg_u, uni = await CON.consultar("uniprot_proteina", resumen=f"UniProt: {simbolo}", simbolo=simbolo)
                 reg_r, rutas = await CON.consultar("reactome_rutas", resumen=f"Reactome: {ids['uniprot']}", uniprot=ids["uniprot"])
@@ -2057,22 +2287,47 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
                     for k in ("RNA tissue specificity", "RNA brain regional specificity", "RNA single cell type specificity"):
                         if hpa.get(k):
                             partes.append(f"{k.replace('RNA ', '').lower()}: {hpa[k]}")
-                    ntpm = hpa.get("RNA brain regional specific nTPM") or hpa.get("RNA single cell type specific nTPM")
+                    # HPA 24 da la nCPM por tipo celular (ya no la nTPM de célula única).
+                    ntpm = hpa.get("RNA brain regional specific nTPM") or hpa.get("RNA single nuclei brain specific nCPM") or hpa.get("RNA single cell type specific nCPM") or hpa.get("RNA single cell type specific nTPM")
                     if isinstance(ntpm, dict) and ntpm:
-                        top = sorted(ntpm.items(), key=lambda kv: -float(kv[1] or 0))[:4]
-                        partes.append("mayor nTPM en " + ", ".join(f"{k} ({v})" for k, v in top))
+                        def _valor(v: Any) -> float:
+                            try:
+                                return float(v or 0)
+                            except (TypeError, ValueError):
+                                return 0.0
+                        top = sorted(ntpm.items(), key=lambda kv: -_valor(kv[1]))[:4]
+                        partes.append("mayor expresión en " + ", ".join(f"{k} ({v})" for k, v in top))
                     ctxb["expresionCerebro"] = "; ".join(partes)[:400]
             reg_s, inter = await CON.consultar("string_interactores", resumen=f"STRING: {simbolo}", simbolo=simbolo)
             regs.append(reg_s)
             ctxb["interactores"] = [{"simbolo": i_["interactor"], "puntuacion": i_["puntuacion"]} for i_ in (inter or [])[:8]]
+        # Perfil de evidencia por diana (rosa/dianas.py): una fila por capa
+        # (genética humana, expresión en tejido, expresión celular, proteína,
+        # farmacología, literatura), sin puntuación combinada. Lo leen el Killer
+        # (comprobación contexto_humano) y el juez (texto_perfil). Se pasa
+        # `consultar=CON.consultar` para que los tests puedan sustituir el conector.
+        try:
+            perfil = await DI.perfil_de_diana(simbolo, ids, consultar=CON.consultar, contexto=h.get("tarjeta"))
+            if isinstance(perfil, dict):
+                perfil["version"] = h.get("version", 1)
+            else:
+                perfil = None
+        except Exception as ex:  # noqa: BLE001
+            perfil = None
+            if pista:
+                pista.nota(f"No pude construir el perfil de la diana {simbolo}: {str(ex)[:100]}")
     if pista:
-        pista.accion(f"Bases para {simbolo or diana[:30] or 'la diana'}", {"base": "MyGene, UniProt, HPA, STRING, Reactome", "parametros": ", ".join(candidatos[:3]) or diana[:40], "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'ningún candidato resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas"})
+        pista.accion(f"Bases para {simbolo or diana[:30] or 'la diana'}", {"base": "MyGene, GTEx, UniProt, HPA, STRING, Reactome y el perfil por diana (GWAS Catalog, ClinVar, Open Targets, ChEMBL, DGIdb, PubTator)", "parametros": ", ".join(candidatos[:3]) or diana[:40], "resultados": f"Ensembl {ctxb['identificadores'].get('ensembl') or 'ningún candidato resuelve'}; {len(ctxb['interactores'])} interactores; {len(ctxb['rutas'])} rutas; perfil de la diana {'calculado' if perfil else 'sin calcular'}"})
 
     def aplicar(e: dict[str, Any]) -> bool:
         x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
         if not x:
             return False
         x["contextoBases"] = ctxb
+        # El perfil se guarda en la misma mutación que el contexto: los dos son de
+        # la misma versión de la hipótesis. Sin perfil (sin símbolo o base caída)
+        # se deja None y el Killer lo dice como "no comprobable".
+        x["perfilDiana"] = perfil
         x.setdefault("consultas", []).extend(regs)
         return True
 

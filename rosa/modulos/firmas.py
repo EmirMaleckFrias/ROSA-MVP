@@ -19,6 +19,8 @@ from typing import Literal
 import dspy
 from pydantic import BaseModel, Field
 
+from rosa.experimento import ContratoPropuesto
+
 # ---------------------------------------------------------------------------
 # Tipos de salida
 # ---------------------------------------------------------------------------
@@ -209,6 +211,7 @@ class ProponerPlan(dspy.Signature):
     lecciones: str = dspy.InputField(desc="Lo que esta investigación aprendió a no repetir, por ámbito. Se leen antes de proponer y el plan las respeta")
     indicaciones_humanas: str = dspy.InputField(desc="Lo que pidió la investigadora, si algo")
     hipotesis_vivas: str = dspy.InputField(desc="Las hipótesis en competencia con su certeza, dirección, lo más frágil y que las subiría o bajaría")
+    datasets_disponibles: str = dspy.InputField(desc="Registro de datasets del programa que coinciden con la pregunta (accession, tipo, acceso, con qué términos coinciden); los de acceso controlado no se proponen para análisis, el proyecto no los pide. Un paso de análisis solo se propone sobre un dataset abierto de esta lista o uno aprobado por la investigadora")
     numero_iteracion: int = dspy.InputField()
     plan: list[PasoPropuesto] = dspy.OutputField()
 
@@ -503,7 +506,14 @@ class HipotesisEnLlano(dspy.Signature):
     explicacion: str = dspy.OutputField()
 
 
-class ExperimentoPropuesto(BaseModel):
+class ExperimentoPropuesto(ContratoPropuesto):
+    """Lo que el modelo devuelve al diseñar el experimento. Hereda de
+    `rosa.experimento.ContratoPropuesto` las lecturas separadas (`lecturas`), el
+    sistema experimental con lo que no representa (`sistema`), el propósito del
+    biomarcador según BEST (`proposito_biomarcador`), el nivel del desenlace
+    (`nivel_desenlace`) y el puente al beneficio (`puente_al_beneficio`); aquí
+    se conservan los campos que ya tenía la firma."""
+
     protocolo: list[str] = Field(description="Los pasos del experimento o análisis, uno por elemento, cada uno de una o dos frases, concretos: población, mediciones, tiempos, comparación. Entre 4 y 12 pasos")
     ensayo: str = Field(description="Qué se mide y con que técnica (por ejemplo inmunoensayo de GFAP en plasma, PET de amiloide)")
     resultado_que_confirma: str = Field(description="Qué valor o patrón confirmaría la hipótesis")
@@ -518,9 +528,31 @@ class ExperimentoPropuesto(BaseModel):
 
 class ProponerExperimento(dspy.Signature):
     """Diseñar el experimento o análisis que comprobaría la hipótesis: protocolo en pasos,
-    que se mide y como, que resultado la confirma y cual la refuta, coste estimado y, si
-    existen datos públicos que sirvan, el análisis exacto que se pediria. Concreto y
-    realista; sin inventar cohortes ni técnicas. Si algo no se puede estimar, se dice."""
+    qué se mide y cómo, qué resultado la confirma y cuál la refuta, coste estimado y, si
+    existen datos públicos que sirvan, el análisis exacto que se pediría. Concreto y
+    realista; sin inventar cohortes ni técnicas. Si algo no se puede estimar, se dice.
+
+    El experimento es un contrato con lecturas SEPARADAS, cada una con su nombre exacto,
+    su tipo, qué la confirma, qué la refuta, su control y su unidad:
+    - `compromiso_diana`: la intervención llegó a la diana y la modificó (por ejemplo la
+      proteína bajó en el tejido). Sin esta lectura un negativo no se puede interpretar:
+      no se sabe si la hipótesis falló o si la intervención nunca tocó la diana.
+    - `funcion_mecanismo` o `biomarcador`: el efecto que la hipótesis predice (la lectura
+      de efecto). Es la que decide el veredicto.
+    - `viabilidad`: el modelo toleró la intervención (obligatoria en sistemas celulares) y
+      `seguridad` cuando se mide daño fuera de la diana.
+    El `sistema` dice en qué se hace (observacional en humanos, datos públicos ya
+    existentes, células humanas de donante, iPSC, organoide, cocultivo, animal o in
+    silico), qué parte de la hipótesis puede probar y, en concreto para esta hipótesis,
+    qué parte de la biología humana NO representa (edad, variación genética, interacción
+    entre células, exposición). Cuando alguna lectura es un biomarcador, se declara su
+    propósito según el marco BEST de la FDA y el NIH (susceptibilidad o riesgo,
+    diagnóstico, monitorización, pronóstico, predicción de respuesta, farmacodinámico o
+    seguridad): un mismo marcador sirve para cosas distintas y el criterio de éxito cambia
+    con el propósito. Se declara el nivel del desenlace principal (molecular, celular,
+    fisiológico o de imagen, funcional o clínico) y, si es molecular o celular, el puente al
+    beneficio: qué tendría que pasar además para que ese resultado importe a la población
+    del programa. Los datos son solo públicos: nunca ADNI ni bases de acceso controlado."""
 
     hipotesis: str = dspy.InputField(desc="Título, enunciado, mecanismo, comprobación propuesta y tarjeta (diana, célula, etapa, intervención, paso de la ruta terapéutica)")
     afirmaciones: str = dspy.InputField(desc="Las afirmaciones sostenidas que la motivan, con su cita")
@@ -624,7 +656,7 @@ class ResultadoExperimento(BaseModel):
     resultado: str = Field(description="El hallazgo principal en una o dos frases con las cifras y su denominador")
     motivo: str = Field(description="Qué criterio del prerregistro se aplico y como lo cumplen o no los datos; que controles había y si fueron válidos")
     limitaciones: str = Field(description="Qué no permiten concluir los datos: tamaño, faltantes, diseño distinto al prerregistrado, ausencia de controles")
-    cifras: list[CifraClave] = Field(description="Las cifras que sostienen el veredicto, calculadas del resumen de datos, no inventadas")
+    cifras: list[CifraClave] = Field(description="Las cifras que sostienen el veredicto, calculadas del resumen de datos, no inventadas. Una cifra por cada lectura del contrato del experimento (compromiso de diana, efecto, viabilidad, seguridad), con el NOMBRE EXACTO de la lectura como nombre de la cifra, tal como está escrito en el prerregistro, y su valor con signo y unidad (por ejemplo '+35 %', '-12 %', '0,03 pg/mL'); un solo valor por cifra. Con nombres distintos o varios números en una cifra la regla no puede aplicar los criterios y la lectura queda como no evaluable")
     exploratorio: str = Field(description="Cualquier observación fuera de los criterios prerregistrados, marcada como exploratoria; vacío si nada")
 
 
@@ -772,6 +804,7 @@ NOMBRES_COMPROBACION = Literal[
     "factibilidad",
     "redundancia",
     "sesgo_evidencia",
+    "contexto_humano",
 ]
 
 
@@ -781,10 +814,15 @@ class ComprobacionKiller(BaseModel):
     detalle: str = Field(description="Una o dos frases con la afirmación, supuesto o fuente concreta que lo motiva")
 
 
+class AlternativaPropuesta(BaseModel):
+    texto: str = Field(description="Una explicación alternativa de lo observado sin que la hipótesis sea cierta: causa inversa (Y causa X), confusor común (algo causa X y Y a la vez, como la edad), sesgo de selección o de supervivencia, artefacto de medida (plataforma, lote, fase preanalítica)")
+    que_la_distinguiria: str = Field(description="La observación concreta que separaría esta alternativa de la hipótesis (qué se vería si la alternativa fuera la verdadera y la hipótesis no)")
+
+
 class RevisionKiller(BaseModel):
     comprobaciones: list[ComprobacionKiller] = Field(description="Una entrada por cada comprobacion que Rosa no resolvio ya de forma determinista: supuestos, fuente_primaria, direccion_causal, falsabilidad, factibilidad, redundancia, sesgo_evidencia")
     supuesto_invalidante: str = Field(description="El supuesto concreto que esta CONTRADICHO por evidencia citada y que tumba la hipotesis; vacio si ninguno esta contradicho. Un supuesto sin evidencia no va aqui: va en que_haria_falta")
-    alternativas: list[str] = Field(description="Explicaciones alternativas (causa inversa, confusor común, artefacto de medida) y que observación las distinguiria de la hipótesis. Al menos una")
+    alternativas: list[AlternativaPropuesta] = Field(default_factory=list, description="Explicaciones alternativas de lo observado sin que la hipótesis sea cierta (causa inversa, confusor común, sesgo de selección, artefacto de medida), cada una con la observación que la distinguiría de la hipótesis. Vacía solo si de verdad no hay ninguna")
     reformulacion_sugerida: str = Field(description="Si alguna comprobación reformulable falla: como habría que reescribir la hipótesis para que pase; vacío si no aplica")
     que_haria_falta: str = Field(description="Si algo quedo no_comprobable: que fuente o dato haria falta para evaluarla; vacio si nada")
     contradice_a: list[str] = Field(default_factory=list, description="Ids (hip-...) de las otras hipótesis vivas con las que esta NO puede ser cierta a la vez (mismo mecanismo o marcador con sentido opuesto), copiados tal cual de la lista de hipótesis; vacío si ninguna. No es redundancia: dos hipótesis que dicen lo mismo no se contradicen")
@@ -831,7 +869,9 @@ class MatarHipotesis(dspy.Signature):
     mundo o coincide con otra hipotesis viva), `sesgo_evidencia` (falla si toda la
     evidencia tiene un riesgo de sesgo serio: preclinica extrapolada, transversal para
     una afirmacion temporal, muestras minimas). Las demas comprobaciones (citas reales,
-    independencia de cohortes, novedad) ya vienen resueltas de forma determinista en la
+    independencia de cohortes, novedad, contexto humano: si la diana se expresa en
+    humanos en la célula o el tejido que la tarjeta nombra, según el perfil de evidencia
+    por diana que llega con la hipótesis) ya vienen resueltas de forma determinista en la
     entrada y no se repiten. Un critico que mata ideas
     buenas es tan caro como uno que deja pasar malas: 'falla' exige senalar la
     afirmacion o supuesto concreto; la duda es 'no_comprobable', no 'falla'. No se
