@@ -42,6 +42,9 @@ def main():
         for i in range(0, 12, 2):
             assert abs(cajas[i]["y"] - cajas[i + 1]["y"]) < 2
             assert cajas[i + 1]["x"] > cajas[i]["x"] + cajas[i]["width"]
+            izquierda = tarjetas.nth(i).locator('.hecho').bounding_box()
+            derecha = tarjetas.nth(i + 1).locator('.hecho').bounding_box()
+            assert abs(izquierda['height'] - derecha['height']) < 2
         page.screenshot(path=str(salida / "escritorio.png"), full_page=True)
         page.set_viewport_size({"width": 390, "height": 844})
         page.wait_for_timeout(300)
