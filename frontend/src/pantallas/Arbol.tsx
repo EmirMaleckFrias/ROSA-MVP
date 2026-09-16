@@ -5,11 +5,12 @@
 // selecciona; pulsar dos veces abre su ficha. La búsqueda ilumina todo lo
 // que toca una palabra o un identificador (GFAP, HGNC:4235). El deslizador
 // de iteraciones enseña cómo creció el árbol. Se mueve con la rueda y
-// arrastrando el fondo. Por defecto el árbol abre coloreado por distancia al
-// dato (petición de Emir, 16 de septiembre de 2026): el relleno de cada nodo
-// sigue una escala secuencial según los saltos que lo separan de una medición
-// propia (lib/arbol.ts calcula la distancia); el conmutador "Color por tipo"
-// devuelve un color fijo por tipo de nodo.
+// arrastrando el fondo. Por defecto (petición de Emir, 16 de septiembre de 2026)
+// el relleno dice qué es cada nodo (las hipótesis y su rama, el color de su
+// familia de mecanismo; el resto, el de su tipo) y el anillo cuánto lo sostiene
+// (verde a un paso de una medición propia, ámbar solo literatura, gris nada;
+// lib/arbol.ts calcula las distancias). El conmutador "Por distancia al dato"
+// pasa esa distancia al relleno con una escala secuencial.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
@@ -45,6 +46,11 @@ const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }
 };
 
 type ModoColor = 'tipo' | 'dato';
+/** Paleta por familia de mecanismo (el cluster de cada hipótesis): en el modo por
+ *  tipo, las hipótesis y su rama comparten el color de su familia, así el árbol
+ *  enseña de un vistazo qué mecanismos compiten. Diez tonos distinguibles en tema
+ *  claro y oscuro (tokens en styles.css); con más de diez familias se repiten. */
+const PALETA_CLUSTER = ['var(--grafo-cluster-0)', 'var(--grafo-cluster-1)', 'var(--grafo-cluster-2)', 'var(--grafo-cluster-3)', 'var(--grafo-cluster-4)', 'var(--grafo-cluster-5)', 'var(--grafo-cluster-6)', 'var(--grafo-cluster-7)', 'var(--grafo-cluster-8)', 'var(--grafo-cluster-9)'];
 /** Escala secuencial por distancia al dato: un solo tono, más intenso cuanto
  *  más cerca de la medición (0 = la medición misma) y más claro a cada salto.
  *  Los tokens viven en styles.css con pasos propios para el tema oscuro. */
@@ -185,7 +191,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const anterior = useRef({ ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax });
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
-  const [modoColor, setModoColor] = useState<ModoColor>('dato'); // Por defecto coloreado por distancia al dato (petición de Emir, 16 de septiembre de 2026)
+  const [modoColor, setModoColor] = useState<ModoColor>('tipo'); // Por defecto: relleno por tipo y familia de mecanismo, anillo por distancia al dato (petición de Emir, 16 de septiembre de 2026)
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const reducido = useMovimientoReducido();
@@ -236,7 +242,25 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
   };
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
-  const colorDe = (n: NodoArbol) => (modoColor === 'dato' ? colorPorDato(n) : COLOR[n.tipo]);
+  // Familias de mecanismo: orden estable por primera aparición entre las hipótesis visibles.
+  const clusterDe = useMemo(() => new Map(estado.hipotesis.filter((x) => x.investigacionId === inv.id).map((x) => [x.id, x.cluster || 'Sin cluster'])), [estado.hipotesis, inv.id]);
+  const familias = useMemo(() => {
+    const vistas: string[] = [];
+    for (const x of estado.hipotesis) if (x.investigacionId === inv.id && x.estado !== 'descartada' && !vistas.includes(x.cluster || 'Sin cluster')) vistas.push(x.cluster || 'Sin cluster');
+    for (const x of estado.hipotesis) if (x.investigacionId === inv.id && !vistas.includes(x.cluster || 'Sin cluster')) vistas.push(x.cluster || 'Sin cluster');
+    return vistas;
+  }, [estado.hipotesis, inv.id]);
+  const colorFamilia = (nombre: string) => PALETA_CLUSTER[Math.max(0, familias.indexOf(nombre)) % PALETA_CLUSTER.length]!;
+  const colorPorTipo = (n: NodoArbol) => {
+    if (n.tipo === 'hipotesis') return colorFamilia(clusterDe.get(n.id) ?? 'Sin cluster');
+    if (n.tipo === 'rama') return colorFamilia(n.id.slice('rama-'.length));
+    return COLOR[n.tipo];
+  };
+  const colorDe = (n: NodoArbol) => (modoColor === 'dato' ? colorPorDato(n) : colorPorTipo(n));
+  // Anillo de evidencia en el modo por tipo: el borde lleva la distancia al dato
+  // (verde medición propia, ámbar literatura leída, gris nada), así el relleno dice
+  // qué es el nodo y el anillo cuánto lo sostiene.
+  const anilloDe = (n: NodoArbol): string | null => (modoColor === 'tipo' && !SIN_DISTANCIA.has(n.tipo) && !n.alerta ? colorPorDato(n) : null);
   // Sin camino al dato: relleno gris y borde punteado (solo en el modo por distancia).
   // Punteado solo para lo que no tiene ni medición ni literatura leída detrás.
   const sinDato = (n: NodoArbol) => modoColor === 'dato' && !SIN_DISTANCIA.has(n.tipo) && claveDistancia(n) === 'nulo';
@@ -360,7 +384,12 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   // Recuentos de la leyenda (por tipo y por escalón de distancia), solo de lo visible.
   const cuentas: Partial<Record<TipoNodo, number>> = {};
   const cuentasDato: Record<string, number> = {};
+  const cuentasFamilia: Record<string, number> = {};
   for (const n of nodosVisibles) {
+    if (n.tipo === 'hipotesis') {
+      const f = clusterDe.get(n.id) ?? 'Sin cluster';
+      cuentasFamilia[f] = (cuentasFamilia[f] ?? 0) + 1;
+    }
     cuentas[n.tipo] = (cuentas[n.tipo] ?? 0) + 1;
     if (SIN_DISTANCIA.has(n.tipo)) continue;
     const e = claveDistancia(n);
@@ -373,15 +402,15 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Árbol de la investigación</h2>
-          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Con «Color por distancia al dato» cada nodo se colorea según lo cerca que esté de una medición propia de Rosa: un análisis in silico validado, un resultado del laboratorio o una observación original.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Por defecto el relleno de cada nodo dice qué es (las hipótesis, el color de su familia de mecanismo) y el anillo cuánto lo sostiene: verde si está a un paso de una medición propia de Rosa (un análisis in silico validado, un resultado del laboratorio o una observación original), ámbar si solo hay literatura leída detrás, gris punteado si nada todavía. Con «Por distancia al dato» esa distancia pasa al relleno con una escala secuencial.</p>
         </div>
         <div className="acciones">
           <div className="segmentos" role="group" aria-label="Color de los nodos">
-            <button type="button" aria-pressed={modoColor === 'tipo'} onClick={() => setModoColor('tipo')} title="Cada tipo de nodo con su color">
-              Color por tipo
+            <button type="button" aria-pressed={modoColor === 'tipo'} onClick={() => setModoColor('tipo')} title="Relleno por tipo de nodo y por familia de mecanismo en las hipótesis; anillo por distancia al dato">
+              Por tipo y mecanismo
             </button>
-            <button type="button" aria-pressed={modoColor === 'dato'} onClick={() => setModoColor('dato')} title="Cuanto más intenso, más cerca de una medición propia de Rosa; gris punteado, solo literatura">
-              Color por distancia al dato
+            <button type="button" aria-pressed={modoColor === 'dato'} onClick={() => setModoColor('dato')} title="Cuanto más intenso, más cerca de una medición propia de Rosa; ámbar, solo literatura leída; gris punteado, nada">
+              Por distancia al dato
             </button>
           </div>
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
@@ -417,7 +446,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               return (
                 <g key={n.id} data-id={n.id} className={`grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
                   {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
-                  <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) ? '2 2' : undefined} />
+                  <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : anilloDe(n) ?? (sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)')} strokeWidth={n.alerta ? 2 : anilloDe(n) ? 3 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) || (anilloDe(n) && claveDistancia(n) === 'nulo') ? '2 2' : undefined} />
                   {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
                   {n.tipo === 'laboratorio' && <path d="M-4.5 0.5 l3 3 l6 -7" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />}
                   {opEt > 0.02 && (
@@ -491,13 +520,30 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                   </ul>
                 </>
               ) : (
+                <>
+                  <p className="meta">El relleno dice qué es cada nodo: las hipótesis y su rama llevan el color de su familia de mecanismo (el cluster); hechos, fuentes, entidades, análisis y experimentos, el suyo. El anillo dice cuánto lo sostiene: verde a una medición propia, ámbar solo literatura leída, gris punteado nada.</p>
+                  {familias.length > 0 && (
+                    <ul className="grafo-leyenda">
+                      {familias.map((f) => (
+                        <li key={f}>
+                          <span className="grafo-punto" style={{ background: colorFamilia(f) }} aria-hidden="true" /> {f} <span className="meta">{cuentasFamilia[f] ?? 0}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <ul className="grafo-leyenda">
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-dato-1)' }} aria-hidden="true" /> Anillo verde: a un paso de una medición propia</li>
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-lit-1)' }} aria-hidden="true" /> Anillo ámbar: solo literatura leída detrás</li>
+                    <li><span className="grafo-punto grafo-anillo grafo-anillo-nulo" aria-hidden="true" /> Anillo gris punteado: nada la sostiene todavía</li>
+                  </ul>
                 <ul className="grafo-leyenda">
-                  {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).map((t) => (
+                  {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).filter((t) => t !== 'hipotesis' && t !== 'rama').map((t) => (
                     <li key={t}>
                       <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
                     </li>
                   ))}
                 </ul>
+                </>
               )}
               <h4>Enlaces</h4>
               <ul className="grafo-leyenda">

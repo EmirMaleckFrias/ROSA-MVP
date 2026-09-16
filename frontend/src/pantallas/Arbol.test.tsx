@@ -68,12 +68,10 @@ describe('la pantalla del árbol', () => {
     const e = estadoConDato();
     const inv = e.investigaciones[0]!;
     await act(async () => root.render(<Arbol inv={inv} estado={e} />));
-    // Abre coloreado por distancia al dato (por defecto desde el 16 de septiembre de 2026).
-    expect(boton('Color por distancia al dato').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.textContent).toContain('Sin medición propia ni literatura leída');
-    // Modo por tipo: la leyenda enumera los tipos nuevos.
-    await pulsar(boton('Color por tipo'));
-    expect(boton('Color por tipo').getAttribute('aria-pressed')).toBe('true');
+    // Abre en el modo por tipo y mecanismo (por defecto desde el 16 de septiembre de 2026):
+    // relleno por familia y tipo, anillo por distancia al dato.
+    expect(boton('Por tipo y mecanismo').getAttribute('aria-pressed')).toBe('true');
+    expect(nodo.textContent).toContain('Anillo verde');
     expect(nodo.textContent).toContain('Afirmación con dato');
     expect(nodo.textContent).toContain('Análisis in silico');
     expect(nodo.textContent).toContain('Conjunto de datos');
@@ -82,10 +80,11 @@ describe('la pantalla del árbol', () => {
     await pulsar(boton('Desplegar todo'));
     const circulo = (id: string) => nodo.querySelector(`g[data-id="${id}"] circle:last-of-type`)!;
     expect(circulo('run-1')).toBeTruthy();
-    expect(circulo('hip-1').getAttribute('fill')).toBe('#7c3aed');
+    expect(circulo('hip-1').getAttribute('fill')).toMatch(/var\(--grafo-cluster-\d\)/);
+    expect(circulo('hip-1').getAttribute('stroke')).toMatch(/var\(--grafo-(dato|lit)-\d\)|var\(--text-3\)/);
     // Vuelta al modo por distancia.
-    await pulsar(boton('Color por distancia al dato'));
-    expect(boton('Color por distancia al dato').getAttribute('aria-pressed')).toBe('true');
+    await pulsar(boton('Por distancia al dato'));
+    expect(boton('Por distancia al dato').getAttribute('aria-pressed')).toBe('true');
     expect(nodo.textContent).toContain('Sin medición propia ni literatura leída');
     expect(nodo.textContent).toContain('La medición misma (0 saltos)');
     expect(circulo('run-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');

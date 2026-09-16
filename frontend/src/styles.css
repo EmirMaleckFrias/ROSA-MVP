@@ -3930,6 +3930,16 @@ mark.fuerte {
   --grafo-lit-1: #b45309;
   --grafo-lit-2: #d97706;
   --grafo-lit-3: #fbbf24;
+  --grafo-cluster-0: #7c3aed;
+  --grafo-cluster-1: #0284c7;
+  --grafo-cluster-2: #c2410c;
+  --grafo-cluster-3: #15803d;
+  --grafo-cluster-4: #be185d;
+  --grafo-cluster-5: #4d7c0f;
+  --grafo-cluster-6: #0e7490;
+  --grafo-cluster-7: #a16207;
+  --grafo-cluster-8: #dc2626;
+  --grafo-cluster-9: #4338ca;
 }
 
 :root[data-theme='dark'] {
@@ -3945,6 +3955,16 @@ mark.fuerte {
   --grafo-lit-1: #fbbf24;
   --grafo-lit-2: #d97706;
   --grafo-lit-3: #92400e;
+  --grafo-cluster-0: #a78bfa;
+  --grafo-cluster-1: #38bdf8;
+  --grafo-cluster-2: #fb923c;
+  --grafo-cluster-3: #4ade80;
+  --grafo-cluster-4: #f472b6;
+  --grafo-cluster-5: #a3e635;
+  --grafo-cluster-6: #22d3ee;
+  --grafo-cluster-7: #facc15;
+  --grafo-cluster-8: #f87171;
+  --grafo-cluster-9: #818cf8;
 }
 
 /* Muestra de la leyenda para "sin medición propia": gris con borde punteado, como el nodo. */
@@ -4488,4 +4508,15 @@ details.versiones > :not(summary) {
 
 .version-cambios s {
   opacity: 0.7;
+}
+
+/* Leyenda del árbol: el anillo de evidencia se dibuja como borde, no como relleno. */
+.grafo-punto.grafo-anillo {
+  background: transparent;
+  border: 3px solid var(--grafo-dato-1);
+}
+
+.grafo-punto.grafo-anillo-nulo {
+  border-color: var(--text-3);
+  border-style: dotted;
 }
