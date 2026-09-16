@@ -7,6 +7,9 @@ from rosa.estado import acciones as A
 
 
 def test_normalizar_parada_acota_y_descarta_lo_vacio():
+    assert PARADA.normalizar_parada({"horas": 1 / 60})["horas"] == 1 / 60
+    assert PARADA.normalizar_parada({"horas": 10 / 60})["horas"] * 3600 == 600
+    assert PARADA.resumen_parada({"horas": 48}) == "2 días"
     assert PARADA.normalizar_parada(None) is None and PARADA.normalizar_parada({}) is None
     assert PARADA.normalizar_parada({"horas": "", "iteraciones": None, "llamadas": "", "texto": "  "}) is None
     p = PARADA.normalizar_parada({"horas": "2,5", "iteraciones": 6.9, "llamadas": "3", "texto": " hasta que cambie "})

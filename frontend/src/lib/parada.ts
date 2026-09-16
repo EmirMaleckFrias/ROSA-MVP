@@ -52,11 +52,13 @@ export function textoAutomatizacion(p: CondicionAutomatizada): string {
 // investigación. Espejo de rosa/parada.py (normalizar_parada, resumen_parada).
 // ---------------------------------------------------------------------------
 
-const LIMITES_PARADA: Record<'horas' | 'iteraciones' | 'llamadas' | 'cuantas' | 'sinCambio', [number, number]> = { horas: [0.05, 24 * 14], iteraciones: [1, 200], llamadas: [10, 100_000], cuantas: [1, 50], sinCambio: [1, 20] };
+const LIMITES_PARADA: Record<'horas' | 'iteraciones' | 'llamadas' | 'cuantas' | 'sinCambio', [number, number]> = { horas: [1 / 60, 24 * 14], iteraciones: [1, 200], llamadas: [10, 100_000], cuantas: [1, 50], sinCambio: [1, 20] };
 export const NIVELES_OBJETIVO = ['baja', 'moderada', 'alta'] as const;
 
 export interface ParadaBorrador {
   horas: string;
+  /** Unidad del valor escrito; se convierte a horas para el servidor. */
+  unidadTiempo?: 'minutos' | 'horas' | 'dias';
   iteraciones: string;
   llamadas: string;
   texto: string;
@@ -72,14 +74,14 @@ function numeroParada(v: string, clave: 'horas' | 'iteraciones' | 'llamadas' | '
   if (!v.trim() || !Number.isFinite(n) || n <= 0) return null;
   const [minimo, maximo] = LIMITES_PARADA[clave];
   const acotado = Math.max(minimo, Math.min(maximo, n));
-  return clave === 'horas' ? Math.round(acotado * 100) / 100 : Math.floor(acotado);
+  return clave === 'horas' ? acotado : Math.floor(acotado);
 }
 
 /** Del formulario a la parada que viaja al servidor; null si no se fijó nada. */
 export function normalizarParada(b: ParadaBorrador): ParadaCorrida | null {
   const certeza = (NIVELES_OBJETIVO as readonly string[]).includes(b.certeza) ? (b.certeza as 'baja' | 'moderada' | 'alta') : null;
   const p: ParadaCorrida = {
-    horas: numeroParada(b.horas, 'horas'),
+    horas: numeroParada(b.horas.trim() ? String(Number(b.horas.replace(',', '.')) * (b.unidadTiempo === 'minutos' ? 1 / 60 : b.unidadTiempo === 'dias' ? 24 : 1)) : '', 'horas'),
     iteraciones: numeroParada(b.iteraciones, 'iteraciones'),
     llamadas: numeroParada(b.llamadas, 'llamadas'),
     texto: b.texto.trim().slice(0, 300),
@@ -105,6 +107,7 @@ export function borradorDe(p: ParadaCorrida | null | undefined): ParadaBorrador 
 }
 
 function horasTexto(h: number): string {
+  if (h >= 24 && Number.isInteger(h / 24)) return `${h / 24} ${h === 24 ? 'día' : 'días'}`;
   if (h < 1) {
     const m = Math.round(h * 60);
     return m === 1 ? '1 minuto' : `${m} minutos`;

@@ -75,7 +75,7 @@ def texto_automatizacion(partes: dict[str, Any]) -> str:
 # valiendo además. Todo opcional: sin nada, la corrida se comporta como antes.
 # ---------------------------------------------------------------------------
 
-LIMITES_PARADA = {"horas": (0.05, 24 * 14), "iteraciones": (1, 200), "llamadas": (10, 100_000), "cuantas": (1, 50), "sinCambio": (1, 20)}
+LIMITES_PARADA = {"horas": (1 / 60, 24 * 14), "iteraciones": (1, 200), "llamadas": (10, 100_000), "cuantas": (1, 50), "sinCambio": (1, 20)}
 NIVELES_OBJETIVO = ("baja", "moderada", "alta")
 
 
@@ -96,7 +96,7 @@ def normalizar_parada(d: Any) -> dict[str, Any] | None:
         if n <= 0:
             continue
         n = max(minimo, min(maximo, n))
-        salida[clave] = round(n, 2) if clave == "horas" else int(n)
+        salida[clave] = n if clave == "horas" else int(n)
     texto = d.get("texto")
     if isinstance(texto, str) and texto.strip():
         salida["texto"] = texto.strip()[:300]
@@ -112,6 +112,8 @@ def normalizar_parada(d: Any) -> dict[str, Any] | None:
 
 
 def _horas_texto(h: float) -> str:
+    if h >= 24 and (h / 24).is_integer():
+        return f"{h / 24:g} {'día' if h == 24 else 'días'}"
     if h < 1:
         m = int(round(h * 60))
         return f"{m} minutos" if m != 1 else "1 minuto"

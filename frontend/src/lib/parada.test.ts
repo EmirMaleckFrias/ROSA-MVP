@@ -25,6 +25,14 @@ describe('partesAutomatizadas', () => {
 
 describe('parada propia de la corrida', () => {
   const vacio = { horas: '', iteraciones: '', llamadas: '', texto: '', certeza: '' as const, cuantas: '', sinCambio: '' };
+  it('convierte minutos, horas y días sin redondear los minutos a centésimas de hora', () => {
+    expect(normalizarParada({ ...vacio, horas: '1', unidadTiempo: 'minutos' })?.horas).toBe(1 / 60);
+    expect(normalizarParada({ ...vacio, horas: '10', unidadTiempo: 'minutos' })?.horas).toBe(10 / 60);
+    expect(normalizarParada({ ...vacio, horas: '1,5', unidadTiempo: 'horas' })?.horas).toBe(1.5);
+    expect(normalizarParada({ ...vacio, horas: '2', unidadTiempo: 'dias' })?.horas).toBe(48);
+    expect(normalizarParada({ ...vacio, unidadTiempo: 'dias' })).toBeNull();
+    expect(resumenParada({ horas: 48, iteraciones: null, llamadas: null, texto: '' })).toBe('2 días');
+  });
   it('normaliza el formulario: números acotados, texto recortado, null si no hay nada', () => {
     expect(normalizarParada({ ...vacio, texto: '  ' })).toBeNull();
     expect(normalizarParada({ ...vacio, horas: '2,5', iteraciones: '6.9', llamadas: '3', texto: ' hasta que cambie ' })).toEqual({ horas: 2.5, iteraciones: 6, llamadas: 10, texto: 'hasta que cambie', certeza: null, cuantas: null, sinCambio: null });
