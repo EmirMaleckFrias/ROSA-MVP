@@ -28,7 +28,7 @@ import traceback
 from typing import Any
 
 from rosa import sesgo as SESGO
-from rosa import certeza as CERTEZA, config, parada as PARADA, politicas, priorizacion as PR, torneo
+from rosa import certeza as CERTEZA, config, parada as PARADA, politicas, priorizacion as PR, progreso as PROG, torneo
 from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
 from rosa.bucle import evidencia as EV
@@ -182,6 +182,10 @@ class Supervisor:
         def fn(e2: dict[str, Any]) -> bool:
             cambiado = False
             for c in e2["corridas"]:
+                # Una corrida detenida por una persona también cierra con su métrica.
+                if c["estado"] in ("detenida", "terminada") and c.get("metrica") is None and c.get("progreso"):
+                    c["metrica"] = PROG.metrica_de_corrida(e2, c["id"])
+                    cambiado = True
                 if c["estado"] in ("detenida", "terminada"):
                     continue
                 seg = round((ahora - c["empezadaEn"]) / 1000)
@@ -1260,6 +1264,10 @@ class Supervisor:
             if llano:
                 it2["resumenLlano"] = llano
             it2["revisionRegistro"] = revision
+            # Instantánea de progreso: certeza de cada hipótesis, peldaños subidos o
+            # bajados, hechos nuevos y fallidos de la iteración (rosa/progreso.py).
+            c_prog = next(x for x in e2["corridas"] if x["id"] == c["id"])
+            c_prog.setdefault("progreso", []).append(PROG.instantanea(e2, c_prog, it2, len(hechos_nuevos), len(hip_nuevas), len(bloqueadas), ahora))
             if revision["hallazgos"]:
                 A.con_evento(e2, inv["id"], "revision_registro", f"El revisor de registro encontró {len(revision['hallazgos'])} hallazgos en la iteración {it['numero']}: " + RR.resumen_revision(revision["hallazgos"])[:140], f"#/investigaciones/{inv['id']}/corrida", ahora)
             # Bradley-Terry con intervalos sobre los partidos del torneo: es lo que
@@ -1290,7 +1298,9 @@ class Supervisor:
                 c2["estado"] = "terminada"
                 c2["terminadaEn"] = ahora
                 c2["motivoCierre"] = terminar
-                A.con_evento(e2, inv["id"], "corrida_estado", f"Corrida {c2['numero']} terminada: {terminar}", f"#/investigaciones/{inv['id']}/corrida", ahora)
+                c2["metrica"] = PROG.metrica_de_corrida(e2, c2["id"])
+                resumen_m = PROG.resumen_metrica(c2["metrica"])
+                A.con_evento(e2, inv["id"], "corrida_estado", f"Corrida {c2['numero']} terminada: {terminar}" + (f". Balance: {resumen_m}" if resumen_m else ""), f"#/investigaciones/{inv['id']}/corrida", ahora)
             return True
 
         self.almacen.mutar(fn, "iteracion_cerrada")
@@ -1354,7 +1364,9 @@ def _terminar_corrida(e: dict[str, Any], corrida_id: str, motivo: str) -> bool:
     c["estado"] = "terminada"
     c["terminadaEn"] = ahora
     c["motivoCierre"] = motivo
-    A.con_evento(e, c["investigacionId"], "corrida_estado", f"Corrida {c['numero']} terminada: {motivo}", f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
+    c["metrica"] = PROG.metrica_de_corrida(e, c["id"])
+    resumen_m = PROG.resumen_metrica(c["metrica"])
+    A.con_evento(e, c["investigacionId"], "corrida_estado", f"Corrida {c['numero']} terminada: {motivo}" + (f". Balance: {resumen_m}" if resumen_m else ""), f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
     return True
 
 
@@ -1429,6 +1441,13 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
             return f"Se alcanzaron las {int(propia['iteraciones'])} iteraciones fijadas para esta corrida"
         if propia.get("llamadas") and c["gasto"].get("llamadas", 0) >= int(propia["llamadas"]):
             return f"Se alcanzaron las {int(propia['llamadas'])} llamadas fijadas para esta corrida"
+        # Parada por peldaños: N hipótesis han llegado al nivel de certeza pedido.
+        if propia.get("certeza") and PROG.hipotesis_en_nivel(c, str(propia["certeza"])) >= int(propia.get("cuantas") or 1):
+            n = PROG.hipotesis_en_nivel(c, str(propia["certeza"]))
+            return f"{n} {'hipótesis alcanzó' if n == 1 else 'hipótesis alcanzaron'} la certeza {str(propia['certeza']).replace('_', ' ')} fijada para esta corrida"
+        # Parada por estancamiento: iteraciones seguidas sin subir ningún peldaño ni añadir hechos.
+        if propia.get("sinCambio") and PROG.iteraciones_sin_avance(c) >= int(propia["sinCambio"]):
+            return f"{int(propia['sinCambio'])} iteraciones seguidas sin subir ninguna hipótesis de certeza ni añadir hechos, límite fijado para esta corrida"
         if propia.get("texto"):
             motivo_texto = _parada_por_texto(str(propia["texto"]), numero, c, ahora)
             if motivo_texto:

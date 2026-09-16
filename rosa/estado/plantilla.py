@@ -157,6 +157,9 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         # Parada propia de la corrida (horas, iteraciones, llamadas, texto); lo que
         # llegue primero. None: solo vale la condición de la investigación.
         "parada": parada,
+        # Serie de progreso por iteración (rosa/progreso.py) y métrica única al cerrar.
+        "progreso": [],
+        "metrica": None,
     }
 
 

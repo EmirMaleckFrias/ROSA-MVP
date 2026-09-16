@@ -474,6 +474,11 @@ export interface Corrida {
    *  condición de parada de la investigación. Null o ausente: solo la de la
    *  investigación. */
   parada?: ParadaCorrida | null;
+  /** Serie de progreso por iteración (rosa/progreso.py): certeza de cada
+   *  hipótesis, peldaños subidos o bajados, hechos nuevos, fallidos y gasto. */
+  progreso?: ProgresoIteracion[];
+  /** La métrica única al cerrar: peldaños netos de certeza subidos por dólar. */
+  metrica?: MetricaCorrida | null;
 }
 
 export interface ParadaCorrida {
@@ -481,6 +486,41 @@ export interface ParadaCorrida {
   iteraciones: number | null;
   llamadas: number | null;
   texto: string;
+  /** Parar cuando `cuantas` hipótesis lleguen a este nivel de certeza. */
+  certeza?: 'baja' | 'moderada' | 'alta' | null;
+  cuantas?: number | null;
+  /** Parar tras N iteraciones seguidas sin subir ningún peldaño ni añadir hechos. */
+  sinCambio?: number | null;
+}
+
+export interface ProgresoIteracion {
+  iteracion: number;
+  fecha: number;
+  certezas: { hipotesisId: Id; certeza: CertezaEvidencia; direccion: DireccionEvidencia | null; peldano: number; techo: CertezaEvidencia | null }[];
+  peldanosTotales: number;
+  peldanosSubidos: number;
+  peldanosBajados: number;
+  hipotesisVivas: number;
+  hechosNuevos: number;
+  hipotesisNuevas: number;
+  fallidos: { pasos: number; pistas: number; killer: number; afirmacionesBloqueadas: number };
+  usdAcumulado: number;
+  llamadasAcumuladas: number;
+  arnes: string | null;
+}
+
+export interface MetricaCorrida {
+  iteraciones: number;
+  peldanosSubidos: number;
+  peldanosBajados: number;
+  peldanosNetos: number;
+  usd: number;
+  peldanosPorDolar: number | null;
+  hipotesisEnBajaOMas: number;
+  hechosNuevos: number;
+  hipotesisNuevas: number;
+  fallidos: { pasos: number; pistas: number; killer: number; afirmacionesBloqueadas: number };
+  banco: { objetivo: string; puntuacion: number | null; criterios: Record<string, number | null> } | null;
 }
 
 export type EstadoPaso = 'pendiente' | 'en_curso' | 'hecho' | 'fallido' | 'omitido';

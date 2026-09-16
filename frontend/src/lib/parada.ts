@@ -52,18 +52,22 @@ export function textoAutomatizacion(p: CondicionAutomatizada): string {
 // investigación. Espejo de rosa/parada.py (normalizar_parada, resumen_parada).
 // ---------------------------------------------------------------------------
 
-const LIMITES_PARADA: Record<'horas' | 'iteraciones' | 'llamadas', [number, number]> = { horas: [0.05, 24 * 14], iteraciones: [1, 200], llamadas: [10, 100_000] };
+const LIMITES_PARADA: Record<'horas' | 'iteraciones' | 'llamadas' | 'cuantas' | 'sinCambio', [number, number]> = { horas: [0.05, 24 * 14], iteraciones: [1, 200], llamadas: [10, 100_000], cuantas: [1, 50], sinCambio: [1, 20] };
+export const NIVELES_OBJETIVO = ['baja', 'moderada', 'alta'] as const;
 
 export interface ParadaBorrador {
   horas: string;
   iteraciones: string;
   llamadas: string;
   texto: string;
+  certeza: '' | 'baja' | 'moderada' | 'alta';
+  cuantas: string;
+  sinCambio: string;
 }
 
-export const BORRADOR_VACIO: ParadaBorrador = { horas: '', iteraciones: '', llamadas: '', texto: '' };
+export const BORRADOR_VACIO: ParadaBorrador = { horas: '', iteraciones: '', llamadas: '', texto: '', certeza: '', cuantas: '', sinCambio: '' };
 
-function numeroParada(v: string, clave: 'horas' | 'iteraciones' | 'llamadas'): number | null {
+function numeroParada(v: string, clave: 'horas' | 'iteraciones' | 'llamadas' | 'cuantas' | 'sinCambio'): number | null {
   const n = Number(v.replace(',', '.'));
   if (!v.trim() || !Number.isFinite(n) || n <= 0) return null;
   const [minimo, maximo] = LIMITES_PARADA[clave];
@@ -73,14 +77,31 @@ function numeroParada(v: string, clave: 'horas' | 'iteraciones' | 'llamadas'): n
 
 /** Del formulario a la parada que viaja al servidor; null si no se fijó nada. */
 export function normalizarParada(b: ParadaBorrador): ParadaCorrida | null {
-  const p: ParadaCorrida = { horas: numeroParada(b.horas, 'horas'), iteraciones: numeroParada(b.iteraciones, 'iteraciones'), llamadas: numeroParada(b.llamadas, 'llamadas'), texto: b.texto.trim().slice(0, 300) };
-  if (p.horas === null && p.iteraciones === null && p.llamadas === null && !p.texto) return null;
+  const certeza = (NIVELES_OBJETIVO as readonly string[]).includes(b.certeza) ? (b.certeza as 'baja' | 'moderada' | 'alta') : null;
+  const p: ParadaCorrida = {
+    horas: numeroParada(b.horas, 'horas'),
+    iteraciones: numeroParada(b.iteraciones, 'iteraciones'),
+    llamadas: numeroParada(b.llamadas, 'llamadas'),
+    texto: b.texto.trim().slice(0, 300),
+    certeza,
+    cuantas: certeza ? (numeroParada(b.cuantas, 'cuantas') ?? 1) : null,
+    sinCambio: numeroParada(b.sinCambio, 'sinCambio'),
+  };
+  if (p.horas === null && p.iteraciones === null && p.llamadas === null && !p.texto && p.certeza === null && p.sinCambio === null) return null;
   return p;
 }
 
 export function borradorDe(p: ParadaCorrida | null | undefined): ParadaBorrador {
   if (!p) return { ...BORRADOR_VACIO };
-  return { horas: p.horas === null ? '' : String(p.horas), iteraciones: p.iteraciones === null ? '' : String(p.iteraciones), llamadas: p.llamadas === null ? '' : String(p.llamadas), texto: p.texto ?? '' };
+  return {
+    horas: p.horas === null ? '' : String(p.horas),
+    iteraciones: p.iteraciones === null ? '' : String(p.iteraciones),
+    llamadas: p.llamadas === null ? '' : String(p.llamadas),
+    texto: p.texto ?? '',
+    certeza: p.certeza ?? '',
+    cuantas: p.cuantas == null ? '' : String(p.cuantas),
+    sinCambio: p.sinCambio == null ? '' : String(p.sinCambio),
+  };
 }
 
 function horasTexto(h: number): string {
@@ -98,6 +119,11 @@ export function resumenParada(p: ParadaCorrida | null | undefined): string {
   if (p.horas) partes.push(horasTexto(p.horas));
   if (p.iteraciones) partes.push(`${p.iteraciones} ${p.iteraciones === 1 ? 'iteración' : 'iteraciones'}`);
   if (p.llamadas) partes.push(`${p.llamadas} llamadas al modelo`);
+  if (p.certeza) {
+    const n = p.cuantas ?? 1;
+    partes.push(n > 1 ? `${n} hipótesis en certeza ${p.certeza}` : `una hipótesis en certeza ${p.certeza}`);
+  }
+  if (p.sinCambio) partes.push(`${p.sinCambio} ${p.sinCambio === 1 ? 'iteración' : 'iteraciones'} sin avance`);
   if (p.texto) partes.push(`«${p.texto}»`);
   if (partes.length === 0) return '';
   if (partes.length === 1) return partes[0] ?? '';

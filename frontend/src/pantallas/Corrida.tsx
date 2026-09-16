@@ -22,7 +22,9 @@ import { IconPause, IconPlay } from '../componentes/icons';
 import { ALCANCE, MODO_BUSQUEDA, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
-import { BORRADOR_VACIO, borradorDe, normalizarParada, resumenParada, type ParadaBorrador } from '../lib/parada';
+import { BORRADOR_VACIO, NIVELES_OBJETIVO, borradorDe, normalizarParada, resumenParada, type ParadaBorrador } from '../lib/parada';
+import { GraficaProgreso } from '../componentes/GraficaProgreso';
+import { resumenMetrica } from '../lib/progreso';
 
 type PropsCorrida = { inv: Investigacion; estado: EstadoRosa; ahora: number; irA: (hash: string) => void };
 
@@ -99,6 +101,24 @@ function NuevaCorrida({ inv, anterior }: { inv: Investigacion; anterior: Corrida
           <span className="campo-etiqueta">Llamadas al modelo</span>
           <input type="number" inputMode="numeric" min={10} step={10} placeholder="por ejemplo 800" value={b.llamadas} onChange={campo('llamadas')} />
         </label>
+        <label className="campo">
+          <span className="campo-etiqueta">Parar al llegar a certeza</span>
+          <select value={b.certeza} onChange={(e) => setB((x) => ({ ...x, certeza: e.target.value as ParadaBorrador['certeza'] }))}>
+            <option value="">sin objetivo de certeza</option>
+            {NIVELES_OBJETIVO.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+        <label className="campo">
+          <span className="campo-etiqueta">Cuántas hipótesis</span>
+          <input type="number" inputMode="numeric" min={1} step={1} placeholder="1" value={b.cuantas} onChange={campo('cuantas')} disabled={!b.certeza} />
+        </label>
+        <label className="campo">
+          <span className="campo-etiqueta">Iteraciones sin avance</span>
+          <input type="number" inputMode="numeric" min={1} step={1} placeholder="por ejemplo 3" value={b.sinCambio} onChange={campo('sinCambio')} />
+          <small>Para si N iteraciones seguidas no suben ninguna hipótesis de certeza ni añaden hechos.</small>
+        </label>
         <label className="campo nueva-corrida-texto">
           <span className="campo-etiqueta">Otra condición, en palabras</span>
           <input type="text" maxLength={300} placeholder="por ejemplo: hasta que una hipótesis llegue a certeza baja" value={b.texto} onChange={campo('texto')} />
@@ -166,6 +186,11 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
               </span>
             )}
             {corrida.motivoCierre && <span className="meta">{corrida.motivoCierre}</span>}
+            {corrida.metrica && resumenMetrica(corrida.metrica) && (
+              <span className="meta" title="Balance de la corrida: peldaños de certeza GRADE subidos por las hipótesis, netos de los bajados, y por dólar gastado">
+                Balance: {resumenMetrica(corrida.metrica)}
+              </span>
+            )}
             {corrida.parada && resumenParada(corrida.parada) && (
               <span className="meta" title="Parada fijada al crear esta corrida; además sigue valiendo la condición de parada de la investigación">
                 Se detiene con {resumenParada(corrida.parada)}
@@ -331,6 +356,8 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
           <FormularioMision inv={inv} compacto />
         </Seccion>
       )}
+
+      <GraficaProgreso corridas={estado.corridas.filter((c) => c.investigacionId === inv.id)} />
 
       <PreguntaDeCampana corrida={corrida} />
 

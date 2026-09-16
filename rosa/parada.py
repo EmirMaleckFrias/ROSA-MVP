@@ -75,7 +75,8 @@ def texto_automatizacion(partes: dict[str, Any]) -> str:
 # valiendo además. Todo opcional: sin nada, la corrida se comporta como antes.
 # ---------------------------------------------------------------------------
 
-LIMITES_PARADA = {"horas": (0.05, 24 * 14), "iteraciones": (1, 200), "llamadas": (10, 100_000)}
+LIMITES_PARADA = {"horas": (0.05, 24 * 14), "iteraciones": (1, 200), "llamadas": (10, 100_000), "cuantas": (1, 50), "sinCambio": (1, 20)}
+NIVELES_OBJETIVO = ("baja", "moderada", "alta")
 
 
 def normalizar_parada(d: Any) -> dict[str, Any] | None:
@@ -83,7 +84,7 @@ def normalizar_parada(d: Any) -> dict[str, Any] | None:
     recortado. None si no hay ninguna condición."""
     if not isinstance(d, dict):
         return None
-    salida: dict[str, Any] = {"horas": None, "iteraciones": None, "llamadas": None, "texto": ""}
+    salida: dict[str, Any] = {"horas": None, "iteraciones": None, "llamadas": None, "texto": "", "certeza": None, "cuantas": None, "sinCambio": None}
     for clave, (minimo, maximo) in LIMITES_PARADA.items():
         v = d.get(clave)
         if v in (None, "", False):
@@ -99,7 +100,13 @@ def normalizar_parada(d: Any) -> dict[str, Any] | None:
     texto = d.get("texto")
     if isinstance(texto, str) and texto.strip():
         salida["texto"] = texto.strip()[:300]
-    if salida["horas"] is None and salida["iteraciones"] is None and salida["llamadas"] is None and not salida["texto"]:
+    certeza = d.get("certeza")
+    if isinstance(certeza, str) and certeza in NIVELES_OBJETIVO:
+        salida["certeza"] = certeza
+        salida["cuantas"] = salida["cuantas"] or 1
+    else:
+        salida["cuantas"] = None  # cuantas solo tiene sentido con un nivel de certeza
+    if salida["horas"] is None and salida["iteraciones"] is None and salida["llamadas"] is None and not salida["texto"] and salida["certeza"] is None and salida["sinCambio"] is None:
         return None
     return salida
 
@@ -123,6 +130,11 @@ def resumen_parada(p: dict[str, Any] | None) -> str:
         partes.append(f"{p['iteraciones']} {'iteración' if p['iteraciones'] == 1 else 'iteraciones'}")
     if p.get("llamadas"):
         partes.append(f"{p['llamadas']} llamadas al modelo")
+    if p.get("certeza"):
+        n = int(p.get("cuantas") or 1)
+        partes.append(f"{n} {'hipótesis' } en certeza {str(p['certeza']).replace('_', ' ')}" if n > 1 else f"una hipótesis en certeza {str(p['certeza']).replace('_', ' ')}")
+    if p.get("sinCambio"):
+        partes.append(f"{p['sinCambio']} {'iteración' if p['sinCambio'] == 1 else 'iteraciones'} sin avance")
     if p.get("texto"):
         partes.append(f"«{p['texto']}»")
     if not partes:

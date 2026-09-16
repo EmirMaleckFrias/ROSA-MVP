@@ -10,7 +10,7 @@ def test_normalizar_parada_acota_y_descarta_lo_vacio():
     assert PARADA.normalizar_parada(None) is None and PARADA.normalizar_parada({}) is None
     assert PARADA.normalizar_parada({"horas": "", "iteraciones": None, "llamadas": "", "texto": "  "}) is None
     p = PARADA.normalizar_parada({"horas": "2,5", "iteraciones": 6.9, "llamadas": "3", "texto": " hasta que cambie "})
-    assert p == {"horas": 2.5, "iteraciones": 6, "llamadas": 10, "texto": "hasta que cambie"}
+    assert p == {"horas": 2.5, "iteraciones": 6, "llamadas": 10, "texto": "hasta que cambie", "certeza": None, "cuantas": None, "sinCambio": None}
     assert PARADA.normalizar_parada({"horas": -1, "iteraciones": "abc"}) is None
     assert PARADA.normalizar_parada({"horas": 9999})["horas"] == 336
     assert PARADA.normalizar_parada("2 horas") is None
@@ -46,7 +46,7 @@ def test_iniciar_corrida_guarda_la_parada_y_alinea_el_presupuesto():
     e = {"investigaciones": [{"id": "inv", "titulo": "t", "estado": "activa", "condicionParada": "cuando cambie"}], "corridas": [], "eventos": []}
     cid = A.iniciar_corrida(e, "inv", 1000, parada={"horas": "1.5", "llamadas": 400, "texto": ""})
     c = e["corridas"][0]
-    assert c["id"] == cid and c["parada"] == {"horas": 1.5, "iteraciones": None, "llamadas": 400, "texto": ""}
+    assert c["id"] == cid and c["parada"] == {"horas": 1.5, "iteraciones": None, "llamadas": 400, "texto": "", "certeza": None, "cuantas": None, "sinCambio": None}
     assert c["presupuesto"]["limiteLlamadas"] == 400
     assert e["eventos"][-1]["texto"].endswith("Se detiene con 1.5 horas o 400 llamadas al modelo, lo que llegue primero")
     # Sin parada: como antes, y no se crea otra mientras la anterior viva.

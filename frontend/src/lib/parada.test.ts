@@ -24,20 +24,30 @@ describe('partesAutomatizadas', () => {
 });
 
 describe('parada propia de la corrida', () => {
+  const vacio = { horas: '', iteraciones: '', llamadas: '', texto: '', certeza: '' as const, cuantas: '', sinCambio: '' };
   it('normaliza el formulario: números acotados, texto recortado, null si no hay nada', () => {
-    expect(normalizarParada({ horas: '', iteraciones: '', llamadas: '', texto: '  ' })).toBeNull();
-    expect(normalizarParada({ horas: '2,5', iteraciones: '6.9', llamadas: '3', texto: ' hasta que cambie ' })).toEqual({ horas: 2.5, iteraciones: 6, llamadas: 10, texto: 'hasta que cambie' });
-    expect(normalizarParada({ horas: '-1', iteraciones: 'abc', llamadas: '', texto: '' })).toBeNull();
-    expect(normalizarParada({ horas: '9999', iteraciones: '', llamadas: '', texto: '' })?.horas).toBe(336);
+    expect(normalizarParada({ ...vacio, texto: '  ' })).toBeNull();
+    expect(normalizarParada({ ...vacio, horas: '2,5', iteraciones: '6.9', llamadas: '3', texto: ' hasta que cambie ' })).toEqual({ horas: 2.5, iteraciones: 6, llamadas: 10, texto: 'hasta que cambie', certeza: null, cuantas: null, sinCambio: null });
+    expect(normalizarParada({ ...vacio, horas: '-1', iteraciones: 'abc' })).toBeNull();
+    expect(normalizarParada({ ...vacio, horas: '9999' })?.horas).toBe(336);
+  });
+  it('acepta la parada por certeza (con cuántas) y por iteraciones sin avance', () => {
+    expect(normalizarParada({ ...vacio, certeza: 'baja' })).toEqual({ horas: null, iteraciones: null, llamadas: null, texto: '', certeza: 'baja', cuantas: 1, sinCambio: null });
+    expect(normalizarParada({ ...vacio, certeza: 'moderada', cuantas: '2', sinCambio: '3' })).toMatchObject({ certeza: 'moderada', cuantas: 2, sinCambio: 3 });
+    // cuantas sin certeza no vale nada; una certeza fuera de la lista se ignora.
+    expect(normalizarParada({ ...vacio, cuantas: '3' })).toBeNull();
+    expect(normalizarParada({ ...vacio, certeza: 'muy_baja' as unknown as 'baja' })).toBeNull();
   });
   it('resume en una frase, lo que llegue primero', () => {
     expect(resumenParada(null)).toBe('');
     expect(resumenParada({ horas: 2, iteraciones: null, llamadas: null, texto: '' })).toBe('2 horas');
     expect(resumenParada({ horas: 0.5, iteraciones: 6, llamadas: null, texto: '' })).toBe('30 minutos o 6 iteraciones, lo que llegue primero');
     expect(resumenParada({ horas: 1, iteraciones: 3, llamadas: 500, texto: 'sin cambios' })).toBe('1 hora, 3 iteraciones, 500 llamadas al modelo o «sin cambios», lo que llegue primero');
+    expect(resumenParada({ horas: null, iteraciones: null, llamadas: null, texto: '', certeza: 'baja', cuantas: 1, sinCambio: 3 })).toBe('una hipótesis en certeza baja o 3 iteraciones sin avance, lo que llegue primero');
+    expect(resumenParada({ horas: null, iteraciones: null, llamadas: null, texto: '', certeza: 'moderada', cuantas: 2, sinCambio: null })).toBe('2 hipótesis en certeza moderada');
   });
   it('vuelve al borrador para reutilizar la parada de la corrida anterior', () => {
-    expect(borradorDe({ horas: 2, iteraciones: null, llamadas: 300, texto: 'x' })).toEqual({ horas: '2', iteraciones: '', llamadas: '300', texto: 'x' });
-    expect(borradorDe(null)).toEqual({ horas: '', iteraciones: '', llamadas: '', texto: '' });
+    expect(borradorDe({ horas: 2, iteraciones: null, llamadas: 300, texto: 'x', certeza: 'baja', cuantas: 2, sinCambio: null })).toEqual({ horas: '2', iteraciones: '', llamadas: '300', texto: 'x', certeza: 'baja', cuantas: '2', sinCambio: '' });
+    expect(borradorDe(null)).toEqual(vacio);
   });
 });
