@@ -189,8 +189,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
   };
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
-  // Resaltar al pasar el raton (como Obsidian): el nodo y sus vecinos vivos, el resto atenuado.
-  const foco = hover ?? seleccion;
+  // Resaltar solo al pasar el ratón (como Obsidian): el nodo y sus vecinos vivos, el
+  // resto atenuado. La selección (el último nodo abierto) conserva su anillo y su
+  // panel, pero no atenúa a los demás: sin ratón encima se ve el árbol entero
+  // (petición de Emir, 16 de septiembre de 2026).
+  const foco = hover;
   const vecinosFoco = useMemo(() => (foco ? new Set(grafo.vecinos.get(foco) ?? []) : null), [grafo, foco]);
   const atenuar = iluminados.size > 0 || foco !== null;
   const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : foco === null || foco === id || (vecinosFoco?.has(id) ?? false));
