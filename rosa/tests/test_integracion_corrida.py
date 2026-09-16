@@ -728,3 +728,52 @@ def test_completar_en_llano_pega_el_aprendizaje_cuando_el_resumen_llega_tarde(mo
     it = next(x for x in al.estado["iteraciones"] if x["id"] == ids["it"])
     inv = next(i for i in al.estado["investigaciones"] if i["id"] == ids["inv"])
     assert it["resumenLlano"]["titulo"] == "Qué pasó" and it["resumenLlano"]["aprendizaje"] == inv["cifrasAprendizaje"]["texto"]
+
+
+# ---------------------------------------------------------------------------
+# El planificador recibe todos los campos de su firma
+# ---------------------------------------------------------------------------
+
+
+def test_proponer_plan_pasa_todos_los_campos_de_la_firma(monkeypatch):
+    """Regresión de la corrida 7 del 16 de septiembre de 2026: `ProponerPlan`
+    ganó el campo `datasets_disponibles` y la llamada de `_proponer_plan` no lo
+    pasaba; DSPy avisaba "Missing: ['datasets_disponibles']" y el planificador no
+    veía los datasets del programa. El test llama al planificador con modelos
+    simulados y comprueba que cada InputField de la firma llega en la llamada."""
+    from rosa.modulos import firmas as F
+
+    al, ids = _preparar()
+    respuestas = {
+        "plan": SimpleNamespace(plan=[SimpleNamespace(tipo="literatura", titulo="Leer ensayos", detalle="Buscar los ensayos con tau PET", valor_decision="", espera="", si_no_aparece="")]),
+    }
+    sup, ctx, llamadas = _supervisor(al, ids, respuestas, monkeypatch)
+    sup.programas.plan = "plan"
+
+    async def sin_red(*a, **k):
+        return ""
+
+    monkeypatch.setattr(CO.T, "modelo_de_mundo_para", sin_red)
+    monkeypatch.setattr(CO.LEC, "para", sin_red)
+
+    def preparar(e):
+        inv = next(i for i in e["investigaciones"] if i["id"] == ids["inv"])
+        inv["_misionIntentada"] = True
+        c = next(x for x in e["corridas"] if x["id"] == ids["cor"])
+        c["_preguntaIntentada"] = True
+        c["pregunta"] = {"enunciado": "¿Qué distingue a un biomarcador que predice beneficio clínico?"}
+        return True
+
+    al.mutar(preparar, "preparar")
+    c = next(x for x in al.estado["corridas"] if x["id"] == ids["cor"])
+    asyncio.run(sup._proponer_plan(c, None))
+    vistas = [kw for programa, kw in llamadas.vistas if programa == "plan"]
+    assert vistas, "el planificador no llegó a llamar al modelo"
+    esperados = set(F.ProponerPlan.input_fields)
+    faltan = esperados - set(vistas[0])
+    assert not faltan, f"campos de ProponerPlan sin pasar: {sorted(faltan)}"
+    assert "datasets_disponibles" in vistas[0] and isinstance(vistas[0]["datasets_disponibles"], str)
+    # Y el plan propuesto quedó escrito en una iteración nueva.
+    # La preparación ya deja una iteración vacía; la del planificador es la última.
+    it = [i for i in al.estado["iteraciones"] if i["corridaId"] == ids["cor"]][-1]
+    assert it["plan"] and it["plan"][0]["tipo"] == "literatura" and it["plan"][0]["titulo"] == "Leer ensayos"

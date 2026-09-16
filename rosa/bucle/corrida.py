@@ -1178,6 +1178,10 @@ class Supervisor:
                 lecciones=lecciones,
                 indicaciones_humanas=T.indicaciones_humanas(anterior, pendientes_solo=True) if anterior else "Ninguna.",
                 hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]) + "\n" + T.vivero_texto(inv),
+                # Registro de datasets del programa que coinciden con la pregunta (los de
+                # acceso controlado con su aviso): sin este campo DSPy avisaba "Missing:
+                # datasets_disponibles" y el planificador no veía los datos disponibles.
+                datasets_disponibles=PASOS.datasets_para_plan(e, inv["id"], pregunta),
                 numero_iteracion=numero,
             )
             hay_datos = any(d["estado"] == "aprobado" and (d.get("procedencia") or {}).get("hash") for d in inv.get("datasets", []))
