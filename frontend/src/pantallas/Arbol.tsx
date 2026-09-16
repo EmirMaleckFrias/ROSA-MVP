@@ -46,6 +46,24 @@ const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }
 };
 
 type ModoColor = 'tipo' | 'dato';
+/** Qué es cada tipo de nodo, dicho en llano para la leyenda (petición de Emir, 16 de
+ *  septiembre de 2026: la leyenda tiene que explicar los colores como se explican en
+ *  una conversación, no listar nombres y recuentos). */
+const DEFINICION_TIPO: Record<TipoNodo, string> = {
+  objetivo: 'Objetivo (el tronco): la pregunta de la investigación. Es estructura, no evidencia.',
+  rama: 'Rama: una familia de mecanismo; agrupa las hipótesis que hablan del mismo mecanismo biológico.',
+  area: 'Área del programa: una línea de trabajo que agrupa investigaciones. Estructura, no evidencia.',
+  hipotesis: 'Hipótesis: cada una lleva el color de su familia de mecanismo. Si dos hojas comparten color, comparten mecanismo.',
+  hecho: 'Hecho: algo que el modelo de mundo ya da por sostenido.',
+  pregunta: 'Pregunta abierta: algo que Rosa todavía no ha podido resolver.',
+  fuente: 'Fuente: un artículo o una base de datos que Rosa leyó.',
+  entidad: 'Entidad: un gen, una proteína o un tipo de célula con su nombre canónico.',
+  experimento: 'Experimento propuesto para el laboratorio.',
+  afirmacion: 'Afirmación con dato: una frase de un artículo con su cifra, verificada por el juez.',
+  ejecucion: 'Análisis in silico: un análisis que Rosa corrió sobre datos públicos y pasó la auditoría.',
+  dataset: 'Conjunto de datos público usado en un análisis.',
+  laboratorio: 'Resultado del laboratorio: lo que devolvió el experimento.',
+};
 /** Paleta por familia de mecanismo (el cluster de cada hipótesis): en el modo por
  *  tipo, las hipótesis y su rama comparten el color de su familia, así el árbol
  *  enseña de un vistazo qué mecanismos compiten. Diez tonos distinguibles en tema
@@ -381,20 +399,8 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
 
   const enlacesVisibles = grafo.enlaces.filter((e) => enTiempo.has(e.de) && enTiempo.has(e.a) && posiciones.has(e.de) && posiciones.has(e.a));
   const nodosVisibles = [...enTiempo].map((id) => grafo.porId.get(id)).filter((n): n is NodoArbol => Boolean(n) && posiciones.has(n!.id));
-  // Recuentos de la leyenda (por tipo y por escalón de distancia), solo de lo visible.
-  const cuentas: Partial<Record<TipoNodo, number>> = {};
-  const cuentasDato: Record<string, number> = {};
-  const cuentasFamilia: Record<string, number> = {};
-  for (const n of nodosVisibles) {
-    if (n.tipo === 'hipotesis') {
-      const f = clusterDe.get(n.id) ?? 'Sin cluster';
-      cuentasFamilia[f] = (cuentasFamilia[f] ?? 0) + 1;
-    }
-    cuentas[n.tipo] = (cuentas[n.tipo] ?? 0) + 1;
-    if (SIN_DISTANCIA.has(n.tipo)) continue;
-    const e = claveDistancia(n);
-    cuentasDato[e] = (cuentasDato[e] ?? 0) + 1;
-  }
+  // La leyenda explica solo los tipos de nodo que existen en este árbol (visibles o plegados).
+  const tiposPresentes = new Set(grafo.nodos.map((n) => n.tipo));
 
   return (
     <div className="contenido contenido-ancho">
@@ -500,52 +506,62 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
           ) : (
             <>
               <h3>Leyenda</h3>
+              <p className="meta">Cada nodo tiene dos colores con dos mensajes: el de dentro dice qué es; el borde dice cuánta evidencia lo sostiene.</p>
               {modoColor === 'dato' ? (
                 <>
-                  <p className="meta">El color dice a cuántos saltos está cada nodo de una medición propia (un análisis in silico validado, un resultado del laboratorio o una observación original sostenida): en verde, cuanto más claro más lejos del dato. Lo que solo tiene literatura detrás va en ámbar, más intenso cuanto más cerca de una fuente leída con su texto. El tronco, las áreas, los clusters y las entidades canónicas conservan su color: son estructura o nombres, no evidencia.</p>
+                  <h4 className="grafo-leyenda-titulo">El color de dentro: a qué distancia está del dato</h4>
+                  <p className="meta">En este modo el relleno cuenta los saltos que separan cada nodo de una medición propia de Rosa. Medición propia es un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original sostenida.</p>
                   <ul className="grafo-leyenda">
                     {ESCALA_DATO.map((c, i) => (
                       <li key={`d${i}`}>
-                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA[i]} <span className="meta">{cuentasDato[`d${i}`] ?? 0}</span>
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA[i]}{i === 0 ? ': verde azulado intenso. Cuanto más claro, más lejos del dato.' : '.'}
                       </li>
                     ))}
                     {ESCALA_LIT.map((c, i) => (
                       <li key={`l${i}`}>
-                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA_LIT[i]} <span className="meta">{cuentasDato[`l${i}`] ?? 0}</span>
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA_LIT[i]}{i === 0 ? ': ámbar. Rosa lo sostiene con artículos, nunca lo ha medido; cuanto más intenso, más cerca de una fuente leída.' : '.'}
                       </li>
                     ))}
                     <li>
-                      <span className="grafo-punto grafo-punto-nulo" aria-hidden="true" /> Sin medición propia ni literatura leída <span className="meta">{cuentasDato.nulo ?? 0}</span>
+                      <span className="grafo-punto grafo-punto-nulo" aria-hidden="true" /> Sin medición propia ni literatura leída: gris punteado. Nada lo sostiene todavía.
                     </li>
                   </ul>
+                  <p className="meta">El tronco, las áreas, las ramas y las entidades conservan su color: son estructura o nombres, no evidencia. Borde rojo: hay una alerta. Punteada: descartada o sin medición propia.</p>
                 </>
               ) : (
                 <>
-                  <p className="meta">El relleno dice qué es cada nodo: las hipótesis y su rama llevan el color de su familia de mecanismo (el cluster); hechos, fuentes, entidades, análisis y experimentos, el suyo. El anillo dice cuánto lo sostiene: verde a una medición propia, ámbar solo literatura leída, gris punteado nada.</p>
-                  {familias.length > 0 && (
-                    <ul className="grafo-leyenda">
-                      {familias.map((f) => (
-                        <li key={f}>
-                          <span className="grafo-punto" style={{ background: colorFamilia(f) }} aria-hidden="true" /> {f} <span className="meta">{cuentasFamilia[f] ?? 0}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <h4 className="grafo-leyenda-titulo">El color de dentro: qué es cada nodo</h4>
                   <ul className="grafo-leyenda">
-                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-dato-1)' }} aria-hidden="true" /> Anillo verde: a un paso de una medición propia</li>
-                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-lit-1)' }} aria-hidden="true" /> Anillo ámbar: solo literatura leída detrás</li>
-                    <li><span className="grafo-punto grafo-anillo grafo-anillo-nulo" aria-hidden="true" /> Anillo gris punteado: nada la sostiene todavía</li>
-                  </ul>
-                <ul className="grafo-leyenda">
-                  {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).filter((t) => t !== 'hipotesis' && t !== 'rama').map((t) => (
-                    <li key={t}>
-                      <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
+                    <li>
+                      <span className="grafo-punto" style={{ background: `conic-gradient(${PALETA_CLUSTER.slice(0, 6).join(', ')})` }} aria-hidden="true" /> {DEFINICION_TIPO.hipotesis} La rama que las agrupa lleva el mismo color.
+                      {familias.length > 0 && (
+                        <ul className="grafo-leyenda grafo-leyenda-sub">
+                          {familias.map((f) => (
+                            <li key={f}>
+                              <span className="grafo-punto" style={{ background: colorFamilia(f) }} aria-hidden="true" /> {f}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
-                  ))}
-                </ul>
+                    {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).filter((t) => t !== 'hipotesis' && t !== 'rama' && tiposPresentes.has(t)).map((t) => (
+                      <li key={t}>
+                        <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {DEFINICION_TIPO[t]}
+                      </li>
+                    ))}
+                  </ul>
+                  <h4 className="grafo-leyenda-titulo">El borde: cuánta evidencia lo sostiene</h4>
+                  <ul className="grafo-leyenda">
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-dato-1)' }} aria-hidden="true" /> Anillo verde: a un paso de una medición propia de Rosa (un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original). Es lo más sólido.</li>
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-lit-1)' }} aria-hidden="true" /> Anillo ámbar: solo literatura leída detrás. Rosa lo sostiene con artículos, pero nunca lo ha medido ella.</li>
+                    <li><span className="grafo-punto grafo-anillo grafo-anillo-nulo" aria-hidden="true" /> Anillo gris punteado: nada lo sostiene todavía.</li>
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--red)' }} aria-hidden="true" /> Anillo rojo: hay una alerta (una contradicción, un bloqueo o una marca editorial). Manda sobre los demás.</li>
+                    <li><span className="grafo-punto grafo-anillo grafo-anillo-rayas" aria-hidden="true" /> A rayas: hipótesis descartada.</li>
+                  </ul>
+                  <p className="meta">En resumen: dentro, qué es y a qué mecanismo pertenece; el borde, si Rosa lo midió (verde), solo lo leyó (ámbar) o aún no tiene nada (gris).</p>
                 </>
               )}
-              <h4>Enlaces</h4>
+              <h4 className="grafo-leyenda-titulo">Las líneas: cómo se conectan</h4>
               <ul className="grafo-leyenda">
                 {(Object.keys(NOMBRE_ENLACE) as TipoEnlace[]).map((t) => (
                   <li key={t}>
@@ -553,7 +569,6 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                   </li>
                 ))}
               </ul>
-              <p className="meta">Borde rojo: descartada, bloqueada o con marca editorial. {modoColor === 'dato' ? 'Punteada: descartada o sin medición propia.' : 'Punteada: descartada.'}</p>
             </>
           )}
         </aside>
