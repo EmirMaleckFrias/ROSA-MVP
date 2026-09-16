@@ -36,8 +36,12 @@ def test_dos_cohortes_de_literatura_como_mucho_baja():
 def test_evidencia_directa_sube_el_techo_a_moderada_y_con_replica_a_alta():
     h = _h([LIT, SILICO], cohortes=("biocard",))
     assert C.acotar("alta", h)["certeza"] == "moderada" and "falta la réplica" in C.techo(h)[1]
+    # Desde el 16 de septiembre de 2026 alta exige además peso a favor >= 2.5: dos
+    # afirmaciones de peso 1.0 se quedan en moderada por peso, tres llegan a alta.
     h2 = _h([LIT, LAB], cohortes=("biocard", "a4"))
-    assert C.acotar("alta", h2)["certeza"] == "alta" and "resultado de laboratorio" in C.techo(h2)[1]
+    assert C.acotar("alta", h2)["certeza"] == "moderada" and "pesan poco para alta" in C.techo(h2)[1] and "resultado de laboratorio" in C.techo(h2)[1]
+    h3 = _h([LIT, LIT, LAB], cohortes=("biocard", "a4"))
+    assert C.acotar("alta", h3)["certeza"] == "alta" and "resultado de laboratorio" in C.techo(h3)[1]
     # Un análisis en seco (sintético) no es evidencia directa.
     assert C.acotar("alta", _h([LIT, SECO], cohortes=("biocard",)))["certeza"] == "muy_baja"
 
@@ -52,6 +56,9 @@ def test_escalera_dice_que_falta_para_cada_nivel():
     # Con evidencia directa de una sola cohorte, lo que falta para alta es la réplica.
     e3 = C.escalera(_h([LIT, SILICO], cohortes=("biocard",)), "moderada")
     assert len(e3) == 1 and e3[0]["a"] == "alta" and "réplica" in e3[0]["falta"]
-    # Con dos cohortes y evidencia directa, lo que falta es consistencia, no otra cohorte.
+    # Con dos cohortes y evidencia directa pero solo dos apoyos (peso 2.0), lo que frena
+    # para alta es el peso (exige 2.5); con tres apoyos lo que falta es consistencia, no otra cohorte.
     e4 = C.escalera(_h([LIT, SILICO], cohortes=("biocard", "adni")), "moderada")
-    assert len(e4) == 1 and "consistencia" in e4[0]["falta"]
+    assert len(e4) == 1 and "apoyos de más peso" in e4[0]["falta"] and "alta exige al menos 2.5" in e4[0]["falta"]
+    e5 = C.escalera(_h([LIT, LIT, SILICO], cohortes=("biocard", "adni")), "moderada")
+    assert len(e5) == 1 and "consistencia" in e5[0]["falta"]
