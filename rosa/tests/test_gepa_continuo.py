@@ -159,9 +159,14 @@ def test_traza_contexto_conector_y_limpieza(servicio):
 
 def test_archivo_alterado_no_cambia_en_silencio(servicio):
     version = "a" * 64
-    servicio.almacen.estado["corridas"][0]["_gepaVersiones"] = {"consultas": version}
-    with pytest.raises(RuntimeError):
-        servicio.resolver("vieja", servicio.programas.consultas)
+    servicio.almacen.mutar(lambda e: e["corridas"][0].update(_gepaVersiones={"consultas": version}) or True)
+    # No se sustituye en silencio ni se deja la corrida muerta: vuelve a la base, lo anota
+    # en la corrida y deja una incidencia visible.
+    elegido, nombre, ver = servicio.resolver("vieja", servicio.programas.consultas)
+    assert ver == "base" and elegido is servicio.programas.consultas
+    e = servicio.almacen.estado
+    assert e["corridas"][0]["_gepaVersiones"]["consultas"] is None
+    assert any(ev["tipo"] == "incidencia" and "integridad" in ev["texto"] for ev in e["eventos"])
 
 
 def test_control_http_autenticado_y_solo_administracion(servicio):

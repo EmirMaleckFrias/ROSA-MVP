@@ -49,11 +49,16 @@ async def principal() -> None:
         print(f"Programas optimizados por GEPA cargados: {', '.join(cargados)}")
     contador = Contador(almacen)
     from rosa.gepa_continuo import Servicio
-    gepa = Servicio(almacen, programas, modelos)
-    almacen.gepa_servicio = gepa
     from rosa.conectores import base as conectores_base
-    conectores_base.OBSERVADOR = gepa.observar_conector
-    dspy.configure(lm=modelos.cerebro, callbacks=[contador, gepa.trazador])
+    try:
+        gepa = Servicio(almacen, programas, modelos)
+        almacen.gepa_servicio = gepa
+        conectores_base.OBSERVADOR = gepa.observar_conector
+        dspy.configure(lm=modelos.cerebro, callbacks=[contador, gepa.trazador])
+    except Exception as ex:  # noqa: BLE001  Rosa arranca aunque el servicio de optimización no pueda
+        gepa = None
+        print(f"GEPA continuo no arranca ({type(ex).__name__}: {str(ex)[:120]}); Rosa sigue sin optimización automática", file=sys.stderr)
+        dspy.configure(lm=modelos.cerebro, callbacks=[contador])
     configurar_mlflow()
 
     app = crear_app(almacen)
@@ -81,18 +86,20 @@ async def principal() -> None:
             bucle.add_signal_handler(s, parar)
 
     print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
-    tarea_gepa = asyncio.create_task(gepa.correr(), name="gepa-continuo")
+    tarea_gepa = asyncio.create_task(gepa.correr(), name="gepa-continuo") if gepa else None
     try:
         await asyncio.gather(servidor.serve(), supervisor.correr())
     finally:
-        gepa.parar.set()
-        try:
-            # Un compile de GEPA en marcha no se puede cortar desde fuera; el apagado no se queda colgado esperándolo.
-            await asyncio.wait_for(tarea_gepa, timeout=15)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
-            print("GEPA continuo no terminó en 15 s; se apaga sin esperarlo (el ciclo en curso queda auditado como interrumpido)", file=sys.stderr)
+        if gepa and tarea_gepa:
+            gepa.parar.set()
+            try:
+                # Un compile de GEPA en marcha no se puede cortar desde fuera; el apagado no se queda colgado esperándolo.
+                await asyncio.wait_for(tarea_gepa, timeout=15)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                print("GEPA continuo no terminó en 15 s; se apaga sin esperarlo (el ciclo en curso queda auditado como interrumpido)", file=sys.stderr)
         conectores_base.OBSERVADOR = None
-        gepa.registro.cerrar()
+        if gepa:
+            gepa.registro.cerrar()
     # Apagado ordenado: primero las tareas del bucle y el espejo, despues SQLite.
     await espejo.parar()
     almacen.cerrar()

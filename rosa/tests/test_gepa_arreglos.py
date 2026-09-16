@@ -72,12 +72,17 @@ def test_ciclo_no_corre_con_corridas_vivas_ni_recarga_sin_trazas_nuevas(servicio
 
 
 def test_dividir_separa_por_investigacion_no_por_corrida():
-    filas = [{"corrida": f"c{i}", "entradas": {"pregunta": f"p{i}-{j}"}} for i in range(20) for j in range(3)]
-    # Todas las corridas son de dos investigaciones: ninguna investigación cae en dos particiones.
-    inv_de = {f"c{i}": ("A" if i % 2 else "B") for i in range(20)}
+    filas = [{"corrida": f"c{i}", "entradas": {"pregunta": f"p{i}-{j}"}} for i in range(21) for j in range(3)]
+    # Todas las corridas son de tres investigaciones: ninguna cae en dos particiones y las
+    # tres particiones existen (reparto por rango, no por cubo de hash).
+    inv_de = {f"c{i}": ("A", "B", "C")[i % 3] for i in range(21)}
     a, b, c = G.dividir(filas, inv_de)
     invs = [{inv_de[f["corrida"]] for f in p} for p in (a, b, c)]
+    assert a and b and c
     assert not (invs[0] & invs[1]) and not (invs[0] & invs[2]) and not (invs[1] & invs[2])
+    # Con menos de tres unidades no hay separación posible: nada, no un examen vacío.
+    assert G.dividir(filas, {f"c{i}": ("A", "B")[i % 2] for i in range(21)}) == ([], [], [])
+    assert G.dividir(filas, inv_de) == G.dividir(filas, inv_de)
 
 
 def test_comprobaciones_deterministas():
@@ -150,3 +155,53 @@ def test_promocion_queda_en_aprendizaje_y_revertir_devuelve_la_version_anterior(
     assert A.revertir_aprendizaje(e, cambio["id"], "Emir", "no convence", 3000) is True
     assert "consultas" not in e["_gepaActivos"]
     assert c["_gepaVersiones"] == {"consultas": g["version"]}  # la corrida ya creada no cambia
+
+
+def test_ciclo_elige_y_optimiza_con_trazas_de_tres_investigaciones(servicio, monkeypatch):
+    # Cobertura positiva de la selección: tres investigaciones con corridas cerradas y diez
+    # casos cada una (30 en total, examen de 10) disparan _optimizar con el rol de las trazas.
+    def preparar(e):
+        e["investigaciones"] = [{"id": f"inv{k}", "datasets": []} for k in range(3)]
+        e["corridas"] = [{"id": f"c{k}", "estado": "terminada", "investigacionId": f"inv{k}"} for k in range(3)]
+        return True
+    servicio.almacen.mutar(preparar, "prueba")
+    contrato = G.firma(servicio.programas.consultas).instructions
+    for k in range(3):
+        for i in range(10):
+            servicio.registro.guardar("programa", {"corrida": f"c{k}", "programa": "consultas", "optimizable": True, "contrato": contrato, "modelo": servicio.modelos.cerebro.model, "entradas": {"pregunta": f"caso {k}-{i}"}, "ok": True})
+    servicio.registro.flush()
+    llamadas = []
+    monkeypatch.setattr(servicio, "_optimizar", lambda nombre, rol, partes: llamadas.append((nombre, rol, [len(p) for p in partes])))
+    assert servicio.ciclo() is True
+    assert llamadas and llamadas[0][0] == "consultas" and llamadas[0][1] == "cerebro"
+    assert sum(llamadas[0][2]) == 30 and all(n >= G.MIN_POR_GRUPO for n in llamadas[0][2]) and llamadas[0][2][2] >= G.MIN_EXAMEN
+    # Sin trazas nuevas no vuelve a optimizar.
+    assert servicio.ciclo() is False and len(llamadas) == 1
+
+
+def test_el_juez_caido_tres_veces_aborta_el_ciclo_sin_consumir(servicio, monkeypatch):
+    def forward(self, **kwargs):
+        if self.signature is G.AuditarSalida:
+            raise RuntimeError("juez sin respuesta")
+        return dspy.Prediction(respuesta="base")
+    monkeypatch.setattr(dspy.Predict, "forward", forward)
+
+    class Optimizador:
+        def __init__(self, **kwargs):
+            self.metric = kwargs["metric"]
+        def compile(self, base, trainset, valset):
+            # GEPA evalúa el conjunto de entrenamiento: el juez falla y a la cuarta el modelo se niega.
+            for ej in trainset[:5]:
+                self.metric(ej, base(**ej.inputs()))
+            return base.deepcopy()
+    monkeypatch.setattr(dspy, "GEPA", Optimizador)
+    servicio._optimizar("consultas", "cerebro", _partes())
+    g = servicio.almacen.estado["gepa"][-1]
+    assert g["estado"] == "fallida" and "juez falló" in g["nota"] and "reintentará" in g["nota"]
+    with servicio.registro.lock:
+        assert servicio.registro.db.execute("SELECT count(*) FROM usados").fetchone()[0] == 0
+    # El modelo con parada se niega a llamar mientras haya motivo de parada.
+    lm = G.LMConParada(servicio.modelos.cerebro, lambda: "GEPA detenido (pausa o apagado)")
+    with pytest.raises(G.FalloTransitorio):
+        lm(messages=[{"role": "user", "content": "hola"}])
+    assert lm.kwargs["api_base"] == servicio.modelos.cerebro.kwargs["api_base"]

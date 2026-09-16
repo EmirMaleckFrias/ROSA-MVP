@@ -91,7 +91,36 @@ def huella(valor: Any) -> str:
 
 
 def firma(programa):
-    return programa.signature if hasattr(programa, "signature") else programa.predict.signature
+    """La signature del programa (Predict, ChainOfThought y módulos con .predict);
+    None si el módulo no la expone: ese programa no se traza ni se optimiza."""
+    sig = getattr(programa, "signature", None)
+    if sig is None:
+        sig = getattr(getattr(programa, "predict", None), "signature", None)
+    return sig
+
+
+class LMConParada(dspy.LM):
+    """El mismo modelo del gateway, pero deja de llamar en cuanto el servicio se
+    detiene o el ciclo se aborta: GEPA traga las excepciones de la métrica, así que
+    la única forma de que una pausa o un apagado dejen de gastar es que el propio
+    modelo se niegue a llamar."""
+
+    def __init__(self, base, motivo_parada):
+        super().__init__(base.model, **dict(base.kwargs))
+        self.model_type = getattr(base, "model_type", self.model_type)
+        self._motivo_parada = motivo_parada
+
+    def forward(self, prompt=None, messages=None, **kwargs):
+        motivo = self._motivo_parada()
+        if motivo:
+            raise FalloTransitorio(motivo)
+        return super().forward(prompt=prompt, messages=messages, **kwargs)
+
+    async def aforward(self, prompt=None, messages=None, **kwargs):
+        motivo = self._motivo_parada()
+        if motivo:
+            raise FalloTransitorio(motivo)
+        return await super().aforward(prompt=prompt, messages=messages, **kwargs)
 
 
 def permitido(inv, programa: str | None = None):
@@ -295,6 +324,14 @@ def dividir(filas: list[dict], investigacion_de: dict[str, str] | None = None) -
     grupos: dict[str, set[str]] = {}
     for f in filas:
         grupos.setdefault(huella(f["entradas"]), set()).add(unidad(f["corrida"]))
+    # Reparto por rango del hash de cada unidad, no por cubo: con tres o más unidades
+    # siempre hay una en el examen y otra en validación (con cubos, un hash que no
+    # cayera en el cubo del examen dejaba a GEPA sin examen para siempre).
+    unidades = sorted({unidad(f["corrida"]) for f in filas}, key=lambda u: huella(u))
+    if len(unidades) < 3:
+        return ([], [], [])
+    k = max(1, len(unidades) // 5)
+    examen, validacion = set(unidades[:k]), set(unidades[k:2 * k])
     particiones: tuple[list, list, list] = ([], [], [])
     vistos = set()
     for f in filas:
@@ -302,8 +339,8 @@ def dividir(filas: list[dict], investigacion_de: dict[str, str] | None = None) -
         if clave in vistos or len(grupos[clave]) != 1:
             continue
         vistos.add(clave)
-        cubo = int(huella(unidad(f["corrida"]))[:8], 16) % 5
-        particiones[0 if cubo < 3 else 1 if cubo == 3 else 2].append(f)
+        u = unidad(f["corrida"])
+        particiones[2 if u in examen else 1 if u in validacion else 0].append(f)
     return tuple(p[-MAX_CASOS:] for p in particiones)
 
 
@@ -393,6 +430,9 @@ class Servicio:
         # recargar nada mientras no haya MIN_CASOS trazas nuevas.
         self.ultimo_seq: dict[str, int] = {}
         self._ultimo_estado = 0.0
+        # Motivo para abortar el ciclo en curso (el juez falló varias veces seguidas); vacío si no.
+        self._abortar = ""
+        self._fallos_consecutivos = 0
         self.nombre_por_id = {id(p): n for n, p in vars(programas).items()}
         # Una corrida anterior al servicio conserva el programa base: no se
         # le introduce una versión nueva al reanudarla.
@@ -460,12 +500,27 @@ class Servicio:
             ruta = self.ruta / f"{version}.json"
             # Identificador sha256, no aceptar rutas suministradas en el estado.
             if not re.fullmatch(r"[a-f0-9]{64}", version) or not ruta.exists() or hashlib.sha256(ruta.read_bytes()).hexdigest() != version:
-                raise RuntimeError(f"Versión GEPA de {nombre} ausente o alterada; no se sustituye silenciosamente")
+                # No se sustituye en silencio, pero tampoco se deja la corrida muerta: vuelve
+                # al programa base, la corrida lo anota y queda una incidencia visible.
+                self._version_rota(corrida_id, nombre, version)
+                return programa, nombre, "base"
             p = programa.deepcopy()
             p.load(str(ruta))
             p.set_lm(None)  # El fichero nunca decide proveedor ni credenciales.
             self.cache[clave] = p
         return self.cache[clave], nombre, version
+
+    def _version_rota(self, corrida_id, nombre, version):
+        def fn(e):
+            c = next((c for c in e["corridas"] if c["id"] == corrida_id), None)
+            if not c:
+                return False
+            c.setdefault("_gepaVersiones", {})[nombre] = None
+            from rosa.estado import acciones as A
+
+            A.con_evento(e, c.get("investigacionId"), "incidencia", f"La versión optimizada de '{nombre}' ({str(version)[:8]}) falta o no supera la comprobación de integridad: la corrida {c.get('numero')} sigue con el programa base", "#/calidad", int(time.time() * 1000))
+            return True
+        self.almacen.mutar(fn, "gepa_version_rota")
 
     @staticmethod
     def _fijar_nueva(e, corrida_id):
@@ -481,7 +536,8 @@ class Servicio:
                      "errores_traza": self.errores_traza, "optimizable": permitido(inv)}
         token = CONTEXTO.set(identidad)
         inicio = time.monotonic()
-        contrato = firma(programa).instructions
+        sig = firma(programa)
+        contrato = sig.instructions if sig is not None else ""
         try:
             with dspy.context(lm=lm):
                 pred = await elegido.acall(**entradas)
@@ -495,7 +551,12 @@ class Servicio:
         finally:
             CONTEXTO.reset(token)
 
-    def _metric(self, contrato, ciclo, programa: str = ""):
+    def _motivo_parada(self) -> str:
+        if self._detenido():
+            return "GEPA detenido (pausa o apagado)"
+        return self._abortar
+
+    def _metric(self, contrato, ciclo, programa: str = "", juez_lm=None):
         """La métrica de GEPA: primero lo que se juzga por regla (salida vacía, cita
         que no nombra la fuente, consulta sin base: cero sin gastar juez), después el
         juez fijo. Una pausa o un apagado son un fallo transitorio: se corta el ciclo
@@ -511,16 +572,23 @@ class Servicio:
                 self.registro.guardar("evaluacion", {"ciclo": ciclo, "caso": gold.huella, "score": 0.0, "feedback": feedback, "porRegla": True})
                 return dspy.Prediction(score=0.0, feedback=feedback + experiencia)
             try:
-                with dspy.context(lm=self.modelos.juez):
+                with dspy.context(lm=juez_lm or self.modelos.juez):
                     r = juez(contrato=contrato, entradas=json.dumps(gold.inputs().toDict(), ensure_ascii=False), salida=json.dumps(serializable(pred), ensure_ascii=False))
                 puntos = [float(r.fidelidad), float(r.cobertura), float(r.cumplimiento)]
                 if any(not math.isfinite(x) or not 0 <= x <= 1 for x in puntos):
                     raise ValueError("Puntuación inválida del evaluador")
                 score = 0.0 if r.critico else min(puntos)
                 feedback = r.feedback
+                self._fallos_consecutivos = 0
+            except FalloTransitorio:
+                raise
             except Exception as ex:
                 with self.registro.lock:
                     self.fallos_evaluador += 1
+                    self._fallos_consecutivos += 1
+                    # Tres fallos seguidos del juez: el ciclo se aborta en vez de entrenar con ceros.
+                    if self._fallos_consecutivos >= 3 and not self._abortar:
+                        self._abortar = f"el juez falló {self._fallos_consecutivos} veces seguidas ({type(ex).__name__})"
                 score, feedback = 0.0, f"Evaluación no comprobable: {type(ex).__name__}; no promover este resultado."
             self.registro.guardar("evaluacion", {"ciclo": ciclo, "caso": gold.huella, "score": score, "feedback": feedback})
             return dspy.Prediction(score=score, feedback=feedback + experiencia)
@@ -553,9 +621,9 @@ class Servicio:
                      "errores": [x.get("titulo") for x in e.get("incidencias", []) if x.get("corridaId") == corrida]}
         with self.registro.lock:
             datos["trazas"] = [json.loads(r[0]) for r in self.registro.db.execute(
-                "SELECT json FROM trazas WHERE corrida=? AND tipo IN ('modelo','conector','herramienta_inicio','herramienta_fin') ORDER BY seq DESC LIMIT 12", (corrida,))]
+                "SELECT json FROM trazas WHERE corrida=? AND tipo IN ('conector','herramienta_fin') ORDER BY seq DESC LIMIT 4", (corrida,))]
         # Es feedback acotado, no una copia del proyecto ni de las otras particiones.
-        return json.dumps(sanear(datos), ensure_ascii=False)[:12000]
+        return json.dumps(sanear(datos), ensure_ascii=False)[:4000]
 
     def ciclo(self):
         """Un candidato por ciclo; solo trazas nuevas de corridas ya cerradas, nunca
@@ -579,13 +647,14 @@ class Servicio:
             pass
         for nombre, rol in sorted(AUTOMATICOS.items(), key=lambda item: ultimos[item[0]]):
             programa_obj = getattr(self.programas, nombre, None)
-            if programa_obj is None:
+            sig = firma(programa_obj) if programa_obj is not None else None
+            if sig is None:
                 continue
             if self.registro.nuevas_desde(nombre, self.ultimo_seq.get(nombre, 0)) < MIN_CASOS:
                 continue
             todas = self.registro.filas(nombre)
-            contrato = firma(programa_obj).instructions
-            campos = set(firma(programa_obj).input_fields)
+            contrato = sig.instructions
+            campos = set(sig.input_fields)
             filas = [f for f in todas if f.get("optimizable") and f["corrida"] in cerradas and f.get("contrato") == contrato
                      and set(f["entradas"]) == campos and sanear(f["entradas"]) == f["entradas"] and "[REDACTADO]" not in json.dumps(f["entradas"])]
             with self.registro.lock:
@@ -646,6 +715,8 @@ class Servicio:
         token = CONTEXTO.set({"registro": self.registro, "errores_traza": self.errores_traza, "ciclo": ciclo, "programa": nombre})
         consumir_examen = False
         transitorio = False
+        self._abortar = ""
+        self._fallos_consecutivos = 0
         try:
             for modelo in (getattr(self.modelos, rol), self.modelos.juez, self.modelos.reflexion):
                 exigir_gateway(modelo)
@@ -663,18 +734,23 @@ class Servicio:
             for i, p in enumerate((train, val, test)):
                 conjuntos.append([dspy.Example(**f["entradas"], huella=huella(f["entradas"]), experiencia=self._experiencia(f["corrida"]) if i == 0 else "").with_inputs(*f["entradas"]) for f in p])
             train_ej, val_ej, test_ej = conjuntos
-            metrica = self._metric(contrato, ciclo, nombre)
+            # Modelos con parada: una pausa, un apagado o un juez caído cortan las llamadas.
+            lm = LMConParada(getattr(self.modelos, rol), self._motivo_parada)
+            juez_lm = LMConParada(self.modelos.juez, self._motivo_parada)
+            reflexion_lm = LMConParada(self.modelos.reflexion, self._motivo_parada)
+            metrica = self._metric(contrato, ciclo, nombre, juez_lm)
             destino = self.ruta / ciclo
             destino.mkdir(mode=0o700)
-            lm = getattr(self.modelos, rol)
             # Misma familia del módulo en producción; el juez fijo no se optimiza. El
             # trazador del ciclo cuenta su gasto (llamadas, tokens, dólares).
             trazador_ciclo = Trazador(self.registro, self.errores_traza, {"ciclo": ciclo, "programa": nombre}, gasto=gasto)
             with dspy.context(lm=lm, callbacks=[trazador_ciclo]):
-                optimizador = dspy.GEPA(metric=metrica, max_metric_calls=max(120, 8 * len(val_ej)), reflection_lm=self.modelos.reflexion,
+                optimizador = dspy.GEPA(metric=metrica, max_metric_calls=max(120, 8 * len(val_ej)), reflection_lm=reflexion_lm,
                     reflection_minibatch_size=3, num_threads=2, track_stats=True,
                     add_format_failure_as_feedback=True, seed=0, log_dir=str(destino))
                 candidato = optimizador.compile(base, trainset=train_ej, valset=val_ej)
+                if self._motivo_parada():
+                    raise FalloTransitorio(self._motivo_parada())
                 candidato.set_lm(None)
                 self.fallos_evaluador = 0
                 antes, despues = [], []

@@ -128,3 +128,15 @@ cosas (rosa/tests/test_gepa_arreglos.py las fija):
   programa corrió.
 - El apagado espera 15 segundos al ciclo en curso y sigue; el ciclo queda
   auditado como interrumpido.
+- Segunda pasada (misma tarde), tras la verificación adversaria de la revisión:
+  el modelo del gateway va envuelto en `LMConParada` y se niega a llamar en
+  cuanto hay pausa, apagado o el juez falló tres veces seguidas (GEPA traga las
+  excepciones de la métrica, así que esta es la única forma de dejar de gastar);
+  un juez caído aborta el ciclo sin consumir casos en vez de entrenar con ceros;
+  una versión fijada cuyo fichero falta o no supera la integridad no deja la
+  corrida muerta: vuelve al programa base, lo anota y deja una incidencia; el
+  reparto entrenamiento, validación y examen es por rango del hash de cada
+  investigación (con tres o más siempre hay examen y validación; antes un cubo
+  vacío dejaba a GEPA sin examen para siempre); el feedback de experiencia se
+  acota a 4 000 caracteres; `firma()` tolera módulos sin signature; y Rosa
+  arranca aunque el servicio no pueda construirse.
