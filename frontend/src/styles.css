@@ -1730,8 +1730,26 @@ pre {
 
 .mundo-columnas {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.mundo-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 16px;
+}
+
+.mundo-tarjetas > li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .mundo-tarjetas {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mundo-columna {

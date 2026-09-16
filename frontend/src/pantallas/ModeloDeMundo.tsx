@@ -280,7 +280,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                 {lista.length === 0 ? (
                   <p className="meta">Nada aquí{q !== '' || tema !== 'todos' ? ' con este filtro' : ''}.</p>
                 ) : (
-                  <ListaAnimada className="mundo-columna" como="ul">
+                  <ListaAnimada className="mundo-tarjetas" como="ul">
                     {lista.map((h) => (
                       <ElementoAnimado key={h.id} como="li">
                         <TarjetaHecho h={h} ahora={ahora} fuentes={fuentesPorId} />
