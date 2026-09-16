@@ -1742,6 +1742,16 @@ export interface CorridaGepa {
   promovido?: boolean;
   version?: string;
   particiones?: number[];
+  /** Ciclo del servicio automático (rosa/gepa_continuo.py), no del script manual. */
+  automatico?: boolean;
+  /** Rol del modelo con el que corrió el programa y se examinó (cerebro, volumen). */
+  rol?: string;
+  /** Versión anterior a la promovida ('base' si ninguna), para revertir. */
+  anterior?: string;
+  /** Gasto del ciclo: llamadas, tokens y dólares (antes no se contabilizaba). */
+  gasto?: { llamadas: number; tokensEntrada: number; tokensSalida: number; usd: number };
+  /** Puntuaciones pareadas del examen final (dos lecturas por caso, promediadas). */
+  examen?: { antes: number[]; despues: number[] };
   id: Id;
   fecha: number;
   programa: string;
@@ -1863,7 +1873,7 @@ export interface EstadoRosa {
   casos: CasoControl[];
   metricas: MetricasJuez[];
   gepa: CorridaGepa[];
-  gepaAutomatico?: { estado: string; nota: string; trazas: Record<string, number>; erroresRegistro: number; actualizadoEn: number; programas: string[] };
+  gepaAutomatico?: { estado: string; nota: string; trazas: Record<string, number>; erroresRegistro: number; actualizadoEn: number; programas: string[]; gastoUsd?: number };
   memoria: Recuerdo[];
   planesGuardados: PlanGuardado[];
   criteriosRevision: string[];

@@ -355,13 +355,17 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
 
       <Seccion detalle titulo="Optimizaciones con GEPA" nota="Captura continua y optimización automática por ciclos. Los candidatos se examinan con casos que GEPA no vio; solo los que mejoran sin regresiones se activan para nuevas corridas. Son métricas de un evaluador automático, no validación científica.">
         <p role="status">{estado.gepaAutomatico?.nota ?? 'El servicio automático aún no ha informado de su estado en este servidor.'}</p>
+        {estado.conexion === 'muestra' ? (
+          <p className="meta">Con datos de muestra no hay servicio que controlar.</p>
+        ) : (
         <div className="acciones">
           <button disabled={controlandoGepa} onClick={() => void controlarGepa('pausar')}>Pausar promociones</button>
           <button disabled={controlandoGepa} onClick={() => void controlarGepa('reanudar')}>Reanudar</button>
           <Confirmar etiqueta="Volver a programas base" pregunta="Se pausará GEPA y las nuevas corridas usarán los programas base. No cambia las corridas existentes ni borra las versiones guardadas. ¿Continuar?" disabled={controlandoGepa} onConfirmar={() => void controlarGepa('restablecer')} />
         </div>
+        )}
         {avisoGepa && <p role="status">{avisoGepa}</p>}
-        {estado.gepaAutomatico && <p className="meta">{Object.entries(estado.gepaAutomatico.trazas).map(([tipo, n]) => `${tipo}: ${n}`).join(' · ')} · Errores de registro: {estado.gepaAutomatico.erroresRegistro}. Programas con evaluación automática: {estado.gepaAutomatico.programas.join(', ')}.</p>}
+        {estado.gepaAutomatico && <p className="meta">{Object.entries(estado.gepaAutomatico.trazas).map(([tipo, n]) => `${tipo}: ${n}`).join(' · ')} · Errores de registro: {estado.gepaAutomatico.erroresRegistro}. Programas con evaluación automática: {estado.gepaAutomatico.programas.join(', ')}.{typeof estado.gepaAutomatico.gastoUsd === 'number' ? ` Gasto acumulado de la optimización: ${estado.gepaAutomatico.gastoUsd.toFixed(2).replace('.', ',')} $.` : ''} Solo administración puede pausar, reanudar o volver a base; una promoción queda también en el registro de aprendizaje (Ajustes) y se revierte desde allí.</p>}
         <table className="tabla">
           <thead>
             <tr>
@@ -371,6 +375,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
               <th className="num">Métrica inicial</th>
               <th className="num">Métrica final</th>
               <th className="num">Candidatos</th>
+              <th className="num">Gasto</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -388,6 +393,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
                   <td className="num">{g.estado === 'terminada' ? formatearPorcentaje(g.metricaInicial) : 'Pendiente'}</td>
                   <td className={`num ${g.metricaFinal > g.metricaInicial ? 'subida' : ''}`}>{g.estado === 'terminada' ? formatearPorcentaje(g.metricaFinal) : 'Pendiente'}</td>
                   <td className="num">{g.candidatos}</td>
+                  <td className="num">{g.gasto ? `${g.gasto.usd.toFixed(2).replace('.', ',')} $ · ${g.gasto.llamadas} llamadas` : 'sin dato'}</td>
                   <td>{g.estado === 'en_marcha' ? <Chip tono="acento">En marcha</Chip> : g.estado === 'terminada' ? <Chip tono={g.promovido ? 'ok' : 'borde'}>{g.promovido ? 'Activado para nuevas corridas' : 'Terminada'}</Chip> : <Chip tono="mal">Fallida</Chip>}<p className="meta">{g.nota}</p></td>
                   <td>
                     {g.enlaceMlflow && <a className="enlace" href={g.enlaceMlflow} target="_blank" rel="noopener noreferrer">
@@ -398,7 +404,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
               ))}
           </tbody>
         </table>
-        <p className="meta">Se comprueban los datos disponibles cada 30 segundos, con al menos seis horas entre ciclos de optimización. Se conserva cada versión anterior. El Killer y el juez no se autoentrenan con sus propios veredictos. Los prompts y las respuestas se guardan con redacción de secretos en el registro privado, no en esta pantalla. Pausar impide nuevas promociones; una petición al Gateway ya enviada puede terminar.</p>
+        <p className="meta">Se comprueba si hay datos cada 10 minutos, con al menos seis horas entre ciclos y nunca mientras una corrida está en marcha. Los casos se separan por investigación; el examen final (al menos 8 casos, dos lecturas del juez por caso) exige mejora media de 0,05 sin ningún caso claramente peor. Se conserva cada versión anterior. El Killer y el juez no se autoentrenan con sus propios veredictos. Los prompts y las respuestas se guardan con redacción de secretos en el registro privado, no en esta pantalla. Pausar impide nuevas promociones; una petición al Gateway ya enviada puede terminar.</p>
       </Seccion>
     </div>
   );

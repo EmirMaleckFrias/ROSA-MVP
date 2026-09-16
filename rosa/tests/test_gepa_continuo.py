@@ -113,13 +113,20 @@ def test_division_estable_por_corrida_y_sin_duplicados():
     assert G.dividir(filas) == G.dividir(filas)
 
 
-@pytest.mark.parametrize("a,b", [([0.5]*5, [0.51]*5), ([0.5]*5, [0.4, 1, 1, 1, 1]), ([0]*5, [float("nan")]*5), ([0]*5, [2]*5), ([], [])])
+@pytest.mark.parametrize("a,b", [([0.5]*8, [0.51]*8), ([0.5]*8, [0.3, 1, 1, 1, 1, 1, 1, 1]), ([0]*8, [float("nan")]*8), ([0]*8, [2]*8), ([], []), ([0.5]*5, [0.9]*5)])
 def test_criterio_conservador(a, b):
     assert not G.aprobar(a, b)
 
 
+def test_criterio_tolera_ruido_del_juez_pero_no_regresiones_claras():
+    # Un caso una décima peor no tira la promoción; uno dos décimas peor, sí.
+    assert G.aprobar([0.5] * 8, [0.4] + [0.9] * 7)
+    assert not G.aprobar([0.5] * 8, [0.3] + [0.9] * 7)
+
+
 def test_secretos_y_registro_privado(servicio):
     servicio.registro.guardar("prueba", {"api_key": "NO_GUARDAR", "texto": "persona@example.test", "tokens_entrada": 42})
+    servicio.registro.flush()
     texto = servicio.registro.db.execute("SELECT json FROM trazas").fetchone()[0]
     assert "NO_GUARDAR" not in texto and "persona@" not in texto
     assert json.loads(texto)["tokens_entrada"] == 42
@@ -132,7 +139,10 @@ def test_permisos_y_corrida_activa_excluidos(servicio, monkeypatch):
     monkeypatch.setattr(servicio, "_optimizar", fallo)
     assert not servicio.ciclo()
     assert not G.permitido({"datasets": [{"clasificacion": "personas", "procedencia": {"permiteLlmTerceros": True}}]})
-    assert not G.permitido({"datasets": [{"clasificacion": "publico"}]})
+    # Un dataset público sin permiso de LLM de terceros no excluye la investigación para los
+    # programas de literatura (no ven filas); sí la excluiría para un programa que las viera.
+    assert G.permitido({"datasets": [{"clasificacion": "publico"}]})
+    assert not G.permitido({"datasets": [{"clasificacion": "publico"}]}, "codigo")
     assert G.permitido({"datasets": []})
 
 
@@ -143,6 +153,7 @@ def test_traza_contexto_conector_y_limpieza(servicio):
     with pytest.raises(ValueError):
         asyncio.run(servicio.ejecutar_paso(SimpleNamespace(corrida_id="vieja", numero=1), ejecutar, {"id": "paso"}))
     assert G.CONTEXTO.get() is None
+    servicio.registro.flush()
     assert servicio.registro.db.execute("SELECT corrida FROM trazas").fetchone()[0] == "vieja"
 
 
@@ -189,6 +200,7 @@ def test_captura_prompt_respuesta_y_error_sin_contaminar_contexto(servicio, monk
     ctx = SimpleNamespace(corrida_id="vieja", numero=1, inv=lambda: {"datasets": []})
     pred = asyncio.run(servicio.llamar(ctx, servicio.programas.consultas, servicio.modelos.cerebro, {"pregunta": "prueba"}))
     assert pred.respuesta == "respuesta"
+    servicio.registro.flush()
     traza = servicio.registro.filas("consultas")[0]
     assert traza["entradas"] == {"pregunta": "prueba"} and traza["ok"]
     assert traza["version"] == "base"

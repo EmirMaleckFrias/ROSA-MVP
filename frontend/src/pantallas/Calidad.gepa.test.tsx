@@ -18,6 +18,8 @@ it('controla GEPA mediante el servidor y comunica errores sin fingir éxito', as
   });
   const estado = estadoDeMuestra();
   estado.gepa = [];
+  // Con datos de muestra los controles no se enseñan (no hay servidor que controlar): la prueba simula estar en línea.
+  estado.conexion = 'en_linea';
   const fetch = vi.fn().mockResolvedValue({ ok: false, status: 403 });
   vi.stubGlobal('fetch', fetch);
   const contenedor = document.createElement('div');

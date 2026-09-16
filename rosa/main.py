@@ -86,7 +86,11 @@ async def principal() -> None:
         await asyncio.gather(servidor.serve(), supervisor.correr())
     finally:
         gepa.parar.set()
-        await tarea_gepa
+        try:
+            # Un compile de GEPA en marcha no se puede cortar desde fuera; el apagado no se queda colgado esperándolo.
+            await asyncio.wait_for(tarea_gepa, timeout=15)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            print("GEPA continuo no terminó en 15 s; se apaga sin esperarlo (el ciclo en curso queda auditado como interrumpido)", file=sys.stderr)
         conectores_base.OBSERVADOR = None
         gepa.registro.cerrar()
     # Apagado ordenado: primero las tareas del bucle y el espejo, despues SQLite.

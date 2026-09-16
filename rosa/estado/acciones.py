@@ -1011,6 +1011,15 @@ def revertir_aprendizaje(e: Estado, cambio_id: str, quien: str, motivo: str, aho
         c["evaluacion"] = {**(c.get("evaluacion") or {"conjunto": "", "casos": 0, "antes": None, "despues": None}), "nota": motivo.strip()}
     if c["tipo"] == "criterio" and c["descripcion"] in e["criteriosRevision"]:
         e["criteriosRevision"].remove(c["descripcion"])
+    # Un programa promovido por GEPA continuo (origen gepa:<ciclo>): revertirlo devuelve la
+    # versión anterior a las corridas nuevas; las corridas ya creadas conservan la suya.
+    if c["tipo"] == "programa" and str(c.get("origen") or "").startswith("gepa:") and c.get("programa"):
+        activos = e.setdefault("_gepaActivos", {})
+        anterior = c.get("anterior")
+        if anterior and anterior != "base":
+            activos[c["programa"]] = anterior
+        else:
+            activos.pop(c["programa"], None)
     con_evento(e, c.get("investigacionId"), "aprendizaje", f"Cambio revertido por {quien}: {c['descripcion'][:100]}", "#/ajustes", ahora)
     return True
 
@@ -1752,6 +1761,12 @@ def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | 
     if limite is None and parada_n and parada_n.get("llamadas"):
         limite = int(parada_n["llamadas"])
     c = P.nueva_corrida(investigacion_id, (ultima["numero"] + 1) if ultima else 1, ahora, limite, parada_n)
+    # Versiones de programa (GEPA continuo) fijadas al crear la corrida, no en la primera
+    # llamada, y visibles en el arnés público: el prerregistro y el RO-Crate las nombran.
+    activos = dict(e.get("_gepaActivos") or {})
+    c["_gepaVersiones"] = activos
+    if activos:
+        c["arnes"] = {**(c.get("arnes") or {}), "optimizados": ", ".join(f"{k}@{str(v)[:8]}" for k, v in sorted(activos.items()))}
     e["corridas"].append(c)
     if inv.get("estado") == "cerrada":
         con_evento(e, investigacion_id, "corrida_estado", "Investigación reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)

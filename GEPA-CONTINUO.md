@@ -88,3 +88,43 @@ de investigación y deben tratarse como privados, incluso tras la redacción.
 fallos del juez, pausa, Gateway obligatorio, integridad, privacidad y versiones
 congeladas con modelos simulados. Las pruebas no demuestran calidad científica;
 esta requiere observar los primeros ciclos reales y revisar sus resultados.
+
+## Arreglos del 16 de septiembre de 2026 (revisión posterior al commit)
+
+Tras revisar el servicio contra el código y el estado real se cambiaron estas
+cosas (rosa/tests/test_gepa_arreglos.py las fija):
+
+- Las trazas se escriben desde un hilo propio: el bucle solo encola. La redacción
+  de secretos ya no tiene retroceso cuadrático (una cadena de 32 000 caracteres
+  sin espacios tardaba 3 segundos en el hilo del bucle) y los textos se recortan
+  a 20 000 caracteres. Retención: 30 días para prompts y herramientas, 180 para
+  los casos de programa.
+- La elegibilidad se comprueba cada 10 minutos (no cada 30 segundos) y primero
+  cuenta las trazas nuevas por programa antes de cargar nada. Nunca se optimiza
+  con una corrida en marcha. El resumen público solo se escribe cuando cambia el
+  estado o cada media hora, no en cada tic.
+- La regla de permisos solo excluye investigaciones con datasets de personas:
+  los programas que se optimizan leen literatura, nunca filas de un dataset.
+  Antes, un dataset real sin la marca de LLM de terceros excluía la
+  investigación entera (la de GFAP y NfL quedaba fuera para siempre).
+- Los casos se consumen al terminar el ciclo, no al empezar; un fallo transitorio
+  (gateway, juez, pausa, apagado) no los quema. El examen visto sí se consume.
+- La separación entrenamiento, validación y examen es por investigación, no por
+  corrida: dos corridas de la misma investigación comparten hipótesis y artículos.
+- Puerta de promoción: al menos 8 casos de examen (tope 24), dos lecturas del juez
+  por caso, mejora media de 0,05, ningún caso a cero y ningún caso peor por más
+  de 0,15 (una lectura ruidosa una décima peor no tira la promoción).
+- Comprobaciones por regla antes del juez: salida vacía, consulta sin base, cita
+  que no nombra la fuente dada, texto redactado: cero sin gastar una llamada.
+- El rol del modelo se lee de las trazas reales del programa (el lenguaje llano
+  corre con el cerebro, no con el modelo de volumen).
+- El gasto de cada ciclo (llamadas, tokens, dólares) queda en la tabla de Calidad
+  y en el resumen del servicio.
+- Una promoción queda en el registro de aprendizaje como cambio de nivel 2 ya
+  promovido (con su evaluación del examen) y se revierte desde Ajustes, que
+  devuelve la versión anterior a las corridas nuevas.
+- Las versiones se fijan al crear la corrida y el arnés público las nombra
+  (`arnes.optimizados`), así que el prerregistro y el RO-Crate dicen con qué
+  programa corrió.
+- El apagado espera 15 segundos al ciclo en curso y sigue; el ciclo queda
+  auditado como interrumpido.

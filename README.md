@@ -379,6 +379,20 @@ peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
   Elo que tenía; la ficha lo enseña ("De la v1 a la v2: cambió la cohorte") y el
   RO-Crate exporta las revisiones como `wasRevisionOf` de PROV.
 
+## GEPA continuo (16 de septiembre de 2026)
+
+Codex construyó el servicio de optimización automática de prompts
+(`rosa/gepa_continuo.py`, documentado en `GEPA-CONTINUO.md`): captura las
+trazas de cada llamada, separa entrenamiento, validación y examen final, corre
+GEPA sobre un programa por ciclo y solo activa para corridas nuevas lo que pasa
+el examen sin regresiones. La revisión posterior arregló lo que impedía que
+aprendiera de verdad (regla de permisos que excluía la investigación principal,
+puerta imposible de pasar con un juez ruidoso, comprobación cada 30 segundos
+que recargaba miles de trazas, casos consumidos antes de optimizar, examen no
+separado por investigación) y lo conectó con el resto: registro de aprendizaje,
+arnés público, gasto contabilizado. El detalle está al final de
+`GEPA-CONTINUO.md`.
+
 ## Meta-campaña del arnés (16 de septiembre de 2026, noche)
 
 Lo que rekursiv.ai llama auto-autoresearch, con puerta. Al terminar una corrida, el
