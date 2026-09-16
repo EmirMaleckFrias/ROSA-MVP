@@ -186,11 +186,13 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
                     nuevas_fuentes += 1
             en_contra = sum(1 for _, r, _ in aceptadas if r == "contradice")
             indirectas = sum(1 for _, r, _ in aceptadas if r == "apoya_indirecta")
-            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas} a favor, {indirectas} indirectas, {en_contra} en contra), {nuevas_fuentes} fuentes nuevas")
+            # Cuántas llegaron por la búsqueda en amplitud: son los "diamantes de al lado".
+            de_amplitud = sum(1 for a, _, _ in aceptadas if (fuentes.get(a["fuenteId"]) or {}).get("modo") == "amplitud")
+            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas} a favor, {indirectas} indirectas, {en_contra} en contra), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else ""))
             y["_evidenciaNueva"] = iteracion
             y.pop("_conclusionIntentada", None)
             A.recalcular_bloqueos(e2, y)
-            texto = f"Evidencia nueva para «{y['titulo'][:60]}»: {len(aceptadas)} afirmaciones" + (f", {en_contra} en contra" if en_contra else "") + (f", {nuevas_fuentes} fuentes nuevas" if nuevas_fuentes else "")
+            texto = f"Evidencia nueva para «{y['titulo'][:60]}»: {len(aceptadas)} afirmaciones" + (f", {en_contra} en contra" if en_contra else "") + (f", {nuevas_fuentes} fuentes nuevas" if nuevas_fuentes else "") + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else "")
             A.con_evento(e2, y["investigacionId"], "revision_automatica", texto, f"#/investigaciones/{y['investigacionId']}/hipotesis/{y['id']}", ahora)
             return True
 

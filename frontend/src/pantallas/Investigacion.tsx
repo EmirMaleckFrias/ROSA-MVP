@@ -5,10 +5,10 @@
 
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
-import type { Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
+import type { Amplitud, Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { ConocimientoOperativoDelLaboratorio, FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
-import { CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
+import { AMPLITUD, CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { partesAutomatizadas, textoAutomatizacion } from '../lib/parada';
 import { rutaDe } from '../lib/ruta';
@@ -223,7 +223,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
                 type="button"
                 className="btn btn-primario btn-s"
                 onClick={() => {
-                  acciones.actualizarConfiguracion(inv.id, { preferencias: pref, atributos: atr.split('\n'), restricciones: res.split('\n') });
+                  acciones.actualizarConfiguracion(inv.id, { preferencias: pref, atributos: atr.split('\n'), restricciones: res.split('\n'), amplitud: inv.configuracion.amplitud ?? 'equilibrada' });
                   setEditando(false);
                 }}
               >
@@ -281,6 +281,23 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
             </div>
           </div>
         )}
+        <div className="tarjeta amplitud">
+          <p className="campo-etiqueta">Amplitud de búsqueda</p>
+          <p className="meta">
+            Cuánto explora Rosa fuera de la pregunta en cada paso de literatura. Con foco sube la certeza de lo que ya hay; con amplitud encuentra lo que hay al lado (una segunda cohorte, un contraejemplo, una línea nueva). Se aplica desde el siguiente paso de literatura.
+          </p>
+          <div className="acciones amplitud-botones" role="radiogroup" aria-label="Amplitud de búsqueda">
+            {(['enfocada', 'equilibrada', 'amplia'] as Amplitud[]).map((a) => {
+              const activa = (inv.configuracion.amplitud ?? 'equilibrada') === a;
+              return (
+                <button key={a} type="button" role="radio" aria-checked={activa} className={`btn btn-s ${activa ? 'btn-primario' : ''}`} title={AMPLITUD[a].nota} onClick={() => acciones.fijarAmplitud(inv.id, a)}>
+                  {AMPLITUD[a].etiqueta} · {AMPLITUD[a].fraccion}
+                </button>
+              );
+            })}
+          </div>
+          <p className="meta">{AMPLITUD[inv.configuracion.amplitud ?? 'equilibrada'].nota}</p>
+        </div>
       </Seccion>
 
       <Seccion id="datos"

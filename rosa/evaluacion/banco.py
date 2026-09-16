@@ -64,7 +64,14 @@ def puntuar(e: dict[str, Any], corrida_id: str, objetivo: dict[str, Any]) -> dic
     esperados = objetivo.get("titulos_que_deben_aparecer", [])
     encontrados = [t for t in esperados if any(all(_norm(p) in tit for p in t.split("&")) for tit in titulos)]
     prohibidos = objetivo.get("temas_fuera_de_objetivo", [])
-    fuentes_fuera = [f for f in fuentes if any(_norm(p) in _norm(f.get("titulo")) for p in prohibidos)]
+    # "Fuera de objetivo" se mide sobre las fuentes de foco: la búsqueda en amplitud
+    # explora a propósito, y su medida es otra (cuántas de sus fuentes se enlazaron).
+    fuentes_foco = [f for f in fuentes if f.get("modo") != "amplitud"]
+    fuentes_amplitud = [f for f in fuentes if f.get("modo") == "amplitud"]
+    fuentes_fuera = [f for f in fuentes_foco if any(_norm(p) in _norm(f.get("titulo")) for p in prohibidos)]
+    ids_amplitud = {f.get("id") for f in fuentes_amplitud}
+    fuente_de_afirmacion = {a.get("id"): a.get("fuenteId") for a in (c.get("_afirmaciones") or [])}
+    amplitud_enlazadas = {fuente_de_afirmacion.get(a.get("afirmacionId")) for h in hips for a in h.get("afirmaciones", []) if fuente_de_afirmacion.get(a.get("afirmacionId")) in ids_amplitud}
 
     # Una hipótesis que el Killer cerró y que el resumen de la iteración nombra
     # sin decir que quedó descartada o suspendida cuenta como "descartada como viva".
@@ -81,7 +88,7 @@ def puntuar(e: dict[str, Any], corrida_id: str, objetivo: dict[str, Any]) -> dic
     criterios = {
         "nombres_buscados": len(buscados) / len(nombres) if nombres else None,
         "titulos_encontrados": len(encontrados) / len(esperados) if esperados else None,
-        "fuera_de_objetivo": 1.0 - (len(fuentes_fuera) / len(fuentes)) if fuentes and prohibidos else None,
+        "fuera_de_objetivo": 1.0 - (len(fuentes_fuera) / len(fuentes_foco)) if fuentes_foco and prohibidos else None,
         "estado_honesto": 1.0 if descartadas_como_vivas == 0 else 0.0,
     }
     validos = [v for v in criterios.values() if v is not None]
@@ -99,6 +106,8 @@ def puntuar(e: dict[str, Any], corrida_id: str, objetivo: dict[str, Any]) -> dic
             "descartadasComoVivas": descartadas_como_vivas,
         },
         "registro": {"consultas": len(consultas), "fuentes": len(fuentes), "hipotesis": len(hips), "iteraciones": len(iteraciones), "hallazgosPorRegla": hallazgos_regla, "hallazgosTotal": hallazgos_total},
+        # La amplitud se mide por lo que rinde: cuántas de sus fuentes acabaron enlazadas a una hipótesis.
+        "amplitud": {"consultas": sum(1 for q in (c.get("busqueda") or {}).get("consultas", []) if q.get("modo") == "amplitud"), "fuentes": len(fuentes_amplitud), "enlazadas": len(amplitud_enlazadas)},
         "coste": {"llamadas": gasto.get("llamadas"), "usd": gasto.get("usd"), "exaUsd": gasto.get("exaUsd"), "segundos": gasto.get("segundos")},
     }
 

@@ -6,6 +6,7 @@ import type {
   AccionEspera,
   Afirmacion,
   AlcancePermiso,
+  Amplitud,
   Bloqueo,
   CambioAprendizaje,
   CategoriaCaso,
@@ -33,6 +34,7 @@ import type {
   InterpretacionEjecucion,
   Iteracion,
   MetodoRegistrado,
+  ModoBusqueda,
   NivelAprendizaje,
   NivelAutonomia,
   PasoRutaTerapeutica,
@@ -77,6 +79,17 @@ export function proponiendoPlan(corrida: Pick<Corrida, 'estado'>, iteracion: Pic
 export function etiquetaCorrida(corrida: Pick<Corrida, 'estado'>, iteracion: Pick<Iteracion, 'planAprobado' | 'terminadaEn'> | null): string {
   return proponiendoPlan(corrida, iteracion) ? 'Rosa está proponiendo el plan' : ESTADO_CORRIDA[corrida.estado];
 }
+
+export const AMPLITUD: Record<Amplitud, { etiqueta: string; nota: string; fraccion: string }> = {
+  enfocada: { etiqueta: 'Enfocada', nota: 'Todas las consultas sirven a la pregunta de la corrida y al peldaño que le falta a cada hipótesis. Rápida y barata; puede perderse lo que hay al lado.', fraccion: '0 %' },
+  equilibrada: { etiqueta: 'Equilibrada', nota: 'Un tercio de las consultas explora alrededor: temas adyacentes del modelo de mundo, novedad reciente del campo y búsquedas por significado con otro vocabulario. Es el valor por defecto.', fraccion: '34 %' },
+  amplia: { etiqueta: 'Amplia', nota: 'La mitad de las consultas explora. Lee más artículos por iteración; útil al empezar una investigación o cuando el árbol se ha quedado en un punto fijo.', fraccion: '50 %' },
+};
+
+export const MODO_BUSQUEDA: Record<ModoBusqueda, { etiqueta: string; nota: string }> = {
+  foco: { etiqueta: 'Foco', nota: 'Sirve a la pregunta de la corrida o al peldaño de una hipótesis' },
+  amplitud: { etiqueta: 'Amplitud', nota: 'Explora alrededor del objetivo: lo que podría cambiar una hipótesis o abrir una línea' },
+};
 
 export const ESTADO_INVESTIGACION: Record<EstadoInvestigacion, string> = {
   activa: 'Activa',

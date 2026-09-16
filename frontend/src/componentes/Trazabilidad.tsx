@@ -220,6 +220,7 @@ function Fuente({ nodo, abierta, onAlternar }: { nodo: NodoFuente; abierta: bool
               </a>
             )}
             {f.anio && <span>{f.anio}</span>}
+            {f.modo === 'amplitud' && <Chip tono="acento" title={f.porque ? `Llegó por búsqueda en amplitud. Se conservó porque podría cambiar: ${f.porque}` : 'Llegó por búsqueda en amplitud'}>Amplitud</Chip>}
             {nodo.tambienEn.length > 0 && <span>También la trajo la consulta {nodo.tambienEn.join(', ')}</span>}
             {f.retraccionDetalle && <span>Crossref: {f.retraccionDetalle}</span>}
             {!f.extraida && <span>Todavía sin extraer</span>}

@@ -20,16 +20,23 @@
 import { partesAutomatizadas } from '../lib/parada';
 import type {
   AlcancePermiso,
+  Amplitud,
   AnclaComentario,
+  AreaInvestigacion,
   Avisos,
   CambioAprendizaje,
+  CampoEnmendable,
+  CasoDorado,
   ClaseAccion,
   ClasificacionDatos,
   Comentario,
+  ConocimientoOperativo,
   Corrida,
   Dataset,
+  EstadoArea,
   EstadoRosa,
   Evento,
+  Fuente,
   HechoMundo,
   Hipotesis,
   Investigacion,
@@ -37,16 +44,19 @@ import type {
   MetodoRegistrado,
   Mision,
   NivelAutonomia,
+  NivelPermisoConector,
   PasoPlan,
   PoliticaEsperas,
   PreguntaCampana,
   ProcedenciaDataset,
+  ProtocoloReal,
   PuertaReproduccion,
   Reproduccion,
   Revision,
   RevisionHumana,
   TipoArtefacto,
-  TipoEvento, CampoEnmendable, ProtocoloReal, AreaInvestigacion, EstadoArea, NivelPermisoConector, CasoDorado, ConocimientoOperativo, Fuente } from './tipos';
+  TipoEvento,
+} from './tipos';
 
 let contador = 0;
 /** Ids locales. El almacen real los asigna el servidor. */
@@ -1167,8 +1177,18 @@ export function actualizarConfiguracion(estado: EstadoRosa, investigacionId: str
         preferencias: configuracion.preferencias.trim(),
         atributos: configuracion.atributos.map((a) => a.trim()).filter((a) => a !== ''),
         restricciones: configuracion.restricciones.map((r) => r.trim()).filter((r) => r !== ''),
+        amplitud: configuracion.amplitud ?? i.configuracion.amplitud ?? 'equilibrada',
       },
     })),
+  };
+}
+
+/** Cuánto explora Rosa fuera de la pregunta (botones enfocada, equilibrada, amplia). Misma regla que rosa/estado/acciones.py. */
+export function fijarAmplitud(estado: EstadoRosa, investigacionId: string, amplitud: Amplitud): EstadoRosa {
+  if (!['enfocada', 'equilibrada', 'amplia'].includes(amplitud)) return estado;
+  return {
+    ...estado,
+    investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, configuracion: { ...i.configuracion, amplitud } })),
   };
 }
 

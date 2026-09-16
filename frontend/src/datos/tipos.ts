@@ -31,7 +31,17 @@ export interface ConfiguracionObjetivo {
   preferencias: string;
   atributos: string[];
   restricciones: string[];
+  /** Cuánto explora Rosa fuera de la pregunta en cada paso de literatura:
+   *  enfocada (nada), equilibrada (un tercio de las consultas), amplia (la
+   *  mitad). Ausente en investigaciones anteriores: equilibrada. */
+  amplitud?: Amplitud;
 }
+
+export type Amplitud = 'enfocada' | 'equilibrada' | 'amplia';
+
+/** Por qué modo llegó una consulta o una fuente: foco (la pregunta de la
+ *  corrida y el peldaño de cada hipótesis) o amplitud (explorar alrededor). */
+export type ModoBusqueda = 'foco' | 'amplitud';
 
 export type ClasificacionDatos = 'publico' | 'interno' | 'personas';
 
@@ -331,6 +341,10 @@ export interface ConsultaBusqueda {
   consulta: string;
   fecha: number;
   resultados: number;
+  /** Ausente en consultas anteriores al 16 de septiembre de 2026: foco. */
+  modo?: ModoBusqueda;
+  /** Solo en amplitud: qué podría cambiar si aparece algo. */
+  porque?: string;
 }
 
 /** El flujo de la busqueda de la corrida: identificados, cribados, leidos a
@@ -741,6 +755,8 @@ export type TipoEstudio =
 export type MarcaEditorial = 'retractado' | 'preocupacion' | 'erratum' | null;
 
 export interface Fuente {
+  /** Por qué modo de búsqueda llegó: foco o amplitud. Ausente en fuentes anteriores: foco. */
+  modo?: ModoBusqueda;
   id: Id;
   /** Referencia corta: "Cohorte clinica, 2023". */
   referencia: string;

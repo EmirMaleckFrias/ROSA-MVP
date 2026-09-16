@@ -266,7 +266,8 @@ def todas_las_hipotesis(hipotesis: list[dict[str, Any]], investigacion_id: str) 
 
 def configuracion(inv: dict[str, Any]) -> str:
     c = inv["configuracion"]
-    return f"Preferencias: {c['preferencias'] or 'ninguna'}\nAtributos deseados: {', '.join(c['atributos']) or 'ninguno'}\nRestricciones: {', '.join(c['restricciones']) or 'ninguna'}\nLimites de la investigacion: {'; '.join(inv['limites']) or 'ninguno'}"
+    amplitud = c.get("amplitud") or politicas.AMPLITUD_POR_DEFECTO
+    return f"Preferencias: {c['preferencias'] or 'ninguna'}\nAtributos deseados: {', '.join(c['atributos']) or 'ninguno'}\nRestricciones: {', '.join(c['restricciones']) or 'ninguna'}\nLímites de la investigación: {'; '.join(inv['limites']) or 'ninguno'}\nAmplitud de búsqueda: {amplitud} (parte de las consultas que exploran fuera de la pregunta: {int(politicas.AMPLITUD.get(amplitud, 0) * 100)} %)"
 
 
 def indicaciones_humanas(iteracion: dict[str, Any] | None, pendientes_solo: bool = False) -> str:

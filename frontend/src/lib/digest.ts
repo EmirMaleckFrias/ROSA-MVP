@@ -141,6 +141,8 @@ export function digest(estado: EstadoRosa, investigacionId: string, ahora: numbe
   if (evidencia.length > 0) {
     const enContra = evidencia.reduce((n, e) => n + Number(/(\d+) en contra/.exec(e.texto)?.[1] ?? 0), 0);
     lineas.push(`${plural(evidencia.length, 'hipótesis recibió evidencia nueva', 'hipótesis recibieron evidencia nueva')}${enContra > 0 ? ` (${plural(enContra, 'afirmación en contra', 'afirmaciones en contra')})` : ''}`);
+    const fueraDelFoco = evidencia.reduce((n, e) => n + Number(/(\d+) de búsqueda en amplitud/.exec(e.texto)?.[1] ?? 0), 0);
+    if (fueraDelFoco > 0) lineas.push(`${plural(fueraDelFoco, 'hallazgo fuera del foco se enlazó a una hipótesis', 'hallazgos fuera del foco se enlazaron a hipótesis')} (la búsqueda en amplitud trajo algo que el foco no habría visto)`);
   }
   // 6. Vivero: ideas que entran, nacen o salen.
   const entran = eventos.filter((e) => e.tipo === 'vivero' && e.texto.startsWith('Idea al vivero')).length;

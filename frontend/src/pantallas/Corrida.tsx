@@ -19,7 +19,7 @@ import { Trazabilidad } from '../componentes/Trazabilidad';
 import { ResumenEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Barra, Chip, Confirmar, Momento, Seccion, SoloDetalle, Vacio } from '../componentes/piezas';
 import { IconPause, IconPlay } from '../componentes/icons';
-import { ALCANCE, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
+import { ALCANCE, MODO_BUSQUEDA, etiquetaCorrida, proponiendoPlan } from '../lib/etiquetas';
 import { formatearCompacto, formatearDuracion, formatearEntero, formatearPorcentaje } from '../lib/formato';
 import { rutaDe } from '../lib/ruta';
 import { BORRADOR_VACIO, borradorDe, normalizarParada, resumenParada, type ParadaBorrador } from '../lib/parada';
@@ -481,6 +481,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
           <table className="tabla">
             <thead>
               <tr>
+                <th>Modo</th>
                 <th>Base</th>
                 <th>Consulta exacta</th>
                 <th>Fecha</th>
@@ -490,6 +491,11 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             <tbody>
               {corrida.busqueda.consultas.map((c, i) => (
                 <tr key={i}>
+                  <td>
+                    <Chip tono={c.modo === 'amplitud' ? 'acento' : 'borde'} title={c.modo === 'amplitud' && c.porque ? `Amplitud. Por qué: ${c.porque}` : MODO_BUSQUEDA[c.modo ?? 'foco'].nota}>
+                      {MODO_BUSQUEDA[c.modo ?? 'foco'].etiqueta}
+                    </Chip>
+                  </td>
                   <td>{c.base}</td>
                   <td className="mono" style={{ overflowWrap: 'anywhere' }}>
                     {c.consulta}

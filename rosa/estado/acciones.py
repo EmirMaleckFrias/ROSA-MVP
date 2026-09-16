@@ -1245,6 +1245,7 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
             "preferencias": str(cfg.get("preferencias", "")).strip(),
             "atributos": [a.strip() for a in cfg.get("atributos", []) if str(a).strip()],
             "restricciones": [r.strip() for r in cfg.get("restricciones", []) if str(r).strip()],
+            "amplitud": amplitud_valida(cfg.get("amplitud")),
         },
         "datasets": [],
         "vigilarLiteraturaHasta": None,
@@ -1304,7 +1305,30 @@ def actualizar_configuracion(e: Estado, investigacion_id: str, configuracion: di
         "preferencias": str(configuracion.get("preferencias", "")).strip(),
         "atributos": [a.strip() for a in configuracion.get("atributos", []) if str(a).strip()],
         "restricciones": [r.strip() for r in configuracion.get("restricciones", []) if str(r).strip()],
+        "amplitud": amplitud_valida(configuracion.get("amplitud", (inv.get("configuracion") or {}).get("amplitud"))),
     }
+    return True
+
+
+def amplitud_valida(valor: Any) -> str:
+    """Una de las amplitudes de búsqueda conocidas; la de por defecto si no."""
+    from rosa import politicas
+
+    return valor if isinstance(valor, str) and valor in politicas.AMPLITUD else politicas.AMPLITUD_POR_DEFECTO
+
+
+def fijar_amplitud(e: Estado, investigacion_id: str, amplitud: str) -> bool:
+    """La persona elige con un botón cuánto explora Rosa fuera de la pregunta:
+    enfocada (nada), equilibrada (un tercio de las consultas) o amplia (la
+    mitad). Se guarda en la configuración de la investigación."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv or not isinstance(amplitud, str):
+        return False
+    from rosa import politicas
+
+    if amplitud not in politicas.AMPLITUD:
+        return False
+    inv.setdefault("configuracion", {"preferencias": "", "atributos": [], "restricciones": []})["amplitud"] = amplitud
     return True
 
 

@@ -73,19 +73,19 @@ def _almacen_con_semilla(iteracion_semilla=1, con_afirmaciones_nuevas=True):
     return al
 
 
-def _ctx(al, relaciones):
+def _ctx(al, relaciones, monkeypatch):
     async def llamar(self, rol, programa, **kw):
         assert "Título: GFAP antes que NfL" in kw["hipotesis"]
         return SimpleNamespace(relaciones=relaciones)
 
-    Ctx.llamar = llamar
+    monkeypatch.setattr(Ctx, "llamar", llamar)
     return Ctx(al, SimpleNamespace(asignar_evidencia="asignar_evidencia"), None, "cor", "inv", "", 7)
 
 
-def test_la_semilla_nace_cuando_llega_la_segunda_cohorte():
+def test_la_semilla_nace_cuando_llega_la_segunda_cohorte(monkeypatch):
     al = _almacen_con_semilla()
     try:
-        ctx = _ctx(al, [SimpleNamespace(indice=1, relacion="apoya", motivo="misma población y sentido")])
+        ctx = _ctx(al, [SimpleNamespace(indice=1, relacion="apoya", motivo="misma población y sentido")], monkeypatch)
         r = asyncio.run(EV.acumular_vivero(ctx, 7))
         assert r["semillas"] == 1 and r["anadidas"] == 1 and len(r["nacidas"]) == 1 and r["retiradas"] == []
         e = al.estado
@@ -101,10 +101,10 @@ def test_la_semilla_nace_cuando_llega_la_segunda_cohorte():
         al.cerrar()
 
 
-def test_la_semilla_se_retira_tras_seis_iteraciones_sin_evidencia_y_no_antes():
+def test_la_semilla_se_retira_tras_seis_iteraciones_sin_evidencia_y_no_antes(monkeypatch):
     al = _almacen_con_semilla(iteracion_semilla=1, con_afirmaciones_nuevas=False)
     try:
-        ctx = _ctx(al, [])
+        ctx = _ctx(al, [], monkeypatch)
         r = asyncio.run(EV.acumular_vivero(ctx, 7))
         assert r["nacidas"] == [] and r["retiradas"] == ["GFAP antes que NfL en APOE ε4"] and al.estado["investigaciones"][0]["vivero"] == []
         assert any(ev["tipo"] == "vivero" and "Sale del vivero sin nacer" in ev["texto"] for ev in al.estado["eventos"])
@@ -112,7 +112,7 @@ def test_la_semilla_se_retira_tras_seis_iteraciones_sin_evidencia_y_no_antes():
         al.cerrar()
     al = _almacen_con_semilla(iteracion_semilla=5, con_afirmaciones_nuevas=False)
     try:
-        r = asyncio.run(EV.acumular_vivero(_ctx(al, []), 7))
+        r = asyncio.run(EV.acumular_vivero(_ctx(al, [], monkeypatch), 7))
         assert r["retiradas"] == [] and len(al.estado["investigaciones"][0]["vivero"]) == 1
     finally:
         al.cerrar()

@@ -4242,3 +4242,15 @@ details.versiones > :not(summary) {
   font-weight: 500;
   color: var(--text-2);
 }
+
+/* Amplitud de búsqueda: los tres botones de la configuración. */
+.amplitud {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.amplitud-botones {
+  flex-wrap: wrap;
+}

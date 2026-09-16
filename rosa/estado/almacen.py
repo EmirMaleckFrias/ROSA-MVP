@@ -272,6 +272,8 @@ class Almacen:
                         "extraida": bool(f.get("extraida")),
                         "iteracion": f.get("iteracion", 0),
                         "consultas": list(f.get("consultas", [])),
+                        "modo": f.get("modo") or "foco",
+                        "porque": f.get("porque") or "",
                         "riesgoSesgo": ({"instrumento": f["riesgoSesgo"].get("instrumento"), "global": f["riesgoSesgo"].get("global"), "dominios": [{"id": d["id"], "nombre": d["nombre"], "juicio": d["juicio"]} for d in f["riesgoSesgo"].get("dominios", [])]} if isinstance(f.get("riesgoSesgo"), dict) else None),
                     }
                 )
@@ -518,6 +520,7 @@ _TABLA: dict[str, Callable] = {
     "crearInvestigacion": A.crear_investigacion,
     "bifurcarInvestigacion": A.bifurcar_investigacion,
     "actualizarConfiguracion": A.actualizar_configuracion,
+    "fijarAmplitud": A.fijar_amplitud,
     "anadirDataset": A.anadir_dataset,
     "decidirDataset": A.decidir_dataset,
     "aprobarDiccionario": A.aprobar_diccionario,

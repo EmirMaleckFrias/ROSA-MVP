@@ -113,6 +113,19 @@ def destino_de_propuesta(afirmaciones: list[dict[str, Any]], fuentes: list[dict[
     return ("nace" if CERTEZA.NIVELES.index(nivel) >= 1 else "vivero"), nivel, motivo
 
 
+def _liston_de(f: dict[str, Any]) -> int:
+    """El listón de relevancia con el que entró la fuente: el de amplitud si llegó explorando."""
+    return politicas.RELEVANCIA_MINIMA_AMPLITUD if f.get("modo") == "amplitud" else RELEVANCIA_MINIMA
+
+
+def _criterio_para_fuente(preguntas: str, f: dict[str, Any]) -> str:
+    """El criterio que ve el extractor: el general más, para una fuente de amplitud,
+    por qué se conservó, para que extraiga también lo que sirve a eso."""
+    if f.get("modo") == "amplitud" and f.get("porque"):
+        return f"{preguntas}\nEsta fuente llegó por búsqueda en amplitud y se conservó porque podría cambiar: {f['porque']}. Extrae también las afirmaciones que sirvan a eso, aunque no respondan a las preguntas anteriores."
+    return preguntas
+
+
 def _consulta_del_paso(ctx: "Ctx", inv: dict[str, Any], extra: str = "") -> str:
     """Con qué se eligen los hechos del modelo de mundo para un paso: el
     objetivo, la pregunta de la corrida y lo propio del paso."""
@@ -304,6 +317,12 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
             existente["textoCompleto"] = existente["textoCompleto"] or any(fr["localizador"] != "resumen" for fr in fragmentos)
             if consulta and consulta not in existente.setdefault("consultas", []):
                 existente["consultas"].append(consulta)
+            # Si una consulta de foco también la trajo, deja de contar como hallazgo de amplitud.
+            # Una fuente anterior al 16 de septiembre de 2026 (sin modo) llegó por foco.
+            if datos.get("_modo") == "foco" or not existente.get("modo"):
+                existente["modo"] = "foco"
+            if datos.get("_porque") and not existente.get("porque"):
+                existente["porque"] = datos["_porque"]
             return existente["id"]
         tipo_estudio, nivel = pubmed.tipo_estudio(datos.get("tipos", []), datos.get("titulo", ""))
         f = P.nueva_fuente(
@@ -333,6 +352,11 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
         f["extraida"] = False
         f["iteracion"] = ctx.numero
         f["consultas"] = [consulta] if consulta else []
+        # Por qué modo llegó: foco (la pregunta) o amplitud (explorando alrededor), y en
+        # amplitud, por qué se conservó (qué podría cambiar), para que el extractor lo sepa.
+        f["modo"] = datos.get("_modo") or "foco"
+        if datos.get("_porque"):
+            f["porque"] = datos["_porque"]
         fuentes[f["id"]] = f
         return f["id"]
 
@@ -450,6 +474,90 @@ def consultas_por_nombre(nombres: list[str], consultas: list[dict[str, Any]], pr
     return salida
 
 
+def amplitud_de(inv: dict[str, Any]) -> str:
+    """La amplitud de búsqueda elegida para la investigación (botones), o la de por defecto."""
+    valor = (inv.get("configuracion") or {}).get("amplitud")
+    return valor if isinstance(valor, str) and valor in politicas.AMPLITUD else politicas.AMPLITUD_POR_DEFECTO
+
+
+def cuantas_de_amplitud(n_foco: int, amplitud: str) -> int:
+    """Cuántas consultas exploran fuera de la pregunta para que sean la fracción
+    elegida del total: con un tercio y 4 de foco, 2; con la mitad, 4; enfocada, 0."""
+    fraccion = politicas.AMPLITUD.get(amplitud, 0.0)
+    if fraccion <= 0 or n_foco <= 0:
+        return 0
+    n = round(n_foco * fraccion / (1 - fraccion))
+    return max(1, min(politicas.MAX_CONSULTAS_AMPLITUD, n))
+
+
+def consulta_novedad_del_campo(inv: dict[str, Any], ahora_ms: int) -> dict[str, Any] | None:
+    """La consulta determinista de "novedad del campo": el objetivo, por
+    significado, acotado a lo publicado en los últimos meses. Solo con Exa."""
+    if not exa.disponible():
+        return None
+    desde = fecha_iso_de_ms(ahora_ms - politicas.DIAS_NOVEDAD_DEL_CAMPO * 86_400_000)
+    return {
+        "base": "exa",
+        "consulta": f"Novedades recientes en la investigación del Alzheimer relacionadas con: {inv['objetivo'][:400]}",
+        "tema": "Novedad reciente del campo",
+        "modo": "amplitud",
+        "porque": f"Lo publicado en los últimos {politicas.DIAS_NOVEDAD_DEL_CAMPO} días sobre el terreno del objetivo puede traer una segunda cohorte, un contraejemplo o una línea que el árbol no tiene",
+        "desde_fecha": desde,
+    }
+
+
+async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, previas: list[str], pista: Pista | None = None) -> list[dict[str, Any]]:
+    """Las consultas de amplitud de este paso: la novedad del campo (sin modelo)
+    y las adyacentes y de sorpresa que escribe el cerebro con el mapa del
+    árbol delante. Nunca reformulan la pregunta de la corrida."""
+    if cuantas <= 0:
+        return []
+    salida: list[dict[str, Any]] = []
+    ahora = P.ahora_ms()
+    novedad = consulta_novedad_del_campo(inv, ahora)
+    hechas = {q.lower() for q in previas}
+    if novedad and novedad["consulta"].lower() not in hechas:
+        salida.append(novedad)
+    elif novedad is None and pista:
+        pista.nota("Sin clave de Exa: la novedad reciente del campo no se puede consultar (no es que no haya novedades); se explora solo con temas adyacentes y sorpresa")
+    restantes = cuantas - len(salida)
+    if restantes <= 0:
+        return salida
+    e = ctx.e
+    propios = [h for h in e["hechos"] if h["investigacionId"] == ctx.investigacion_id]
+    mapa = T.mapa_del_modelo(propios, {h["id"]: h for h in e["hechos"]}, e.get("investigaciones", []))
+    try:
+        pred = await ctx.llamar(
+            "cerebro",
+            ctx.programas.explorar,
+            objetivo=inv["objetivo"],
+            mapa_del_arbol=mapa,
+            hipotesis_y_vivero=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv),
+            pregunta_y_preguntas_abiertas=_criterio(ctx, inv),
+            consultas_previas="\n".join(list(previas)[-20:] + [q["consulta"] for q in salida]) or "Ninguna",
+            bases_disponibles=", ".join(bases_disponibles()),
+            cuantas=restantes,
+        )
+    except PresupuestoAgotado:
+        raise
+    except Exception as ex:  # noqa: BLE001  sin exploración este paso; el foco sigue
+        if pista:
+            pista.nota(f"No se pudieron escribir las consultas de amplitud ({type(ex).__name__}); este paso solo busca en foco")
+        return salida
+    # Se recorren todas las propuestas y se para al llegar al cupo: una repetida
+    # o ya hecha no consume plaza.
+    for c in list(pred.consultas):
+        if len(salida) >= cuantas:
+            break
+        q = base_efectiva(c.model_dump())
+        q["modo"] = "amplitud"
+        if not q.get("porque"):
+            q["porque"] = "Explorar alrededor del objetivo"
+        if q["consulta"].strip() and q["consulta"].lower() not in hechas and q["consulta"].lower() not in {x["consulta"].lower() for x in salida}:
+            salida.append(q)
+    return salida[:cuantas]
+
+
 def bases_disponibles() -> list[str]:
     """Las bases que el planificador puede elegir ahora. Exa y la literatura
     gris (que va por Exa) solo con clave."""
@@ -468,13 +576,27 @@ def base_efectiva(consulta: dict[str, Any]) -> dict[str, Any]:
     return consulta
 
 
-async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[str, str], preguntas: str) -> dict[str, int]:
+async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[str, Any], preguntas: str) -> dict[str, int]:
     base = consulta["base"]
     nombre_base = NOMBRES_BASE[base]
-    pista = ctx.pista(paso["id"], "literatura", consulta["tema"][:80] or consulta["consulta"][:80], nombre_base)
+    modo = "amplitud" if consulta.get("modo") == "amplitud" else "foco"
+    minimo = politicas.RELEVANCIA_MINIMA_AMPLITUD if modo == "amplitud" else RELEVANCIA_MINIMA
+    titulo_pista = (consulta.get("tema") or consulta["consulta"])[:80]
+    pista = ctx.pista(paso["id"], "literatura", (f"Amplitud: {titulo_pista}" if modo == "amplitud" else titulo_pista)[:90], nombre_base)
     resultado = {"identificados": 0, "cribados": 0, "textoCompleto": 0, "leidos": 0}
+    inv = ctx.inv()
+    contexto_amplitud = ""
+    if modo == "amplitud":
+        contexto_amplitud = T.hipotesis_vivas(ctx.e["hipotesis"], ctx.investigacion_id, maximo=6) + "\n" + T.vivero_texto(inv, maximo=5)
+    # En amplitud, los pasajes destacados y el orden por similitud se guían con el
+    # objetivo y el "por qué" de la consulta, no con la pregunta de foco: se busca lo que
+    # podría cambiar algo. Es el mismo criterio que usa el reranker y el cribado.
+    criterio_amplitud = f"{inv['objetivo']}\n{consulta.get('porque') or ''}"[:500]
+    guia_pasajes = criterio_amplitud if modo == "amplitud" else preguntas[:500]
     try:
         pista.accion(f"Consulta: {consulta['consulta']}")
+        if modo == "amplitud" and consulta.get("porque"):
+            pista.nota(f"Búsqueda en amplitud. Por qué: {consulta['porque'][:200]}. Los pasajes y el orden se guían con el objetivo y ese porqué, no con la pregunta de foco.")
         if consulta.get("_desviada_de"):
             pista.nota(f"El plan la dirigía a {consulta['_desviada_de']}, que no está disponible (sin clave); va a {nombre_base}")
         ahora = P.ahora_ms()
@@ -489,8 +611,8 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             # identificados = traídos. "gris" busca sin categoría y acotado a los
             # dominios de reguladores, registros y portales del campo.
             gris = base == "gris"
-            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=maximo_por_consulta(), categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=preguntas[:500] or None)
-            pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
+            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=maximo_por_consulta(), desde_fecha=consulta.get("desde_fecha"), categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=guia_pasajes or None)
+            pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + (f"&startPublishedDate={consulta['desde_fecha']}" if consulta.get("desde_fecha") else "") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
             _anotar_coste_exa(ctx, coste_exa)
             if articulos:
                 # Orden por afinidad del mejor pasaje con las preguntas, cuando Exa la da.
@@ -502,7 +624,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
 
         def anotar(e: dict[str, Any]) -> bool:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
-            c["busqueda"]["consultas"].append({"base": nombre_base, "consulta": consulta["consulta"], "fecha": ahora, "resultados": total, "iteracion": ctx.numero, "tema": consulta["tema"]})
+            c["busqueda"]["consultas"].append({"base": nombre_base, "consulta": consulta["consulta"], "fecha": ahora, "resultados": total, "iteracion": ctx.numero, "tema": consulta["tema"], "modo": modo, "porque": (consulta.get("porque") or "")[:300], "desdeFecha": consulta.get("desde_fecha")})
             c["busqueda"]["identificados"] += total
             c.setdefault("_consultasHechas", []).append(consulta["consulta"])
             return True
@@ -515,30 +637,39 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
 
         # Corte previo por pertinencia con el reranker del gateway: el modelo
         # solo puntúa a los mejores; los demás quedan excluidos con su cifra.
-        al_modelo, fuera = await cortar_con_reranker(f"{preguntas}\n{consulta['tema']}", [a for a in articulos if a.get("titulo")], pista)
-        # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA.
+        # En amplitud el reranker ordena contra el objetivo y el "por qué" de la consulta,
+        # no contra la pregunta: lo que se busca es lo que podría cambiar algo.
+        pregunta_reranker = f"{inv['objetivo']}\n{consulta['tema']}\n{consulta.get('porque') or ''}" if modo == "amplitud" else f"{preguntas}\n{consulta['tema']}"
+        al_modelo, fuera = await cortar_con_reranker(pregunta_reranker, [a for a in articulos if a.get("titulo")], pista)
+        # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA. En amplitud, con
+        # otra pregunta (qué podría cambiar) y el listón un punto más bajo.
         puntuados: list[tuple[int, dict[str, Any], str]] = []
         for a, s in fuera:
-            puntuados.append((min(RELEVANCIA_MINIMA - 1, int(round(s * 10))), a, f"fuera del corte del reranker (pertinencia {s:.2f}); no se gastó una llamada al modelo"))
+            puntuados.append((min(minimo - 1, int(round(s * 10))), a, f"fuera del corte del reranker (pertinencia {s:.2f}); no se gastó una llamada al modelo"))
         sem = asyncio.Semaphore(4)
 
         async def puntuar(a: dict[str, Any]) -> None:
             async with sem:
                 try:
-                    pred = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=preguntas, titulo=a.get("titulo", ""), resumen=K.como_dato((a.get("resumen") or "")[:3000]))
-                    puntuados.append((int(pred.puntuacion), a, pred.motivo))
+                    if modo == "amplitud":
+                        pred = await ctx.llamar("volumen", ctx.programas.relevancia_amplitud, objetivo=inv["objetivo"], hipotesis_y_vivero=contexto_amplitud, titulo=a.get("titulo", ""), resumen=K.como_dato((a.get("resumen") or "")[:3000]))
+                        a["_porque"] = str(pred.podria_cambiar or "")[:200]
+                        puntuados.append((int(pred.puntuacion), a, f"{pred.motivo} Podría cambiar: {pred.podria_cambiar}"))
+                    else:
+                        pred = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=preguntas, titulo=a.get("titulo", ""), resumen=K.como_dato((a.get("resumen") or "")[:3000]))
+                        puntuados.append((int(pred.puntuacion), a, pred.motivo))
                 except PresupuestoAgotado:
                     raise
                 except Exception as ex:  # noqa: BLE001
                     # Un fallo del modelo no vuelve irrelevante al articulo: se conserva con nota.
-                    puntuados.append((RELEVANCIA_MINIMA, a, f"sin puntuar (el modelo no respondió: {str(ex)[:60]}); se conserva para no perderlo"))
+                    puntuados.append((minimo, a, f"sin puntuar (el modelo no respondió: {str(ex)[:60]}); se conserva para no perderlo"))
 
         await asyncio.gather(*(puntuar(a) for a in al_modelo))
         puntuados.sort(key=lambda x: -x[0])
-        relevantes = [x for x in puntuados if x[0] >= RELEVANCIA_MINIMA]
-        descartados = [x for x in puntuados if x[0] < RELEVANCIA_MINIMA]
+        relevantes = [x for x in puntuados if x[0] >= minimo]
+        descartados = [x for x in puntuados if x[0] < minimo]
         resultado["cribados"] = len(relevantes)
-        pista.resultado(f"Cribado: {len(relevantes)} de {len(puntuados)} relevantes (puntuacion >= {RELEVANCIA_MINIMA}); descartados: " + ", ".join(f"{a['referencia']} ({p})" for p, a, _ in descartados)[:300])
+        pista.resultado(f"Cribado{' en amplitud' if modo == 'amplitud' else ''}: {len(relevantes)} de {len(puntuados)} relevantes (puntuación >= {minimo}); descartados: " + ", ".join(f"{a['referencia']} ({p})" for p, a, _ in descartados)[:300])
 
         def anotar_cribado(e: dict[str, Any]) -> bool:
             # Cada excluido con su motivo: es el item 16b de PRISMA 2020 y la caja de
@@ -548,7 +679,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             b["traidos"] = int(b.get("traidos") or 0) + len(puntuados)
             ex = b.setdefault("excluidos", [])
             for p_, a_, motivo_ in descartados:
-                ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base})
+                ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "modo": modo, "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base})
             if len(ex) > 600:
                 del ex[: len(ex) - 600]
             return True
@@ -572,6 +703,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             if any(fr["localizador"] != "resumen" for fr in fragmentos):
                 resultado["textoCompleto"] += 1
             tipo = "preprint" if a.get("preprint") or base == "preprints" else "articulo"
+            a["_modo"] = modo
             _registrar_fuente(ctx, a, tipo, fragmentos, puntuacion, marca, detalle, comprobada, consulta["consulta"])
             resultado["leidos"] += 1
             pista.resultado(f"{a['referencia']} (relevancia {puntuacion}): {motivo[:100]}")
@@ -668,8 +800,23 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     previas = ctx.corrida().get("_consultasHechas", [])
     nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
     pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
-    consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][:5]
+    consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][: politicas.MAX_CONSULTAS_FOCO]
     consultas += consultas_por_nombre(nombres, consultas, previas)
+    for q in consultas:
+        q["modo"] = "foco"
+    # Amplitud: una parte de las consultas explora fuera de la pregunta (temas
+    # adyacentes, novedad del campo, sorpresa), según el ajuste de la investigación.
+    amplitud = amplitud_de(inv)
+    n_amplitud = cuantas_de_amplitud(len(consultas), amplitud)
+    if n_amplitud:
+        pista_amp = ctx.pista(paso["id"], "literatura", f"Búsqueda en amplitud ({amplitud}): qué hay alrededor del objetivo", "GPT-6 Astra")
+        try:
+            de_amplitud = await _consultas_amplitud(ctx, inv, n_amplitud, previas + [q["consulta"] for q in consultas], pista_amp)
+        except PresupuestoAgotado:
+            pista_amp.cerrar("Presupuesto agotado antes de escribir las consultas de amplitud; el paso se retoma al ampliarlo", "detenida")
+            raise
+        pista_amp.cerrar(f"{len(de_amplitud)} consultas de amplitud: " + "; ".join(q["tema"][:40] for q in de_amplitud) if de_amplitud else "Sin consultas de amplitud en este paso")
+        consultas += de_amplitud
     if not consultas:
         return "El modelo no propuso consultas"
     crudos = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)
@@ -693,6 +840,8 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
         c["busqueda"]["textoCompleto"] += total.get("textoCompleto", 0)
         c["gasto"]["articulosLeidos"] += total.get("leidos", 0)
         for q in consultas:
+            if q.get("modo") == "amplitud":
+                continue  # la cobertura mide cuánto se ha leído de los temas de la pregunta, no de la exploración
             tema = q["tema"][:60]
             cob = next((x for x in c["coberturas"] if x["tema"] == tema), None)
             if cob is None:
@@ -703,7 +852,8 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
         return True
 
     ctx.mutar(actualizar, "busqueda")
-    return f"{len(consultas)} consultas, {total.get('identificados', 0)} identificados, {total.get('cribados', 0)} relevantes, {total.get('textoCompleto', 0)} con texto completo"
+    n_amp = sum(1 for q in consultas if q.get("modo") == "amplitud")
+    return f"{len(consultas)} consultas ({len(consultas) - n_amp} de foco, {n_amp} de amplitud), {total.get('identificados', 0)} identificados, {total.get('cribados', 0)} relevantes, {total.get('textoCompleto', 0)} con texto completo"
 
 
 # ---------------------------------------------------------------------------
@@ -751,7 +901,9 @@ async def paso_ensayos(ctx: Ctx, paso: dict[str, Any]) -> str:
 async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     preguntas = _criterio(ctx, inv)
-    pendientes = sorted([f for f in ctx.fuentes().values() if not f.get("extraida") and f.get("retraccion") != "retractado"], key=lambda f: -f.get("relevancia", 0))[:MAX_FUENTES_EXTRAER]
+    # Orden por margen sobre el listón de cada modo: una fuente de amplitud con 4 (listón 4)
+    # no queda siempre detrás de las de foco con 5 (listón 5).
+    pendientes = sorted([f for f in ctx.fuentes().values() if not f.get("extraida") and f.get("retraccion") != "retractado"], key=lambda f: -(f.get("relevancia", 0) - _liston_de(f)))[:MAX_FUENTES_EXTRAER]
     if not pendientes:
         return "No hay fuentes nuevas de las que extraer"
     pista = ctx.pista(paso["id"], "extraccion", f"Extraer afirmaciones de {len(pendientes)} fuentes", "Sonnet 5")
@@ -781,7 +933,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
             async with sem:
                 try:
                     # El fragmento entra delimitado como dato (spotlighting), nunca como instruccion.
-                    pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=preguntas, referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
+                    pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=_criterio_para_fuente(preguntas, f), referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
                 except PresupuestoAgotado:
                     raise
                 except Exception as ex:  # noqa: BLE001

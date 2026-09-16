@@ -60,3 +60,20 @@ def test_pubtator_registrados_y_funcionan_con_api_simulada(monkeypatch):
     assert lit.n == 21338 and lit.ids == ["37829140"] and lit.datos["articulos"][0]["fecha"] == "2023-09-27"
     ent = asyncio.run(pubtator.pubtator_entidad("GFAP", "gene"))
     assert ent.ids == ["@GENE_GFAP"] and ent.invariante[0] is True
+
+
+def test_la_amplitud_no_penaliza_fuera_de_objetivo_y_se_mide_por_lo_enlazado():
+    objetivos = banco.cargar_objetivos()
+    obj = next(o for o in objetivos if o["clave"] == "biomarcador_beneficio_clinico")
+    e = {
+        "corridas": [{"id": "c1", "investigacionId": "inv", "busqueda": {"consultas": [{"consulta": "lecanemab", "modo": "foco"}, {"consulta": "retina", "modo": "amplitud"}]},
+                      "_fuentes": {"f1": {"id": "f1", "titulo": "Lecanemab in Early Alzheimer's Disease", "modo": "foco"}, "f2": {"id": "f2", "titulo": "Biomarker chronology in autosomal dominant Alzheimer", "modo": "amplitud"}, "f3": {"id": "f3", "titulo": "Retinal amyloid", "modo": "amplitud"}},
+                      "_afirmaciones": [{"id": "af-1", "fuenteId": "f3"}, {"id": "af-2", "fuenteId": "f2"}],
+                      "gasto": {}}],
+        "hipotesis": [{"id": "h1", "investigacionId": "inv", "titulo": "x", "afirmaciones": [{"afirmacionId": "af-1", "relacion": "apoya"}]}],
+        "iteraciones": [], "investigaciones": [{"id": "inv", "objetivo": obj["objetivo"]}],
+    }
+    r = banco.puntuar(e, "c1", obj)
+    # La fuente de amplitud sobre autosómico dominante no cuenta como "fuera de objetivo": solo se miden las de foco.
+    assert r["criterios"]["fuera_de_objetivo"] == 1.0
+    assert r["amplitud"] == {"consultas": 1, "fuentes": 2, "enlazadas": 1}

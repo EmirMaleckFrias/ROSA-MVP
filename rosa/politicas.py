@@ -157,3 +157,21 @@ def resumen() -> dict[str, object]:
         "nivelAutonomiaDeclarado": NIVEL_AUTONOMIA_DECLARADO,
         "nivelesAutonomia": list(NIVELES_AUTONOMIA),
     }
+
+# Amplitud de búsqueda (16 de septiembre de 2026). Rosa busca en dos modos en
+# cada paso de literatura: foco (la pregunta de la corrida y el peldaño que le
+# falta a cada hipótesis) y amplitud (temas adyacentes del modelo de mundo,
+# novedad reciente del campo y sorpresa por significado). Regla de Emir y de
+# su compañero: una Rosa que solo mira el punto fijo se pierde los diamantes
+# de al lado. La fracción es la parte de las consultas que van a explorar; la
+# persona la elige por investigación con botones (enfocada, equilibrada,
+# amplia); equilibrada por defecto.
+AMPLITUD = {"enfocada": 0.0, "equilibrada": 0.34, "amplia": 0.5}
+AMPLITUD_POR_DEFECTO = "equilibrada"
+MAX_CONSULTAS_FOCO = 5
+MAX_CONSULTAS_AMPLITUD = 4
+# Lo explorado se puntúa con otra pregunta (qué podría cambiar) y con el listón
+# un punto más bajo: un diamante nunca se tira por no responder a la pregunta.
+RELEVANCIA_MINIMA_AMPLITUD = 4
+# La "novedad del campo" mira lo publicado en los últimos seis meses.
+DIAS_NOVEDAD_DEL_CAMPO = 180

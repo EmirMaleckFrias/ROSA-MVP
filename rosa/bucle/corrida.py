@@ -1047,7 +1047,11 @@ class Supervisor:
             for p in list(pred.plan)[:7]:
                 if p.tipo == "analisis" and not hay_datos:
                     continue  # sin datasets aprobados no hay nada que analizar
-                paso = P.nuevo_paso(p.titulo, p.detalle, COSTE_POR_TIPO.get(p.tipo, 20), valor_decision=(p.valor_decision or "").strip())
+                coste = COSTE_POR_TIPO.get(p.tipo, 20)
+                if p.tipo == "literatura":
+                    # La búsqueda en amplitud añade consultas al paso: su presupuesto crece con la fracción elegida.
+                    coste = int(round(coste * (1 + politicas.AMPLITUD.get(PASOS.amplitud_de(inv), 0.0))))
+                paso = P.nuevo_paso(p.titulo, p.detalle, coste, valor_decision=(p.valor_decision or "").strip())
                 paso["tipo"] = p.tipo
                 plan.append(paso)
             if hay_datos and not any(p.get("tipo") == "analisis" for p in plan) and (any(r["investigacionId"] == inv["id"] and r["estado"] == "pendiente" for r in e.get("reproducciones", [])) or any(h["investigacionId"] == inv["id"] and h.get("_analisisPedido") for h in e["hipotesis"])):

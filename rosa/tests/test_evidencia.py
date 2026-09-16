@@ -54,21 +54,21 @@ class Rel:
         self.indice, self.relacion, self.motivo = indice, relacion, motivo
 
 
-def _ctx(al, relaciones, llamadas):
+def _ctx(al, relaciones, llamadas, monkeypatch):
     async def llamar(self, rol, programa, **kw):
         assert rol == "volumen" and programa == "asignar_evidencia"
         llamadas.append(kw["afirmaciones"])
         return SimpleNamespace(relaciones=relaciones)
 
-    Ctx.llamar = llamar  # simulación local; el módulo real hace la llamada por el gateway
+    monkeypatch.setattr(Ctx, "llamar", llamar)  # simulación local; el módulo real hace la llamada por el gateway
     return Ctx(al, SimpleNamespace(asignar_evidencia="asignar_evidencia"), None, "cor", "inv", "", 2)
 
 
-def test_acumula_por_terminos_sin_embeddings_y_sube_el_techo():
+def test_acumula_por_terminos_sin_embeddings_y_sube_el_techo(monkeypatch):
     al = _preparar()
     try:
         llamadas = []
-        ctx = _ctx(al, [Rel(1, "apoya"), Rel(2, "contradice", "sentido contrario"), Rel(3, "no_pertinente")], llamadas)
+        ctx = _ctx(al, [Rel(1, "apoya"), Rel(2, "contradice", "sentido contrario"), Rel(3, "no_pertinente")], llamadas, monkeypatch)
         r = asyncio.run(EV.acumular(ctx, 2))
         assert r["hipotesis"] == 1 and r["anadidas"] == 2 and r["enContra"] == 1 and len(r["ids"]) == 1
         # Las candidatas: af-1 y af-2 (nombran GFAP, NfL, APOE); af-3 (glioma, un solo término) y la de otra entidad no llegan al modelo; af-4 ya la tenía.
@@ -105,7 +105,7 @@ def test_con_embeddings_elige_por_parecido_y_sin_pertinentes_no_toca_nada(monkey
         monkeypatch.setattr(indice_semantico, "disponible", lambda: True)
         monkeypatch.setattr(indice_semantico, "incrustar", incrustar)
         llamadas = []
-        ctx = _ctx(al, [Rel(1, "no_pertinente"), Rel(2, "no_pertinente")], llamadas)
+        ctx = _ctx(al, [Rel(1, "no_pertinente"), Rel(2, "no_pertinente")], llamadas, monkeypatch)
         r = asyncio.run(EV.acumular(ctx, 2))
         assert r["candidatas"] == 2 and r["anadidas"] == 0 and r["ids"] == []
         assert "glioma" not in llamadas[0]  # coseno 0 con la hipótesis: fuera del umbral

@@ -13,12 +13,18 @@ export interface ConsultaEvidencia {
   resultados: number;
   iteracion?: number;
   tema?: string;
+  /** foco o amplitud; ausente en consultas anteriores al 16 de septiembre de 2026. */
+  modo?: 'foco' | 'amplitud';
+  porque?: string;
 }
 
 export interface FuenteEvidencia {
   id: string;
   referencia: string;
   titulo: string;
+  /** foco o amplitud; y en amplitud, por qué se conservó. */
+  modo?: 'foco' | 'amplitud';
+  porque?: string;
   tipo: TipoFuente;
   doi: string | null;
   pmid: string | null;

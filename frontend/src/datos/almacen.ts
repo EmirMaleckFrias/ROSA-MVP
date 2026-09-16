@@ -18,7 +18,7 @@ import { descargar } from '../componentes/piezas';
 import type { CostesInvestigacion } from '../componentes/Rosa2018';
 import { estadoDeMuestra } from './muestra';
 import { iniciarSimulacion } from './simulacion';
-import type { AlcancePermiso, AnclaComentario, Avisos, CampoEnmendable, ClaseAccion, ClasificacionDatos, ConocimientoOperativo, Dataset, EstadoArea, EstadoEspejo, EstadoRosa, Investigacion, MetodoRegistrado, NivelAutonomia, NivelPermisoConector, ParadaCorrida, PasoPlan, PoliticaEsperas, PreguntaCampana, ProcedenciaDataset, RevisionHumana, TipoArtefacto } from './tipos';
+import type { AlcancePermiso, Amplitud, AnclaComentario, Avisos, CampoEnmendable, ClaseAccion, ClasificacionDatos, ConocimientoOperativo, Dataset, EstadoArea, EstadoEspejo, EstadoRosa, Investigacion, MetodoRegistrado, NivelAutonomia, NivelPermisoConector, ParadaCorrida, PasoPlan, PoliticaEsperas, PreguntaCampana, ProcedenciaDataset, RevisionHumana, TipoArtefacto } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -407,6 +407,11 @@ export const acciones = {
    *  llegue primero, además de la condición de la investigación. */
   iniciarCorrida: (investigacionId: string, parada: ParadaCorrida | null = null) => {
     enviar('iniciarCorrida', parada ? { investigacion_id: investigacionId, parada } : { investigacion_id: investigacionId });
+  },
+  /** Cuánto explora Rosa fuera de la pregunta en cada paso de literatura. */
+  fijarAmplitud: (investigacionId: string, amplitud: Amplitud) => {
+    aplicar((e) => A.fijarAmplitud(e, investigacionId, amplitud));
+    enviar('fijarAmplitud', { investigacion_id: investigacionId, amplitud });
   },
   ampliarPresupuesto: (id: string, limite: number) => {
     aplicar((e) => A.ampliarPresupuesto(e, id, limite, Date.now()));

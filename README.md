@@ -312,6 +312,40 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Búsqueda en amplitud: los diamantes de al lado (16 de septiembre de 2026)
+
+Regla de Emir y de su compañero: una Rosa que solo mira la pregunta se
+pierde la mayor parte de lo que hay sobre Alzheimer. Cada paso de literatura
+busca ahora en dos modos:
+
+- **Foco**: la pregunta de la corrida y el peldaño que le falta a cada
+  hipótesis (lo que había).
+- **Amplitud**: una parte de las consultas explora fuera de la pregunta.
+  Tres clases: la **novedad del campo** (determinista: el objetivo por
+  significado en Exa, acotado a los últimos 180 días), los **temas
+  adyacentes** que rodean al objetivo en el mapa del modelo de mundo y que el
+  árbol no cubre, y la **sorpresa** (por significado, con vocabulario distinto
+  al del árbol). Las escribe el cerebro con `ExplorarAlrededor`, viendo el
+  mapa del árbol, las hipótesis con su peldaño y el vivero; cada una dice en
+  `porque` qué podría cambiar si aparece algo.
+
+Lo explorado se criba con otra pregunta (`PuntuarRelevanciaAmplitud`: ¿podría
+cambiar una hipótesis viva o una idea del vivero, aportar una segunda cohorte
+o un contraejemplo, abrir una línea sobre el objetivo?), sin castigar que no
+responda a la pregunta, con el listón un punto más bajo, y el reranker ordena
+contra el objetivo y el "por qué" de la consulta. Lo que pasa se extrae y va
+por la acumulación de evidencia y el vivero como todo lo demás: la amplitud
+alimenta lo que ya existe, no multiplica hipótesis.
+
+La persona elige la amplitud por investigación con tres botones en
+"Configuración que Rosa lee": **enfocada** (nada), **equilibrada** (un tercio
+de las consultas, por defecto) y **amplia** (la mitad). Queda en
+`configuracion.amplitud` (`fijarAmplitud`). Cada consulta y cada fuente
+llevan su `modo`; la tabla de consultas de la corrida lo enseña, la
+acumulación cuenta cuántas afirmaciones enlazadas llegaron por amplitud y
+"Mientras no estabas" lo resume como "hallazgos fuera del foco". Pruebas:
+`rosa/tests/test_amplitud.py`, `frontend/src/datos/amplitud.test.ts`.
+
 ## Parada propia de cada corrida (15 de septiembre de 2026, noche)
 
 Al pulsar "Nueva corrida" se elige cuánto debe durar como mucho: horas,
