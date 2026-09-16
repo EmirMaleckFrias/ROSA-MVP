@@ -63,16 +63,23 @@ function leerVisita(): number | null {
   }
 }
 
-let estado: EstadoRosa = (() => {
+function estadoInicial(): EstadoRosa {
   const base = estadoDeMuestra();
   const visita = leerVisita();
   return visita !== null ? { ...base, ultimaVisita: visita } : base;
-})();
-const oyentes = new Set<() => void>();
-let modo: 'muestra' | 'servidor' = 'muestra';
+}
+// Solo memoria de esta pestaña: no guardar investigaciones en almacenamiento
+// persistente ni recuperar una sesión sin verificarla tras recargar la página.
+import.meta.hot?.data?.retirarAlmacen?.();
+const vivo: { estado: EstadoRosa; oyentes: Set<() => void>; version: number } = import.meta.hot?.data?.almacenVivo ?? {
+  estado: estadoInicial(), oyentes: new Set<() => void>(), version: -1,
+};
+const oyentes = vivo.oyentes;
+let modo: 'muestra' | 'servidor' = import.meta.hot?.data?.modoRosa ?? 'muestra';
+let retirado = false;
 
 function leer(): EstadoRosa {
-  return estado;
+  return vivo.estado;
 }
 
 function suscribir(oyente: () => void): () => void {
@@ -86,9 +93,9 @@ function notificar(): void {
 
 /** Aplica un cambio puro. Si devuelve el mismo objeto, nadie se entera. */
 export function aplicar(fn: (e: EstadoRosa) => EstadoRosa): void {
-  const siguiente = fn(estado);
-  if (siguiente === estado) return;
-  estado = siguiente;
+  const siguiente = fn(vivo.estado);
+  if (siguiente === vivo.estado) return;
+  vivo.estado = siguiente;
   notificar();
 }
 
@@ -111,13 +118,13 @@ export function modoActual(): 'muestra' | 'servidor' {
 /** Version del estado del servidor que ya se pinto (llega como `id` del
  *  evento SSE y como cabecera X-Rosa-Version en /estado). Sirve para no
  *  pisar un estado nuevo con la respuesta tardia de una peticion vieja. */
-let versionRemota = -1;
 
 function recibirRemoto(remoto: EstadoRosa, version: number | null = null): void {
-  if (version !== null && version < versionRemota) return;
+  if (retirado) return;
+  if (version !== null && version < vivo.version) return;
   const visita = leerVisita();
-  estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
-  if (version !== null) versionRemota = version;
+  vivo.estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
+  if (version !== null) vivo.version = version;
   notificar();
 }
 
@@ -165,9 +172,9 @@ export function useAccionesPendientes(): AccionPendiente[] {
 export const MS_DESHACER = 6000;
 
 function programar(etiqueta: string, aplicarLocal: () => void, enviarServidor: () => void, ms = MS_DESHACER): void {
-  const antes = estado;
+  const antes = vivo.estado;
   aplicarLocal();
-  const despues = estado;
+  const despues = vivo.estado;
   const id = `pend-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
   const quitar = () => {
     pendientes = pendientes.filter((p) => p.id !== id);
@@ -191,8 +198,8 @@ function programar(etiqueta: string, aplicarLocal: () => void, enviarServidor: (
       },
       deshacer: () => {
         window.clearTimeout(timer);
-        if (estado === despues) {
-          estado = antes;
+        if (vivo.estado === despues) {
+          vivo.estado = antes;
           notificar();
         } else {
           void resincronizar();
@@ -249,6 +256,9 @@ export function useAvisoConflicto(): AvisoConflicto | null {
 let fuenteEventos: EventSource | null = null;
 let ultimaSenal = 0;
 let vigilante: number | null = null;
+const alVolverAlFlujo = () => {
+  if (document.visibilityState === 'visible' && modo === 'servidor' && Date.now() - ultimaSenal > 20_000) void resincronizar();
+};
 
 /** El servidor manda un latido cada 15 s. Si pasan 45 s sin nada (ni estado
  *  ni latido), el flujo esta muerto aunque el navegador no lo sepa: pasa
@@ -262,9 +272,7 @@ function vigilarFlujo(): void {
       void resincronizar();
     }
   }, 15_000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && modo === 'servidor' && Date.now() - ultimaSenal > 20_000) void resincronizar();
-  });
+  document.addEventListener('visibilitychange', alVolverAlFlujo);
 }
 
 async function resincronizar(): Promise<void> {
@@ -275,22 +283,23 @@ async function resincronizar(): Promise<void> {
       const version = versionDe(r.headers.get('X-Rosa-Version'));
       // Una respuesta que llega despues de que el flujo ya trajo algo mas nuevo
       // no se pinta: el flujo va en orden, la peticion suelta no.
-      if (version === null || version >= versionRemota) recibirRemoto(cuerpo, version);
+      if (version === null || version >= vivo.version) recibirRemoto(cuerpo, version);
     }
   } catch {
-    if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+    if (vivo.estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
   }
   abrirEventos();
 }
 
 function abrirEventos(): void {
+  if (retirado) return;
   if (fuenteEventos) fuenteEventos.close();
   const es = new EventSource(conToken(`${API}/eventos`));
   fuenteEventos = es;
   ultimaSenal = Date.now();
   es.addEventListener('latido', () => {
     ultimaSenal = Date.now();
-    if (estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
+    if (vivo.estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
   });
   es.addEventListener('estado', (ev) => {
     ultimaSenal = Date.now();
@@ -302,11 +311,11 @@ function abrirEventos(): void {
     }
   });
   es.onopen = () => {
-    if (estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
+    if (vivo.estado.conexion !== 'en_linea') aplicar((e) => ({ ...e, conexion: 'en_linea' }));
   };
   es.onerror = () => {
     // EventSource reintenta solo. Mientras, se avisa.
-    if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+    if (vivo.estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
   };
 }
 
@@ -317,7 +326,7 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
   void fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args) })
     .then(async (r) => {
       if (r.status >= 500) {
-        if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+        if (vivo.estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
         return;
       }
       if (!r.ok) {
@@ -334,7 +343,7 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
       }
     })
     .catch(() => {
-      if (estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+      if (vivo.estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
     });
 }
 
@@ -470,7 +479,7 @@ export const acciones = {
    *  segundos que tardo en decidir; si el servidor la rechaza (la hipotesis
    *  cambio entre medias), se resincroniza el estado y se avisa. */
   revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null) => {
-    const titulo = estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipótesis';
+    const titulo = vivo.estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipótesis';
     const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decisión registrada';
     programar(
       `${verbo}: ${titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo}`,
@@ -591,7 +600,7 @@ export const acciones = {
     });
     if (id !== null) {
       enviar('bifurcarInvestigacion', { investigacion_id: investigacionId, motivo, id_: id });
-      const rama = estado.investigaciones.find((i) => i.id === id);
+      const rama = vivo.estado.investigaciones.find((i) => i.id === id);
       avisar(`Rama creada: "${rama?.titulo ?? 'rama'}". Estas dentro de la rama; la original sigue igual y esta en la barra lateral. Arranca su primera corrida cuando quieras.`);
     }
     return id;
@@ -864,4 +873,26 @@ let pararSimulacion: (() => void) | null = null;
 export function arrancarMuestra(): void {
   if (pararSimulacion !== null || modo === 'servidor') return;
   pararSimulacion = iniciarSimulacion(aplicar);
+}
+
+if (import.meta.hot?.dispose && import.meta.hot.data) {
+  const datos = import.meta.hot.data;
+  datos.almacenVivo = vivo;
+  // Vite puede actualizar un límite React superior sin ejecutar dispose en
+  // esta dependencia. La nueva instancia también retira explícitamente la vieja.
+  const retirar = () => {
+    datos.almacenVivo = vivo;
+    datos.modoRosa = modo;
+    retirado = true;
+    fuenteEventos?.close();
+    if (vigilante !== null) window.clearInterval(vigilante);
+    document.removeEventListener('visibilitychange', alVolverAlFlujo);
+    pararSimulacion?.();
+  };
+  datos.retirarAlmacen = retirar;
+  import.meta.hot.dispose(retirar);
+  if (modo === 'servidor') {
+    abrirEventos();
+    vigilarFlujo();
+  }
 }
