@@ -114,6 +114,7 @@ export function modoActual(): 'muestra' | 'servidor' {
 let versionRemota = -1;
 
 function recibirRemoto(remoto: EstadoRosa, version: number | null = null): void {
+  if (version !== null && version < versionRemota) return;
   const visita = leerVisita();
   estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
   if (version !== null) versionRemota = version;
@@ -364,7 +365,7 @@ export async function conectar(permitirMuestra = true): Promise<'muestra' | 'ser
       pararSimulacion();
       pararSimulacion = null;
     }
-    recibirRemoto(remoto);
+    recibirRemoto(remoto, versionDe(r.headers.get('X-Rosa-Version')));
     abrirEventos();
     vigilarFlujo();
   } catch {

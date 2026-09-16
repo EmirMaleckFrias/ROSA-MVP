@@ -21,6 +21,17 @@ afterEach(async () => { await act(async () => root.unmount()); nodo.remove(); vi
 async function montar() { await act(async () => root.render(<Acceso><div>Investigaciones privadas</div></Acceso>)); }
 
 describe('acceso corporativo', () => {
+  it('no muestra el login durante una comprobación lenta de sesión', async () => {
+    let resolver!: (valor: unknown) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(r => { resolver = r; })));
+    await montar();
+    expect(nodo.textContent).toContain('Cargando Rosa');
+    expect(nodo.querySelector('form')).toBeNull();
+    expect(nodo.textContent).not.toContain('Investigaciones privadas');
+    await act(async () => resolver({ ok: true, json: async () => ({ ...estado, correo: 'equipo@alzheimerproject.com' }) }));
+    expect(nodo.textContent).toContain('Investigaciones privadas');
+    expect(nodo.querySelector('form')).toBeNull();
+  });
   it('no monta investigaciones ni conecta al almacén antes de verificar la sesión', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => estado }));
     await montar();
@@ -117,4 +128,3 @@ describe('acceso corporativo', () => {
     expect(nodo.textContent).not.toContain('Entrar sin verificación');
   });
 });
-

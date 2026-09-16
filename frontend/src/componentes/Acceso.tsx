@@ -186,6 +186,14 @@ export function Acceso({ children }: { children: ReactNode }) {
     }
   }
   if (sesion?.correo && !enlace) return <Cuenta.Provider value={sesion.correo}>{children}</Cuenta.Provider>;
+  // Una sesión todavía desconocida no equivale a haber cerrado sesión.
+  // No montar el formulario ni datos privados mientras se valida el acceso.
+  if (!sesion && !enlace) return (
+    <main className="contenido" aria-busy={!mensaje}>
+      <p role="status">{mensaje || 'Cargando Rosa…'}</p>
+      {mensaje && <button type="button" className="btn" onClick={() => window.location.reload()}>Reintentar</button>}
+    </main>
+  );
 
   const transicion = {
     duration: reducido ? 0.12 : 0.26,

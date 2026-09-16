@@ -11,6 +11,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
 import { estadoDeMuestra } from './datos/muestra';
 import { rutaDe } from './lib/ruta';
+import { aplicar } from './datos/almacen';
 
 beforeAll(() => {
   // Lo que jsdom no trae y el navegador si.
@@ -57,6 +58,21 @@ async function montar(hash: string): Promise<HTMLElement> {
 }
 
 describe('la aplicacion montada en el cliente', () => {
+  it('conserva la pantalla si una actualización omite la investigación y se recupera después', async () => {
+    const base = estadoDeMuestra();
+    const inv = base.investigaciones[0]!;
+    localStorage.setItem('rosa.recorrido.v1', '1');
+    await act(async () => aplicar(() => base));
+    const raiz = await montar(rutaDe(inv.id, 'mundo'));
+    const tarjetas = raiz.querySelectorAll('.hecho').length;
+    expect(tarjetas).toBeGreaterThan(0);
+    await act(async () => aplicar(() => ({...base, investigaciones: []})));
+    expect(raiz.querySelectorAll('.hecho').length).toBe(tarjetas);
+    expect(raiz.textContent).toContain('Se conserva la última vista');
+    expect(raiz.textContent).not.toContain('Esta investigación no existe');
+    await act(async () => aplicar(() => base));
+    expect(raiz.textContent).not.toContain('Se conserva la última vista');
+  });
   it('inicio con el recorrido de primera vez', async () => {
     localStorage.removeItem('rosa.recorrido.v1');
     const raiz = await montar('#/');

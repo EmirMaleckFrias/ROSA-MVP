@@ -5,7 +5,7 @@
 
 import { AnimatePresence, motion } from 'motion/react';
 import { Limite } from './componentes/Limite';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cerrarAvisoConflicto, useAvisoConflicto, useRosa } from './datos/almacen';
 import { BarraLateral } from './componentes/BarraLateral';
 import { BusquedaGlobal } from './componentes/BusquedaGlobal';
@@ -43,9 +43,18 @@ const TITULO_PANTALLA = {
 } as const;
 
 export default function App() {
-  const estado = useRosa();
+  const remoto = useRosa();
   const aviso = useAvisoConflicto();
   const [ruta] = useRuta();
+  const ultimaVista = useRef<{ id: string; estado: typeof remoto } | null>(null);
+  const idActual = ruta.tipo === 'investigacion' ? ruta.investigacionId : null;
+  const faltaActual = idActual !== null && !remoto.investigaciones.some(i => i.id === idActual);
+  const conservando = faltaActual && ultimaVista.current?.id === idActual;
+  const estado = conservando ? ultimaVista.current!.estado : remoto;
+  useEffect(() => {
+    if (idActual && !faltaActual) ultimaVista.current = { id: idActual, estado: remoto };
+    else if (!idActual || ultimaVista.current?.id !== idActual) ultimaVista.current = null;
+  }, [idActual, faltaActual, remoto]);
   const ahora = useAhora();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [cajonAbierto, setCajonAbierto] = useState(false);
@@ -100,11 +109,12 @@ export default function App() {
     pantalla = <Ajustes estado={estado} ahora={ahora} />;
   } else if (ruta.tipo === 'investigacion') {
     if (!inv) {
-      titulo = 'Investigación no encontrada';
+      titulo = 'Investigación';
       pantalla = (
         <div className="contenido">
           <div className="vacio">
-            <h3>Esta investigación no existe</h3>
+            <h3>No se pudo cargar esta investigación</h3>
+            <p role="status">Comprueba la conexión o vuelve a intentarlo. No se ha cambiado tu dirección de navegación.</p>
             <p>
               <a className="enlace" href="#/">
                 Volver al inicio
@@ -157,6 +167,7 @@ export default function App() {
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
         <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
+        {conservando && <div className="aviso-conflicto" role="status">No se pudo actualizar esta investigación. Se conserva la última vista recibida; los datos pueden estar desactualizados.</div>}
         {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} detalleId={ruta.detalleId} />}
         {aviso && (
           <div className={`aviso-conflicto ${aviso.tono === 'info' ? 'aviso-info' : ''}`} role={aviso.tono === 'info' ? 'status' : 'alert'}>
