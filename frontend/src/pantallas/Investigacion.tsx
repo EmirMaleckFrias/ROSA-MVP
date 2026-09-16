@@ -6,6 +6,10 @@
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
 import type { Amplitud, Cuestion, Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
+import { CifrasAprendizaje } from '../componentes/CifrasAprendizaje';
+import { DatasetsPrograma } from '../componentes/DatasetsPrograma';
+import { MapaEnfermedad } from '../componentes/MapaEnfermedad';
+import { MapaRuta } from '../componentes/MapaRuta';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { ConocimientoOperativoDelLaboratorio, FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
 import { AMBITO_LECCION, AMPLITUD, CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
@@ -364,6 +368,19 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       </Seccion>
 
       <PuertaYReproducciones inv={inv} estado={estado} ahora={ahora} />
+
+      <Seccion
+        id="programa"
+        titulo="Programa"
+        nota="La vista de programa de ROSA2018: lo que la investigación aporta al conjunto, no a una hipótesis. Cuatro piezas, calculadas por regla al cerrar cada iteración. Aprendizaje: si las predicciones que Rosa dejó escritas antes de mirar los datos (prerregistro) acertaron, cuánto tarda cada hipótesis en recibir una decisión y si se reutiliza lo heredado de otras investigaciones. Mapa de la ruta terapéutica: por cada diana, cuáles de los ocho pasos entre un mecanismo y un beneficio para una persona están cubiertos. Mapa de la enfermedad: dónde cae la evidencia por fase, región del cerebro y tipo de célula, y qué huecos nombra la misión. Datasets del programa: los conjuntos de datos públicos que Rosa encontró, con su acceso. Los campos que aún no se han calculado lo dicen."
+      >
+        <div className="programa">
+          <CifrasAprendizaje cifras={inv.cifrasAprendizaje ?? null} />
+          <MapaRuta mapa={inv.mapaRuta ?? null} estado={estado} />
+          <MapaEnfermedad mapa={inv.mapaEnfermedad ?? null} />
+          <DatasetsPrograma key={inv.id} datasets={estado.datasetsPrograma ?? []} investigacionId={inv.id} />
+        </div>
+      </Seccion>
 
       <Cuestiones inv={inv} estado={estado} />
       {(() => {

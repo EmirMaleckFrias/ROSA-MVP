@@ -107,6 +107,8 @@ export interface Dataset {
   origen: 'subida' | 'catalogo';
   /** El libro de procedencia. Los datasets del catalogo lo traen vacio hasta que se sube el fichero. */
   procedencia?: ProcedenciaDataset | null;
+  /** Id del registro en `estado.datasetsPrograma` que rosa/estado/acciones.py escribe al subir el fichero (`_registrar_en_programa`); lo usa para no duplicar el registro cuando después se escribe el origen. Ausente en datasets anteriores. */
+  registroProgramaId?: string | null;
 }
 
 /** Un area de investigacion propuesta por el planificador a partir de la
@@ -161,6 +163,71 @@ export interface PreguntaCampana {
 /** La ruta terapeutica explicita del plan completo (seccion 10). Una
  *  campana celular completada no completa la ruta. */
 export type PasoRutaTerapeutica = 'mecanismo' | 'opciones_intervencion' | 'compromiso_diana' | 'efecto_funcional' | 'selectividad_toxicidad' | 'exposicion' | 'replicacion_independiente' | 'evidencia_poblacion';
+
+/** Estado de un paso de la ruta calculado por regla (rosa/ruta.py): cubierto, parcial, vacío o no comprobable (una fuente que no respondió no es "no hay"). */
+export type EstadoPasoRuta = 'cubierto' | 'parcial' | 'vacio' | 'no_comprobable';
+
+/** De dónde sale una pieza de evidencia de un paso de la ruta (rosa/ruta.py): afirmación verificada, ejecución in silico, retorno del laboratorio, hecho del modelo de mundo o fuente. */
+export type TipoEvidenciaRuta = 'afirmacion' | 'ejecucion' | 'laboratorio' | 'hecho' | 'fuente';
+
+/** Una pieza de evidencia que sostiene un paso de la ruta (rosa/ruta.py): tipo, id del registro y texto recortado a 200 caracteres. */
+export interface EvidenciaPasoRuta {
+  tipo: TipoEvidenciaRuta;
+  id: string;
+  texto: string;
+}
+
+/** Un paso de la ruta terapéutica con su estado, su evidencia (hasta 10 piezas) y el motivo por regla (rosa/ruta.py). */
+export interface PasoRutaEvaluado {
+  paso: PasoRutaTerapeutica;
+  estado: EstadoPasoRuta;
+  evidencia: EvidenciaPasoRuta[];
+  motivo: string;
+}
+
+/** La ruta terapéutica de una hipótesis calculada por regla (rosa/ruta.py evaluar_ruta): los ocho pasos en orden, el siguiente sin cubrir, cuántos están cubiertos, el paso que declara la tarjeta y si es coherente con la evidencia. */
+export interface RutaTerapeuticaEvaluada {
+  hipotesisId: Id | null;
+  pasos: PasoRutaEvaluado[];
+  /** Primer paso no cubierto; null si los ocho lo están. */
+  siguiente: PasoRutaTerapeutica | null;
+  cubiertos: number;
+  /** tarjeta.pasoRuta (mecanismo si la tarjeta no lo trae); null sin tarjeta. Puede traer un texto fuera de la ruta si la tarjeta lo declaró mal. */
+  declarado: PasoRutaTerapeutica | string | null;
+  /** Falso si el paso declarado va por delante del primer paso vacío. */
+  coherente: boolean;
+  motivoCoherencia: string;
+  porEstado: Record<EstadoPasoRuta, number>;
+  /** El resumen en llano, generado por regla. */
+  resumen: string;
+}
+
+/** Una celda del mapa de la ruta (rosa/ruta.py mapa_ruta): hipótesis que cubren el paso, parciales, hechos que lo tocan y certeza GRADE máxima. */
+export interface CeldaMapaRuta {
+  hipotesis: number;
+  parciales: number;
+  hechos: number;
+  certezaMax: CertezaEvidencia | null;
+}
+
+/** Una fila del mapa de la ruta (rosa/ruta.py mapa_ruta): una diana o proceso canónico con sus hipótesis vivas, una celda por paso y los pasos huecos. */
+export interface FilaMapaRuta {
+  clave: string;
+  etiqueta: string;
+  hipotesis: Id[];
+  pasos: Record<PasoRutaTerapeutica, CeldaMapaRuta>;
+  huecos: PasoRutaTerapeutica[];
+  hechos: number;
+}
+
+/** La vista de programa de la ruta terapéutica (rosa/ruta.py mapa_ruta; GET /api/investigaciones/{id}/ruta): filas por diana de más a menos pasos cubiertos y resumen en llano; fecha e iteración solo cuando se guardó en la investigación. */
+export interface MapaRuta {
+  investigacionId: Id;
+  filas: FilaMapaRuta[];
+  resumen: string;
+  fecha?: number;
+  iteracion?: number;
+}
 
 /** Roles del programa (plan completo, seccion 12). Se pueden combinar, pero
  *  quien escribe una conclusion no es su unico evaluador. */
@@ -248,6 +315,12 @@ export interface Investigacion {
   vivero?: Semilla[];
   /** Ideas que salieron del vivero sin nacer, con su motivo: no se reproponen. */
   viveroRetiradas?: { id: Id; titulo: string; enunciado: string; motivo: string; iteracion: number | null; retiradaEn: number }[];
+  /** Mapa del estado de la enfermedad (rosa/mapa_enfermedad.py), guardado al cerrar cada iteración. Null o ausente si no se calculó. */
+  mapaEnfermedad?: MapaEnfermedad | null;
+  /** Vista de programa de la ruta terapéutica por diana (rosa/ruta.py mapa_ruta). Null o ausente si no se guardó. */
+  mapaRuta?: MapaRuta | null;
+  /** Las tres cifras de aprendizaje (rosa/cifras_aprendizaje.py): acierto prerregistrado, tiempo hasta decidir y reutilización de lo heredado. */
+  cifrasAprendizaje?: CifrasAprendizaje | null;
 }
 
 /** Una lección: lo que la investigación aprendió a no repetir, generada por
@@ -648,6 +721,8 @@ export interface ResumenLlano {
   queTeToca: string;
   alDia: { fechaBusqueda: number | null; fuentesSinRespuesta: string[] };
   terminos: TerminoLlano[];
+  /** Texto en llano de las tres cifras de aprendizaje de la iteración (rosa/cifras_aprendizaje.py texto_cifras), que el cierre pega en `resumenLlano.aprendizaje`; ausente en iteraciones anteriores a septiembre de 2026. */
+  aprendizaje?: string;
 }
 
 /* ---------------------------------------------------------------------
@@ -1037,6 +1112,23 @@ export interface Experimento {
   /** Sello de tiempo de un tercero (RFC 3161) sobre el texto del prerregistro:
    *  hash, autoridades que lo firmaron y la hora que firmaron. Se verifica sin Rosa. */
   selloExterno?: SelloExterno | null;
+  /** Contrato del experimento (rosa/experimento.py): las medidas separadas, cada
+   *  una con su criterio de confirmación y de refutación, su control y su unidad.
+   *  Un registro antiguo no lo trae; normalizar_contrato deriva una lectura del
+   *  par confirma/refuta. */
+  lecturas?: LecturaExperimento[];
+  /** En qué sistema se hace (iPSC, organoide, animal...), qué prueba y qué no representa. */
+  sistema?: SistemaExperimental | null;
+  /** Para qué sirve el biomarcador según BEST (FDA-NIH): riesgo, diagnóstico, monitorización, pronóstico... */
+  propositoBiomarcador?: PropositoBiomarcador | null;
+  /** A qué nivel se lee el desenlace: molecular, celular, fisiológico o de imagen, funcional o clínico. */
+  nivelDesenlace?: NivelDesenlace | null;
+  /** Qué relación tiene el desenlace medido con el beneficio para una persona; vacío si no se declaró. */
+  puenteAlBeneficio?: string;
+  /** Lo que le falta al contrato, en castellano, por regla (rosa/experimento.py validar_contrato). */
+  problemasContrato?: string[];
+  /** SHA-256 de las lecturas en orden canónico, congelado al prerregistrar (rosa/experimento.py hash_lecturas). */
+  hashLecturas?: string;
 }
 
 export interface CondicionAutomatizada {
@@ -1108,6 +1200,9 @@ export interface ProtocoloReal {
 
 export type CampoEnmendable = 'protocolo' | 'ensayo' | 'controles' | 'tamanoMuestral' | 'confirma' | 'refuta' | 'analisisPedido';
 
+/** Campos de una lectura del contrato que se pueden enmendar después de prerregistrar (rosa/experimento.py; reducer enmendarLectura). */
+export type CampoLecturaEnmendable = 'queConfirma' | 'queRefuta' | 'control' | 'unidad';
+
 export interface EnmiendaPrerregistro {
   fecha: number;
   quien: string;
@@ -1115,6 +1210,13 @@ export interface EnmiendaPrerregistro {
   antes: string;
   despues: string;
   motivo: string;
+  /** Solo en la enmienda de una lectura del contrato: qué lectura (índice y
+   *  nombre) y qué campo suyo cambió. En esas enmiendas `campo` vale 'ensayo',
+   *  porque las lecturas son los criterios del ensayo fijados de antemano. */
+  lectura?: { indice: number; nombre: string; campo: CampoLecturaEnmendable } | null;
+  /** Huella SHA-256 de las lecturas antes y después de la enmienda (rosa/estado/acciones.py enmendar_lectura y enmendar_experimento). Si `hashDespues` no coincide con `experimento.hashLecturas` del prerregistro congelado, el contrato cambió después de congelarse. Solo las escribe el servidor. */
+  hashAntes?: string;
+  hashDespues?: string;
 }
 
 /** Los seis resultados que puede devolver el laboratorio (ROSA2018, etapa
@@ -1148,6 +1250,10 @@ export interface ResultadoExperimento {
    *  version que probo. */
   versionProbada?: number;
   compatibleConActual?: boolean;
+  /** Un veredicto por lectura del contrato, por regla sobre las cifras nombradas (rosa/experimento.py veredicto_por_lecturas). Vacío si el resultado no trae cifras con nombre. */
+  veredictosPorLectura?: VeredictoLectura[];
+  /** Qué dice un negativo cuando hay lecturas separadas: si la diana se tocó y no pasó nada, o si no se tocó (rosa/experimento.py lectura_del_negativo). */
+  lecturaDelNegativo?: LecturaDelNegativo | null;
 }
 
 export interface DimensionesResultado {
@@ -1360,6 +1466,12 @@ export interface Hipotesis {
   /** Evidencia acumulada de los analisis validos con e-valores (producto de
    *  kappa p^(kappa-1)); rechaza la nula al nivel alfa si llega a 1/alfa. */
   evidenciaSecuencial?: { eAcumulado: number; pruebas: { ejecucionId: Id; p: number; e: number }[]; alfa: number; kappa: number; rechazaNula: boolean } | null;
+  /** Ruta terapéutica calculada por regla (rosa/ruta.py): estado de cada paso con su evidencia y motivo; null si no se calculó todavía. */
+  ruta?: RutaTerapeuticaEvaluada | null;
+  /** Perfil de evidencia de la diana en seis capas desde las bases públicas (rosa/dianas.py perfil_de_diana), con la versión de la hipótesis para la que se consultó. */
+  perfilDiana?: PerfilDiana | null;
+  /** Explicaciones alternativas a la hipótesis con su clase y qué observación las separaría (las escribe el cierre de iteración; lista vacía en registros antiguos). */
+  alternativas?: Alternativa[];
 }
 
 /* ---------------------------------------------------------------------
@@ -1894,6 +2006,10 @@ export interface EstadoRosa {
   metodos?: MetodoRegistrado[];
   /** Las politicas tal como estan en el codigo del servidor (solo lectura). */
   politicas?: Record<string, number | string | Record<string, number> | { nivel: number; nombre: string; definicion: string }[]>;
+  /** Registro de datasets del programa (rosa/datasets_programa.py): cada conjunto
+   *  público que Rosa vio en GEO, CELLxGENE, Synapse, ArrayExpress, Expression
+   *  Atlas o que subió una persona. Falta en estados anteriores: lista vacía. */
+  datasetsPrograma?: DatasetPrograma[];
 }
 
 /** Motor causal minimo. Una arista "de causa a" lleva el tipo que dice de
@@ -1960,7 +2076,8 @@ export interface ConsultaBase {
 
 export interface ContextoBases {
   diana: string;
-  identificadores: { simbolo?: string | null; nombre?: string | null; ensembl?: string | null; uniprot?: string | null; entrez?: string | null };
+  /** `gencode` es el identificador GENCODE con versión que exige GTEx (lo escribe contexto_de_bases en rosa/bucle/pasos.py); ausente en registros anteriores. */
+  identificadores: { simbolo?: string | null; nombre?: string | null; ensembl?: string | null; uniprot?: string | null; entrez?: string | null; gencode?: string | null };
   funcion: string;
   expresionCerebro: string;
   interactores: { simbolo: string; puntuacion: number }[];
@@ -2035,4 +2152,283 @@ export interface EstadoEspejo {
   error: string | null;
   envios: number;
   ms: number;
+}
+
+/* ---------------------------------------------------------------------
+   ROSA2018, 16 de septiembre de 2026: mapa de la enfermedad, datasets del
+   programa, perfil de diana, contrato del experimento, cifras de
+   aprendizaje y explicaciones alternativas. Las claves van en camelCase y
+   sin tilde porque se comparan con el servidor; los textos visibles llegan
+   ya escritos por regla en castellano.
+   --------------------------------------------------------------------- */
+
+/** Fase del Alzheimer en que se sitúa un dato (rosa/mapa_enfermedad.py): preclínica, prodrómica o deterioro cognitivo leve, demencia leve, demencia moderada o grave, o forma autosómica dominante. */
+export type EstadioEnfermedad = 'preclinica' | 'prodromica_dcl' | 'demencia_leve' | 'demencia_moderada_grave' | 'autosomico_dominante';
+
+/** Nivel biológico al que habla un dato (rosa/mapa_enfermedad.py): molecular, celular, tisular o clínico. */
+export type NivelBiologico = 'molecular' | 'celular' | 'tisular' | 'clinico';
+
+/** Los cuatro ejes por los que el mapa clasifica la evidencia (rosa/mapa_enfermedad.py). */
+export type EjeMapa = 'estadio' | 'region' | 'tipoCelular' | 'nivel';
+
+/** Una celda del mapa de la enfermedad (rosa/mapa_enfermedad.py mapa): estadio, región y tipo celular (null = sin situar en ese eje) con los hechos, hipótesis y preguntas que caen en ella y la mayor certeza GRADE entre sus hipótesis. */
+export interface CeldaMapa {
+  estadio: EstadioEnfermedad | null;
+  /** Clave de región (hipocampo, corteza_entorrinal, plasma...); la etiqueta visible está en MapaEnfermedad.etiquetas.region. */
+  region: string | null;
+  /** Clave de tipo celular (astrocito, microglia, neurona...); etiqueta en MapaEnfermedad.etiquetas.tipoCelular. */
+  tipoCelular: string | null;
+  hechos: Id[];
+  hipotesis: Id[];
+  /** Preguntas abiertas del modelo de mundo situadas aquí; no cuentan como cobertura. */
+  preguntas: Id[];
+  certezaMax: CertezaEvidencia | null;
+  certezaMotivo: string;
+  cohortes: string[];
+  /** Cuántos registros se situaron aquí solo por heredar los ejes de la misión. */
+  porMision: number;
+}
+
+/** Un hueco del mapa (rosa/mapa_enfermedad.py): una combinación que la misión nombra y que ningún hecho ni hipótesis cubre por su propio contenido. */
+export interface HuecoMapa {
+  estadio: EstadioEnfermedad | null;
+  region: string | null;
+  tipoCelular: string | null;
+  motivo: string;
+  heredanDeMision: number;
+}
+
+/** Los ejes que fija la misión de la investigación (rosa/mapa_enfermedad.py ejes_de_mision), con el motivo por valor. */
+export interface EjesMision {
+  estadio: EstadioEnfermedad | null;
+  /** Todas las fases que nombra la misión; `estadio` es la primera. */
+  estadios: EstadioEnfermedad[];
+  region: string[];
+  tipoCelular: string[];
+  motivos: { estadio: string | null; estadios: Record<string, string>; region: Record<string, string>; tipoCelular: Record<string, string> };
+}
+
+/** El mapa del estado de la enfermedad (rosa/mapa_enfermedad.py mapa; GET /api/investigaciones/{id}/mapa): recuento por eje, celdas, huecos que nombra la misión y resumen en llano. Fecha, iteración, etiquetas y definiciones se añaden al guardarlo en la investigación. */
+export interface MapaEnfermedad {
+  ejes: Record<EjeMapa, Record<string, number>>;
+  celdas: CeldaMapa[];
+  huecos: HuecoMapa[];
+  /** Hechos que no se pudieron situar en ningún eje. */
+  sinEjes: number;
+  hipotesisSinEjes: number;
+  /** Hechos heredados de otra investigación que sí se situaron. */
+  heredados: number;
+  mision: EjesMision;
+  resumen: string;
+  fecha?: number;
+  iteracion?: number;
+  /** Etiqueta visible (con tilde) de cada valor de cada eje. */
+  etiquetas?: Record<EjeMapa, Record<string, string>>;
+  /** Definición en una frase de cada estadio y de cada nivel, para quien los ve por primera vez. */
+  definiciones?: { estadio: Record<string, string>; nivel: Record<string, string> };
+}
+
+/** De dónde salió un dataset del programa (rosa/datasets_programa.py). */
+export type FuenteDatasetPrograma = 'geo' | 'cellxgene' | 'synapse' | 'arrayexpress' | 'expression_atlas' | 'manual';
+
+/** Qué clase de dato es (rosa/datasets_programa.py): expresión en tejido (bulk), célula única, proteómica, genética, imagen u otro. */
+export type TipoDatasetPrograma = 'bulk' | 'celula_unica' | 'proteomica' | 'genetica' | 'imagen' | 'otro';
+
+/** Acceso al dataset (rosa/datasets_programa.py): abierto, con registro gratuito, controlado (el proyecto no lo pide) o sin comprobar. */
+export type AccesoDatasetPrograma = 'abierto' | 'registro' | 'controlado' | 'desconocido';
+
+/** Un dataset del registro del programa (rosa/datasets_programa.py nuevo_registro): identidad, ejes inferidos por regla con su motivo en `registro`, acceso y en qué investigaciones se usó. Lo que no se pudo inferir queda vacío, nunca inventado. */
+export interface DatasetPrograma {
+  id: Id;
+  fuente: FuenteDatasetPrograma;
+  accession: string;
+  titulo: string;
+  organismo: string;
+  tejido: string;
+  region: string;
+  estadio: string;
+  tipo: TipoDatasetPrograma;
+  n: { muestras: number | null; donantes: number | null; celulas: number | null };
+  plataforma: string;
+  procesado: string;
+  acceso: AccesoDatasetPrograma;
+  licencia: string;
+  url: string;
+  fichero: string | null;
+  /** Otros accessions con los que comparte muestras (dos series no son dos evidencias). */
+  muestrasCompartidasCon: string[];
+  usadoEn: Id[];
+  registradoEn: number;
+  actualizadoEn: number;
+  /** Explicación por regla de cada campo inferido y de cada cambio. */
+  registro: string[];
+}
+
+/** Las seis capas del perfil de una diana (rosa/dianas.py): genética humana, expresión en tejido, expresión celular, proteína y función, farmacología y literatura. */
+export type CapaDiana = 'genetica_humana' | 'expresion_tejido' | 'expresion_celular' | 'proteina_funcion' | 'farmacologia' | 'literatura';
+
+/** Estado de una capa del perfil (rosa/dianas.py): presente, ausente o no pude comprobar (una base que no respondió no es ausencia). */
+export type EstadoCapaDiana = 'presente' | 'ausente' | 'no_pude_comprobar';
+
+/** Una capa del perfil de diana (rosa/dianas.py): estado, detalle en castellano, dirección del efecto genético ('+' más función más riesgo, '-' menos función más riesgo; solo en genética humana), bases consultadas, sus registros de consulta y los datos crudos. */
+export interface CapaPerfilDiana {
+  capa: CapaDiana;
+  estado: EstadoCapaDiana;
+  detalle: string;
+  direccion: '+' | '-' | null;
+  fuentes: string[];
+  registro: ConsultaBase[];
+  datos: Record<string, unknown>;
+}
+
+/** El perfil de evidencia de una diana (rosa/dianas.py perfil_de_diana): símbolo, identificadores, seis capas, resumen en llano y todas las consultas; `version` es la versión de la hipótesis para la que se consultó. */
+export interface PerfilDiana {
+  diana: string;
+  identificadores: { simbolo: string | null; nombre: string | null; ensembl: string | null; uniprot: string | null; entrez: string | null; gencode: string | null };
+  capas: CapaPerfilDiana[];
+  resumen: string;
+  registro: ConsultaBase[];
+  consultadoEn: number;
+  /** La célula o el tejido de la tarjeta con que se eligió el tejido de GTEx. */
+  contexto: string | null;
+  version?: number;
+}
+
+/** Qué clase de cosa mide una lectura del experimento (rosa/experimento.py): compromiso de diana (la intervención llegó a la diana), viabilidad, función o mecanismo, biomarcador o seguridad. */
+export type TipoLectura = 'compromiso_diana' | 'viabilidad' | 'funcion_mecanismo' | 'biomarcador' | 'seguridad';
+
+/** Una medida del experimento con su criterio de confirmación y de refutación, su control y su unidad (rosa/experimento.py). Separar la lectura de compromiso de diana de la de efecto es lo que permite leer un negativo. */
+export interface LecturaExperimento {
+  nombre: string;
+  /** Clave del vocabulario; un registro a medias puede traer otro texto y problemasContrato lo dice. */
+  tipo: TipoLectura;
+  queConfirma: string;
+  queRefuta: string;
+  control: string;
+  unidad: string;
+}
+
+/** Sistema experimental (rosa/experimento.py): observacional en humanos, datos públicos ya existentes, células humanas de donante, iPSC, organoide, cocultivo, animal o in silico. */
+export type TipoSistema = 'observacional_humano' | 'datos_publicos_existentes' | 'celulas_humanas_donante' | 'ipsc' | 'organoide' | 'cocultivo' | 'animal' | 'in_silico';
+
+/** En qué sistema se hace el experimento, qué prueba y qué no representa (rosa/experimento.py). */
+export interface SistemaExperimental {
+  tipo: TipoSistema;
+  quePrueba: string;
+  queNoRepresenta: string;
+}
+
+/** Propósito de un biomarcador según BEST (FDA-NIH, 2016; rosa/experimento.py): susceptibilidad o riesgo, diagnóstico, monitorización, pronóstico, predicción de respuesta, farmacodinámico o de respuesta, seguridad. */
+export type PropositoBiomarcador = 'susceptibilidad_riesgo' | 'diagnostico' | 'monitorizacion' | 'pronostico' | 'prediccion_respuesta' | 'farmacodinamico_respuesta' | 'seguridad';
+
+/** Nivel al que se lee el desenlace (rosa/experimento.py); cuanto más abajo, más lejos del beneficio para una persona. */
+export type NivelDesenlace = 'molecular' | 'celular' | 'fisiologico_imagen' | 'funcional_clinico';
+
+/** El veredicto por regla de una lectura del contrato (rosa/experimento.py veredicto_por_lecturas): confirma, refuta, inconcluso o no evaluable (sin cifra que la nombre: no pude comprobar). */
+export interface VeredictoLectura {
+  lectura: string;
+  tipo: TipoLectura;
+  veredicto: ResultadoExperimento['veredicto'];
+  motivo: string;
+  /** Las cifras del resultado que se usaron, como "nombre = valor". */
+  cifras: string[];
+}
+
+/** Las ramas de un negativo (rosa/experimento.py lectura_del_negativo): la diana se tocó y el efecto no apareció (cuestiona el mecanismo), la diana no se tocó (cuestiona el ensayo), o no había lecturas separadas para distinguirlo. */
+export type RamaNegativo = 'diana_comprometida_sin_efecto' | 'diana_no_comprometida' | 'sin_lecturas_separadas';
+
+/** Qué dice un negativo (rosa/experimento.py lectura_del_negativo); rama null si no es un negativo o no se pudo comprobar la rama. */
+export interface LecturaDelNegativo {
+  rama: RamaNegativo | null;
+  explicacion: string;
+}
+
+/** Cómo se clasificó una predicción prerregistrada (rosa/cifras_aprendizaje.py): acierto, fallo, sin dirección declarada o no evaluable. */
+export type ClaseAcierto = 'acierto' | 'fallo' | 'sin_direccion' | 'no_evaluable';
+
+/** Recuento de aciertos prerregistrados (rosa/cifras_aprendizaje.py): `tasa` es null cuando no hay casos con dirección (decir "todavía no se puede medir", nunca "0 %"). */
+export interface AgregadoAcierto {
+  casos: number;
+  conDireccion: number;
+  aciertos: number;
+  tasa: number | null;
+  sinDireccion: number;
+  noEvaluables: number;
+}
+
+/** Una predicción prerregistrada con su resultado (rosa/cifras_aprendizaje.py): de un plan de análisis congelado o de un experimento de laboratorio, con el nivel GRADE de la hipótesis y el motivo de la clase. */
+export interface CasoPrerregistrado {
+  fuente: 'analisis' | 'laboratorio';
+  hipotesisId: Id | null;
+  planId: Id | null;
+  ejecucionId: Id | null;
+  hashPlan: string | null;
+  direccionEsperada: string;
+  resultado: string | null;
+  nivel: CertezaEvidencia | null;
+  prerregistradoEn: number | null;
+  resultadoEn: number | null;
+  clase: ClaseAcierto;
+  motivo: string;
+}
+
+/** Cifra 1, acierto prerregistrado (rosa/cifras_aprendizaje.py acierto_prerregistrado): el agregado total, por fuente y por nivel GRADE, lo excluido y el detalle caso a caso. */
+export interface AciertoPrerregistrado extends AgregadoAcierto {
+  porFuente: { analisis: AgregadoAcierto; laboratorio: AgregadoAcierto };
+  porNivel: Partial<Record<CertezaEvidencia, { casos: number; aciertos: number }>>;
+  excluidos: { planesSinCongelar: number; planesSinEjecucionValida: number; planesReproduccion: number; laboratorioSinPrerregistro: number };
+  detalle: CasoPrerregistrado[];
+  regla: string;
+}
+
+/** Cifra 2, tiempo hasta cada decisión (rosa/cifras_aprendizaje.py tiempo_hasta_decision): horas desde que nace la hipótesis hasta su primera decisión de cada etapa, mediana y p90. */
+export interface TiempoHastaDecision {
+  casos: number;
+  hipotesis: number;
+  medianaHoras: number | null;
+  p90Horas: number | null;
+  porEtapa: Record<string, { casos: number; medianaHoras: number | null }>;
+  abiertasSinDecision: number;
+  abiertasSinDecisionHoras: number | null;
+  sinFechaCreacion: number;
+  decisionesSinFecha: number;
+  fechasInvertidas: number;
+  detalle: { hipotesisId: Id | null; etapa: string; horas: number; creadaEn: number; decididaEn: number }[];
+  regla: string;
+}
+
+/** Cifra 3, reutilización de lo heredado (rosa/cifras_aprendizaje.py reutilizacion_heredada): cuántos hechos copiados de otra investigación usó alguna hipótesis de esta. */
+export interface ReutilizacionHeredada {
+  hechosHeredados: number;
+  usados: number;
+  tasa: number | null;
+  hipotesisConHerencia: number;
+  hipotesisVivas: number;
+  detalle: { hechoId: Id | null; estado: string | null; tema: string | null; usadoPor: Id[]; motivo: string }[];
+  regla: string;
+}
+
+/** Las tres cifras de aprendizaje de una investigación con su texto en llano y el glosario (rosa/cifras_aprendizaje.py resumen_cifras; GET /api/investigaciones/{id}/cifras). */
+export interface CifrasAprendizaje {
+  investigacionId: Id;
+  fecha: number;
+  acierto: AciertoPrerregistrado;
+  tiempo: TiempoHastaDecision;
+  reutilizacion: ReutilizacionHeredada;
+  /** Término a definición, para explicar prerregistro, acierto, mediana, p90 y hecho heredado la primera vez. */
+  glosario: Record<string, string>;
+  texto: string;
+  iteracion?: number;
+}
+
+/** Clase de una explicación alternativa (rosa/causal.py y el cierre de iteración): causa inversa, confusor, selección, artefacto u otra. */
+export type ClaseAlternativa = 'causa_inversa' | 'confusor' | 'seleccion' | 'artefacto' | 'otra';
+
+/** Una explicación rival de lo observado que no exige que la hipótesis sea cierta, con qué observación la separaría (misma forma que en componentes/Alternativas.tsx). */
+export interface Alternativa {
+  texto: string;
+  clase: ClaseAlternativa;
+  queLaDistinguiria: string;
+  /** Iteración en la que Rosa la escribió, si se sabe. */
+  iteracion?: number | null;
 }

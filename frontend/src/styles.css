@@ -4546,3 +4546,477 @@ details.versiones > :not(summary) {
   border-color: var(--text-2);
   border-style: dashed;
 }
+
+/* ---------------------------------------------------------------------
+   Vista de programa (ROSA2018, 16 de septiembre de 2026): aprendizaje,
+   mapa de la ruta, mapa de la enfermedad y datasets del programa. Todo
+   sobre los tokens del tema; el oscuro hereda por las variables.
+   --------------------------------------------------------------------- */
+
+.programa {
+  display: grid;
+  gap: 14px;
+}
+
+.programa > .tarjeta h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Las cuatro tarjetas de programa: mismo aire aunque se monten fuera de la rejilla. */
+.cifras-ap,
+.mapa-ruta,
+.mapa-enf,
+.dsp {
+  min-width: 0;
+}
+
+.cifras-ap-cabecera,
+.mapa-ruta-cabecera,
+.mapa-enf-cabecera,
+.dsp-encabezado {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dsp-encabezado > div {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.dsp-encabezado .meta,
+.mapa-ruta > .meta,
+.mapa-enf > .meta {
+  max-width: 78ch;
+  line-height: 1.5;
+}
+
+/* Un término del glosario explicado al pasar el ratón: subrayado de puntos. */
+.termino-glosario {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-3);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+/* Aprendizaje: el texto en llano manda; las tres cifras debajo. */
+.cifras-ap-texto {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 6px;
+  max-width: 78ch;
+}
+
+.cifras-ap-texto p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.cifras-ap-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.cifra-ap {
+  border: 1px solid var(--border);
+  border-radius: var(--radio-s);
+  padding: 10px 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.cifra-ap-vacia {
+  background: var(--inset);
+}
+
+.cifra-ap-titulo {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-3);
+  text-underline-offset: 3px;
+}
+
+.cifra-ap-valor {
+  margin: 4px 0 2px;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.cifra-ap-vacia .cifra-ap-valor {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.cifra-ap .meta {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.cifra-ap-detalle {
+  margin-top: 8px;
+}
+
+.cifra-ap-detalle > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.cifra-ap-detalle > summary:hover {
+  color: var(--text);
+}
+
+.cifra-ap-detalle > :not(summary) {
+  margin-top: 6px;
+}
+
+.cifra-ap-regla {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 8px;
+}
+
+.cifra-ap-casos li {
+  display: grid;
+  gap: 2px;
+  font-size: 12.5px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cifra-ap-casos li:last-child {
+  border-bottom: 0;
+}
+
+.cifra-ap-casos .chip {
+  justify-self: start;
+}
+
+/* Mapa de la ruta: tabla ancha con ocho pasos; se desplaza dentro de la tarjeta. */
+.mapa-ruta-resumen,
+.mapa-enf-resumen {
+  margin: 10px 0 6px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+
+.mapa-ruta-tabla,
+.mapa-enf-tabla {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.mapa-ruta-tabla .tabla th,
+.mapa-ruta-tabla .tabla td {
+  vertical-align: top;
+}
+
+.ruta-paso {
+  min-width: 96px;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-3);
+  text-underline-offset: 3px;
+}
+
+.ruta-paso-numero {
+  display: inline-block;
+  min-width: 16px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ruta-celda {
+  display: table-cell;
+}
+
+.ruta-celda > span {
+  display: block;
+}
+
+.ruta-celda-cifra {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ruta-celda-parciales,
+.ruta-celda-hechos {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.ruta-celda-certeza {
+  margin-top: 3px;
+  margin-left: auto;
+  font-size: 10.5px;
+}
+
+.ruta-hueco {
+  background: var(--inset);
+  color: var(--text-3);
+}
+
+.ruta-hueco-texto {
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+.ruta-certeza-ok {
+  box-shadow: inset 3px 0 0 var(--green);
+}
+
+.ruta-certeza-aviso {
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.ruta-certeza-mal {
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.ruta-certeza-borde {
+  box-shadow: inset 3px 0 0 var(--border-strong);
+}
+
+.ruta-fila-hip,
+.ruta-fila-hechos {
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* Mapa de la enfermedad: rejilla fase x región con fichas por tipo celular. */
+.mapa-enf-aviso {
+  margin-top: 8px;
+}
+
+.mapa-enf-huecos {
+  margin-top: 10px;
+}
+
+.mapa-enf-huecos .campo-etiqueta {
+  cursor: help;
+}
+
+.mapa-enf-hueco {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  padding: 4px 0;
+}
+
+.mapa-enf-hueco .chip {
+  flex: none;
+  white-space: normal;
+  text-align: left;
+}
+
+.mapa-enf-niveles {
+  margin: 10px 0 0;
+}
+
+.mapa-enf-rejilla th[scope='row'] {
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 550;
+  cursor: help;
+}
+
+.mapa-enf-rejilla thead th {
+  min-width: 120px;
+}
+
+.mapa-enf-celda {
+  vertical-align: top;
+  min-width: 120px;
+}
+
+.mapa-enf-celda-hueco {
+  background: var(--amber-soft);
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
+
+.mapa-enf-celda-vacia {
+  color: var(--text-3);
+  text-align: center;
+}
+
+.mapa-enf-ficha {
+  display: grid;
+  gap: 2px;
+  padding: 5px 7px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radio-s);
+  background: var(--surface);
+  font-size: 12px;
+  cursor: help;
+}
+
+.mapa-enf-ficha:last-child {
+  margin-bottom: 0;
+}
+
+.mapa-enf-ficha-tipo {
+  font-weight: 550;
+  color: var(--text);
+}
+
+.mapa-enf-ficha-cifras {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa-enf-ficha .chip {
+  justify-self: start;
+  font-size: 10.5px;
+}
+
+.mapa-enf-certeza-ok {
+  border-left: 3px solid var(--green);
+}
+
+.mapa-enf-certeza-aviso {
+  border-left: 3px solid var(--amber);
+}
+
+.mapa-enf-certeza-mal {
+  border-left: 3px solid var(--red);
+}
+
+.mapa-enf-certeza-borde {
+  border-left: 3px solid var(--border-strong);
+}
+
+.mapa-enf-ficha-hueco {
+  display: block;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--amber);
+  cursor: help;
+}
+
+/* Datasets del programa: una fila por conjunto, con su registro plegado. */
+.dsp-resumen {
+  margin-top: 8px;
+}
+
+.dsp-lista {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.dsp-fila {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radio-s);
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.dsp-controlado {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.dsp-usado {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.dsp-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dsp-accession {
+  font-size: 12.5px;
+}
+
+.dsp-titulo {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.dsp-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+}
+
+.dsp-datos > div {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dsp-datos dt {
+  color: var(--text-2);
+}
+
+.dsp-datos dt[title] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-3);
+  text-underline-offset: 3px;
+}
+
+.dsp-datos dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dsp-nota {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.dsp-controlado .dsp-nota {
+  color: var(--red);
+}
+
+.dsp-registro {
+  margin-top: 6px;
+}
+
+.dsp-registro > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.dsp-registro > summary:hover {
+  color: var(--text);
+}
+
+.dsp-registro ul {
+  margin-top: 4px;
+}
+
+.dsp-registro li {
+  font-size: 12px;
+  padding: 2px 0;
+}

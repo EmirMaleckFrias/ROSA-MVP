@@ -554,3 +554,34 @@ están y si no cae a las E-utilities de NCBI.
 - Biomni (agente biomédico abierto de Stanford, 105 paquetes, 59 bases de
   datos, 150 herramientas): https://www.epocrates.com/online/article/stanford-open-source-ai-agent-runs-biomedical-lab-research
 - Proyecto Alzheimer INTEC y AI Robotix: https://www.intec.edu.do/en/notas-de-prensa-investigacion/item/intec-y-empresa-ai-robotix-generan-modelo-de-ia-para-investigar-alzheimer
+
+## Pendientes al cierre del 16 de septiembre de 2026 (para el 17)
+
+Anotados durante la revisión de la corrida 7, a petición de Emir ("las demás
+cosas déjalas en pendiente para mañana"). Ninguno se toca sin su visto bueno.
+
+- Extracción y verificación: de 131 afirmaciones extraídas de 11 fuentes, 87
+  quedaron bloqueadas por "cita no resuelve" porque salieron de fuentes sin
+  texto completo (solo 6 de 13 lo tenían). Propuesta: extraer solo de fuentes
+  con texto completo, o marcar lo que sale de un resumen como "sin página" con
+  menos peso, en vez de extraer y bloquear. Ahorra dos de cada tres llamadas de
+  verificación sin tocar la regla de la página exacta.
+- Comprobar que el bucle vuelve de verdad sobre las hipótesis que esperan en
+  la cola ("propuesta" suspendida y "en revisión" con descarte propuesto por el
+  Killer): que la evidencia nueva se les enlaza (revisión automática), que el
+  Killer las vuelve a juzgar cuando cambia su evidencia y que una hipótesis en
+  revisión puede recuperarse si la evidencia nueva la sostiene. Emir las deja
+  ahí a propósito como material que Rosa mejora; si no se mueven, el fallo está
+  en el bucle.
+- Un mismo hecho generó dos eventos "hecho nuevo" idénticos en la corrida 7
+  (he-mu4jz1is-2264): buscar la doble llamada a `con_evento` en el paso de
+  modelo.
+- Cobertura de los temas focales del plan: en la iteración 1 varios temas
+  clave (lecanemab, donanemab con predicción incremental, fuentes primarias de
+  EMERGE/ENGAGE) quedaron con 0 leídos mientras la amplitud trajo temas
+  laterales (BMS-984923 en ratón, vehículos de transporte de anticuerpos).
+  Revisar el reparto foco/amplitud de las consultas de literatura.
+- El arreglo del planificador (`datasets_disponibles`, commit e2d722b) entra en
+  el próximo reinicio del servidor; no reiniciar con una corrida viva.
+- Hechos con enunciado repetido de corridas anteriores (Belder, Chatterjee):
+  la deduplicación del paso de modelo no los fundió.

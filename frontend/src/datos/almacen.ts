@@ -18,7 +18,7 @@ import { descargar } from '../componentes/piezas';
 import type { CostesInvestigacion } from '../componentes/Rosa2018';
 import { estadoDeMuestra } from './muestra';
 import { iniciarSimulacion } from './simulacion';
-import type { AlcancePermiso, Amplitud, AnclaComentario, Avisos, CampoEnmendable, ClaseAccion, ClasificacionDatos, ConocimientoOperativo, Dataset, EstadoArea, EstadoEspejo, EstadoRosa, Investigacion, MetodoRegistrado, NivelAutonomia, NivelPermisoConector, ParadaCorrida, PasoPlan, PoliticaEsperas, PreguntaCampana, ProcedenciaDataset, RevisionHumana, TipoArtefacto } from './tipos';
+import type { AlcancePermiso, Amplitud, AnclaComentario, Avisos, CampoEnmendable, CampoLecturaEnmendable, ClaseAccion, ClasificacionDatos, ConocimientoOperativo, Dataset, EstadoArea, EstadoEspejo, EstadoRosa, Investigacion, MetodoRegistrado, NivelAutonomia, NivelPermisoConector, ParadaCorrida, PasoPlan, PoliticaEsperas, PreguntaCampana, ProcedenciaDataset, RevisionHumana, TipoArtefacto } from './tipos';
 
 const CLAVE_VISITA = 'rosa-ultima-visita';
 const API = '/api';
@@ -802,6 +802,11 @@ export const acciones = {
   enmendarExperimento: (hipotesisId: string, campo: CampoEnmendable, despues: string, motivo: string) => {
     aplicar((e) => A.enmendarExperimento(e, hipotesisId, campo, despues, motivo, QUIEN, Date.now()));
     enviar('enmendarExperimento', { hipotesis_id: hipotesisId, campo, despues, motivo, quien: QUIEN });
+  },
+  /** Enmienda un campo (confirma si, refuta si, control o unidad) de una lectura del contrato del experimento tras prerregistrar, con motivo. Misma regla que enmendarExperimento; el índice es la posición de la lectura en `experimento.lecturas` tal como está guardado. */
+  enmendarLectura: (hipotesisId: string, indice: number, campo: CampoLecturaEnmendable, despues: string, motivo: string) => {
+    aplicar((e) => A.enmendarLectura(e, hipotesisId, indice, campo, despues, motivo, QUIEN, Date.now()));
+    enviar('enmendarLectura', { hipotesis_id: hipotesisId, indice, campo, despues, motivo, quien: QUIEN });
   },
   /** Etiqueta humana sobre una comprobacion del Killer (conjunto dorado, calibracion de jueces). */
   etiquetarComprobacion: (hipotesisId: string, comprobacion: string, veredictoHumano: 'pasa' | 'falla' | 'no_comprobable', nota = '') => {

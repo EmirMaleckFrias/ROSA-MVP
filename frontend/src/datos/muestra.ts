@@ -1269,6 +1269,7 @@ export function estadoDeMuestra(): EstadoRosa {
     hipotesis: HIPOTESIS,
     comentarios: [],
     hechos: HECHOS,
+    datasetsPrograma: [],
     artefactos: ARTEFACTOS,
     casos: CASOS,
     metricas: METRICAS,

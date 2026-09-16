@@ -127,6 +127,207 @@ nada de esto se opera desde la terminal.
   uv run python -m rosa.evaluacion.panel_killer --hipotesis 5
   ```
 
+## Programa: ruta, mapa, datasets, perfil de diana, contrato del experimento y cifras de aprendizaje (16 de septiembre de 2026)
+
+Hasta aquí Rosa miraba cada hipótesis por separado. Estas seis piezas la hacen
+mirar también el conjunto (lo que ROSA2018 llama "vista de programa") y le
+exigen a cada experimento que diga, antes de tener datos, qué medirá y cómo
+leerá un resultado negativo. Todas son reglas fijas en Python (sin modelo de
+lenguaje) que leen el estado y escriben en él; el modelo solo interviene donde
+se dice. Nada se opera desde la terminal: todo se ve en la interfaz y un
+registro guardado antes de hoy sigue cargando (las claves nuevas nacen en
+`None` o en lista vacía y `rosa/estado/almacen.py` las añade al arrancar).
+
+Cómo se enlazan: el bucle escribe `ruta`, `perfilDiana` y `alternativas` en
+cada hipótesis (en el Killer y al concluir), el contrato dentro de
+`experimento` al proponerlo, y al cerrar cada iteración las tres vistas de la
+investigación (`mapaEnfermedad`, `mapaRuta`, `cifrasAprendizaje`) más los
+datasets que los conectores devolvieron en `estado.datasetsPrograma`. El
+servidor las sirve dentro de `/api/estado` y a demanda en
+`GET /api/investigaciones/{id}/ruta`, `/mapa` y `/cifras`,
+`GET /api/experimento/vocabularios` y `GET /api/hipotesis/{id}/contrato`.
+
+### Ruta terapéutica evaluada (`rosa/ruta.py`)
+
+- **Qué hace.** La ruta terapéutica son los ocho pasos que separan una idea
+  biológica de un tratamiento: mecanismo, opciones de intervención,
+  compromiso de diana (la intervención llega de verdad a su blanco), efecto
+  funcional, selectividad y toxicidad, entrega y exposición, replicación
+  independiente y evidencia en la población. `evaluar_ruta(e, h)` mira la
+  evidencia que ya tiene la hipótesis (afirmaciones sostenidas, ejecuciones
+  válidas, resultado del laboratorio, grafo causal) y marca cada paso como
+  cubierto, parcial, vacío o no comprobable (una fuente que no respondió no
+  es "no hay"). Dice cuál es el siguiente paso y si el paso que la tarjeta
+  declara es coherente con lo cubierto. `mapa_ruta(e, inv_id)` agrupa las
+  hipótesis vivas por diana y cuenta cuántas cubren cada paso.
+- **Dónde se ve.** En la ficha de la hipótesis, dentro de la tarjeta
+  (`frontend/src/componentes/Rosa2018.tsx`, `RutaTerapeutica`): un símbolo
+  por paso con el motivo al pasar el ratón, el resumen en llano encima y un
+  chip ámbar si la tarjeta declara un paso por delante del primero vacío. En
+  la pantalla de la investigación, sección "Programa", la tarjeta "Mapa de la
+  ruta terapéutica" (`frontend/src/componentes/MapaRuta.tsx`). En el dossier,
+  sección 2, sustituye a la frase fija de antes.
+- **Qué toca Emir.** El vocabulario por regla de cada paso (`_INTERVENCION`,
+  `_FUNCIONAL`, `_SEGURIDAD`, `_EXPOSICION` en `ruta.py`), los diseños que
+  cuentan como evidencia en población (`DISENOS_HUMANOS`, `N_MINIMO_POBLACION`),
+  la definición de cada paso (`DEFINICIONES_PASO`, copiada en
+  `frontend/src/lib/etiquetas.ts` como `DEFINICION_PASO_RUTA`) y los colores
+  de los estados (`COLOR_ESTADO_PASO` en `Rosa2018.tsx`). Dónde se recalcula:
+  `_ruta_segura` en `rosa/bucle/corrida.py` y el Killer en `rosa/bucle/pasos.py`.
+
+### Mapa de la enfermedad (`rosa/mapa_enfermedad.py`)
+
+- **Qué hace.** Sitúa cada hecho y cada hipótesis de la investigación en
+  cuatro ejes leídos por regla del texto y de las entidades: estadio de la
+  enfermedad (preclínica, prodrómica o DCL, demencia leve, moderada o grave,
+  autosómica dominante; también desde Braak, CDR, MMSE, Thal o CERAD), región
+  del cerebro, tipo celular y nivel biológico (molecular, celular, tisular,
+  clínico). `mapa(e, inv_id)` devuelve las celdas con sus recuentos y la
+  certeza GRADE máxima, los registros que no pudo situar y los "huecos": las
+  combinaciones que la misión nombra y nada cubre. Al cerrar la iteración cada
+  hueco abre una cuestión para que el planificador busque en amplitud por ahí
+  (`_cuestiones_por_hueco` en `rosa/bucle/corrida.py`, tope de 6 por cierre),
+  y el texto del mapa entra en el prompt del modelo de mundo
+  (`rosa/bucle/contexto.py`).
+- **Dónde se ve.** Sección "Programa" de la investigación, tarjeta "Mapa de la
+  enfermedad" (`frontend/src/componentes/MapaEnfermedad.tsx`): resumen en
+  llano, aviso de lo no situado, lista de huecos con su motivo y, plegada en
+  modo sencillo, la rejilla estadio por región con fichas por tipo celular.
+- **Qué toca Emir.** Las tablas `REGIONES`, `TIPOS_CELULARES`, `ESTADIOS` y
+  las correspondencias `BRAAK_A_ESTADIO`, `CDR_A_ESTADIO`, `THAL_A_ESTADIO`,
+  `CERAD_A_ESTADIO` y `mmse_a_estadio` (heurísticas que el equipo de Allegri
+  debería validar). Las etiquetas visibles viajan en `mapa.etiquetas`; la
+  copia de reserva del frontend es `ETIQUETAS_MAPA` en `MapaEnfermedad.tsx`.
+
+### Registro de datasets del programa (`rosa/datasets_programa.py`)
+
+- **Qué hace.** Un registro único de los conjuntos de datos que Rosa ha visto:
+  cada serie GEO y colección CELLxGENE que devuelven los conectores en el paso
+  de novedad, y cada fichero que una persona sube en Objetivo y datos. De cada
+  uno deduce por regla tipo (bulk, célula única, proteómica...), tejido,
+  región, estadio, n, plataforma y acceso, y guarda el motivo de cada
+  deducción. El acceso más restrictivo gana: un dataset de ADNI, ROSMAP o MSBB
+  queda marcado como controlado y "el proyecto no lo pide"; se registra para
+  que conste, nunca se propone para análisis. `coincidencias(e, pregunta)`
+  le da al planificador (`ProponerPlan.datasets_disponibles`) los que casan
+  con la pregunta de la corrida. `pseudobulk_por_donante` y la skill
+  `rosa/skills/pseudobulk-por-donante/SKILL.md` explican cómo agregar célula
+  única por donante para que el n sea de donantes, no de células.
+- **Dónde se ve.** Sección "Programa", tarjeta "Datasets del programa"
+  (`frontend/src/componentes/DatasetsPrograma.tsx`): por defecto los usados
+  en esa investigación, con un botón para ver todo el registro; cada fila con
+  fuente, accession, acceso, n y el detalle "Cómo se dedujo cada dato".
+- **Qué toca Emir.** Los vocabularios `FUENTES`, `TIPOS`, `ACCESOS` y sus
+  alias (`_ALIAS_*`), las cohortes `COHORTES_CONTROLADAS` y
+  `COHORTES_CON_REGISTRO`, las reglas `inferir_tipo`, `inferir_tejido`,
+  `inferir_estadio`. El registro desde el bucle está en
+  `registrar_datasets_programa` (`rosa/bucle/pasos.py`) y desde una subida en
+  `_registrar_en_programa` (`rosa/estado/acciones.py`).
+
+### Perfil de evidencia por diana (`rosa/dianas.py`)
+
+- **Qué hace.** La diana es el gen o la proteína a la que apunta la
+  hipótesis. `perfil_de_diana` la consulta en seis capas, cada una con su
+  pregunta: genética humana (Open Targets: ¿la variación del gen cambia el
+  riesgo, y en qué dirección?), expresión en tejido (HPA y GTEx), expresión
+  por tipo celular (HPA célula única), proteína y función (UniProt, STRING,
+  Reactome), farmacología (ChEMBL: ¿hay moléculas que la toquen?) y
+  literatura (PubTator). Cada capa responde presente, ausente o "no pude
+  comprobar", con el registro de cada consulta. Sobre ese perfil el Killer
+  tiene una comprobación nueva por regla, `contexto_humano`: falla solo si HPA
+  no detecta la diana en cerebro y la hipótesis afirma un mecanismo cerebral;
+  un fallo lleva a reformular, no a descartar. El perfil entra también en el
+  texto que leen el juez del Killer y el proponente de experimentos.
+- **Dónde se ve.** Ficha de la hipótesis, bloque "Qué dicen las bases de la
+  diana" debajo del contexto de bases (`PerfilDeLaDiana` en `Rosa2018.tsx`):
+  seis filas fijas con la pregunta en llano, el estado, el detalle y las bases
+  consultadas. También en el dossier, sección 2.
+- **Qué toca Emir.** `CAPAS`, `PREGUNTA_CAPA` y `ETIQUETAS_CAPA` (copiadas en
+  `etiquetas.ts` como `CAPA_DIANA`), el tejido GTEx por defecto
+  (`TEJIDO_GTEX_POR_DEFECTO`), la regla de `comprobacion_contexto_humano` y su
+  lugar en `REFORMULAN` (`rosa/killer.py`). El conector `gtex_gen` vive en
+  `rosa/conectores/bases.py`; el perfil se construye en `contexto_de_bases`
+  (`rosa/bucle/pasos.py`).
+
+### Contrato del experimento (`rosa/experimento.py`)
+
+- **Qué hace.** Cuando Rosa propone un experimento, además del protocolo fija
+  un contrato: las lecturas (cada medida, con qué la confirma, qué la refuta,
+  control y unidad; la de "compromiso de diana" prueba que la intervención
+  tocó su blanco, separada de la de "efecto"), el sistema experimental (en qué
+  se hace, qué prueba y qué no representa de la biología humana), el
+  propósito BEST del biomarcador (la clasificación de la FDA y el NIH de para
+  qué sirve: riesgo, diagnóstico, monitorización, pronóstico, predicción de
+  respuesta, farmacodinámico, seguridad), el nivel del desenlace y el puente
+  al beneficio (por qué cambiar esa medida importaría a una persona).
+  `validar_contrato` lista en castellano lo que falta; `hash_lecturas` es la
+  huella que el prerregistro congela (si alguien cambia una lectura después,
+  deja de coincidir). Con el resultado, `veredicto_por_lecturas` juzga cada
+  lectura por regla con la cifra que la nombra (sin cifra, "no evaluable",
+  nunca "sin efecto") y `lectura_del_negativo` dice si un negativo cuestiona
+  el mecanismo (diana comprometida y sin efecto) o solo el ensayo (diana no
+  comprometida). La acción `enmendarLectura` corrige un campo de una lectura
+  tras prerregistrar, con motivo, autor y los dos hashes.
+- **Dónde se ve.** Ficha de la hipótesis, sección "Experimento propuesto",
+  bloque `ContratoDelExperimento` (`Rosa2018.tsx`): tabla de lecturas con
+  botón "Enmendar", sistema, propósito y nivel con su definición, avisos del
+  contrato y, con resultado, el veredicto por lectura y "Qué dice el
+  negativo". El prerregistro congelado lleva el bloque de lecturas y el hash
+  (`bloque_prerregistro`, espejado en `frontend/src/datos/acciones.ts`).
+- **Qué toca Emir.** Los cuatro vocabularios cerrados (`TIPOS_LECTURA`,
+  `SISTEMAS_EXPERIMENTALES`, `PROPOSITOS_BIOMARCADOR`, `NIVELES_DESENLACE`,
+  copiados en `acciones.ts` con el mismo nombre), la lista de datos
+  controlados que un protocolo no puede pedir (`DATOS_ACCESO_CONTROLADO`), las
+  reglas de lectura de cifras (`_SUBE`, `_BAJA`, `evaluar_criterio`) y los
+  campos enmendables (`CAMPOS_LECTURA_ENMENDABLES` en `rosa/estado/acciones.py`).
+  La firma DSPy que pide el contrato al modelo es `ExperimentoPropuesto` en
+  `rosa/modulos/firmas.py`.
+
+### Cifras de aprendizaje (`rosa/cifras_aprendizaje.py`)
+
+- **Qué hace.** Tres medidas de si Rosa aprende, calculadas al cerrar cada
+  iteración: acierto prerregistrado (de las predicciones que dejó por escrito
+  antes de mirar los datos, en planes de análisis y experimentos, cuántas
+  salieron como dijo; sin casos no se inventa un 0 %), tiempo hasta decisión
+  (horas desde que nace una hipótesis hasta su primera decisión de cada
+  etapa, mediana y p90) y reutilización de lo heredado (cuántos hechos
+  copiados de otra investigación usó alguna hipótesis viva). Cada cifra lleva
+  su regla, el detalle caso a caso y un glosario; el texto en llano se pega al
+  resumen de la iteración (`resumenLlano.aprendizaje`) y la métrica de la
+  corrida (`rosa/progreso.py`, `frase_acierto`) lo dice en una frase.
+- **Dónde se ve.** Sección "Programa", tarjeta "Aprendizaje"
+  (`frontend/src/componentes/CifrasAprendizaje.tsx`): tres fichas con el
+  texto del servidor, la regla y el detalle plegado; los términos del glosario
+  se explican al pasar el ratón.
+- **Qué toca Emir.** `REGLA_ACIERTO`, `REGLA_TIEMPO`, `REGLA_REUTILIZACION`,
+  `GLOSARIO` y `ETAPAS`; la frase de la métrica en `frase_acierto`
+  (`rosa/progreso.py`). El cierre que las escribe es
+  `_vistas_de_programa_al_cerrar` en `rosa/bucle/corrida.py`.
+
+### Ranking explicado y explicaciones alternativas
+
+- **Qué hace.** `frontend/src/lib/ranking.ts` descompone, sin sumarlos, los
+  componentes que Rosa calcula sobre cada hipótesis (certeza GRADE y su
+  techo, dirección, cohortes distintas, a favor y en contra, Killer,
+  bloqueos, Bradley-Terry, partidos, novedad) y dice en una frase qué la
+  movería en el orden. Las alternativas son lo que también explicaría lo
+  observado sin que la hipótesis sea cierta (causa inversa, confusor,
+  selección, artefacto) y qué observación las separaría; las escribe el juez
+  del Killer y las clasifica por regla `clasificar_alternativa`
+  (`rosa/bucle/pasos.py`).
+- **Dónde se ve.** `FranjaRanking` bajo cada fila del Ranking y bajo el
+  título de la ficha; sección "Explicaciones alternativas" de la ficha
+  (`frontend/src/componentes/Alternativas.tsx`).
+- **Qué toca Emir.** Los chips y sus definiciones en `ranking.ts` y
+  `FranjaRanking.tsx`; las clases de alternativa en `rosa/causal.py`.
+
+Comprobar que todo sigue en pie tras un cambio: la suite de Python
+(`rosa/tests/test_integracion_estado.py`, `test_integracion_pasos.py`,
+`test_integracion_corrida.py` y los `test_<modulo>.py` de cada pieza) y, en
+`frontend/`, `npx vitest run`, `npx eslint src`, `npx tsc --noEmit -p
+tsconfig.json` y `npm run build`. Para revisar tildes sin escribir nada:
+`python3 scripts/acentuar.py --comprobar` desde `frontend/`.
+
 ## Lo que Rosa tomo de Claude Science (11 de septiembre de 2026)
 
 La investigacion completa esta en `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`.

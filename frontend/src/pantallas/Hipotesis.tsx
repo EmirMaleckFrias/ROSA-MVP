@@ -20,7 +20,9 @@ import { Revisor } from '../componentes/Revisor';
 import { Verificacion } from '../componentes/Verificacion';
 import { ConclusionDeRosa, HipotesisEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion, Vacio, descargar } from '../componentes/piezas';
-import { Bloqueos, ConsultasABases, ContextoDeBases, DecisionesKiller, Dimensiones, EjecucionesInSilico, FusionYConflictos, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
+import { Bloqueos, ConsultasABases, ContextoDeBases, ContratoDelExperimento, DecisionesKiller, Dimensiones, EjecucionesInSilico, FusionYConflictos, GrafoCausalDeHipotesis, PerfilDeLaDiana, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
+import { FranjaRanking } from '../componentes/FranjaRanking';
+import { Alternativas } from '../componentes/Alternativas';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
 import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
@@ -256,6 +258,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           </button>
         </div>
         <TextoConFuertes texto={h.titulo} campo="enunciado" como="h2" />
+        <FranjaRanking estado={estado} h={h} explicar />
       </div>
 
       {retractadas.length > 0 && (
@@ -297,6 +300,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <TarjetaDeHipotesis h={h} />
         <ContextoDeBases h={h} />
+        <PerfilDeLaDiana h={h} />
         <GrafoCausalDeHipotesis h={h} />
         <ConsultasABases h={h} ahora={ahora} />
 
@@ -309,6 +313,10 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <Seccion titulo="Mecanismo propuesto">
         <TextoConFuertes texto={h.mecanismo} campo="mecanismo" />
+      </Seccion>
+
+      <Seccion titulo="Explicaciones alternativas" nota="Lo que también explicaría lo observado sin que la hipótesis sea cierta (causa inversa, un confusor, cómo se eligió la muestra, un artefacto de la medida), y qué observación separaría cada alternativa de la hipótesis. Rosa las escribe al cerrar cada iteración; una alternativa sin forma de distinguirla no sirve para diseñar un experimento.">
+        <Alternativas h={h} />
       </Seccion>
 
       <Seccion titulo="Cómo se comprobaría" nota="Siempre con biomarcador, cohorte y diseño: es lo que el investigador clínico principal necesita para juzgarla.">
@@ -641,6 +649,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </div>
               </div>
             )}
+            <ContratoDelExperimento h={h} />
             {(h.experimento.controles || h.experimento.tamanoMuestral || h.experimento.alternativa) && (
               <div className="conclusion-columnas">
                 {h.experimento.controles && (

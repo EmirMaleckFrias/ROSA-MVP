@@ -56,7 +56,10 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
         b.append(_bloqueo("sin_experimento_interpretable"))
     if h["estado"] == "descartada" or h.get("decisionKiller") == "descartar_en_contexto":
         b.append(_bloqueo("descartada_por_killer"))
-    if any(f.get("retraccion") == "retractado" for f in h.get("procedencia", {}).get("fuentes", [])):
+    # Un registro roto con `procedencia` como texto o None no debe tumbar la carga del estado.
+    procedencia = h.get("procedencia")
+    fuentes = procedencia.get("fuentes") if isinstance(procedencia, dict) else None
+    if any(isinstance(f, dict) and f.get("retraccion") == "retractado" for f in (fuentes if isinstance(fuentes, list) else [])):
         b.append(_bloqueo("fuente_retractada"))
     # Puerta de publicación (el "evidence worker" de rekursiv): un hallazgo grave y
     # abierto del revisor de registro, en el dossier de la hipótesis o en la última

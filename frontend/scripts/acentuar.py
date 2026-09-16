@@ -409,7 +409,12 @@ def acentuar_cadenas_ts(codigo: str) -> str:
     return re.sub(r"'((?:[^'\\\n]|\\.)*)'", cadena, codigo)
 
 
-def main() -> None:
+def main(escribir: bool = True) -> None:
+    """Recorre los .tsx y los .ts de lib/ y datos/ y acentúa sus textos.
+
+    Con `escribir=False` (opción `--comprobar`) solo informa de qué ficheros
+    tendrían tildes nuevas, sin tocar nada; es el modo para revisar el árbol
+    cuando otra persona o agente lo está editando a la vez."""
     raiz = Path(__file__).resolve().parents[1] / "src"
     cambiados = 0
     for f in sorted(raiz.rglob("*.tsx")):
@@ -418,7 +423,10 @@ def main() -> None:
         antes = f.read_text()
         despues = acentuar_tsx(antes)
         if despues != antes:
-            f.write_text(despues)
+            if escribir:
+                f.write_text(despues)
+            else:
+                print(f"  tildes nuevas en {f.relative_to(raiz)}")
             cambiados += 1
     for nombre in ("lib/etiquetas.ts", "lib/glosario.ts", "lib/objetivo.ts", "lib/digest.ts", "lib/priorizacion.ts", "lib/evidencia.ts", "lib/calidad.ts", "lib/hipotesis.ts", "lib/exportar.ts"):
         f = raiz / nombre
@@ -427,7 +435,10 @@ def main() -> None:
         antes = f.read_text()
         despues = acentuar_valores_ts(antes)
         if despues != antes:
-            f.write_text(despues)
+            if escribir:
+                f.write_text(despues)
+            else:
+                print(f"  tildes nuevas en {f.relative_to(raiz)}")
             cambiados += 1
     for f in sorted(list((raiz / "lib").glob("*.ts")) + list((raiz / "datos").glob("*.ts"))):
         if f.name.endswith(".test.ts") or f.name == "tipos.ts":
@@ -435,13 +446,18 @@ def main() -> None:
         antes = f.read_text()
         despues = acentuar_cadenas_ts(antes)
         if despues != antes:
-            f.write_text(despues)
+            if escribir:
+                f.write_text(despues)
+            else:
+                print(f"  tildes nuevas en {f.relative_to(raiz)}")
             cambiados += 1
-    print(f"{cambiados} ficheros con tildes nuevas")
+    print(f"{cambiados} ficheros con tildes nuevas" + ("" if escribir else " (sin escribir nada)"))
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--probar":
         print(acentuar_texto(sys.stdin.read()))
+    elif len(sys.argv) > 1 and sys.argv[1] == "--comprobar":
+        main(escribir=False)
     else:
         main()

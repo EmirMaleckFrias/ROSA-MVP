@@ -408,3 +408,29 @@ def test_realinear_tolera_registro_borrado_y_datasets_programa_roto():
     e = {"datasetsPrograma": [{"id": "dsp-x", "fuente": "geo", "accession": "GSE9", "registro": []}]}
     A._realinear_registro_programa(e, ds)
     assert e["datasetsPrograma"][0]["accession"] == "GSE9"
+
+
+def test_bloqueos_de_tolera_procedencia_rota_y_carga_el_estado():
+    """Un registro con `procedencia` como texto, None o con fuentes que no son
+    diccionarios no debe tumbar bloqueos_de (lo llama la migración del estado al
+    arrancar el servidor); una fuente retractada bien formada sigue bloqueando."""
+    from rosa import priorizacion as PR
+
+    e = P.estado_inicial()
+    base = P.nueva_hipotesis("inv-1", 1, 0, titulo="T")
+    for rota in ("texto", None, 7, {"fuentes": "texto"}, {"fuentes": [None, "x", 3]}):
+        h = dict(base, procedencia=rota)
+        b = PR.bloqueos_de(e, h)
+        assert isinstance(b, list) and "fuente_retractada" not in b
+    h = dict(base, procedencia={"fuentes": [{"id": "f1", "retraccion": "retractado"}], "registro": []})
+    assert "fuente_retractada" in PR.bloqueos_de(e, h)
+    # Y la carga real del estado: un rosa.db con esa hipótesis rota se lee.
+    with tempfile.TemporaryDirectory() as d:
+        al = Almacen(Path(d) / "t.db")
+        e2 = al.estado
+        e2["hipotesis"].append(dict(base, id="h-rota", procedencia="texto"))
+        al._con.execute("UPDATE estado SET json=? WHERE clave='rosa'", (json.dumps(e2, ensure_ascii=False),))
+        al.cerrar()
+        al2 = Almacen(Path(d) / "t.db")
+        assert any(h.get("id") == "h-rota" for h in al2.estado["hipotesis"])
+        al2.cerrar()

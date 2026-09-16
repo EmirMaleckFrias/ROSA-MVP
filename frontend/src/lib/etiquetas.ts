@@ -39,6 +39,10 @@ import type {
   NivelAprendizaje,
   NivelAutonomia,
   PasoRutaTerapeutica,
+  EstadoPasoRuta,
+  CapaDiana,
+  EstadoCapaDiana,
+  RamaNegativo,
   ProcedenciaDataset,
   Reproduccion,
   ResultadoLaboratorio,
@@ -378,6 +382,7 @@ export const COMPROBACION_KILLER: Record<string, string> = {
   relevancia_prueba: 'La prueba responde a la pregunta',
   confusores: 'Los confusores tratados son razonables',
   interpretacion_no_sobrepasa: 'La interpretación no sobrepasa las cifras',
+  contexto_humano: 'La diana se expresa en el tejido o la célula humana que la hipótesis nombra',
   unidades_y_escala: 'Unidades y escala plausibles',
 };
 
@@ -635,4 +640,62 @@ export const RIESGO_SESGO: Record<string, { etiqueta: string; tono: 'ok' | 'avis
   algunas_dudas: { etiqueta: 'algunas dudas', tono: 'aviso' },
   alto: { etiqueta: 'riesgo alto', tono: 'mal' },
   no_aplica: { etiqueta: 'no aplica', tono: 'borde' },
+};
+
+/** Estado de cada paso de la ruta terapéutica calculado por regla
+ *  (rosa/ruta.py ETIQUETAS_ESTADO). "No comprobable" es una fuente que no
+ *  respondió o un dato que no llegó: no es "vacío". El símbolo va delante de
+ *  la etiqueta del paso porque no se crean clases CSS nuevas para pintarlo. */
+export const ESTADO_PASO_RUTA: Record<EstadoPasoRuta, { etiqueta: string; simbolo: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; definicion: string }> = {
+  cubierto: { etiqueta: 'cubierto', simbolo: '●', tono: 'ok', definicion: 'Hay evidencia sostenida que cubre este paso (afirmaciones verificadas, un análisis válido, un retorno del laboratorio o un hecho del modelo de mundo).' },
+  parcial: { etiqueta: 'parcial', simbolo: '◐', tono: 'aviso', definicion: 'Hay algo que toca el paso, pero no basta: una sola cohorte, una afirmación sin verificar, un dato sin la unidad o el n que la regla pide.' },
+  vacio: { etiqueta: 'vacío', simbolo: '○', tono: 'mal', definicion: 'Nada de lo reunido toca este paso. Es un hueco, no una refutación.' },
+  no_comprobable: { etiqueta: 'no comprobable', simbolo: '?', tono: 'borde', definicion: 'No se pudo comprobar: una fuente no respondió o el registro no trae el dato. No es lo mismo que vacío.' },
+};
+
+/** Una frase por paso de la ruta, para quien la lee por primera vez (rosa/ruta.py DEFINICIONES_PASO). */
+export const DEFINICION_PASO_RUTA: Record<PasoRutaTerapeutica, string> = {
+  mecanismo: 'qué proceso biológico explica el efecto y con qué evidencia',
+  opciones_intervencion: 'con qué se podría actuar sobre la diana (fármaco, anticuerpo, modulación) y en qué dirección',
+  compromiso_diana: 'que la intervención o la medida llega a la diana y la cambia de forma medible',
+  efecto_funcional: 'que cambiar la diana cambia algo que importa: cognición, síntomas, función celular',
+  selectividad_toxicidad: 'que el efecto es sobre la diana y no sobre otras, y qué daño produce',
+  exposicion: 'que el fármaco o el marcador llega a donde tiene que llegar (sangre, LCR, cerebro), con qué dosis y cuánto tiempo',
+  replicacion_independiente: 'que el efecto se ha visto en al menos dos cohortes distintas (grupos de personas estudiados por separado)',
+  evidencia_poblacion: 'que hay estudios primarios en personas (cohortes, casos y controles, transversales o ensayos) con al menos 50 participantes',
+};
+
+/** Las seis capas del perfil de una diana, con la pregunta que responde cada
+ *  una (rosa/dianas.py ETIQUETAS_CAPA y PREGUNTA_CAPA). El orden es el de la
+ *  tabla. */
+export const CAPA_DIANA: Record<CapaDiana, { etiqueta: string; pregunta: string }> = {
+  genetica_humana: { etiqueta: 'Genética humana', pregunta: '¿la genética humana vincula el gen con el Alzheimer?' },
+  expresion_tejido: { etiqueta: 'Expresión en tejido', pregunta: '¿se expresa en tejido cerebral humano?' },
+  expresion_celular: { etiqueta: 'Expresión por tipo celular', pregunta: '¿en qué tipos celulares se expresa?' },
+  proteina_funcion: { etiqueta: 'Proteína y función', pregunta: '¿qué hace la proteína y con quién actúa?' },
+  farmacologia: { etiqueta: 'Farmacología', pregunta: '¿hay fármacos que la tocan?' },
+  literatura: { etiqueta: 'Literatura', pregunta: '¿cuántas publicaciones la relacionan con el Alzheimer?' },
+};
+export const ORDEN_CAPAS_DIANA: CapaDiana[] = ['genetica_humana', 'expresion_tejido', 'expresion_celular', 'proteina_funcion', 'farmacologia', 'literatura'];
+
+/** Estado de una capa del perfil (rosa/dianas.py ESTADOS): una base que no
+ *  respondió es "no pude comprobar", nunca "ausente". */
+export const ESTADO_CAPA_DIANA: Record<EstadoCapaDiana, { etiqueta: string; tono: 'ok' | 'aviso' | 'borde'; definicion: string }> = {
+  presente: { etiqueta: 'presente', tono: 'ok', definicion: 'Alguna base consultada trae registro para esta capa.' },
+  ausente: { etiqueta: 'ausente', tono: 'borde', definicion: 'Las bases respondieron y no tienen nada para esta capa.' },
+  no_pude_comprobar: { etiqueta: 'no pude comprobar', tono: 'aviso', definicion: 'La base no respondió, no trae el dato o la diana no resolvió: no se sabe, que no es lo mismo que ausente.' },
+};
+
+/** Lectura de la dirección del efecto genético (rosa/dianas.py ETIQUETAS_DIRECCION). */
+export const DIRECCION_GENETICA: Record<'+' | '-', string> = {
+  '+': '+ (más función de la diana, más riesgo)',
+  '-': '- (menos función de la diana, más riesgo)',
+};
+
+/** Las ramas de un negativo cuando el contrato separa la lectura de compromiso
+ *  de diana de la de efecto (rosa/experimento.py lectura_del_negativo). */
+export const RAMA_NEGATIVO: Record<RamaNegativo, { etiqueta: string; definicion: string }> = {
+  diana_comprometida_sin_efecto: { etiqueta: 'La diana se tocó y el efecto no apareció', definicion: 'El negativo cuestiona el mecanismo: la intervención llegó a la diana y aun así no pasó lo que la hipótesis predice.' },
+  diana_no_comprometida: { etiqueta: 'La diana no se tocó', definicion: 'El negativo cuestiona el ensayo, no la hipótesis: la intervención no llegó a la diana, así que el efecto no podía aparecer.' },
+  sin_lecturas_separadas: { etiqueta: 'Sin lecturas separadas', definicion: 'El contrato no separó compromiso de diana y efecto, así que no se puede saber cuál de las dos ramas explica el negativo.' },
 };

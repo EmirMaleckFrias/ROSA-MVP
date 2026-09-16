@@ -79,6 +79,12 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
             <h4>Qué te toca</h4>
             <p>{resumen.queTeToca}</p>
           </div>
+          {typeof resumen.aprendizaje === 'string' && resumen.aprendizaje.trim() && (
+            <div className="llano-bloque">
+              <h4>Qué aprendió Rosa hasta aquí</h4>
+              <p>{resumen.aprendizaje}</p>
+            </div>
+          )}
           <p className="meta">
             {resumen.alDia?.fechaBusqueda ? (
               <>

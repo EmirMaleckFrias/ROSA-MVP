@@ -28,6 +28,7 @@ import type {
   Avisos,
   CambioAprendizaje,
   CampoEnmendable,
+  CampoLecturaEnmendable,
   CasoDorado,
   ClaseAccion,
   ClasificacionDatos,
@@ -35,6 +36,7 @@ import type {
   ConocimientoOperativo,
   Corrida,
   Dataset,
+  EnmiendaPrerregistro,
   EstadoArea,
   EstadoRosa,
   Evento,
@@ -43,21 +45,27 @@ import type {
   Hipotesis,
   Investigacion,
   Iteracion,
+  LecturaExperimento,
   MetodoRegistrado,
   Mision,
   NivelAutonomia,
+  NivelDesenlace,
   NivelPermisoConector,
   PasoPlan,
   PoliticaEsperas,
   PreguntaCampana,
   ProcedenciaDataset,
+  PropositoBiomarcador,
   ProtocoloReal,
   PuertaReproduccion,
   Reproduccion,
   Revision,
   RevisionHumana,
+  SistemaExperimental,
   TipoArtefacto,
   TipoEvento,
+  TipoLectura,
+  TipoSistema,
 } from './tipos';
 
 let contador = 0;
@@ -586,7 +594,11 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
   if (lab === '' || !h || !h.experimento) return estado;
   // Misma regla que rosa/estado/acciones.py: sin criterio de confirmación y de refutación no se prerregistra.
-  const interpretable = ((h.experimento.confirma ?? '').trim() !== '' && (h.experimento.refuta ?? '').trim() !== '') || (h.experimento.ensayo ?? '').trim() !== '';
+  // Con el contrato del experimento también vale una lectura que tenga los dos criterios (rosa/experimento.py es_interpretable).
+  const interpretable =
+    ((h.experimento.confirma ?? '').trim() !== '' && (h.experimento.refuta ?? '').trim() !== '') ||
+    (h.experimento.ensayo ?? '').trim() !== '' ||
+    normalizarContrato(h.experimento).lecturas.some((l) => l.queConfirma !== '' && l.queRefuta !== '');
   if (!h.experimento.prerregistradoEn && !interpretable) {
     return conEvento(estado, h.investigacionId, 'incidencia', `No se puede prerregistrar «${h.titulo.slice(0, 60)}»: faltan el criterio de confirmación o el de refutación`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
   }
@@ -597,9 +609,11 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
   if (!h.experimento.prerregistradoEn) {
     const corrida = estado.corridas.filter((c) => c.investigacionId === h.investigacionId).sort((a, b) => b.numero - a.numero)[0];
     const r = guardarArtefacto(siguiente, h.investigacionId, `Prerregistro: ${h.titulo.slice(0, 80)}`, 'informe', textoPrerregistro(h, lab, ahora, corrida?.arnes), `Congelado al asignarlo a ${lab}`, corrida?.iteracionActual ?? h.iteracion, ahora);
+    // El hash de las lecturas se congela con el prerregistro: una enmienda posterior se nota porque el hash actual ya no coincide.
+    const hash = hashLecturas(h.experimento);
     siguiente = {
       ...r.estado,
-      hipotesis: reemplazar(r.estado.hipotesis, hipotesisId, (x) => ({ ...x, experimento: { ...x.experimento!, prerregistradoEn: ahora, prerregistroArtefactoId: r.id } })),
+      hipotesis: reemplazar(r.estado.hipotesis, hipotesisId, (x) => ({ ...x, experimento: { ...x.experimento!, prerregistradoEn: ahora, prerregistroArtefactoId: r.id, hashLecturas: hash } })),
     };
     siguiente = conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Experimento prerregistrado y asignado a ${lab}: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/artefactos/${r.id}`, ahora);
   }
@@ -697,6 +711,339 @@ export function enmendarExperimento(estado: EstadoRosa, hipotesisId: string, cam
   return conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Enmienda ${enmiendas.length} del prerregistro (${campo}): ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
+/* ---------------------------------------------------------------------
+   Contrato del experimento (espejo de rosa/experimento.py)
+
+   Conceptos por su nombre: una "lectura" es una medida del experimento con su
+   criterio de confirmación y de refutación; el "compromiso de diana" es la
+   lectura que demuestra que la intervención llegó a la diana y la modificó;
+   el "propósito BEST" es para qué sirve el biomarcador según la clasificación
+   BEST de la FDA y el NIH (riesgo, diagnóstico, monitorización, pronóstico,
+   predicción de respuesta, farmacodinámico, seguridad). Las claves van sin
+   tilde porque se comparan con el servidor; las etiquetas son lo que se lee.
+   --------------------------------------------------------------------- */
+
+export const TIPOS_LECTURA: Record<TipoLectura, { etiqueta: string; definicion: string }> = {
+  compromiso_diana: { etiqueta: 'compromiso de diana', definicion: 'Demuestra que la intervención llegó a la diana y la modificó: ocupación, fosforilación, expresión o actividad de la molécula a la que apunta.' },
+  viabilidad: { etiqueta: 'viabilidad', definicion: 'Demuestra que las células o el modelo sobrevivieron y toleraron la intervención; sin ella un efecto puede ser toxicidad.' },
+  funcion_mecanismo: { etiqueta: 'función o mecanismo', definicion: 'Mide el proceso biológico que la hipótesis propone, en la dirección que predice (por ejemplo, fagocitosis, secreción de citoquinas, sinapsis).' },
+  biomarcador: { etiqueta: 'biomarcador', definicion: 'Una medida indirecta del estado biológico que se puede tomar en personas (por ejemplo, GFAP en plasma, PET de amiloide).' },
+  seguridad: { etiqueta: 'seguridad', definicion: 'Señales de daño o de efectos adversos de la intervención (por ejemplo, muerte celular fuera de la diana, microhemorragias).' },
+};
+
+export const SISTEMAS_EXPERIMENTALES: Record<TipoSistema, { etiqueta: string; definicion: string; queNoRepresenta: string; intervencional: boolean }> = {
+  observacional_humano: { etiqueta: 'observacional en humanos', definicion: 'Cohorte, casos y controles o corte transversal en personas: se observa, no se interviene.', queNoRepresenta: 'no establece causalidad (confusión, causa inversa, selección) ni permite intervenir; las asociaciones dependen de la cohorte y de la plataforma de medida', intervencional: false },
+  datos_publicos_existentes: { etiqueta: 'datos públicos ya existentes', definicion: 'Reanálisis de datos ya recogidos y de acceso abierto (GEO, SEA-AD abierto, OASIS con registro gratuito).', queNoRepresenta: 'no es una medición nueva ni un diseño pensado para esta pregunta; hereda la selección, los faltantes y la calidad de la cohorte original, y solo permite lo que sus variables contienen', intervencional: false },
+  celulas_humanas_donante: { etiqueta: 'células humanas de donante', definicion: 'Células primarias de personas donantes (microglía, astrocitos o neuronas de tejido post mortem o de biopsia) en cultivo.', queNoRepresenta: 'no reproduce la interacción entre tipos celulares ni el entorno del tejido envejecido; las células cambian de fenotipo al cultivarse y el donante introduce variabilidad no controlada', intervencional: true },
+  ipsc: { etiqueta: 'células iPSC', definicion: 'Neuronas o glía derivadas de células madre pluripotentes inducidas (iPSC) humanas, reprogramadas desde células de una persona.', queNoRepresenta: 'no reproduce la edad (su madurez epigenética es fetal) ni el entorno del tejido; hay variabilidad entre líneas y clones y el fondo genético de cada donante pesa', intervencional: true },
+  organoide: { etiqueta: 'organoide cerebral', definicion: 'Agregado tridimensional de células derivadas de iPSC que se organiza en capas parecidas a las del cerebro en desarrollo.', queNoRepresenta: 'no tiene vasos sanguíneos ni microglía salvo que se añadan, no llega a la maduración adulta, tiene un núcleo necrótico por falta de oxígeno y varía entre lotes', intervencional: true },
+  cocultivo: { etiqueta: 'cocultivo', definicion: 'Dos o más tipos celulares cultivados juntos para medir cómo se afectan entre sí (por ejemplo, neuronas con microglía).', queNoRepresenta: 'no reproduce la arquitectura del tejido ni las señales del resto del organismo; las proporciones entre tipos celulares las fija el protocolo, no la biología', intervencional: true },
+  animal: { etiqueta: 'animal', definicion: 'Modelo animal, casi siempre ratón transgénico con amiloide o tau humanos.', queNoRepresenta: 'no reproduce la variación genética humana ni la edad; los ratones con amiloide no desarrollan tau ni neurodegeneración completa', intervencional: true },
+  in_silico: { etiqueta: 'in silico', definicion: 'Modelo computacional o análisis sobre datos ya existentes, sin medir nada nuevo.', queNoRepresenta: 'no mide nada nuevo: hereda lo que contienen los datos de entrada y los supuestos del modelo; un resultado in silico es una predicción hasta que se mide', intervencional: false },
+};
+
+export const PROPOSITOS_BIOMARCADOR: Record<PropositoBiomarcador, { etiqueta: string; definicion: string }> = {
+  susceptibilidad_riesgo: { etiqueta: 'susceptibilidad o riesgo', definicion: 'Indica el potencial de desarrollar la enfermedad en una persona que hoy no la tiene de forma clínicamente aparente (por ejemplo, ser portador de APOE e4).' },
+  diagnostico: { etiqueta: 'diagnóstico', definicion: 'Detecta o confirma la presencia de la enfermedad, o identifica a las personas con un subtipo de ella (por ejemplo, PET de amiloide positivo).' },
+  monitorizacion: { etiqueta: 'monitorización', definicion: 'Se mide de forma repetida para seguir el estado de la enfermedad o la exposición a una intervención o a un agente (por ejemplo, NfL en plasma cada seis meses).' },
+  pronostico: { etiqueta: 'pronóstico', definicion: 'En personas que ya tienen la enfermedad, indica la probabilidad de un evento clínico, de recurrencia o de progresión (por ejemplo, p-tau217 alto y progresión a demencia).' },
+  prediccion_respuesta: { etiqueta: 'predicción de respuesta', definicion: 'Identifica a las personas con más probabilidad que otras similares de tener un efecto favorable o desfavorable ante una intervención concreta (por ejemplo, APOE e4 y ARIA con anticuerpos antiamiloide).' },
+  farmacodinamico_respuesta: { etiqueta: 'farmacodinámico o de respuesta', definicion: 'Cambia en respuesta a la exposición a una intervención: muestra que hubo una respuesta biológica, incluido el compromiso de diana (por ejemplo, caída de amiloide en PET tras el tratamiento).' },
+  seguridad: { etiqueta: 'seguridad', definicion: 'Se mide antes o después de una exposición para indicar la probabilidad, la presencia o la extensión de una toxicidad como efecto adverso (por ejemplo, microhemorragias en RM).' },
+};
+
+export const NIVELES_DESENLACE: Record<NivelDesenlace, { etiqueta: string; definicion: string }> = {
+  molecular: { etiqueta: 'molecular', definicion: 'Una molécula o su cantidad o estado: proteína, ARN, metabolito, fosforilación (por ejemplo, GFAP en plasma, p-tau181).' },
+  celular: { etiqueta: 'celular', definicion: 'El comportamiento o el estado de células: viabilidad, morfología, fagocitosis, activación, sinapsis contadas (por ejemplo, microglía que fagocita amiloide).' },
+  fisiologico_imagen: { etiqueta: 'fisiológico o de imagen', definicion: 'La función de un tejido u órgano medida en el organismo vivo: PET, resonancia, EEG, presión, volumen (por ejemplo, atrofia del hipocampo en resonancia).' },
+  funcional_clinico: { etiqueta: 'funcional o clínico', definicion: 'Lo que la persona hace, siente o le ocurre: cognición, función en la vida diaria, síntomas, diagnóstico clínico, progresión a demencia.' },
+};
+
+/** Las cinco claves del contrato con su valor vacío (rosa/experimento.py normalizar_contrato). */
+export interface ContratoExperimento {
+  lecturas: LecturaExperimento[];
+  sistema: SistemaExperimental | null;
+  propositoBiomarcador: PropositoBiomarcador | null;
+  nivelDesenlace: NivelDesenlace | null;
+  puenteAlBeneficio: string;
+}
+
+type Vocabulario = Record<string, { etiqueta: string }>;
+
+// Espacios como los entiende Python (\s incluye \x1c a \x1f y \x85, que el \s de JavaScript no).
+const ESPACIOS = /[\s\u001c-\u001f\u0085]+/g;
+
+/** Cadena limpia como `_texto` de rosa/experimento.py: null y lo que no es texto se convierten sin romper; una lista se une con espacios. */
+function textoLimpio(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return v.map(textoLimpio).join(' ').replace(ESPACIOS, ' ').trim();
+  return String(v).replace(ESPACIOS, ' ').trim();
+}
+
+function sinTildes(t: string): string {
+  return t.normalize('NFKD').replace(/\p{M}/gu, '');
+}
+
+/** Forma comparable de un nombre (`_clave` en Python): minúsculas, sin tildes, sin signos, un espacio. */
+function claveComparable(t: unknown): string {
+  return sinTildes(textoLimpio(t)).toLowerCase().replace(/[^\p{L}\p{N}_%]+/gu, ' ').replace(ESPACIOS, ' ').trim();
+}
+
+/** Lee un campo probando varios nombres (camelCase y snake_case), como `_campo` en Python. */
+function campoDe(obj: unknown, ...nombres: string[]): unknown {
+  if (!obj || typeof obj !== 'object') return '';
+  const o = obj as Record<string, unknown>;
+  for (const n of nombres) if (Object.prototype.hasOwnProperty.call(o, n) && o[n] !== null && o[n] !== undefined) return o[n];
+  return '';
+}
+
+/** La clave del vocabulario a la que corresponde un valor escrito de otra forma («Biomarcador», «iPSC», «compromiso de diana»); [texto tal cual, false] si no corresponde a ninguna. Es normalización de forma, no interpretación. */
+function claveVocabulario(valor: unknown, vocabulario: Vocabulario): [string, boolean] {
+  const t = textoLimpio(valor);
+  if (t === '') return ['', false];
+  const tiene = (k: string) => Object.prototype.hasOwnProperty.call(vocabulario, k);
+  if (tiene(t)) return [t, true];
+  const k = sinTildes(t).toLowerCase().replace(/[^\p{L}\p{N}_]+/gu, '_').replace(/^_+|_+$/g, '');
+  if (tiene(k)) return [k, true];
+  const ck = claveComparable(t);
+  for (const [clave, v] of Object.entries(vocabulario)) if (ck === claveComparable(v.etiqueta)) return [clave, true];
+  return [t, false];
+}
+
+/** La etiqueta legible de una clave; la clave con espacios si no está en el vocabulario. */
+export function etiquetaContrato(vocabulario: Vocabulario, clave: unknown): string {
+  const v = clave !== null && clave !== undefined ? vocabulario[String(clave)] : undefined;
+  return v ? v.etiqueta : String(clave ?? '').replace(/_/g, ' ');
+}
+
+function lecturaLimpia(l: unknown): LecturaExperimento | null {
+  if (!l || typeof l !== 'object' || Array.isArray(l)) return null;
+  const extra = Object.fromEntries(Object.entries(l as Record<string, unknown>).filter(([k]) => k !== 'que_confirma' && k !== 'que_refuta'));
+  const d: LecturaExperimento = {
+    ...extra,
+    nombre: textoLimpio(campoDe(l, 'nombre')),
+    tipo: claveVocabulario(campoDe(l, 'tipo'), TIPOS_LECTURA)[0] as TipoLectura,
+    queConfirma: textoLimpio(campoDe(l, 'queConfirma', 'que_confirma')),
+    queRefuta: textoLimpio(campoDe(l, 'queRefuta', 'que_refuta')),
+    control: textoLimpio(campoDe(l, 'control')),
+    unidad: textoLimpio(campoDe(l, 'unidad')),
+  };
+  if (d.nombre === '' && d.queConfirma === '' && d.queRefuta === '') return null;
+  return d;
+}
+
+function sistemaLimpio(s: unknown): SistemaExperimental | null {
+  if (s === null || s === undefined || typeof s === 'number' || typeof s === 'boolean' || Array.isArray(s)) return null;
+  if (typeof s === 'string') {
+    const tipo = claveVocabulario(s, SISTEMAS_EXPERIMENTALES)[0];
+    return tipo ? { tipo: tipo as TipoSistema, quePrueba: '', queNoRepresenta: '' } : null;
+  }
+  if (typeof s !== 'object') return null;
+  const d: SistemaExperimental = {
+    tipo: claveVocabulario(campoDe(s, 'tipo'), SISTEMAS_EXPERIMENTALES)[0] as TipoSistema,
+    quePrueba: textoLimpio(campoDe(s, 'quePrueba', 'que_prueba')),
+    queNoRepresenta: textoLimpio(campoDe(s, 'queNoRepresenta', 'que_no_representa')),
+  };
+  if (!d.tipo && !d.quePrueba && !d.queNoRepresenta) return null;
+  return d;
+}
+
+/** El contrato del experimento con las claves nuevas rellenadas desde los
+ *  campos antiguos cuando faltan (espejo de rosa/experimento.py
+ *  normalizar_contrato). Un registro antiguo (solo ensayo, confirma, refuta,
+ *  controles) da una lectura de tipo biomarcador con eso mismo; el sistema,
+ *  el propósito, el nivel y el puente no se deducen. Un valor fuera del
+ *  vocabulario queda vacío. Lo que no sea un objeto vale como experimento vacío. */
+export function normalizarContrato(experimento: unknown): ContratoExperimento {
+  const x = experimento && typeof experimento === 'object' && !Array.isArray(experimento) ? (experimento as Record<string, unknown>) : {};
+  let lecturas: LecturaExperimento[] = Array.isArray(x.lecturas) ? x.lecturas.map(lecturaLimpia).filter((l): l is LecturaExperimento => l !== null) : [];
+  if (lecturas.length === 0) {
+    const ensayo = textoLimpio(x.ensayo);
+    const confirma = textoLimpio(x.confirma);
+    const refuta = textoLimpio(x.refuta);
+    if (ensayo || confirma || refuta) lecturas = [{ nombre: ensayo || 'medida principal', tipo: 'biomarcador', queConfirma: confirma, queRefuta: refuta, control: textoLimpio(x.controles), unidad: '' }];
+  }
+  const delVocabulario = (clave: 'propositoBiomarcador' | 'nivelDesenlace', vocabulario: Vocabulario): string | null => {
+    const [valor, enVocabulario] = claveVocabulario(textoLimpio(x[clave]), vocabulario);
+    return valor && enVocabulario ? valor : null;
+  };
+  return {
+    lecturas,
+    sistema: sistemaLimpio(x.sistema),
+    propositoBiomarcador: delVocabulario('propositoBiomarcador', PROPOSITOS_BIOMARCADOR) as PropositoBiomarcador | null,
+    nivelDesenlace: delVocabulario('nivelDesenlace', NIVELES_DESENLACE) as NivelDesenlace | null,
+    puenteAlBeneficio: textoLimpio(x.puenteAlBeneficio),
+  };
+}
+
+/** La lista canónica de lecturas que se congela al prerregistrar (espejo de
+ *  rosa/experimento.py lecturas_para_hash): solo las seis claves del contrato,
+ *  ordenadas por tipo, nombre y criterios; la misma lista con las lecturas en
+ *  otro orden o con claves de más. */
+export function lecturasParaHash(experimento: unknown): LecturaExperimento[] {
+  const canonicas = normalizarContrato(experimento).lecturas.map((l) => ({
+    nombre: textoLimpio(l.nombre),
+    tipo: textoLimpio(l.tipo) as TipoLectura,
+    queConfirma: textoLimpio(l.queConfirma),
+    queRefuta: textoLimpio(l.queRefuta),
+    control: textoLimpio(l.control),
+    unidad: textoLimpio(l.unidad),
+  }));
+  // Comparación por punto de código, como la de Python; localeCompare cambiaría el orden.
+  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return canonicas.sort(
+    (a, b) =>
+      cmp(a.tipo, b.tipo) ||
+      cmp(claveComparable(a.nombre), claveComparable(b.nombre)) ||
+      cmp(claveComparable(a.queConfirma), claveComparable(b.queConfirma)) ||
+      cmp(claveComparable(a.queRefuta), claveComparable(b.queRefuta)) ||
+      cmp(claveComparable(a.control), claveComparable(b.control)) ||
+      cmp(a.unidad, b.unidad),
+  );
+}
+
+const SHA256_K = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+/** SHA-256 en hexadecimal de un texto (UTF-8), síncrono para poder usarlo en
+ *  un reducer (WebCrypto solo lo da asíncrono). Mismo resultado que hashlib. */
+export function sha256Hex(texto: string): string {
+  const bytes = new TextEncoder().encode(texto);
+  const largo = bytes.length;
+  const relleno = (((largo + 9 + 63) / 64) | 0) * 64;
+  const m = new Uint8Array(relleno);
+  m.set(bytes);
+  m[largo] = 0x80;
+  const vista = new DataView(m.buffer);
+  const bits = largo * 8;
+  vista.setUint32(relleno - 8, Math.floor(bits / 0x100000000));
+  vista.setUint32(relleno - 4, bits >>> 0);
+  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const w = new Uint32Array(64);
+  const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n));
+  for (let desde = 0; desde < relleno; desde += 64) {
+    for (let i = 0; i < 16; i++) w[i] = vista.getUint32(desde + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15]!, 7) ^ rotr(w[i - 15]!, 18) ^ (w[i - 15]! >>> 3);
+      const s1 = rotr(w[i - 2]!, 17) ^ rotr(w[i - 2]!, 19) ^ (w[i - 2]! >>> 10);
+      w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H as [number, number, number, number, number, number, number, number];
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + SHA256_K[i]! + w[i]!) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + t1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (t1 + t2) >>> 0;
+    }
+    H[0] = (H[0]! + a) >>> 0;
+    H[1] = (H[1]! + b) >>> 0;
+    H[2] = (H[2]! + c) >>> 0;
+    H[3] = (H[3]! + d) >>> 0;
+    H[4] = (H[4]! + e) >>> 0;
+    H[5] = (H[5]! + f) >>> 0;
+    H[6] = (H[6]! + g) >>> 0;
+    H[7] = (H[7]! + h) >>> 0;
+  }
+  return H.map((x) => x.toString(16).padStart(8, '0')).join('');
+}
+
+/** SHA-256 de la lista canónica de lecturas (espejo de rosa/experimento.py
+ *  hash_lecturas y rosa/sello.py hash_canonico: JSON con claves ordenadas,
+ *  sin espacios, sin escapar los caracteres no ASCII). */
+export function hashLecturas(experimento: unknown): string {
+  const canonico = JSON.stringify(lecturasParaHash(experimento).map((l) => ({ control: l.control, nombre: l.nombre, queConfirma: l.queConfirma, queRefuta: l.queRefuta, tipo: l.tipo, unidad: l.unidad })));
+  return sha256Hex(canonico);
+}
+
+/** Las líneas del contrato para el prerregistro (espejo de rosa/experimento.py
+ *  bloque_prerregistro): lecturas fijadas de antemano con su hash, sistema,
+ *  propósito, nivel y puente. Lista vacía si no hay nada que congelar. */
+export function bloquePrerregistro(experimento: unknown): string[] {
+  const x = normalizarContrato(experimento);
+  if (x.lecturas.length === 0 && !x.sistema && !x.propositoBiomarcador && !x.nivelDesenlace && x.puenteAlBeneficio === '') return [];
+  const L = ['', '## Lecturas fijadas de antemano (contrato del experimento)'];
+  if (x.lecturas.length > 0) {
+    for (const l of lecturasParaHash(x)) {
+      L.push(`- ${l.nombre || 'sin nombre'} [${etiquetaContrato(TIPOS_LECTURA, l.tipo)}${l.unidad ? `, ${l.unidad}` : ''}]: confirma si ${l.queConfirma || 'sin criterio'}; refuta si ${l.queRefuta || 'sin criterio'}; control: ${l.control || 'sin control declarado'}`);
+    }
+    L.push(`Hash SHA-256 de las lecturas en orden canónico: ${hashLecturas(x)}`);
+  } else {
+    L.push('Lecturas: ninguna declarada; no hay criterio por lectura que congelar.');
+  }
+  const s = x.sistema;
+  if (s) {
+    const tipo = s.tipo || '';
+    const info = Object.prototype.hasOwnProperty.call(SISTEMAS_EXPERIMENTALES, tipo) ? SISTEMAS_EXPERIMENTALES[tipo as TipoSistema] : undefined;
+    L.push(`Sistema experimental: ${etiquetaContrato(SISTEMAS_EXPERIMENTALES, tipo) || 'sin tipo'}${info ? ` (${info.definicion})` : ''}`);
+    L.push(`  Prueba: ${s.quePrueba || 'no declarado'}`);
+    if (s.queNoRepresenta) {
+      L.push(`  No representa: ${s.queNoRepresenta}`);
+    } else {
+      const limite = info?.queNoRepresenta ?? '';
+      L.push(`  No representa: no declarado${limite ? `; límite general de este sistema: ${limite}` : ''}`);
+    }
+  } else {
+    L.push('Sistema experimental: no declarado');
+  }
+  const p = x.propositoBiomarcador;
+  L.push(p ? `Propósito del biomarcador (BEST): ${etiquetaContrato(PROPOSITOS_BIOMARCADOR, p)}. ${PROPOSITOS_BIOMARCADOR[p].definicion}` : 'Propósito del biomarcador (BEST): no declarado');
+  const n = x.nivelDesenlace;
+  L.push(n ? `Nivel del desenlace: ${etiquetaContrato(NIVELES_DESENLACE, n)}. ${NIVELES_DESENLACE[n].definicion}` : 'Nivel del desenlace: no declarado');
+  L.push(x.puenteAlBeneficio ? `Puente al beneficio: ${x.puenteAlBeneficio}` : 'Puente al beneficio: no declarado; el resultado, por sí solo, no habla de beneficio para una persona');
+  return L;
+}
+
+export const CAMPOS_LECTURA_ENMENDABLES: CampoLecturaEnmendable[] = ['queConfirma', 'queRefuta', 'control', 'unidad'];
+
+/** Enmienda fechada de una lectura del contrato (espejo de `enmendar_lectura`
+ *  en el servidor): misma regla que enmendarExperimento (solo después de
+ *  prerregistrar y antes de evaluar datos, con motivo, y solo si el texto
+ *  cambia), sobre una lectura declarada en `experimento.lecturas` (índice) y
+ *  uno de sus cuatro campos enmendables. La enmienda lleva `campo: 'ensayo'`
+ *  (las lecturas son los criterios del ensayo) y en `lectura` el índice, el
+ *  nombre y el campo real. `hashLecturas` no se toca: es el hash congelado, y
+ *  que ya no coincida con el actual es lo que delata la enmienda. */
+export function enmendarLectura(estado: EstadoRosa, hipotesisId: string, indice: number, campo: CampoLecturaEnmendable, despues: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const h = estado.hipotesis.find((y) => y.id === hipotesisId);
+  const x = h?.experimento;
+  if (!h || !x || !CAMPOS_LECTURA_ENMENDABLES.includes(campo) || !x.prerregistradoEn || x.resultado) return estado;
+  const lecturas = Array.isArray(x.lecturas) ? x.lecturas : [];
+  if (!Number.isInteger(indice) || indice < 0 || indice >= lecturas.length) return estado;
+  const l = lecturas[indice];
+  if (!l || typeof l !== 'object') return estado;
+  const nuevo = despues.trim();
+  const razon = motivo.trim();
+  const antes = String(l[campo] ?? '');
+  if (nuevo === '' || razon === '' || nuevo === antes) return estado;
+  const nombre = textoLimpio(l.nombre) || `lectura ${indice + 1}`;
+  const enmienda: EnmiendaPrerregistro = { fecha: ahora, quien: quien.trim() || 'persona', campo: 'ensayo', antes, despues: nuevo, motivo: razon, lectura: { indice, nombre, campo } };
+  const enmiendas = [...(x.enmiendas ?? []), enmienda];
+  const nuevas = lecturas.map((y, i) => (i === indice ? { ...y, [campo]: nuevo } : y));
+  const siguiente = {
+    ...estado,
+    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({
+      ...y,
+      experimento: { ...y.experimento!, lecturas: nuevas, enmiendas },
+      procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} enmienda ${enmiendas.length} del prerregistro por ${quien}: lectura «${nombre}», ${campo} (${razon.slice(0, 80)})`] },
+    })),
+  };
+  return conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Enmienda ${enmiendas.length} del prerregistro (lectura «${nombre}», ${campo}): ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+}
+
 /** El protocolo realmente ejecutado, con desviaciones e identidad de muestras.
  *  Si los datos ya se evaluaron, el resultado se borra para que el juez los
  *  reevalue con esta informacion (el servidor lo hace). */
@@ -786,6 +1133,8 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
     '',
     '## Ensayo y criterios fijados de antemano',
     x.ensayo,
+    // El contrato del experimento (lecturas, sistema, propósito, nivel y puente), espejo de rosa/experimento.py bloque_prerregistro.
+    ...bloquePrerregistro(x),
     '',
     `## Coste estimado
 ${x.costeEstimado}`,
@@ -994,6 +1343,10 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
     vigilarLiteraturaHasta: null,
     mision: null,
     puertaReproduccion: puertaVacia(),
+    // Se calculan al cerrar cada iteración (rosa/estado/acciones.py crear_investigacion los crea en None).
+    mapaEnfermedad: null,
+    mapaRuta: null,
+    cifrasAprendizaje: null,
   };
   let hechos = estado.hechos;
   if (datos.heredarModeloDe) {
@@ -1320,6 +1673,10 @@ export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: strin
     creadaEn: ahora,
     ramaDe: origen.id,
     vigilarLiteraturaHasta: null,
+    // La rama recalcula su mapa, su ruta y sus cifras; no hereda los del origen.
+    mapaEnfermedad: null,
+    mapaRuta: null,
+    cifrasAprendizaje: null,
   };
   const hechos = copiarHechos(estado.hechos, investigacionId, id);
   return { estado: { ...estado, investigaciones: [...estado.investigaciones, rama], hechos: [...estado.hechos, ...hechos] }, id };

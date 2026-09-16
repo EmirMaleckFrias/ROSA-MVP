@@ -6,6 +6,12 @@ import {
   asignarExperimento,
   cambiarEstadoArea,
   enmendarExperimento,
+  enmendarLectura,
+  bloquePrerregistro,
+  hashLecturas,
+  lecturasParaHash,
+  normalizarContrato,
+  sha256Hex,
   registrarProtocoloReal,
   aprobarPlan,
   abrirCuestion,
@@ -517,5 +523,186 @@ describe('cuestiones persistentes y pendientes de revisar', () => {
     const hecho3 = e3.hechos.find((x) => x.id === hecho.id)!;
     expect(hecho3.pendienteRevision).toBeNull();
     expect(hecho3.historial.at(-1)!.motivo).toContain('atendida');
+  });
+});
+
+describe('contrato del experimento (espejo de rosa/experimento.py)', () => {
+  // El mismo experimento que se pasó a rosa/experimento.py para obtener las líneas y el hash esperados.
+  const CONTRATO = {
+    ensayo: 'Tiempo hasta la primera alteración',
+    confirma: 'GFAP sube antes',
+    refuta: 'NfL sube antes',
+    controles: 'controles sanos',
+    lecturas: [
+      { nombre: 'GFAP en plasma', tipo: 'biomarcador', queConfirma: 'aumento de al menos 20 %', queRefuta: 'cambio menor del 5 %', control: 'sin tratar', unidad: 'pg/mL' },
+      { nombre: 'Fosforilación de la diana', tipo: 'Compromiso de diana', queConfirma: 'caída del 50 %', queRefuta: 'sin cambio', control: 'vehículo', unidad: '' },
+    ],
+    sistema: { tipo: 'ipsc', quePrueba: 'microglía derivada', queNoRepresenta: '' },
+    propositoBiomarcador: 'Monitorización',
+    nivelDesenlace: 'molecular',
+    puenteAlBeneficio: 'si GFAP baja, menos gliosis',
+  };
+  const HASH_CONTRATO = 'f7eef51d30d222fc06e06d4f97b03ad886019b373976551478f59ceb982bd018';
+  const LINEAS_IPSC = [
+    'Sistema experimental: células iPSC (Neuronas o glía derivadas de células madre pluripotentes inducidas (iPSC) humanas, reprogramadas desde células de una persona.)',
+  ];
+  const NO_REPRESENTA_IPSC = '  No representa: no declarado; límite general de este sistema: no reproduce la edad (su madurez epigenética es fetal) ni el entorno del tejido; hay variabilidad entre líneas y clones y el fondo genético de cada donante pesa';
+
+  it('sha256Hex coincide con hashlib, también con texto no ASCII', () => {
+    expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    // Sin lecturas la lista canónica es "[]": el hash que da rosa/experimento.py hash_lecturas({}).
+    expect(hashLecturas({})).toBe('4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945');
+    expect(hashLecturas(null)).toBe('4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945');
+  });
+  it('el hash de las lecturas es el del servidor y no depende del orden ni de claves de más', () => {
+    expect(hashLecturas(CONTRATO)).toBe(HASH_CONTRATO);
+    const alReves = { ...CONTRATO, lecturas: [...CONTRATO.lecturas].reverse().map((l) => ({ ...l, id: 'marca de la interfaz', nombre: `  ${l.nombre}  ` })) };
+    expect(hashLecturas(alReves)).toBe(HASH_CONTRATO);
+    expect(lecturasParaHash(CONTRATO).map((l) => l.tipo)).toEqual(['biomarcador', 'compromiso_diana']);
+    // Un texto distinto cambia el hash.
+    expect(hashLecturas({ ...CONTRATO, lecturas: [{ ...CONTRATO.lecturas[0]!, queConfirma: 'aumento de al menos 25 %' }, CONTRATO.lecturas[1]!] })).not.toBe(HASH_CONTRATO);
+  });
+  it('bloquePrerregistro reproduce el texto del servidor línea a línea', () => {
+    expect(bloquePrerregistro(CONTRATO)).toEqual([
+      '',
+      '## Lecturas fijadas de antemano (contrato del experimento)',
+      '- GFAP en plasma [biomarcador, pg/mL]: confirma si aumento de al menos 20 %; refuta si cambio menor del 5 %; control: sin tratar',
+      '- Fosforilación de la diana [compromiso de diana]: confirma si caída del 50 %; refuta si sin cambio; control: vehículo',
+      `Hash SHA-256 de las lecturas en orden canónico: ${HASH_CONTRATO}`,
+      ...LINEAS_IPSC,
+      '  Prueba: microglía derivada',
+      NO_REPRESENTA_IPSC,
+      'Propósito del biomarcador (BEST): monitorización. Se mide de forma repetida para seguir el estado de la enfermedad o la exposición a una intervención o a un agente (por ejemplo, NfL en plasma cada seis meses).',
+      'Nivel del desenlace: molecular. Una molécula o su cantidad o estado: proteína, ARN, metabolito, fosforilación (por ejemplo, GFAP en plasma, p-tau181).',
+      'Puente al beneficio: si GFAP baja, menos gliosis',
+    ]);
+  });
+  it('un registro antiguo da una lectura de tipo biomarcador derivada del ensayo, con el hash del servidor', () => {
+    const antiguo = { ensayo: 'Tiempo hasta la primera alteración', confirma: 'GFAP sube antes', refuta: 'NfL sube antes', controles: 'controles sanos' };
+    expect(bloquePrerregistro(antiguo)).toEqual([
+      '',
+      '## Lecturas fijadas de antemano (contrato del experimento)',
+      '- Tiempo hasta la primera alteración [biomarcador]: confirma si GFAP sube antes; refuta si NfL sube antes; control: controles sanos',
+      'Hash SHA-256 de las lecturas en orden canónico: 466991306bf9dea00ab61a8002008ed26e5cfaeb42f4408f375cd5288c7910d5',
+      'Sistema experimental: no declarado',
+      'Propósito del biomarcador (BEST): no declarado',
+      'Nivel del desenlace: no declarado',
+      'Puente al beneficio: no declarado; el resultado, por sí solo, no habla de beneficio para una persona',
+    ]);
+  });
+  it('un sistema escrito como texto se toma como su tipo sin inventar lo que prueba', () => {
+    const lineas = bloquePrerregistro({ lecturas: [{ nombre: 'A', tipo: 'viabilidad' }], sistema: 'iPSC' });
+    expect(lineas[2]).toBe('- A [viabilidad]: confirma si sin criterio; refuta si sin criterio; control: sin control declarado');
+    expect(lineas[3]).toBe('Hash SHA-256 de las lecturas en orden canónico: 471bc0992a5adf3a3d70d823b70e993b78f299c1796bde74a5d3edca9f8b35d6');
+    expect(lineas.slice(4, 7)).toEqual([...LINEAS_IPSC, '  Prueba: no declarado', NO_REPRESENTA_IPSC]);
+  });
+  it('sin nada que congelar no hay bloque, y la basura no rompe', () => {
+    expect(bloquePrerregistro({ protocolo: 'x', costeEstimado: 'c' })).toEqual([]);
+    expect(bloquePrerregistro(null)).toEqual([]);
+    expect(bloquePrerregistro(undefined)).toEqual([]);
+    expect(bloquePrerregistro('texto suelto')).toEqual([]);
+    expect(bloquePrerregistro([1, 2])).toEqual([]);
+    expect(bloquePrerregistro({ lecturas: [null, 7, 'x', { unidad: '%' }], sistema: 42, propositoBiomarcador: 'adivinar' })).toEqual([]);
+  });
+  it('normalizarContrato deja vacío lo que está fuera del vocabulario y acepta la etiqueta legible y snake_case', () => {
+    const c = normalizarContrato({ lecturas: 'no es lista', sistema: 42, propositoBiomarcador: 'adivinar', nivelDesenlace: 'Fisiológico o de imagen', puenteAlBeneficio: ['a', 'b'] });
+    expect(c.lecturas).toEqual([]);
+    expect(c.sistema).toBeNull();
+    expect(c.propositoBiomarcador).toBeNull();
+    expect(c.nivelDesenlace).toBe('fisiologico_imagen');
+    expect(c.puenteAlBeneficio).toBe('a b');
+    expect(normalizarContrato({ lecturas: [null, 'x', { unidad: '%' }, { nombre: 'B', que_confirma: 'sube', que_refuta: 'baja' }] }).lecturas).toEqual([{ nombre: 'B', tipo: '', queConfirma: 'sube', queRefuta: 'baja', control: '', unidad: '' }]);
+    expect(normalizarContrato({ sistema: { tipo: 'Datos públicos ya existentes' } }).sistema).toEqual({ tipo: 'datos_publicos_existentes', quePrueba: '', queNoRepresenta: '' });
+  });
+  it('el prerregistro de la muestra lleva el contrato derivado del ensayo antiguo y congela su hash', () => {
+    const e = estadoDeMuestra();
+    const h = e.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    const asignado = asignarExperimento(e, h.id, 'Lab X', T);
+    const x = asignado.hipotesis.find((y) => y.id === h.id)!.experimento!;
+    // Hash de rosa/experimento.py para el ensayo de la muestra, sin confirma ni refuta.
+    expect(x.hashLecturas).toBe('0eac5dca25b361bf676fe4595154e442a4f2faf71b528dfc53d31289cc93fe3b');
+    const arte = asignado.artefactos.find((a) => a.id === x.prerregistroArtefactoId)!;
+    const texto = arte.versiones.at(-1)!.contenido;
+    expect(texto).toContain('## Lecturas fijadas de antemano (contrato del experimento)');
+    expect(texto).toContain(`Hash SHA-256 de las lecturas en orden canónico: ${x.hashLecturas}`);
+    expect(texto.indexOf('## Ensayo y criterios fijados de antemano')).toBeLessThan(texto.indexOf('## Lecturas fijadas de antemano'));
+    expect(texto.indexOf('## Lecturas fijadas de antemano')).toBeLessThan(texto.indexOf('## Coste estimado'));
+  });
+  it('un experimento solo con lecturas completas se puede prerregistrar; con una lectura a medias, no', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    const lectura = { nombre: 'GFAP', tipo: 'biomarcador' as const, queConfirma: 'sube', queRefuta: 'no sube', control: '', unidad: '' };
+    const soloLecturas = { ...e0, hipotesis: e0.hipotesis.map((x) => (x.id === h.id ? { ...x, experimento: { ...x.experimento!, ensayo: '', confirma: '', refuta: '', lecturas: [lectura] } } : x)) };
+    expect(asignarExperimento(soloLecturas, h.id, 'Lab X', T).hipotesis.find((y) => y.id === h.id)!.experimento!.prerregistradoEn).toBe(T);
+    const aMedias = { ...soloLecturas, hipotesis: soloLecturas.hipotesis.map((x) => (x.id === h.id ? { ...x, experimento: { ...x.experimento!, lecturas: [{ ...lectura, queRefuta: '' }] } } : x)) };
+    const rechazado = asignarExperimento(aMedias, h.id, 'Lab X', T);
+    expect(rechazado.hipotesis.find((y) => y.id === h.id)!.experimento!.prerregistradoEn).toBeUndefined();
+    expect(rechazado.eventos.at(-1)?.tipo).toBe('incidencia');
+  });
+});
+
+describe('enmendarLectura', () => {
+  const conLecturas = () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    const lecturas = [{ nombre: 'GFAP en plasma', tipo: 'biomarcador' as const, queConfirma: 'sube 20 %', queRefuta: 'no sube', control: 'sin tratar', unidad: 'pg/mL' }];
+    const e = { ...e0, hipotesis: e0.hipotesis.map((x) => (x.id === h.id ? { ...x, experimento: { ...x.experimento!, lecturas } } : x)) };
+    return { e, id: h.id };
+  };
+  it('no enmienda sin prerregistro, sin lecturas, fuera de rango, sin motivo, sin cambio, con campo ajeno ni con resultado', () => {
+    const { e, id } = conLecturas();
+    expect(enmendarLectura(e, id, 0, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(e);
+    const asignado = asignarExperimento(e, id, 'Lab X', T);
+    expect(enmendarLectura(asignado, id, 1, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, -1, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, 0.5, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, Number.NaN, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, 0, 'queConfirma', 'sube 30 %', '   ', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, 0, 'queConfirma', '   ', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, 0, 'queConfirma', 'sube 20 %', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, id, 0, 'nombre' as never, 'otro', 'm', 'p', T)).toBe(asignado);
+    expect(enmendarLectura(asignado, 'no-existe', 0, 'queConfirma', 'x', 'm', 'p', T)).toBe(asignado);
+    const sinLecturas = asignarExperimento(estadoDeMuestra(), id, 'Lab X', T);
+    expect(enmendarLectura(sinLecturas, id, 0, 'queConfirma', 'x', 'm', 'p', T)).toBe(sinLecturas);
+    const evaluado = { ...asignado, hipotesis: asignado.hipotesis.map((h) => (h.id === id ? { ...h, experimento: { ...h.experimento!, resultado: { veredicto: 'confirma', resultado: '', motivo: '', limitaciones: '', cifras: [], exploratorio: '', fecha: T, fichero: null } as never } } : h)) };
+    expect(enmendarLectura(evaluado, id, 0, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(evaluado);
+  });
+  it('guarda antes y después con la lectura y el campo, deja rastro y no toca el hash congelado ni el estado anterior', () => {
+    const { e, id } = conLecturas();
+    const asignado = asignarExperimento(e, id, 'Lab X', T);
+    const hash = asignado.hipotesis.find((y) => y.id === id)!.experimento!.hashLecturas;
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    const e1 = enmendarLectura(asignado, id, 0, 'queConfirma', 'sube al menos 30 %', 'potencia recalculada', 'Allegri', T + 1);
+    const h1 = e1.hipotesis.find((y) => y.id === id)!;
+    const x = h1.experimento!;
+    expect(x.lecturas![0]!.queConfirma).toBe('sube al menos 30 %');
+    expect(x.lecturas![0]!.queRefuta).toBe('no sube');
+    expect(x.enmiendas).toHaveLength(1);
+    expect(x.enmiendas![0]).toMatchObject({ campo: 'ensayo', antes: 'sube 20 %', despues: 'sube al menos 30 %', quien: 'Allegri', motivo: 'potencia recalculada', lectura: { indice: 0, nombre: 'GFAP en plasma', campo: 'queConfirma' } });
+    expect(x.hashLecturas).toBe(hash);
+    expect(hashLecturas(x)).not.toBe(hash);
+    expect(h1.procedencia.registro.at(-1)).toContain('lectura «GFAP en plasma», queConfirma');
+    expect(e1.eventos.at(-1)?.texto).toContain('Enmienda 1 del prerregistro (lectura «GFAP en plasma», queConfirma)');
+    expect(asignado.hipotesis.find((y) => y.id === id)!.experimento!.lecturas![0]!.queConfirma).toBe('sube 20 %');
+    const e2 = enmendarLectura(e1, id, 0, 'unidad', 'ng/mL', 'unidad corregida', 'Allegri', T + 2);
+    expect(e2.hipotesis.find((y) => y.id === id)!.experimento!.enmiendas).toHaveLength(2);
+    expect(e2.hipotesis.find((y) => y.id === id)!.experimento!.lecturas![0]!.unidad).toBe('ng/mL');
+  });
+});
+
+describe('investigación nueva con los campos de ROSA2018', () => {
+  it('la muestra trae datasetsPrograma vacío y crear o bifurcar arrancan mapa, ruta y cifras en null', () => {
+    const e0 = estadoDeMuestra();
+    expect(e0.datasetsPrograma).toEqual([]);
+    const { estado: e1, id } = crearInvestigacion(e0, { titulo: 'T', objetivo: 'O', relevancia: '', limites: [], condicionParada: 'P', revisores: [] }, T);
+    const inv = e1.investigaciones.find((i) => i.id === id)!;
+    expect(inv.mapaEnfermedad).toBeNull();
+    expect(inv.mapaRuta).toBeNull();
+    expect(inv.cifrasAprendizaje).toBeNull();
+    const conMapa = { ...e1, investigaciones: e1.investigaciones.map((i) => (i.id === id ? { ...i, mapaRuta: { investigacionId: id!, filas: [], resumen: 'Sin hipótesis vivas en esta investigación: no hay ruta que mapear.' } } : i)) };
+    const rama = bifurcarInvestigacion(conMapa, id!, 'rama de prueba', T);
+    expect(rama.estado.investigaciones.find((i) => i.id === rama.id)!.mapaRuta).toBeNull();
+    expect(rama.estado.investigaciones.find((i) => i.id === id)!.mapaRuta?.filas).toEqual([]);
   });
 });

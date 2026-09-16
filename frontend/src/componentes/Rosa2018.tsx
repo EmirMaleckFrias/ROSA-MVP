@@ -8,9 +8,9 @@
 // que quien no vivio el documento la entienda igual.
 
 import { useEffect, useState } from 'react';
-import { acciones } from '../datos/almacen';
-import { CAMPOS_ENMENDABLES, empeoraAlEvaluar } from '../datos/acciones';
-import type { CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, EntidadCanonica, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
+import { acciones, aplicar, avisar, cabeceras, conectar, modoActual, QUIEN } from '../datos/almacen';
+import { CAMPOS_ENMENDABLES, CAMPOS_LECTURA_ENMENDABLES, NIVELES_DESENLACE, PROPOSITOS_BIOMARCADOR, SISTEMAS_EXPERIMENTALES, TIPOS_LECTURA, empeoraAlEvaluar, enmendarLectura as enmendarLecturaLocal, etiquetaContrato, normalizarContrato } from '../datos/acciones';
+import type { CampoLecturaEnmendable, CapaPerfilDiana, EnmiendaPrerregistro, EstadoPasoRuta, LecturaExperimento, PasoRutaEvaluado, RutaTerapeuticaEvaluada, VeredictoLectura, CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, EntidadCanonica, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
   BLOQUEO,
@@ -31,7 +31,7 @@ import {
   TIPO_APRENDIZAJE,
   TIPO_METODO,
   USO_IA,
-  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR, CLASE_HALLAZGO_REGISTRO, RELACION_TORNEO } from '../lib/etiquetas';
+  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR, CLASE_HALLAZGO_REGISTRO, RELACION_TORNEO, ESTADO_PASO_RUTA, DEFINICION_PASO_RUTA, CAPA_DIANA, ORDEN_CAPAS_DIANA, ESTADO_CAPA_DIANA, DIRECCION_GENETICA, RAMA_NEGATIVO } from '../lib/etiquetas';
 import { EXPLICACION_BLOQUEO } from '../lib/priorizacion';
 import { cambiosPorVersion, etiquetaCampo, resumenDiff } from '../lib/registro';
 import { rutaDe } from '../lib/ruta';
@@ -242,7 +242,15 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
   return (
     <Seccion titulo="Tarjeta de la hipótesis" nota="El contrato mínimo para que el Killer la juzgue y un laboratorio la ejecute: diana, célula, etapa, intervención, la predicción que la refutaría y sus riesgos. Sin predicción falsable no avanza.">
       {t === null || t === undefined ? (
-        <p className="meta">{t === null ? 'Rosa no pudo rellenar la tarjeta.' : 'Rosa todavía no rellena la tarjeta de esta hipótesis.'}</p>
+        <>
+          <p className="meta">{t === null ? 'Rosa no pudo rellenar la tarjeta.' : 'Rosa todavía no rellena la tarjeta de esta hipótesis.'}</p>
+          {h.ruta && typeof h.ruta === 'object' && (
+            <div>
+              <p className="campo-etiqueta">Ruta terapéutica</p>
+              <RutaTerapeutica paso={rutaValida(h.ruta.declarado) ?? 'mecanismo'} ruta={h.ruta} />
+            </div>
+          )}
+        </>
       ) : (
         <dl className="comprobacion tarjeta-hip">
           <dt>Diana o proceso</dt>
@@ -263,7 +271,7 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
           <dd>{t.riesgos.length ? <ul className="lista-limpia">{t.riesgos.map((r, i) => <li key={i}>{r}</li>)}</ul> : 'ninguno declarado'}</dd>
           <dt>Ruta terapéutica</dt>
           <dd>
-            <RutaTerapeutica paso={t.pasoRuta ?? 'mecanismo'} />
+            <RutaTerapeutica paso={t.pasoRuta ?? 'mecanismo'} ruta={h.ruta} />
           </dd>
         </dl>
       )}
@@ -306,18 +314,82 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
   );
 }
 
-/** La ruta terapeutica del plan completo, con el paso actual marcado. Una
- *  campana celular completada no completa la ruta. */
-export function RutaTerapeutica({ paso }: { paso: PasoRutaTerapeutica }) {
+/** El paso si es uno de los ocho de la ruta; null si la tarjeta declaró otra cosa. */
+function rutaValida(p: unknown): PasoRutaTerapeutica | null {
+  return typeof p === 'string' && Object.hasOwn(PASO_RUTA, p) ? (p as PasoRutaTerapeutica) : null;
+}
+
+/** El estado de un paso tal como lo calculó la regla, o null si el registro
+ *  no lo trae o trae algo que esta versión no conoce. */
+function estadoDePaso(ruta: RutaTerapeuticaEvaluada | null | undefined, p: PasoRutaTerapeutica): PasoRutaEvaluado | null {
+  const lista = Array.isArray(ruta?.pasos) ? ruta!.pasos : [];
+  const x = lista.find((y) => y && typeof y === 'object' && y.paso === p);
+  return x ?? null;
+}
+
+const COLOR_ESTADO_PASO: Record<EstadoPasoRuta, string> = { cubierto: 'var(--green)', parcial: 'var(--amber)', vacio: 'var(--red)', no_comprobable: 'var(--text-3)' };
+
+/** La ruta terapéutica del plan completo, con el paso actual marcado. Una
+ *  campaña celular completada no completa la ruta. Con `ruta` (lo que calcula
+ *  rosa/ruta.py por regla), cada paso lleva delante el símbolo de su estado
+ *  (cubierto, parcial, vacío, no comprobable) con el motivo al pasar el
+ *  ratón, el resumen en llano va encima de la lista y, si el paso que declara
+ *  la tarjeta va por delante de la evidencia, se avisa. Los estados se pintan
+ *  con estilo en línea a propósito: no se crean clases CSS nuevas. */
+export function RutaTerapeutica({ paso, ruta = null }: { paso: PasoRutaTerapeutica; ruta?: RutaTerapeuticaEvaluada | null }) {
   const pasos = (Object.keys(PASO_RUTA) as PasoRutaTerapeutica[]).sort((a, b) => PASO_RUTA[a].orden - PASO_RUTA[b].orden);
+  const actual = rutaValida(paso) ?? 'mecanismo';
+  const evaluada = ruta && typeof ruta === 'object' && Array.isArray(ruta.pasos) ? ruta : null;
   return (
-    <ol className="ruta-terapeutica" aria-label="Ruta terapéutica">
-      {pasos.map((p) => (
-        <li key={p} className={p === paso ? 'actual' : PASO_RUTA[p].orden < PASO_RUTA[paso].orden ? 'previo' : ''} title={PASO_RUTA[p].etiqueta}>
-          {PASO_RUTA[p].etiqueta}
-        </li>
-      ))}
-    </ol>
+    <div>
+      {evaluada && typeof evaluada.resumen === 'string' && evaluada.resumen !== '' && (
+        <p className="meta" style={{ marginBottom: 4 }} data-ruta-resumen>
+          {evaluada.resumen}
+        </p>
+      )}
+      {evaluada && evaluada.coherente === false && (
+        <div className="acciones" style={{ marginBottom: 4 }}>
+          <Chip tono="aviso" title="La tarjeta declara un paso que va por delante del primer paso vacío: la evidencia reunida no llega hasta ahí. Conviene bajar el paso declarado o traer evidencia para el paso que falta.">
+            Paso declarado por delante de la evidencia
+          </Chip>
+          <span className="meta">{typeof evaluada.motivoCoherencia === 'string' ? evaluada.motivoCoherencia : ''}</span>
+        </div>
+      )}
+      <ol className="ruta-terapeutica" aria-label="Ruta terapéutica">
+        {pasos.map((p) => {
+          const ev = evaluada ? estadoDePaso(evaluada, p) : null;
+          const estado = ev && typeof ev.estado === 'string' && Object.hasOwn(ESTADO_PASO_RUTA, ev.estado) ? ESTADO_PASO_RUTA[ev.estado] : null;
+          const definicion = `${PASO_RUTA[p].etiqueta}: ${DEFINICION_PASO_RUTA[p]}.`;
+          const titulo = evaluada
+            ? estado
+              ? `${definicion} Estado: ${estado.etiqueta}. ${typeof ev?.motivo === 'string' && ev.motivo ? ev.motivo : estado.definicion}`
+              : `${definicion} Estado: no pude comprobar (el registro no trae este paso).`
+            : definicion;
+          const estiloEstado = estado ? { borderColor: COLOR_ESTADO_PASO[ev!.estado], boxShadow: `inset 3px 0 0 ${COLOR_ESTADO_PASO[ev!.estado]}` } : undefined;
+          return (
+            <li key={p} className={p === actual ? 'actual' : PASO_RUTA[p].orden < PASO_RUTA[actual].orden ? 'previo' : ''} title={titulo} style={estiloEstado} data-estado={evaluada ? (estado ? ev!.estado : 'no_comprobable') : undefined}>
+              {evaluada && (
+                <span aria-hidden="true" style={{ color: estado ? COLOR_ESTADO_PASO[ev!.estado] : 'var(--text-3)', marginRight: 3 }}>
+                  {estado ? estado.simbolo : '?'}
+                </span>
+              )}
+              {PASO_RUTA[p].etiqueta}
+              {evaluada && <span className="sr-only"> ({estado ? estado.etiqueta: 'no comprobable'})</span>}
+            </li>
+          );
+        })}
+      </ol>
+      {evaluada && (
+        <p className="meta" style={{ marginTop: 4 }}>
+          {(Object.keys(ESTADO_PASO_RUTA) as EstadoPasoRuta[]).map((k, i) => (
+            <span key={k} title={ESTADO_PASO_RUTA[k].definicion}>
+              {i > 0 ? ' · ' : ''}
+              <span aria-hidden="true" style={{ color: COLOR_ESTADO_PASO[k] }}>{ESTADO_PASO_RUTA[k].simbolo}</span> {ESTADO_PASO_RUTA[k].etiqueta}
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1444,6 +1516,42 @@ const ETIQUETA_CAMPO: Record<CampoEnmendable, string> = {
   analisisPedido: 'Análisis pedido',
 };
 
+/** Los cuatro campos de una lectura del contrato que se pueden enmendar
+ *  después de prerregistrar (rosa/experimento.py; reducer enmendarLectura). */
+const ETIQUETA_CAMPO_LECTURA: Record<CampoLecturaEnmendable, string> = {
+  queConfirma: 'Confirma si',
+  queRefuta: 'Refuta si',
+  control: 'Control',
+  unidad: 'Unidad',
+};
+
+/** Una entrada de una tabla de etiquetas por su clave propia, o undefined:
+ *  un valor raro como "constructor" no saca una función del prototipo. */
+function de<T>(tabla: Record<string, T>, clave: unknown): T | undefined {
+  return typeof clave === 'string' && Object.hasOwn(tabla, clave) ? tabla[clave] : undefined;
+}
+
+/** Cómo se describe una enmienda en la lista: el campo de texto que cambió o,
+ *  si fue una lectura del contrato, la lectura y su campo. Acepta las dos
+ *  formas en que se guarda una enmienda de lectura: la del reducer de la
+ *  interfaz (`lectura: {indice, nombre, campo}`) y la del servidor
+ *  (rosa/estado/acciones.py enmendar_lectura: `lectura` es el nombre y
+ *  `campo` vale "lecturas[i].campo"). Un campo que esta versión no conoce se
+ *  enseña tal cual, sin guiones bajos. */
+function describirEnmienda(en: EnmiendaPrerregistro): string {
+  const etiquetaLectura = (campo: unknown) => (de(ETIQUETA_CAMPO_LECTURA, campo) ?? String(campo ?? '').replace(/_/g, ' ')).toLowerCase();
+  const nombreDe = (nombre: unknown, indice: unknown) => (typeof nombre === 'string' && nombre.trim() !== '' ? `«${nombre}»` : `${typeof indice === 'number' && Number.isInteger(indice) ? indice + 1 : 1}`);
+  const l = en.lectura as unknown;
+  if (l && typeof l === 'object') {
+    const o = l as { indice?: unknown; nombre?: unknown; campo?: unknown };
+    return `lectura ${nombreDe(o.nombre, o.indice)}, ${etiquetaLectura(o.campo)}`;
+  }
+  const m = /^lecturas\[(\d+)\]\.(\w+)$/.exec(typeof en.campo === 'string' ? en.campo : '');
+  if (m) return `lectura ${nombreDe(l, Number(m[1]))}, ${etiquetaLectura(m[2])}`;
+  if (typeof l === 'string' && l.trim() !== '') return `lectura «${l}», ${etiquetaLectura(en.campo)}`;
+  return (de(ETIQUETA_CAMPO, en.campo) ?? String(en.campo ?? 'campo').replace(/_/g, ' ')).toLowerCase();
+}
+
 /** Lo que se planeo frente a lo que se hizo. El prerregistro queda congelado;
  *  cambiarlo despues es una enmienda con fecha, autor y motivo, y lo que el
  *  laboratorio ejecuto de verdad se registra aparte con sus desviaciones y la
@@ -1465,7 +1573,7 @@ export function ProtocoloYEnmiendas({ h, ahora }: { h: Hipotesis; ahora: number 
         <ul className="lista-plana">
           {(x.enmiendas ?? []).map((en, i) => (
             <li key={i}>
-              <strong>Enmienda {i + 1}</strong> <Momento t={en.fecha} ahora={ahora} /> por {en.quien}, {ETIQUETA_CAMPO[en.campo].toLowerCase()}: <span className="meta">"{en.antes.slice(0, 160) || 'vacio'}"</span> pasa a "{en.despues.slice(0, 160)}". Motivo: {en.motivo}
+              <strong>Enmienda {i + 1}</strong> <Momento t={en.fecha} ahora={ahora} /> por {en.quien}, {describirEnmienda(en)}: <span className="meta">"{String(en.antes ?? '').slice(0, 160) || 'vacío'}"</span> pasa a "{String(en.despues ?? '').slice(0, 160)}". Motivo: {en.motivo}
             </li>
           ))}
         </ul>
@@ -2082,6 +2190,371 @@ export function ContextoDeBases({ h }: { h: Hipotesis }) {
       {c.expresionCerebro && <p className="meta">Expresión (Human Protein Atlas): {c.expresionCerebro}</p>}
       {c.interactores.length > 0 && <p className="meta">Interactores (STRING): {c.interactores.map((i) => `${i.simbolo} (${i.puntuacion})`).join(', ')}</p>}
       {c.rutas.length > 0 && <p className="meta">Rutas (Reactome): {c.rutas.map((r) => r.nombre).join('; ')}</p>}
+    </div>
+  );
+}
+
+
+/** Perfil de la diana capa por capa (rosa/dianas.py perfil_de_diana): seis
+ *  preguntas, una por capa, cada una con su estado (presente, ausente o no
+ *  pude comprobar), el detalle en castellano y, solo en la genética, la
+ *  dirección del efecto. Sin puntuación combinada a propósito: cada capa
+ *  responde a una cosa distinta y sumarlas escondería cuál falta. Un registro
+ *  antiguo sin perfil no pinta nada; una capa que no venga en el registro se
+ *  dice como "no pude comprobar", nunca como ausente. */
+export function PerfilDeLaDiana({ h }: { h: Hipotesis }) {
+  const perfil = h.perfilDiana;
+  if (!perfil || typeof perfil !== 'object') return null;
+  const ids = perfil.identificadores && typeof perfil.identificadores === 'object' ? perfil.identificadores : { simbolo: null, nombre: null, ensembl: null, uniprot: null, entrez: null, gencode: null };
+  const capas: CapaPerfilDiana[] = Array.isArray(perfil.capas) ? perfil.capas.filter((c): c is CapaPerfilDiana => Boolean(c) && typeof c === 'object') : [];
+  const simbolo = (typeof ids.simbolo === 'string' && ids.simbolo) || (typeof perfil.diana === 'string' && perfil.diana) || 'la diana';
+  return (
+    <div className="tarjeta" style={{ marginTop: 8 }}>
+      <div className="acciones">
+        <strong style={{ fontSize: 13 }}>Perfil de la diana</strong>
+        <Chip tono="borde">{simbolo}</Chip>
+        {typeof ids.nombre === 'string' && ids.nombre && <span className="meta">{ids.nombre}</span>}
+        {typeof perfil.contexto === 'string' && perfil.contexto && <span className="meta" title="La célula o el tejido de la tarjeta con que se eligió el tejido de GTEx (expresión por tejido).">Contexto: {perfil.contexto}</span>}
+        {typeof perfil.version === 'number' && <span className="meta">Consultado para la versión {perfil.version}</span>}
+        {typeof perfil.consultadoEn === 'number' && (
+          <span className="meta">
+            <Momento t={perfil.consultadoEn} ahora={Date.now()} />
+          </span>
+        )}
+      </div>
+      {typeof perfil.resumen === 'string' && perfil.resumen && <p style={{ fontSize: 13 }}>{perfil.resumen}</p>}
+      <p className="meta">
+        Seis preguntas sobre la diana (el gen o la proteína a la que apunta la hipótesis), una por capa y sin sumar. Presente: alguna base trae registro. Ausente: las bases respondieron y no tienen nada. No pude comprobar: la base no respondió o no trae el dato, que no es lo mismo que ausente.
+      </p>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Capa</th>
+            <th>Estado</th>
+            <th>Qué dicen las bases</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ORDEN_CAPAS_DIANA.map((k) => {
+            const c = capas.find((x) => x.capa === k) ?? null;
+            const estado = c && typeof c.estado === 'string' && Object.hasOwn(ESTADO_CAPA_DIANA, c.estado) ? ESTADO_CAPA_DIANA[c.estado] : ESTADO_CAPA_DIANA.no_pude_comprobar;
+            const detalle = c ? (typeof c.detalle === 'string' && c.detalle ? c.detalle : 'Sin detalle en el registro.') : 'El registro no trae esta capa: no se consultó o es de una versión anterior del perfil.';
+            const fuentes = c && Array.isArray(c.fuentes) ? c.fuentes.filter((f): f is string => typeof f === 'string' && f !== '') : [];
+            const direccion = k === 'genetica_humana' && c ? (c.direccion === '+' || c.direccion === '-' ? DIRECCION_GENETICA[c.direccion] : null) : null;
+            return (
+              <tr key={k}>
+                <td>
+                  <strong style={{ fontSize: 13 }}>{CAPA_DIANA[k].etiqueta}</strong>
+                  <div className="meta">{CAPA_DIANA[k].pregunta}</div>
+                </td>
+                <td>
+                  <Chip tono={estado.tono} title={estado.definicion}>
+                    {estado.etiqueta}
+                  </Chip>
+                </td>
+                <td>
+                  <div style={{ fontSize: 13 }}>{detalle}</div>
+                  {k === 'genetica_humana' && c && (
+                    <div className="meta" title="Convención de Open Targets: '+' quiere decir que más función de la diana se asocia a más riesgo; '-', que menos función se asocia a más riesgo. Sin dirección: las bases no la traen para este gen.">
+                      Dirección del efecto: {direccion ?? 'sin dirección en las bases'}
+                    </div>
+                  )}
+                  {fuentes.length > 0 && <div className="meta">Bases: {fuentes.join(', ')}</div>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Registra la enmienda de una lectura del contrato. Si el almacén ya expone
+ *  `acciones.enmendarLectura` se usa; si no, se aplica el reducer local (el
+ *  espejo de rosa/estado/acciones.py) y se manda la acción al servidor por la
+ *  misma ruta que las demás. Así la pantalla funciona igual cuando el almacén
+ *  añada la acción. */
+function enmendarLecturaAccion(hipotesisId: string, indice: number, campo: CampoLecturaEnmendable, despues: string, motivo: string): void {
+  const a = acciones as unknown as { enmendarLectura?: (hipotesisId: string, indice: number, campo: CampoLecturaEnmendable, despues: string, motivo: string) => void };
+  if (typeof a.enmendarLectura === 'function') {
+    a.enmendarLectura(hipotesisId, indice, campo, despues, motivo);
+    return;
+  }
+  aplicar((e) => enmendarLecturaLocal(e, hipotesisId, indice, campo, despues, motivo, QUIEN, Date.now()));
+  if (modoActual() !== 'servidor') return;
+  void fetch('/api/acciones/enmendarLectura', { method: 'POST', headers: cabeceras(), body: JSON.stringify({ hipotesis_id: hipotesisId, indice, campo, despues, motivo, quien: QUIEN }) })
+    .then(async (r) => {
+      const d = r.ok ? ((await r.json().catch(() => null)) as { ok?: boolean } | null) : null;
+      if (r.ok && !(d && d.ok === false)) return;
+      // El servidor no la aplicó (la regla no se cumplía o los argumentos no valían): el cambio optimista
+      // no puede quedarse en pantalla como si existiera. Se avisa y se vuelve a cargar el estado del servidor.
+      avisar(`El servidor no aplicó la enmienda de la lectura${r.ok ? ': la regla no se cumplía (prerregistro sin congelar, resultado ya evaluado o texto sin cambio)' : ` (${r.status})`}. Se recargó el estado del servidor.`);
+      await conectar(false).catch(() => undefined);
+    })
+    .catch(() => undefined);
+}
+
+const TONO_VEREDICTO: Record<string, 'ok' | 'mal' | 'aviso' | 'borde'> = { confirma: 'ok', refuta: 'mal', inconcluso: 'aviso', no_evaluable: 'borde' };
+const ETIQUETA_VEREDICTO: Record<string, string> = { confirma: 'confirma', refuta: 'refuta', inconcluso: 'inconcluso', no_evaluable: 'no evaluable' };
+
+function textoO(x: unknown, vacio: string): string {
+  return typeof x === 'string' && x.trim() !== '' ? x : vacio;
+}
+
+/** El contrato del experimento (rosa/experimento.py): las lecturas, cada una
+ *  con lo que la confirmaría y lo que la refutaría fijado de antemano, su
+ *  control y su unidad; el sistema experimental con qué prueba y qué no
+ *  representa; el propósito del biomarcador según BEST; el nivel del
+ *  desenlace y el puente al beneficio; y lo que le falta al contrato por
+ *  regla. Con resultado, el veredicto por lectura y la lectura del negativo.
+ *  Un registro antiguo (solo ensayo, confirma y refuta) se enseña como una
+ *  sola lectura derivada, dicha como tal. Las etiquetas salen del vocabulario
+ *  de acciones.ts, nunca la clave con guiones bajos. */
+export function ContratoDelExperimento({ h }: { h: Hipotesis }) {
+  const x = h.experimento;
+  const [enmendando, setEnmendando] = useState<number | null>(null);
+  const [campo, setCampo] = useState<CampoLecturaEnmendable>('queConfirma');
+  const [despues, setDespues] = useState('');
+  const [motivo, setMotivo] = useState('');
+  useEffect(() => {
+    // Al pasar a otra hipótesis se cierra el formulario y se vacía lo escrito: lo tecleado para una no puede acabar registrado en la otra.
+    setEnmendando(null);
+    setDespues('');
+    setMotivo('');
+    setCampo('queConfirma');
+  }, [h.id]);
+  if (!x || typeof x !== 'object') return null;
+  const contrato = normalizarContrato(x);
+  // Cada fila lleva el índice de `experimento.lecturas` tal como está guardado,
+  // que es el que entienden el reducer y el servidor (enmendar_lectura). Una
+  // entrada nula o sin nombre ni criterios no se pinta, pero sigue ocupando su
+  // posición: si se numerara por la tabla, la enmienda iría a otra lectura.
+  const crudas: unknown[] = Array.isArray(x.lecturas) ? x.lecturas : [];
+  const declaradas = crudas
+    .map((l, indice) => ({ indice, lectura: normalizarContrato({ lecturas: [l] }).lecturas[0] ?? null }))
+    .filter((f): f is { indice: number; lectura: LecturaExperimento } => f.lectura !== null);
+  const derivadas = declaradas.length === 0 && contrato.lecturas.length > 0;
+  // Las derivadas de los criterios antiguos no existen en `experimento.lecturas`: índice -1, sin enmienda desde aquí.
+  const filas: { indice: number; lectura: LecturaExperimento }[] = derivadas ? contrato.lecturas.map((lectura) => ({ indice: -1, lectura })) : declaradas;
+  const lecturas = filas.map((f) => f.lectura);
+  const sistema = contrato.sistema;
+  const sistemaInfo = sistema && Object.hasOwn(SISTEMAS_EXPERIMENTALES, sistema.tipo) ? SISTEMAS_EXPERIMENTALES[sistema.tipo] : null;
+  const proposito = contrato.propositoBiomarcador;
+  const nivel = contrato.nivelDesenlace;
+  const problemas = Array.isArray(x.problemasContrato) ? x.problemasContrato.filter((p): p is string => typeof p === 'string' && p !== '') : [];
+  const puedeEnmendar = Boolean(x.prerregistradoEn) && !x.resultado && declaradas.length > 0;
+  const r = x.resultado && typeof x.resultado === 'object' ? x.resultado : null;
+  const veredictos: VeredictoLectura[] = r && Array.isArray(r.veredictosPorLectura) ? r.veredictosPorLectura.filter((v): v is VeredictoLectura => Boolean(v) && typeof v === 'object') : [];
+  const negativo = r && r.lecturaDelNegativo && typeof r.lecturaDelNegativo === 'object' ? r.lecturaDelNegativo : null;
+  const negativoDestacado = Boolean(negativo && (r?.veredicto === 'refuta' || r?.veredicto === 'inconcluso'));
+  const rama = negativo && typeof negativo.rama === 'string' && Object.hasOwn(RAMA_NEGATIVO, negativo.rama) ? RAMA_NEGATIVO[negativo.rama] : null;
+  const lecturaEnEdicion = enmendando !== null ? declaradas.find((f) => f.indice === enmendando)?.lectura ?? null : null;
+  const enviarEnmienda = () => {
+    if (enmendando === null) return;
+    enmendarLecturaAccion(h.id, enmendando, campo, despues, motivo);
+    setDespues('');
+    setMotivo('');
+    setCampo('queConfirma');
+    setEnmendando(null);
+  };
+  return (
+    <div className="seccion" data-contrato-experimento>
+      <h4>Contrato del experimento</h4>
+      <p className="meta">
+        Qué se mide (cada medida es una "lectura"), con lo que la confirmaría y lo que la refutaría escrito antes de tener datos, en qué sistema se hace y para qué sirve el biomarcador. Separar la lectura de compromiso de diana (que la intervención llegó a la diana) de la de efecto es lo que permite leer un resultado negativo: sin esa separación no se sabe si falló la hipótesis o el ensayo.
+      </p>
+      {lecturas.length === 0 ? (
+        <p className="meta">Sin lecturas declaradas: el experimento no dice qué medirá ni con qué criterios. Así no es interpretable.</p>
+      ) : (
+        <>
+          {derivadas && <p className="meta">Este experimento no declara lecturas separadas; los criterios antiguos (ensayo, confirma, refuta y controles) cuentan como una sola lectura de tipo biomarcador. Con una sola lectura un negativo no se puede leer.</p>}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Lectura</th>
+                  <th>Tipo</th>
+                  <th>Confirma si</th>
+                  <th>Refuta si</th>
+                  <th>Control</th>
+                  <th>Unidad</th>
+                  {puedeEnmendar && <th>Enmienda</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map(({ indice, lectura: l }, i) => {
+                  const enVocabulario = typeof l.tipo === 'string' && Object.hasOwn(TIPOS_LECTURA, l.tipo);
+                  return (
+                    <tr key={i}>
+                      <td>
+                        <strong style={{ fontSize: 13 }}>{textoO(l.nombre, `lectura ${i + 1}`)}</strong>
+                      </td>
+                      <td>
+                        <Chip tono={enVocabulario ? 'borde' : 'aviso'} title={enVocabulario ? TIPOS_LECTURA[l.tipo].definicion: 'Tipo fuera del vocabulario cerrado (compromiso de diana, viabilidad, función o mecanismo, biomarcador, seguridad); la lista de lo que le falta al contrato lo dice.'}>
+                          {etiquetaContrato(TIPOS_LECTURA, l.tipo) || 'sin tipo'}
+                        </Chip>
+                      </td>
+                      <td className={l.queConfirma ? '' : 'tono-mal'}>{textoO(l.queConfirma, 'sin criterio')}</td>
+                      <td className={l.queRefuta ? '' : 'tono-mal'}>{textoO(l.queRefuta, 'sin criterio')}</td>
+                      <td className={l.control ? '' : 'meta'}>{textoO(l.control, 'sin control declarado')}</td>
+                      <td className={l.unidad ? '' : 'meta'}>{textoO(l.unidad, 'sin unidad')}</td>
+                      {puedeEnmendar && (
+                        <td>
+                          <button type="button" className="btn btn-s" aria-pressed={enmendando === indice} onClick={() => setEnmendando(enmendando === indice ? null : indice)}>
+                            {enmendando === indice ? 'Cancelar' : 'Enmendar'}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {puedeEnmendar && lecturaEnEdicion && enmendando !== null && (
+        <div className="campo-fila" data-enmienda-lectura>
+          <span className="meta">Enmienda fechada de la lectura «{textoO(lecturaEnEdicion.nombre, `lectura ${declaradas.findIndex((f) => f.indice === enmendando) + 1}`)}» (queda registrada con autor, fecha y motivo; el hash congelado del prerregistro deja de coincidir y eso delata el cambio):</span>
+          <select className="entrada" value={campo} onChange={(e) => setCampo(e.target.value as CampoLecturaEnmendable)} aria-label="Campo de la lectura a enmendar">
+            {CAMPOS_LECTURA_ENMENDABLES.map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CAMPO_LECTURA[c]}
+              </option>
+            ))}
+          </select>
+          <input className="entrada" value={despues} placeholder={`Texto nuevo (ahora: ${String(lecturaEnEdicion[campo] ?? '').slice(0, 60) || 'vacío'})`} onChange={(e) => setDespues(e.target.value)} aria-label="Texto nuevo de la lectura" />
+          <input className="entrada" value={motivo} placeholder="Motivo de la enmienda" onChange={(e) => setMotivo(e.target.value)} aria-label="Motivo de la enmienda de la lectura" />
+          <button type="button" className="btn" disabled={despues.trim() === '' || motivo.trim() === ''} onClick={enviarEnmienda}>
+            Registrar enmienda de la lectura
+          </button>
+        </div>
+      )}
+      {Boolean(x.prerregistradoEn) && !x.resultado && derivadas && <p className="meta">La lectura derivada de los criterios antiguos se enmienda desde los campos de texto (criterio de confirmación, de refutación, controles), no desde aquí.</p>}
+      <div className="conclusion-columnas">
+        <div className="experimento-bloque">
+          <h4>Sistema experimental</h4>
+          {sistema ? (
+            <>
+              <div className="acciones">
+                <Chip tono="borde" title={sistemaInfo ? sistemaInfo.definicion: 'Tipo de sistema fuera del vocabulario cerrado.'}>
+                  {etiquetaContrato(SISTEMAS_EXPERIMENTALES, sistema.tipo) || 'sin tipo'}
+                </Chip>
+                {sistemaInfo && <span className="meta">{sistemaInfo.definicion}</span>}
+              </div>
+              <p style={{ fontSize: 13 }}>
+                <strong>Qué prueba:</strong> {textoO(sistema.quePrueba, 'no declarado')}
+              </p>
+              <p style={{ fontSize: 13 }}>
+                <strong>Qué no representa:</strong> {sistema.queNoRepresenta ? sistema.queNoRepresenta : <span className="meta">no declarado{sistemaInfo ? `; límite general de este sistema: ${sistemaInfo.queNoRepresenta}` : ''}</span>}
+              </p>
+            </>
+          ) : (
+            <p className="meta">No declarado: el experimento no dice en qué sistema se hace (observacional en humanos, datos públicos, células de donante, iPSC, organoide, cocultivo, animal o in silico), así que tampoco dice qué no representa.</p>
+          )}
+        </div>
+        <div className="experimento-bloque">
+          <h4 title="BEST (Biomarkers, EndpointS and other Tools) es la clasificación de la FDA y el NIH de para qué sirve un biomarcador: riesgo, diagnóstico, monitorización, pronóstico, predicción de respuesta, farmacodinámico o seguridad.">Propósito del biomarcador (BEST)</h4>
+          {proposito ? (
+            <div className="acciones">
+              <Chip tono="borde" title={PROPOSITOS_BIOMARCADOR[proposito].definicion}>
+                {PROPOSITOS_BIOMARCADOR[proposito].etiqueta}
+              </Chip>
+              <span className="meta">{PROPOSITOS_BIOMARCADOR[proposito].definicion}</span>
+            </div>
+          ) : (
+            <p className="meta">No declarado. BEST es la clasificación de la FDA y el NIH de para qué sirve un biomarcador (riesgo, diagnóstico, monitorización, pronóstico, predicción de respuesta, farmacodinámico, seguridad); sin ella no se sabe qué decisión informaría la medida.</p>
+          )}
+          <h4 style={{ marginTop: 8 }} title="A qué nivel se lee el desenlace: molecular, celular, fisiológico o de imagen, funcional o clínico. Cuanto más abajo, más lejos del beneficio para una persona.">Nivel del desenlace</h4>
+          {nivel ? (
+            <div className="acciones">
+              <Chip tono="borde" title={NIVELES_DESENLACE[nivel].definicion}>
+                {NIVELES_DESENLACE[nivel].etiqueta}
+              </Chip>
+              <span className="meta">{NIVELES_DESENLACE[nivel].definicion}</span>
+            </div>
+          ) : (
+            <p className="meta">No declarado. El nivel dice a qué distancia del beneficio para una persona está lo que se mide: molecular, celular, fisiológico o de imagen, funcional o clínico.</p>
+          )}
+          <h4 style={{ marginTop: 8 }} title="Qué relación tiene el desenlace medido con el beneficio para una persona: por qué cambiar esta medida importaría a alguien.">Puente al beneficio</h4>
+          <p style={{ fontSize: 13 }}>{contrato.puenteAlBeneficio ? contrato.puenteAlBeneficio : <span className="meta">No declarado: el resultado, por sí solo, no habla de beneficio para una persona.</span>}</p>
+        </div>
+      </div>
+      {typeof x.hashLecturas === 'string' && x.hashLecturas !== '' && (
+        <p className="meta" title="SHA-256 de las lecturas en orden canónico, congelado al prerregistrar. Si las lecturas cambian después (una enmienda), el hash actual deja de coincidir con este.">
+          Hash de las lecturas congelado al prerregistrar: <span className="mono">{x.hashLecturas.slice(0, 16)}…</span>
+        </p>
+      )}
+      {problemas.length > 0 && (
+        <div>
+          <p className="campo-etiqueta">Lo que le falta al contrato (por regla)</p>
+          <ul className="supuestos">
+            {problemas.map((p, i) => (
+              <li key={i} className="supuesto supuesto-aviso">
+                {p}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r && (veredictos.length > 0 || negativo) && (
+        <div className="experimento-bloque">
+          <h4>Veredicto por lectura</h4>
+          <p className="meta">Cada lectura del contrato contrastada por regla con la cifra que la nombra en el resultado. "No evaluable" quiere decir que ninguna cifra la nombró: no pude comprobar, no que fallara.</p>
+          {veredictos.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Lectura</th>
+                    <th>Tipo</th>
+                    <th>Veredicto</th>
+                    <th>Motivo</th>
+                    <th>Cifras</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {veredictos.map((v, i) => {
+                    const clave = typeof v.veredicto === 'string' ? v.veredicto : '';
+                    const cifras = Array.isArray(v.cifras) ? v.cifras.filter((c): c is string => typeof c === 'string') : [];
+                    return (
+                      <tr key={i}>
+                        <td>
+                          <strong style={{ fontSize: 13 }}>{textoO(v.lectura, `lectura ${i + 1}`)}</strong>
+                        </td>
+                        <td>
+                          <Chip tono="borde" title={typeof v.tipo === 'string' && Object.hasOwn(TIPOS_LECTURA, v.tipo) ? TIPOS_LECTURA[v.tipo].definicion : undefined}>
+                            {etiquetaContrato(TIPOS_LECTURA, v.tipo) || 'sin tipo'}
+                          </Chip>
+                        </td>
+                        <td>
+                          <Chip tono={de(TONO_VEREDICTO, clave) ?? 'borde'}>{de(ETIQUETA_VEREDICTO, clave) ?? (clave.replace(/_/g, ' ') || 'sin veredicto')}</Chip>
+                        </td>
+                        <td className="meta">{textoO(v.motivo, '')}</td>
+                        <td className="meta">{cifras.length > 0 ? cifras.join('; ') : 'ninguna cifra la nombra'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {negativo && (
+            <div className={negativoDestacado ? 'experimento-bloque criterio-mal' : 'experimento-bloque'} data-lectura-negativo={negativoDestacado ? 'destacada' : 'discreta'}>
+              <div className="acciones">
+                <strong style={{ fontSize: 13 }}>Qué dice el negativo</strong>
+                {rama && (
+                  <Chip tono={negativo.rama === 'diana_no_comprometida' ? 'aviso' : negativo.rama === 'diana_comprometida_sin_efecto' ? 'mal' : 'borde'} title={rama.definicion}>
+                    {rama.etiqueta}
+                  </Chip>
+                )}
+              </div>
+              <p style={{ fontSize: 13 }}>{textoO(negativo.explicacion, 'Sin explicación en el registro.')}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

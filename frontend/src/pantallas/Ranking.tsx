@@ -9,6 +9,7 @@ import { Contador, ElementoAnimado, ListaAnimada } from '../componentes/Animado'
 import type { EstadoRosa, Hipotesis, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip } from '../componentes/piezas';
 import { Bloqueos, Candidatas } from '../componentes/Rosa2018';
+import { FranjaRanking } from '../componentes/FranjaRanking';
 import { calibracion } from '../lib/calidad';
 import { DECISION_KILLER, ESTADO_HIPOTESIS } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
@@ -65,6 +66,7 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
           </span>
           <span>{(h.coste.literatura + h.coste.analisis).toFixed(1).replace('.', ',')} $ gastados</span>
         </div>
+        <FranjaRanking estado={estado} h={h} />
       </div>
       <GraficaElo puntos={h.historialElo} />
       <div className="hip-elo">
