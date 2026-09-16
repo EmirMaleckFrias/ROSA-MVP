@@ -352,12 +352,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <div className="novedad novedad-4">
           <div className="novedad-item">
             <strong>Open Targets</strong>
-            <Chip tono={h.novedad.openTargets.estado === 'no_comprobado' ? 'borde' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'ok' : 'aviso'}>{h.novedad.openTargets.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'Sin evidencia previa' : 'Evidencia previa'}</Chip>
+            <Chip tono={sinComprobar(h.novedad.openTargets) ? 'borde' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'ok' : 'aviso'}>{sinComprobar(h.novedad.openTargets) ? 'No comprobado' : h.novedad.openTargets.estado === 'sin_evidencia' ? 'Sin evidencia previa' : 'Evidencia previa'}</Chip>
             <p>{h.novedad.openTargets.detalle}</p>
           </div>
           <div className="novedad-item">
             <strong>ClinicalTrials.gov</strong>
-            <Chip tono={h.novedad.ensayos.estado === 'no_comprobado' ? 'borde' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'ok' : 'aviso'}>{h.novedad.ensayos.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'Sin ensayo' : 'Ya hay ensayo'}</Chip>
+            <Chip tono={sinComprobar(h.novedad.ensayos) ? 'borde' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'ok' : 'aviso'}>{sinComprobar(h.novedad.ensayos) ? 'No comprobado' : h.novedad.ensayos.estado === 'sin_ensayo' ? 'Sin ensayo' : 'Ya hay ensayo'}</Chip>
             <p>
               {h.novedad.ensayos.detalle}
               {h.novedad.ensayos.nct && (
@@ -448,8 +448,8 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           )}
           <div className="novedad-item">
             <strong>Precedente en la literatura</strong>
-            <Chip tono={h.novedad.precedente.estado === 'no_comprobado' ? 'borde' : h.novedad.precedente.estado === 'sin_precedente' ? 'ok' : h.novedad.precedente.estado === 'parcial' ? 'aviso' : 'mal'}>
-              {h.novedad.precedente.estado === 'no_comprobado' ? 'No comprobado' : h.novedad.precedente.estado === 'sin_precedente' ? 'Sin precedente' : h.novedad.precedente.estado === 'parcial' ? 'Precedente parcial' : 'Ya publicado'}
+            <Chip tono={sinComprobar(h.novedad.precedente) ? 'borde' : h.novedad.precedente.estado === 'sin_precedente' ? 'ok' : h.novedad.precedente.estado === 'parcial' ? 'aviso' : 'mal'}>
+              {sinComprobar(h.novedad.precedente) ? 'No comprobado' : h.novedad.precedente.estado === 'sin_precedente' ? 'Sin precedente' : h.novedad.precedente.estado === 'parcial' ? 'Precedente parcial' : 'Ya publicado'}
             </Chip>
             <p>{h.novedad.precedente.detalle}</p>
           </div>
@@ -919,6 +919,13 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <BandejaComentarios pendientes={pendientes} onQuitar={(id) => acciones.quitarComentario(id)} onEditar={(id, n) => acciones.editarComentario(id, n)} onEnviar={(m) => acciones.enviarComentarios(h.id, m)} />
     </div>
   );
+}
+
+/** Una comprobación de novedad que todavía no se hizo: el estado por defecto de la
+ *  plantilla parece una ausencia ('sin evidencia', 'sin ensayo', 'sin precedente') pero su
+ *  detalle dice que no se comprobó. Rosa no afirma ausencia sin haber mirado. */
+function sinComprobar(x: { estado: string; detalle: string }): boolean {
+  return x.estado === 'no_comprobado' || x.detalle.startsWith('No comprobado');
 }
 
 export function Hipotesis({

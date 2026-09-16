@@ -537,12 +537,20 @@ class Supervisor:
         laboratorio o registra los datos cuando llegan."""
         inv = next((i for i in self.almacen.estado["investigaciones"] if i["id"] == h["investigacionId"]), None)
         try:
+            from rosa import killer as K
+            from rosa import skills as SK
+
+            # La misión (capacidades del laboratorio, conocimiento operativo) y la skill de
+            # tamaño muestral entran al proponente: antes no las recibía y el n salía "no estimable".
+            skills_exp = SK.para_texto(f"{h.get('titulo', '')} {h.get('enunciado', '')} experimento protocolo ensayo tamaño muestral potencia", contexto="mision")
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.experimento,
-                hipotesis=T.hipotesis_texto(h),
+                hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
                 afirmaciones="\n".join(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna (hipótesis humana)",
                 limites="; ".join(inv["limites"]) if inv and inv["limites"] else "Ninguno declarado",
+                mision=PASOS._texto_mision(inv) if inv else "Sin misión aprobada",
+                skills=SK.texto_para_prompt(skills_exp),
             )
             x = pred.experimento
             pasos = [p.strip().lstrip("0123456789.) ").strip() for p in x.protocolo if p.strip()]

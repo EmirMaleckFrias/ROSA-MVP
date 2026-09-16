@@ -512,7 +512,7 @@ class ExperimentoPropuesto(BaseModel):
     tamano_muestral: str = Field(default="", description="Tamaño muestral con el efecto mínimo asumido, la variabilidad y la potencia; 'no estimable' con el motivo si no hay base")
     alternativa: str = Field(default="", description="La explicación alternativa más fuerte (causa inversa, confusor) y que resultado del mismo experimento la distinguiria de la hipótesis (inferencia fuerte de Platt)")
     coste_estimado: str = Field(description="Orden de magnitud en tiempo y dinero, con el supuesto que lo justifica; 'no estimable' si no hay base")
-    analisis_pedido: str = Field(description="Si se puede comprobar con datos ya existentes (ADNI, A4, BIOCARD), que análisis exacto se pediria; vacío si hace falta un experimento nuevo")
+    analisis_pedido: str = Field(description="Si se puede comprobar con datos públicos ya existentes (series de GEO, SEA-AD abierto, OASIS con registro gratuito; nunca ADNI ni bases de acceso controlado, que el proyecto no pide), qué análisis exacto se pediría; vacío si hace falta un experimento nuevo")
     decision_que_cambia: str = Field(default="", description="Qué decisión cambia según salga: si confirma, que se hace; si refuta, que se hace. Si la siguiente acción es la misma en los dos casos, decirlo: el experimento tiene poco valor de decisión")
 
 
@@ -522,9 +522,11 @@ class ProponerExperimento(dspy.Signature):
     existen datos públicos que sirvan, el análisis exacto que se pediria. Concreto y
     realista; sin inventar cohortes ni técnicas. Si algo no se puede estimar, se dice."""
 
-    hipotesis: str = dspy.InputField(desc="Título, enunciado, mecanismo y comprobación propuesta")
+    hipotesis: str = dspy.InputField(desc="Título, enunciado, mecanismo, comprobación propuesta y tarjeta (diana, célula, etapa, intervención, paso de la ruta terapéutica)")
     afirmaciones: str = dspy.InputField(desc="Las afirmaciones sostenidas que la motivan, con su cita")
     limites: str = dspy.InputField(desc="Restricciones de la investigación (por ejemplo solo humanos, sin datos de pacientes)")
+    mision: str = dspy.InputField(desc="La misión aprobada y lo que el laboratorio sabe hacer (capacidades, equipos, conocimiento operativo): el experimento tiene que ser posible allí")
+    skills: str = dspy.InputField(desc="Instrucciones de método que aplican (por ejemplo cómo calcular el tamaño muestral con su supuesto); seguirlas. 'Ninguna skill aplica' si no hay")
     experimento: ExperimentoPropuesto = dspy.OutputField()
 
 
