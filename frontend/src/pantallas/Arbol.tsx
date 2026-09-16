@@ -5,9 +5,11 @@
 // selecciona; pulsar dos veces abre su ficha. La búsqueda ilumina todo lo
 // que toca una palabra o un identificador (GFAP, HGNC:4235). El deslizador
 // de iteraciones enseña cómo creció el árbol. Se mueve con la rueda y
-// arrastrando el fondo. El conmutador "Color por distancia al dato" cambia el
-// relleno de los nodos por una escala secuencial según los saltos que los
-// separan de una medición propia (lib/arbol.ts calcula la distancia).
+// arrastrando el fondo. Por defecto el árbol abre coloreado por distancia al
+// dato (petición de Emir, 16 de septiembre de 2026): el relleno de cada nodo
+// sigue una escala secuencial según los saltos que lo separan de una medición
+// propia (lib/arbol.ts calcula la distancia); el conmutador "Color por tipo"
+// devuelve un color fijo por tipo de nodo.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
@@ -164,7 +166,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const anterior = useRef({ ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax });
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
-  const [modoColor, setModoColor] = useState<ModoColor>('tipo');
+  const [modoColor, setModoColor] = useState<ModoColor>('dato'); // Por defecto coloreado por distancia al dato (petición de Emir, 16 de septiembre de 2026)
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const reducido = useMovimientoReducido();
