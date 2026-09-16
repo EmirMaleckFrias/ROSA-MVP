@@ -1,5 +1,5 @@
 // El hilo del proceso: las siete etapas por las que pasa una investigacion,
-// siempre visibles, con la activa latiendo, las hechas apagadas y lo que
+// visibles durante una corrida activa, con la etapa activa latiendo y lo que
 // espera a una persona marcado. Es lo que convierte doce pantallas en una
 // historia que se sigue: buscar literatura, verificar lo que dice, actualizar
 // el modelo de mundo, generar hipotesis y pasarlas por el Killer, elegir
@@ -105,7 +105,8 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
 
 export function HiloDelProceso({ estado, inv, pantalla, detalleId = null, compacto = false }: { estado: EstadoRosa; inv: Investigacion; pantalla: Pantalla | null; detalleId?: string | null; compacto?: boolean }) {
   const reducido = useMovimientoReducido();
-  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id).sort((a, b) => b.numero - a.numero)[0] ?? null;
+  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id && ['en_marcha', 'esperando_plan', 'esperando_aprobacion'].includes(c.estado)).sort((a, b) => b.numero - a.numero)[0] ?? null;
+  if (!corrida) return null;
   const hilo = estadoDelHilo(estado, inv, corrida);
   return (
     <nav className={`hilo ${compacto ? 'hilo-compacto' : ''}`} aria-label="Etapas de la investigación">
