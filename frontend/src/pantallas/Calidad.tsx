@@ -6,7 +6,7 @@
 
 import { CostesPorDecision, PanelKiller } from '../componentes/Rosa2018';
 import { useState } from 'react';
-import { acciones } from '../datos/almacen';
+import { acciones, cabeceras } from '../datos/almacen';
 import type { CasoControl, EstadoRosa, Investigacion } from '../datos/tipos';
 import { IconExternal } from '../componentes/icons';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
@@ -69,6 +69,20 @@ function Caso({ c }: { c: CasoControl }) {
 }
 
 export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: EstadoRosa; ahora: number }) {
+  const [controlandoGepa, setControlandoGepa] = useState(false);
+  const [avisoGepa, setAvisoGepa] = useState('');
+  async function controlarGepa(accion: 'pausar' | 'reanudar' | 'restablecer') {
+    setControlandoGepa(true);
+    try {
+      const r = await fetch(`/api/gepa/${accion}`, { method: 'POST', headers: cabeceras() });
+      if (!r.ok) throw new Error(r.status === 403 ? 'Solo administración puede cambiar la optimización global.' : 'No se pudo confirmar el cambio.');
+      setAvisoGepa('Cambio confirmado. Las corridas actuales conservan sus versiones.');
+    } catch (error) {
+      setAvisoGepa(error instanceof Error ? error.message : 'No se pudo confirmar el cambio.');
+    } finally {
+      setControlandoGepa(false);
+    }
+  }
   const [filtro, setFiltro] = useState<CasoControl['estado'] | 'todos'>('propuesto');
   const casos = estado.casos.filter((c) => filtro === 'todos' || c.estado === filtro);
   const aprobados = estado.casos.filter((c) => c.estado === 'aprobado').length;
@@ -339,7 +353,15 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         {casos.length === 0 ? <p className="meta">Ningún caso en este estado.</p> : casos.map((c) => <Caso key={c.clave} c={c} />)}
       </Seccion>
 
-      <Seccion detalle titulo="Optimizaciones con GEPA" nota="Cada compilación queda registrada en MLflow con sus evaluaciones anidadas; el detalle se abre allí.">
+      <Seccion detalle titulo="Optimizaciones con GEPA" nota="Captura continua y optimización automática por ciclos. Los candidatos se examinan con casos que GEPA no vio; solo los que mejoran sin regresiones se activan para nuevas corridas. Son métricas de un evaluador automático, no validación científica.">
+        <p role="status">{estado.gepaAutomatico?.nota ?? 'El servicio automático aún no ha informado de su estado en este servidor.'}</p>
+        <div className="acciones">
+          <button disabled={controlandoGepa} onClick={() => void controlarGepa('pausar')}>Pausar promociones</button>
+          <button disabled={controlandoGepa} onClick={() => void controlarGepa('reanudar')}>Reanudar</button>
+          <Confirmar etiqueta="Volver a programas base" pregunta="Se pausará GEPA y las nuevas corridas usarán los programas base. No cambia las corridas existentes ni borra las versiones guardadas. ¿Continuar?" disabled={controlandoGepa} onConfirmar={() => void controlarGepa('restablecer')} />
+        </div>
+        {avisoGepa && <p role="status">{avisoGepa}</p>}
+        {estado.gepaAutomatico && <p className="meta">{Object.entries(estado.gepaAutomatico.trazas).map(([tipo, n]) => `${tipo}: ${n}`).join(' · ')} · Errores de registro: {estado.gepaAutomatico.erroresRegistro}. Programas con evaluación automática: {estado.gepaAutomatico.programas.join(', ')}.</p>}
         <table className="tabla">
           <thead>
             <tr>
@@ -363,32 +385,20 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
                   </td>
                   <td className="mono">{g.programa}</td>
                   <td>{g.presupuesto}</td>
-                  <td className="num">{formatearPorcentaje(g.metricaInicial)}</td>
-                  <td className={`num ${g.metricaFinal > g.metricaInicial ? 'subida' : ''}`}>{formatearPorcentaje(g.metricaFinal)}</td>
+                  <td className="num">{g.estado === 'terminada' ? formatearPorcentaje(g.metricaInicial) : 'Pendiente'}</td>
+                  <td className={`num ${g.metricaFinal > g.metricaInicial ? 'subida' : ''}`}>{g.estado === 'terminada' ? formatearPorcentaje(g.metricaFinal) : 'Pendiente'}</td>
                   <td className="num">{g.candidatos}</td>
-                  <td>{g.estado === 'en_marcha' ? <Chip tono="acento">En marcha</Chip> : g.estado === 'terminada' ? <Chip tono="ok">Terminada</Chip> : <Chip tono="mal">Fallida</Chip>}</td>
+                  <td>{g.estado === 'en_marcha' ? <Chip tono="acento">En marcha</Chip> : g.estado === 'terminada' ? <Chip tono={g.promovido ? 'ok' : 'borde'}>{g.promovido ? 'Activado para nuevas corridas' : 'Terminada'}</Chip> : <Chip tono="mal">Fallida</Chip>}<p className="meta">{g.nota}</p></td>
                   <td>
-                    <a className="enlace" href={g.enlaceMlflow} target="_blank" rel="noopener noreferrer">
+                    {g.enlaceMlflow && <a className="enlace" href={g.enlaceMlflow} target="_blank" rel="noopener noreferrer">
                       MLflow <IconExternal />
-                    </a>
+                    </a>}
                   </td>
                 </tr>
               ))}
           </tbody>
         </table>
-        <div>
-          <Confirmar
-            etiqueta="Lanzar una optimización"
-            pregunta="Cuando Rosa este conectada, esto compila el programa elegido con GEPA contra los casos aprobados. Hoy no hay casos aprobados ni bucle conectado."
-            disabled={estado.conexion === 'muestra'}
-            onConfirmar={() => undefined}
-          />
-          {estado.conexion === 'muestra' && (
-            <p className="meta" style={{ marginTop: 6 }}>
-              Disponible cuando Rosa este conectada y haya casos aprobados. El ejemplo `rosa/ejemplo_gepa.py` ya compila un extractor de afirmaciones contra el gateway.
-            </p>
-          )}
-        </div>
+        <p className="meta">Se comprueban los datos disponibles cada 30 segundos, con al menos seis horas entre ciclos de optimización. Se conserva cada versión anterior. El Killer y el juez no se autoentrenan con sus propios veredictos. Los prompts y las respuestas se guardan con redacción de secretos en el registro privado, no en esta pantalla. Pausar impide nuevas promociones; una petición al Gateway ya enviada puede terminar.</p>
       </Seccion>
     </div>
   );

@@ -48,7 +48,12 @@ async def principal() -> None:
     if cargados:
         print(f"Programas optimizados por GEPA cargados: {', '.join(cargados)}")
     contador = Contador(almacen)
-    dspy.configure(lm=modelos.cerebro, callbacks=[contador])
+    from rosa.gepa_continuo import Servicio
+    gepa = Servicio(almacen, programas, modelos)
+    almacen.gepa_servicio = gepa
+    from rosa.conectores import base as conectores_base
+    conectores_base.OBSERVADOR = gepa.observar_conector
+    dspy.configure(lm=modelos.cerebro, callbacks=[contador, gepa.trazador])
     configurar_mlflow()
 
     app = crear_app(almacen)
@@ -76,7 +81,14 @@ async def principal() -> None:
             bucle.add_signal_handler(s, parar)
 
     print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
-    await asyncio.gather(servidor.serve(), supervisor.correr())
+    tarea_gepa = asyncio.create_task(gepa.correr(), name="gepa-continuo")
+    try:
+        await asyncio.gather(servidor.serve(), supervisor.correr())
+    finally:
+        gepa.parar.set()
+        await tarea_gepa
+        conectores_base.OBSERVADOR = None
+        gepa.registro.cerrar()
     # Apagado ordenado: primero las tareas del bucle y el espejo, despues SQLite.
     await espejo.parar()
     almacen.cerrar()

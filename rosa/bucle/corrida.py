@@ -1170,7 +1170,8 @@ class Supervisor:
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "omitido", motivo=f"Rosa no tiene herramienta para '{tipo}'"), "paso")
             return
         try:
-            resumen = await ejecutor(ctx, paso)
+            gepa = getattr(self.almacen, "gepa_servicio", None)
+            resumen = await gepa.ejecutar_paso(ctx, ejecutor, paso) if gepa else await ejecutor(ctx, paso)
             it_actual = next(x for x in self.almacen.estado["iteraciones"] if x["id"] == it["id"])
             propias = [p for p in it_actual["pistas"] if p["pasoId"] == paso["id"]]
             todas_fallaron = bool(propias) and all(p["estado"] in ("fallida", "detenida") for p in propias)

@@ -1664,6 +1664,10 @@ export interface MetricasJuez {
 }
 
 export interface CorridaGepa {
+  nota?: string;
+  promovido?: boolean;
+  version?: string;
+  particiones?: number[];
   id: Id;
   fecha: number;
   programa: string;
@@ -1784,6 +1788,7 @@ export interface EstadoRosa {
   casos: CasoControl[];
   metricas: MetricasJuez[];
   gepa: CorridaGepa[];
+  gepaAutomatico?: { estado: string; nota: string; trazas: Record<string, number>; erroresRegistro: number; actualizadoEn: number; programas: string[] };
   memoria: Recuerdo[];
   planesGuardados: PlanGuardado[];
   criteriosRevision: string[];

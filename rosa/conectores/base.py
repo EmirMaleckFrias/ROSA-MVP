@@ -95,7 +95,20 @@ def nueva_consulta(herramienta: str, argumentos: dict[str, Any]) -> dict[str, An
     return {"id": P.nuevo_id("con"), "herramienta": herramienta, "fuente": REGISTRO[herramienta].fuente if herramienta in REGISTRO else "", "argumentos": argumentos, "fecha": P.ahora_ms(), "n": None, "ids": [], "version": None, "invariante": None, "error": None, "ms": 0, "resumen": ""}
 
 
+OBSERVADOR = None
+
+
 async def consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle", **argumentos: Any) -> tuple[dict[str, Any], Any]:
+    reg, datos = await _consultar(herramienta, resumen=resumen, origen=origen, **argumentos)
+    if OBSERVADOR is not None:
+        try:
+            OBSERVADOR("conector", {"consulta": reg, "resultado": datos})
+        except Exception:
+            pass  # La observabilidad no cambia el resultado de la consulta.
+    return reg, datos
+
+
+async def _consultar(herramienta: str, /, resumen: str = "", origen: str = "bucle", **argumentos: Any) -> tuple[dict[str, Any], Any]:
     """Ejecuta un conector y devuelve (registro de consulta, datos). Nunca
     lanza por fallo de la fuente: el registro lleva `error` y datos es None.
     El nombre de la herramienta va posicional para no chocar con argumentos

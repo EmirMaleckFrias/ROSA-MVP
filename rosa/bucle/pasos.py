@@ -236,11 +236,17 @@ class Ctx:
         if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
             raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} (o de su iteración {self.numero}) agotado")
         kwargs = self._acotar_contexto(rol, kwargs)
+        async def ejecutar(modelo):
+            servicio = getattr(self.almacen, "gepa_servicio", None)
+            if servicio is not None:
+                return await servicio.llamar(self, programa, modelo, kwargs)
+            with dspy.context(lm=modelo):
+                return await programa.acall(**kwargs)
         token = contexto_actual.set(ContextoLlamada(self.corrida_id, self.numero, rol))
         try:
             try:
                 with dspy.context(lm=lm):
-                    return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
+                    return await asyncio.wait_for(ejecutar(lm), timeout=SEGUNDOS_MAX_LLAMADA)
             except PresupuestoAgotado:
                 raise
             except asyncio.TimeoutError:
@@ -256,10 +262,10 @@ class Ctx:
                     # mismo y, si vuelve a fallar, la decision queda "no respondio".
                     self.incidencia("modelo_bloqueado", f"El juez {lm.model} no respondió a una petición", texto[:400], lm.model, "Se reintentó una vez con el mismo modelo; el juez nunca se sustituye por otro sin registrarlo.")
                     with dspy.context(lm=lm):
-                        return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
+                        return await asyncio.wait_for(ejecutar(lm), timeout=SEGUNDOS_MAX_LLAMADA)
                 self.incidencia("modelo_bloqueado", f"El modelo {lm.model} no respondió a una petición", texto[:400], lm.model, "Se reintentó con Sonnet 5 automáticamente; si vuelve a pasar, revisar el prompt o cambiar el modelo del rol.")
                 with dspy.context(lm=self.modelos.volumen):
-                    return await asyncio.wait_for(programa.acall(**kwargs), timeout=SEGUNDOS_MAX_LLAMADA)
+                    return await asyncio.wait_for(ejecutar(self.modelos.volumen), timeout=SEGUNDOS_MAX_LLAMADA)
         finally:
             contexto_actual.reset(token)
 

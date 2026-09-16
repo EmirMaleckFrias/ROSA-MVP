@@ -303,6 +303,18 @@ def crear_app(almacen: Almacen) -> FastAPI:
         # conexion abierta sin datos y EventSource no se entera solo.
         return EventSourceResponse(generar(), ping=15, ping_message_factory=lambda: ServerSentEvent(event="latido", data=str(almacen.version)), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    @app.post("/api/gepa/{accion_gepa}")
+    async def controlar_gepa(accion_gepa: str, request: Request):
+        if not es_admin(request.state.usuario):
+            raise HTTPException(403, "Solo administración puede controlar la optimización global")
+        servicio = getattr(almacen, "gepa_servicio", None)
+        if servicio is None:
+            raise HTTPException(503, "El servicio GEPA no está iniciado en este servidor")
+        if accion_gepa not in ("pausar", "reanudar", "restablecer"):
+            raise HTTPException(400, "Control GEPA desconocido")
+        servicio.control(accion_gepa)
+        return {"ok": True}
+
     @app.post("/api/acciones/{nombre}")
     async def accion(nombre: str, request: Request) -> dict[str, Any]:
         if nombre not in ACCIONES:
