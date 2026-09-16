@@ -87,6 +87,8 @@ def estado_inicial() -> dict[str, Any]:
         "hipotesis": [],
         "comentarios": [],
         "hechos": [],
+        # Lecciones por regla: lo que la investigación aprendió a no repetir (rosa/lecciones.py).
+        "lecciones": [],
         "evaluaciones": [],
         "conjuntoDorado": [],
         "entidadesCache": {},

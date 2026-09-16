@@ -246,6 +246,23 @@ export interface Investigacion {
    *  nacer como hipótesis (certeza baja por regla: dos cohortes distintas).
    *  La acumulación de evidencia las alimenta en cada cierre de iteración. */
   vivero?: Semilla[];
+  /** Ideas que salieron del vivero sin nacer, con su motivo: no se reproponen. */
+  viveroRetiradas?: { id: Id; titulo: string; enunciado: string; motivo: string; iteracion: number | null; retiradaEn: number }[];
+}
+
+/** Una lección: lo que la investigación aprendió a no repetir, generada por
+ *  regla al cerrar cada iteración (rosa/lecciones.py) y leída por cada paso. */
+export interface Leccion {
+  id: Id;
+  investigacionId: Id;
+  ambito: 'plan' | 'consultas' | 'fuentes' | 'hipotesis' | 'analisis' | 'resumen';
+  texto: string;
+  origen: string;
+  corridaId: Id | null;
+  iteracion: number | null;
+  creadaEn: number;
+  ultimaVez: number;
+  veces: number;
 }
 
 /** Una idea en el vivero: la propuesta completa, lista para nacer sin volver
@@ -345,6 +362,10 @@ export interface ConsultaBusqueda {
   modo?: ModoBusqueda;
   /** Solo en amplitud: qué podría cambiar si aparece algo. */
   porque?: string;
+  /** Cuántos de los traídos pasaron el cribado (el rendimiento de la consulta). */
+  relevantes?: number;
+  /** Solo en la novedad del campo: desde qué fecha se buscó. */
+  desdeFecha?: string | null;
 }
 
 /** El flujo de la busqueda de la corrida: identificados, cribados, leidos a
@@ -479,6 +500,8 @@ export interface Corrida {
   progreso?: ProgresoIteracion[];
   /** La métrica única al cerrar: peldaños netos de certeza subidos por dólar. */
   metrica?: MetricaCorrida | null;
+  /** Lo que heredó de la corrida anterior al empezar (traspaso ejecutable). */
+  traspasoRecibido?: string;
 }
 
 export interface ParadaCorrida {
@@ -1731,6 +1754,8 @@ export interface EstadoRosa {
   hipotesis: Hipotesis[];
   comentarios: Comentario[];
   hechos: HechoMundo[];
+  /** Lecciones por regla de cada investigación: lo que Rosa aprendió a no repetir. */
+  lecciones?: Leccion[];
   /** Aristas tipadas del modelo de mundo: base curada del campo y la
    *  relacion X causa Y de cada hipotesis juzgada, con su tipo. */
   relaciones?: RelacionCausal[];

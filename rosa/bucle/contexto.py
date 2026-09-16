@@ -107,13 +107,15 @@ NUCLEO_ABIERTAS = 10
 NUCLEO_DESCARTADOS = 5
 
 
-def nucleo_del_modelo(propios: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def nucleo_del_modelo(propios: list[dict[str, Any]], descartados: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Lo que entra siempre, sea cual sea el paso: las preguntas abiertas
     propias de mayor prioridad y los hechos descartados con su motivo (para
-    no volver a caer en lo mismo)."""
+    no volver a caer en lo mismo). Los descartados llegan elegidos por
+    parecido con el paso cuando hay índice; si no, los más recientes."""
     abiertas = sorted([h for h in propios if h["estado"] == "abierto" and not es_heredado(h)], key=lambda h: h["prioridad"])[:NUCLEO_ABIERTAS]
-    descartados = sorted([h for h in propios if h["estado"] == "descartado"], key=lambda h: h["prioridad"])[:NUCLEO_DESCARTADOS]
-    return abiertas + descartados
+    if descartados is None:
+        descartados = sorted([h for h in propios if h["estado"] == "descartado"], key=lambda h: -(h.get("actualizadoEn") or 0))[:NUCLEO_DESCARTADOS]
+    return abiertas + list(descartados)[:NUCLEO_DESCARTADOS]
 
 
 async def modelo_de_mundo_para(almacen: Any, investigacion_id: str, consulta: str, maximo: int = 60) -> str:
@@ -128,20 +130,29 @@ async def modelo_de_mundo_para(almacen: Any, investigacion_id: str, consulta: st
         return "Vacío: es la primera iteración. No hay hechos sabidos ni preguntas abiertas todavía."
     por_id = {h["id"]: h for h in hechos}
     investigaciones = e.get("investigaciones", [])
-    elegidos = nucleo_del_modelo(propios)
-    ya = {h["id"] for h in elegidos}
+    hits: list[dict[str, Any]] = []
     modo = "por prioridad"
     if indice_semantico.disponible() and (consulta or "").strip():
         try:
-            hits = await indice_semantico.de_almacen(almacen).buscar(consulta[:2000], k=maximo, investigacion_id=investigacion_id, tipos=("hecho",))
-            for hit in hits:
-                hid = str(hit["id"]).split(":", 1)[-1]
+            hits = await indice_semantico.de_almacen(almacen).buscar(consulta[:2000], k=maximo * 2, investigacion_id=investigacion_id, tipos=("hecho",))
+            modo = "por parecido con este paso"
+        except Exception as ex:  # noqa: BLE001  el índice nunca tumba un paso
+            hits = []
+            modo = f"por prioridad; el índice semántico no respondió ({type(ex).__name__})"
+    ids_hits = [str(h_["id"]).split(":", 1)[-1] for h_ in hits]
+    # Los descartados del núcleo se eligen por parecido con el paso, no por antigüedad:
+    # el descarte sobre GFAP aparece cuando el paso habla de GFAP.
+    descartados_hits = [por_id[hid] for hid in ids_hits if hid in por_id and por_id[hid]["investigacionId"] == investigacion_id and por_id[hid]["estado"] == "descartado"]
+    elegidos = nucleo_del_modelo(propios, descartados_hits if descartados_hits else None)
+    ya = {h["id"] for h in elegidos}
+    if hits:
+        try:
+            for hid in ids_hits:
                 if hid in por_id and hid not in ya and por_id[hid]["investigacionId"] == investigacion_id:
                     elegidos.append(por_id[hid])
                     ya.add(hid)
                 if len(elegidos) >= maximo:
                     break
-            modo = "por parecido con este paso"
         except Exception as ex:  # noqa: BLE001  el índice nunca tumba un paso
             modo = f"por prioridad; el índice semántico no respondió ({type(ex).__name__})"
     for h in _ordenados(propios):
@@ -226,6 +237,10 @@ def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str,
         elif h["estado"] == "refinar":
             ult = next((r for r in reversed(h["revisiones"]) if r["accion"] == "refinar"), None)
             nota = f" pide refinar: {ult['nota']}" if ult else ""
+        elif h["estado"] == "en_revision" and h.get("decisionKiller") == "descartar_en_contexto":
+            # Con autonomía "preguntar" el descarte espera a la persona: aun así, no proponer variantes.
+            ult = next((r for r in reversed(h["revisiones"]) if r["accion"] == "killer"), None)
+            nota = f" Killer propone descartar (pendiente de persona): {ult['nota'][:200]}" if ult else " Killer propone descartar (pendiente de persona)"
         lineas.append(f"- {h['id']} [{h['estado']}, elo {h['elo']}] {h['titulo']}{nota}")
     if omitidas > 0:
         lineas.append(f"- ({omitidas} hipótesis más no se listan por tope de contexto)")
@@ -401,6 +416,9 @@ def vivero_texto(inv: dict[str, Any], maximo: int = 8) -> str:
     evidencia es un paso tan válido como subir una hipótesis viva."""
     semillas = list(inv.get("vivero") or [])
     if not semillas:
+        retiradas = sorted(inv.get("viveroRetiradas") or [], key=lambda s: -(s.get("retiradaEn") or 0))[:4]
+        if retiradas:
+            return "Vivero de ideas: vacío. Ideas retiradas (no reproponerlas sin evidencia nueva): " + "; ".join(f"«{s['titulo'][:60]}» ({(s.get('motivo') or '')[:80]})" for s in retiradas)
         return "Vivero de ideas: vacío."
     semillas.sort(key=lambda s: -(s.get("actualizadaEn") or 0))
     lineas = [f"Vivero de ideas ({len(semillas)}; no son hipótesis todavía: nacen cuando su evidencia dé para certeza baja):"]
@@ -408,6 +426,9 @@ def vivero_texto(inv: dict[str, Any], maximo: int = 8) -> str:
         cohortes = CERTEZA.cohortes_distintas({"procedencia": {"fuentes": s.get("fuentes", [])}})
         lineas.append(f"- {s['id']} (desde la iteración {s.get('iteracion')}, {len(s.get('afirmaciones', []))} afirmaciones, cohortes: {', '.join(cohortes) or 'ninguna identificada'}) {s['titulo']}")
         lineas.append(f"    le falta: {s.get('falta', '')}")
+    retiradas = sorted(inv.get("viveroRetiradas") or [], key=lambda s: -(s.get("retiradaEn") or 0))[:4]
+    if retiradas:
+        lineas.append("Ideas retiradas del vivero (no reproponerlas sin evidencia nueva): " + "; ".join(f"«{s['titulo'][:60]}» ({(s.get('motivo') or '')[:80]})" for s in retiradas))
     return "\n".join(lineas)
 
 
@@ -418,3 +439,109 @@ def resultado_experimental(h: dict[str, Any]) -> str:
         return "Ninguno"
     cifras = "; ".join(f"{c['nombre']}: {c['valor']}" for c in r.get("cifras", []))
     return f"Veredicto contra el prerregistro: {r['veredicto']}. {r['resultado']} Motivo: {r['motivo']} Limitaciones: {r['limitaciones']} Cifras: {cifras or 'ninguna'}. Exploratorio (no prerregistrado): {r.get('exploratorio') or 'nada'}"
+
+
+def consultas_de_la_investigacion(e: dict[str, Any], investigacion_id: str) -> list[dict[str, Any]]:
+    """Todas las consultas hechas en todas las corridas de la investigación,
+    con el número de corrida, en orden temporal."""
+    salida: list[dict[str, Any]] = []
+    for c in sorted([x for x in e.get("corridas", []) if x["investigacionId"] == investigacion_id], key=lambda x: x["numero"]):
+        for q in (c.get("busqueda") or {}).get("consultas", []):
+            salida.append(dict(q, corrida=c["numero"]))
+    return salida
+
+
+def consultas_hechas(e: dict[str, Any], investigacion_id: str) -> list[str]:
+    """Las cadenas ya enviadas en cualquier corrida de la investigación, para
+    no repetirlas (antes solo se miraba la corrida en curso)."""
+    vistas: list[str] = []
+    for q in consultas_de_la_investigacion(e, investigacion_id):
+        if q.get("consulta") and q["consulta"] not in vistas:
+            vistas.append(q["consulta"])
+    return vistas
+
+
+def consultas_previas_texto(e: dict[str, Any], investigacion_id: str, maximo: int = 40) -> str:
+    """Las consultas previas con su rendimiento, para que el generador no
+    repita lo que no rindió: «consulta» (base, corrida M, it N): R resultados,
+    C relevantes."""
+    todas = consultas_de_la_investigacion(e, investigacion_id)
+    if not todas:
+        return "Ninguna"
+    lineas = []
+    for q in todas[-maximo:]:
+        rel = q.get("relevantes")
+        lineas.append(f"«{q['consulta'][:160]}» ({q['base']}, corrida {q['corrida']}, iteración {q.get('iteracion')}): {q.get('resultados')} resultados" + (f", {rel} relevantes" if rel is not None else "") + (" [amplitud]" if q.get("modo") == "amplitud" else ""))
+    return "\n".join(lineas)
+
+
+def traspaso_iteracion(e: dict[str, Any], it: dict[str, Any], c: dict[str, Any]) -> str:
+    """Lo que la iteración anterior deja, del registro y no del modelo: pasos y
+    pistas fallidos con su motivo, consultas vacías, bases caídas, afirmaciones
+    sin verificar, incidencias pendientes, cambios de creencia y hallazgos del
+    revisor abiertos. Es el traspaso "ejecutable, no solo legible"."""
+    lineas: list[str] = []
+    fallidos = [p for p in it.get("plan", []) if p.get("estado") in ("fallido", "omitido")]
+    if fallidos:
+        lineas.append("Pasos que no terminaron: " + "; ".join(f"«{p['titulo'][:60]}» ({p['estado']}: {(p.get('motivoFallo') or 'sin motivo')[:100]})" for p in fallidos))
+    pistas = [p for p in it.get("pistas", []) if p.get("estado") == "fallida"]
+    if pistas:
+        lineas.append("Pistas fallidas: " + "; ".join(f"«{p['titulo'][:60]}»: {(p.get('resumen') or '')[:100]}" for p in pistas[:6]))
+    vacias = [q for q in (c.get("busqueda") or {}).get("consultas", []) if q.get("iteracion") == it.get("numero") and (int(q.get("resultados") or 0) == 0 or q.get("relevantes") == 0)]
+    if vacias:
+        lineas.append("Consultas que no rindieron (no repetir igual): " + "; ".join(f"«{q['consulta'][:80]}» en {q['base']} ({q.get('resultados')} resultados, {q.get('relevantes', '?')} relevantes)" for q in vacias[:8]))
+    caidas = {b: n for b, n in (c.get("_fallosFuente") or {}).items() if int(n or 0) >= 3}
+    if caidas:
+        lineas.append("Bases que no respondieron (es «no pude comprobar», no «no hay»): " + ", ".join(f"{b} ({n} fallos)" for b, n in caidas.items()))
+    sin_verificar = sum(1 for a in c.get("_afirmaciones", []) if a.get("iteracion") == it.get("numero") and a.get("veredicto") == "sin_verificar")
+    if sin_verificar:
+        lineas.append(f"{sin_verificar} afirmaciones quedaron sin verificar (no cuentan como evidencia hasta que se verifiquen)")
+    pendientes = [i for i in e.get("incidencias", []) if i.get("corridaId") == c["id"] and i.get("estado") == "pendiente"]
+    if pendientes:
+        lineas.append("Incidencias pendientes: " + "; ".join(f"{i.get('tipo')} con {i.get('recurso')}: {i.get('titulo', '')[:80]}" for i in pendientes[:5]))
+    desde = int(it.get("empezadaEn") or 0)
+    creencias = [a for a in e.get("aprendizaje", []) if a.get("investigacionId") == c["investigacionId"] and a.get("tipo") == "creencia" and int(a.get("fecha") or a.get("creadoEn") or 0) >= desde]
+    if creencias:
+        lineas.append("Cambios de creencia en la iteración: " + "; ".join((a.get("descripcion") or "")[:120] for a in creencias[:6]))
+    abiertos = [hz for hz in ((it.get("revisionRegistro") or {}).get("hallazgos") or []) if hz.get("estado") == "abierto"]
+    if abiertos:
+        lineas.append("Hallazgos del revisor de registro abiertos: " + "; ".join(f"{str(hz.get('clase', '')).replace('_', ' ')}: {(hz.get('detalle') or '')[:100]}" for hz in abiertos[:5]))
+    if not lineas:
+        return "La iteración anterior no dejó pasos fallidos, consultas vacías, bases caídas ni hallazgos abiertos."
+    return "\n".join(f"- {l}" for l in lineas)
+
+
+def traspaso_de_corrida(e: dict[str, Any], investigacion_id: str) -> str:
+    """Lo que la corrida anterior de la misma investigación deja a la nueva:
+    cómo terminó y su balance, la pregunta que aprobó, las hipótesis que el
+    Killer cerró y por qué, las consultas hechas, y las debilidades del
+    panorama que no llegaron a inyectarse."""
+    previas = sorted([x for x in e.get("corridas", []) if x["investigacionId"] == investigacion_id and x["estado"] in ("terminada", "detenida")], key=lambda x: x["numero"])
+    if not previas:
+        return "Primera corrida de la investigación: no hay traspaso."
+    c = previas[-1]
+    lineas = [f"Corrida {c['numero']} ({c['estado']}): {c.get('motivoCierre') or 'sin motivo registrado'}"]
+    m = c.get("metrica") or {}
+    if m:
+        lineas.append(f"Balance: {m.get('peldanosNetos', 0)} peldaños netos de certeza en {m.get('iteraciones', 0)} iteraciones, {m.get('hechosNuevos', 0)} hechos nuevos, {m.get('usd', 0):.2f} USD; fallidos: {m.get('fallidos')}")
+    if (c.get("pregunta") or {}).get("enunciado"):
+        lineas.append(f"Pregunta que trabajó: {c['pregunta']['enunciado'][:300]}")
+    its = [x for x in e.get("iteraciones", []) if x.get("corridaId") == c["id"] and x.get("terminadaEn")]
+    if its:
+        ult = max(its, key=lambda x: x.get("numero", 0))
+        if ult.get("resumen"):
+            lineas.append(f"Última iteración ({ult['numero']}): {ult['resumen'][:400]}")
+    titulos = {h["id"]: h["titulo"] for h in e.get("hipotesis", [])}
+    ini, fin = int(c.get("empezadaEn") or 0), int(c.get("terminadaEn") or 0) or 10**18
+    cierres = [d for d in e.get("decisiones", []) if d.get("investigacionId") == investigacion_id and str(d.get("etapa", "")).startswith("killer") and d.get("decision") in ("descartar_en_contexto", "suspender") and ini <= int(d.get("fecha") or 0) <= fin]
+    if cierres:
+        lineas.append("Hipótesis cerradas por el Killer (no reproponerlas iguales): " + "; ".join(f"«{titulos.get(d.get('hipotesisId'), '?')[:60]}» por {', '.join(str(x.get('comprobacion')).replace('_', ' ') for x in d.get('comprobaciones', []) if x.get('resultado') == 'falla') or 'sin detalle'}" for d in cierres[:6]))
+    consultas = (c.get("busqueda") or {}).get("consultas", [])
+    if consultas:
+        lineas.append(f"Consultas hechas: {len(consultas)} (las últimas: " + "; ".join(f"«{q['consulta'][:60]}»" for q in consultas[-5:]) + "). Están todas en consultas_previas con su rendimiento.")
+    debilidades = [d for mr in c.get("metaRevisiones", []) for d in mr.get("debilidades", []) if not d.get("inyectada")]
+    if debilidades:
+        lineas.append("Debilidades del panorama no atendidas: " + "; ".join((d.get("texto") or "")[:100] for d in debilidades[:4]))
+    if (c.get("arnes") or {}).get("commit"):
+        lineas.append(f"Corrió con Rosa {c['arnes']['commit']}")
+    return "\n".join(f"- {l}" for l in lineas)

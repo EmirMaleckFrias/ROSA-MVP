@@ -361,6 +361,12 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
 
       <PreguntaDeCampana corrida={corrida} />
 
+      {corrida.traspasoRecibido && (
+        <Seccion detalle titulo="Lo que hereda de la corrida anterior" nota="El traspaso ejecutable: cómo terminó la corrida anterior, su balance, la pregunta que trabajó, las hipótesis que el Killer cerró y por qué, las consultas hechas y las debilidades no atendidas. El planificador lo lee antes de proponer el primer plan.">
+          <pre className="traspaso">{corrida.traspasoRecibido}</pre>
+        </Seccion>
+      )}
+
       {viva && proponiendoPlan(corrida, iteracion) && (
         <Seccion titulo={`Iteración ${iteracion ? iteracion.numero + 1 : corrida.iteracionActual}`} nota="Rosa escribe el plan">
           <div className="tarjeta">
@@ -513,6 +519,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                 <th>Consulta exacta</th>
                 <th>Fecha</th>
                 <th className="num">Resultados</th>
+                <th className="num">Relevantes</th>
               </tr>
             </thead>
             <tbody>
@@ -531,6 +538,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                     <Momento t={c.fecha} ahora={ahora} />
                   </td>
                   <td className="num">{c.resultados}</td>
+                  <td className="num">{c.relevantes ?? ''}</td>
                 </tr>
               ))}
             </tbody>

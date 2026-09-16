@@ -4298,3 +4298,30 @@ details.versiones > :not(summary) {
 .gp-balances {
   margin-top: 8px;
 }
+
+/* Lecciones de la investigación y traspaso entre corridas. */
+.lecciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leccion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 13.5px;
+}
+
+.leccion .meta {
+  grid-column: 2;
+}
+
+.traspaso {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  font-family: inherit;
+}

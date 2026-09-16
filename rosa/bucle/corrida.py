@@ -28,7 +28,7 @@ import traceback
 from typing import Any
 
 from rosa import sesgo as SESGO
-from rosa import certeza as CERTEZA, config, parada as PARADA, politicas, priorizacion as PR, progreso as PROG, torneo
+from rosa import certeza as CERTEZA, config, lecciones as LEC, parada as PARADA, politicas, priorizacion as PR, progreso as PROG, torneo
 from rosa import revisor_registro as RR
 from rosa.bucle import contexto as T
 from rosa.bucle import evidencia as EV
@@ -645,6 +645,12 @@ class Supervisor:
                 cita = f"[Datos del laboratorio: {resultado['fichero']}, {fecha_txt}]"
                 y["afirmaciones"].append({"texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": False, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
                 y["evidenciaEstadistica"] = "fuerte" if clasificacion == "apoyo_reproducido" else ("moderada" if clasificacion == "negativo_interpretable" else "debil")
+                # El resultado del laboratorio entra al modelo de mundo como hecho (la ficha lo
+                # prometía y el registro no lo cumplía): frena una hipótesis nueva con la misma predicción.
+                if clasificacion in ("apoyo_reproducido", "negativo_interpretable"):
+                    hecho = P.nuevo_hecho(y["investigacionId"], "hecho", "Resultado de laboratorio", f"{resultado['resultado'][:500]} (ensayo sobre «{y['titulo'][:60]}»: {resultado['veredicto']})", "sabido", "laboratorio", [{"fuenteId": None, "referencia": cita, "pagina": None}], ahora, prioridad=1, motivo=f"Resultado del laboratorio contra el prerregistro: {clasificacion.replace('_', ' ')}")
+                    e["hechos"].append(hecho)
+                    A.con_evento(e, y["investigacionId"], "hecho_nuevo", f"Hecho nuevo del laboratorio: {resultado['resultado'][:120]}", f"#/investigaciones/{y['investigacionId']}/mundo", ahora)
             # Que hace Rosa con cada clase de resultado (taxonomia de retorno).
             if clasificacion == "fallo_tecnico":
                 y["experimento"]["estado"] = "asignado"  # se puede repetir; la hipotesis no cambia
@@ -1034,6 +1040,11 @@ class Supervisor:
         try:
             pregunta = (c.get("pregunta") or {}).get("enunciado") or (next((x for x in self.almacen.estado["corridas"] if x["id"] == c["id"]), {}).get("pregunta") or {}).get("enunciado")
             mundo = await T.modelo_de_mundo_para(self.almacen, inv["id"], inv["objetivo"] + (f" {pregunta}" if pregunta else ""))
+            # Traspaso ejecutable: de la iteración anterior, o de la corrida anterior si esta es la primera.
+            traspaso = T.traspaso_iteracion(e, anterior, c) if anterior else T.traspaso_de_corrida(e, inv["id"])
+            if not anterior:
+                self.almacen.mutar(lambda e2, t=traspaso: _fijar_traspaso(e2, c["id"], t), "traspaso")
+            lecciones = await LEC.para(self.almacen, inv["id"], ("plan", "fuentes", "consultas", "hipotesis", "analisis"), inv["objetivo"] + (f" {pregunta}" if pregunta else ""))
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.plan,
@@ -1043,6 +1054,8 @@ class Supervisor:
                 condicion_parada=PARADA.texto_condicion(inv, c),
                 modelo_de_mundo=mundo,
                 resumen_iteracion_anterior=anterior["resumen"] if anterior else "",
+                traspaso=traspaso,
+                lecciones=lecciones,
                 indicaciones_humanas=T.indicaciones_humanas(anterior, pendientes_solo=True) if anterior else "Ninguna.",
                 hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], inv["id"]) + "\n" + T.vivero_texto(inv),
                 numero_iteracion=numero,
@@ -1268,6 +1281,10 @@ class Supervisor:
             # bajados, hechos nuevos y fallidos de la iteración (rosa/progreso.py).
             c_prog = next(x for x in e2["corridas"] if x["id"] == c["id"])
             c_prog.setdefault("progreso", []).append(PROG.instantanea(e2, c_prog, it2, len(hechos_nuevos), len(hip_nuevas), len(bloqueadas), ahora))
+            # Lecciones por regla: lo que esta iteración enseña a no repetir (rosa/lecciones.py).
+            nuevas_lecciones = LEC.registrar(e2, LEC.generar_al_cerrar(e2, c_prog, it2, revision, ahora))
+            if nuevas_lecciones:
+                A.con_evento(e2, inv["id"], "aprendizaje", f"{nuevas_lecciones} {'lección nueva' if nuevas_lecciones == 1 else 'lecciones nuevas'} de la iteración {it['numero']}: lo que Rosa no repetirá", f"#/investigaciones/{inv['id']}/investigacion", ahora)
             if revision["hallazgos"]:
                 A.con_evento(e2, inv["id"], "revision_registro", f"El revisor de registro encontró {len(revision['hallazgos'])} hallazgos en la iteración {it['numero']}: " + RR.resumen_revision(revision["hallazgos"])[:140], f"#/investigaciones/{inv['id']}/corrida", ahora)
             # Bradley-Terry con intervalos sobre los partidos del torneo: es lo que
@@ -1389,6 +1406,14 @@ def frase_plantilla(direccion: str, certeza: str, titulo: str) -> str:
     if direccion == "en_contra":
         return f"{VERBO_CONTRA[certeza]} {h}."
     return f"{VERBO_CERTEZA[certeza]} {h}."
+
+
+def _fijar_traspaso(e: dict[str, Any], corrida_id: str, texto: str) -> bool:
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c:
+        return False
+    c["traspasoRecibido"] = (texto or "")[:4000]
+    return True
 
 
 def _fijar_estado(e: dict[str, Any], corrida_id: str, estado: str) -> bool:

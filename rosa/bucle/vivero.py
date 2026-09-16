@@ -80,7 +80,8 @@ def nueva_semilla(investigacion_id: str, iteracion: int, ahora: int, hp: Any, af
 
 
 def titulos(inv: dict[str, Any]) -> set[str]:
-    return {_norm(s["titulo"]) for s in inv.get("vivero") or []}
+    """Títulos del vivero y de las ideas retiradas: ninguno se vuelve a proponer igual."""
+    return {_norm(s["titulo"]) for s in (inv.get("vivero") or []) + (inv.get("viveroRetiradas") or [])}
 
 
 def anadir(e: dict[str, Any], investigacion_id: str, semilla: dict[str, Any], ahora: int) -> bool:
@@ -114,6 +115,11 @@ def retirar(e: dict[str, Any], semilla: dict[str, Any], motivo: str, ahora: int)
     vivero[:] = [x for x in vivero if x["id"] != semilla["id"]]
     if len(vivero) == antes:
         return False
+    # Memoria de retiradas: para no reproponer la misma idea y gastar otras seis iteraciones.
+    retiradas = inv.setdefault("viveroRetiradas", [])
+    retiradas.append({"id": semilla["id"], "titulo": semilla["titulo"], "enunciado": semilla.get("enunciado", "")[:400], "motivo": motivo[:200], "iteracion": semilla.get("iteracion"), "retiradaEn": ahora})
+    if len(retiradas) > 40:
+        del retiradas[: len(retiradas) - 40]
     A.con_evento(e, inv["id"], "vivero", f"Sale del vivero sin nacer: {semilla['titulo'][:80]}. Motivo: {motivo[:160]}", f"#/investigaciones/{inv['id']}/hipotesis", ahora)
     return True
 

@@ -312,6 +312,50 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Memoria de errores, progreso y traspaso (16 de septiembre de 2026, tarde)
+
+Lo que rekursiv.ai llama aprender de los errores entre iteraciones, en Rosa
+por regla y sin modelos:
+
+- **Progreso y métrica** (`rosa/progreso.py`). Al cerrar cada iteración se
+  guarda en la corrida una instantánea: certeza de cada hipótesis viva
+  (peldaño GRADE 0 a 3), peldaños subidos y bajados, hechos e hipótesis
+  nuevas, fallidos (pasos, pistas, cierres del Killer, afirmaciones
+  bloqueadas) y gasto. Al terminar, la métrica única: peldaños netos por
+  dólar, hipótesis en baja o más y la puntuación del banco si encaja. La
+  interfaz dibuja el progreso de la investigación a través de todas las
+  corridas, con banda de fallidos y marcas de cambio de arnés.
+- **Parada por peldaños y por estancamiento**: "para cuando N hipótesis
+  lleguen a certeza X" o "para si N iteraciones no suben nada ni añaden
+  hechos", en el formulario de Nueva corrida.
+- **Lecciones** (`rosa/lecciones.py`). Al cerrar la iteración se generan por
+  regla: pasos y pistas fallidos con motivo y racha, consultas con cero
+  resultados o cero relevantes, bases que no respondieron, hallazgos del
+  revisor, hipótesis cerradas por el Killer con la comprobación que falló,
+  ideas retiradas del vivero, análisis sin efecto o no evaluables,
+  incidencias. Se guardan sin repetir (una repetida suma veces), se indexan
+  por significado y cada paso pide las suyas antes de actuar: el
+  planificador, el generador de consultas, la exploración en amplitud y el
+  generador de hipótesis las reciben como entrada. La investigación las
+  enseña en "Lo que Rosa aprendió a no repetir".
+- **Consultas previas de toda la investigación con rendimiento** (resultados
+  y relevantes por consulta) en lugar de las de la corrida en curso; los
+  artículos ya excluidos con claridad no se vuelven a cribar (se reutiliza el
+  motivo); los hechos descartados del núcleo del modelo de mundo se eligen
+  por parecido con el paso; el descarte que el Killer propone y espera a la
+  persona se ve como tal; el vivero recuerda las ideas retiradas; el
+  resultado del laboratorio entra al modelo de mundo como hecho.
+- **Traspaso ejecutable** (`contexto.traspaso_iteracion`,
+  `contexto.traspaso_de_corrida`): lo que la iteración o la corrida anterior
+  deja, del registro y no del modelo (pasos fallidos con motivo, consultas
+  que no rindieron, bases caídas, afirmaciones sin verificar, hipótesis
+  cerradas y por qué, cambios de creencia, balance), como entrada del
+  planificador; la corrida lo guarda y la interfaz lo enseña.
+- El índice semántico cubre ahora también afirmaciones, lecciones,
+  decisiones negativas, semillas del vivero y ejecuciones.
+
+Pruebas: `rosa/tests/test_progreso.py`, `rosa/tests/test_lecciones.py`.
+
 ## Búsqueda en amplitud: los diamantes de al lado (16 de septiembre de 2026)
 
 Regla de Emir y de su compañero: una Rosa que solo mira la pregunta se

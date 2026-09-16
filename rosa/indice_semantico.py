@@ -210,6 +210,23 @@ def items_del_estado(e: dict[str, Any]) -> list[dict[str, Any]]:
             texto = f"{f.get('titulo', '')}. {(f.get('resumen') or '')[:600]}".strip(". ")
             if texto and f.get("titulo"):
                 items.append({"id": f"fuente:{fid}", "tipo": "fuente", "investigacionId": c.get("investigacionId"), "texto": texto})
+        # Afirmaciones sostenidas de la corrida: lo verificado, para reencontrarlo por significado.
+        for a in c.get("_afirmaciones") or []:
+            if a.get("veredicto") in ("sostenida", "parcial") and a.get("id") and a.get("texto"):
+                items.append({"id": f"afirmacion:{a['id']}", "tipo": "afirmacion", "investigacionId": c.get("investigacionId"), "texto": a["texto"][:800]})
+    # Lecciones, decisiones negativas, semillas del vivero y ejecuciones: la memoria de errores.
+    for lec in e.get("lecciones", []):
+        items.append({"id": f"leccion:{lec['id']}", "tipo": "leccion", "investigacionId": lec.get("investigacionId"), "texto": f"[{lec.get('ambito')}] {lec.get('texto', '')}"})
+    for d in e.get("decisiones", []):
+        if d.get("decision") in ("descartar_en_contexto", "suspender", "descartada") and (d.get("motivo") or d.get("queHariaFalta")):
+            items.append({"id": f"decision:{d['id']}", "tipo": "decision", "investigacionId": d.get("investigacionId"), "texto": f"{d.get('motivo', '')} Haría falta: {d.get('queHariaFalta') or ''}"[:800]})
+    for inv in e.get("investigaciones", []):
+        for s in (inv.get("vivero") or []) + (inv.get("viveroRetiradas") or []):
+            items.append({"id": f"semilla:{s['id']}", "tipo": "semilla", "investigacionId": inv["id"], "texto": f"{s.get('titulo', '')}. {s.get('enunciado', '')}. Le falta: {s.get('falta') or s.get('motivo') or ''}"[:800]})
+    for run in e.get("ejecuciones", []):
+        interp = (run.get("interpretacion") or {}).get("resumen")
+        if interp:
+            items.append({"id": f"ejecucion:{run['id']}", "tipo": "ejecucion", "investigacionId": run.get("investigacionId"), "texto": f"Análisis {run.get('tipo', '')}: {interp}"[:800]})
     return items
 
 

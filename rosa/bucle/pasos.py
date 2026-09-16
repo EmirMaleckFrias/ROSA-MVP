@@ -44,6 +44,7 @@ from rosa.estado import plantilla as P
 from rosa.estado.almacen import Almacen
 from rosa import certeza as CERTEZA
 from rosa import indice_semantico, reranker
+from rosa import lecciones as LEC
 from rosa.bucle import vivero as VIVERO
 from rosa.fuentes import clinicaltrials, crossref, europepmc, exa, openalex, opentargets, pdf, pubmed, unpaywall
 from rosa.fuentes.base import FuenteNoDisponible
@@ -111,6 +112,33 @@ def destino_de_propuesta(afirmaciones: list[dict[str, Any]], fuentes: list[dict[
     cohortes distintas); si no, va al vivero a esperar la segunda cohorte."""
     nivel, motivo = CERTEZA.techo({"afirmaciones": afirmaciones, "procedencia": {"fuentes": fuentes}})
     return ("nace" if CERTEZA.NIVELES.index(nivel) >= 1 else "vivero"), nivel, motivo
+
+
+def _clave_articulo(a: dict[str, Any]) -> str:
+    if a.get("doi"):
+        return f"doi:{str(a['doi']).lower()}"
+    if a.get("pmid"):
+        return f"pmid:{a['pmid']}"
+    return f"titulo:{V.normalizar(a.get('titulo') or '')}"
+
+
+def _excluidos_previos(ctx: "Ctx", modo: str, relevancia_maxima: int) -> dict[str, dict[str, Any]]:
+    """Los artículos excluidos con claridad (relevancia baja) en cualquier corrida
+    de la investigación, en el mismo modo, por DOI, PMID o título: no se vuelven
+    a cribar; se reutiliza el motivo. Un excluido por poco (rozando el listón)
+    sí se vuelve a mirar, porque otra pregunta puede rescatarlo."""
+    salida: dict[str, dict[str, Any]] = {}
+    for c in ctx.e["corridas"]:
+        if c["investigacionId"] != ctx.investigacion_id:
+            continue
+        for ex in (c.get("busqueda") or {}).get("excluidos", []):
+            if (ex.get("modo") or "foco") != modo or int(ex.get("relevancia") or 0) > relevancia_maxima:
+                continue
+            clave = _clave_articulo(ex)
+            if clave.startswith("titulo:") and len(clave) < 24:
+                continue
+            salida[clave] = dict(ex, corrida=c["numero"])
+    return salida
 
 
 def _liston_de(f: dict[str, Any]) -> int:
@@ -506,7 +534,7 @@ def consulta_novedad_del_campo(inv: dict[str, Any], ahora_ms: int) -> dict[str, 
     return {"base": "europepmc", "consulta": f"(Alzheimer*) AND ({nucleo}) AND FIRST_PDATE:[{desde} TO {hasta}]", "tema": "Novedad reciente del campo", "modo": "amplitud", "porque": porque, "desde_fecha": desde, "_desviada_de": "Exa (búsqueda semántica de publicaciones)"}
 
 
-async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, previas: list[str], pista: Pista | None = None) -> list[dict[str, Any]]:
+async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, previas: list[str], pista: Pista | None = None, lecciones: str = "Ninguna todavía.") -> list[dict[str, Any]]:
     """Las consultas de amplitud de este paso: la novedad del campo (sin modelo)
     y las adyacentes y de sorpresa que escribe el cerebro con el mapa del
     árbol delante. Nunca reformulan la pregunta de la corrida."""
@@ -534,7 +562,8 @@ async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, pre
             mapa_del_arbol=mapa,
             hipotesis_y_vivero=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv),
             pregunta_y_preguntas_abiertas=_criterio(ctx, inv),
-            consultas_previas="\n".join(list(previas)[-20:] + [q["consulta"] for q in salida]) or "Ninguna",
+            consultas_previas=T.consultas_previas_texto(e, ctx.investigacion_id) + ("\nEn este paso ya: " + "; ".join(q["consulta"][:80] for q in salida) if salida else ""),
+            lecciones=lecciones,
             bases_disponibles=", ".join(bases_disponibles()),
             cuantas=restantes,
         )
@@ -640,10 +669,24 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         # En amplitud el reranker ordena contra el objetivo y el "por qué" de la consulta,
         # no contra la pregunta: lo que se busca es lo que podría cambiar algo.
         pregunta_reranker = criterio_amplitud if modo == "amplitud" else f"{preguntas}\n{consulta['tema']}"
-        al_modelo, fuera = await cortar_con_reranker(pregunta_reranker, [a for a in articulos if a.get("titulo")], pista)
+        # Lo ya excluido con claridad en esta investigación (mismo modo) no vuelve a
+        # pasar por el reranker ni por el modelo: se reutiliza el motivo. "Do not re-mine".
+        ya_excluidos = _excluidos_previos(ctx, modo, minimo - 2)
+        repetidos: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        frescos: list[dict[str, Any]] = []
+        for a in articulos:
+            if not a.get("titulo"):
+                continue
+            ex_prev = ya_excluidos.get(_clave_articulo(a))
+            (repetidos if ex_prev else frescos).append((a, ex_prev) if ex_prev else a)
+        if repetidos:
+            pista.nota(f"{len(repetidos)} artículos ya excluidos en esta investigación no se vuelven a cribar; se reutiliza su motivo")
+        al_modelo, fuera = await cortar_con_reranker(pregunta_reranker, frescos, pista)
         # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA. En amplitud, con
         # otra pregunta (qué podría cambiar) y el listón un punto más bajo.
         puntuados: list[tuple[int, dict[str, Any], str]] = []
+        for a, ex_prev in repetidos:
+            puntuados.append((int(ex_prev.get("relevancia") or 0), a, f"ya excluido en la corrida {ex_prev.get('corrida')} (iteración {ex_prev.get('iteracion')}): {(ex_prev.get('motivo') or '')[:160]}"))
         for a, s in fuera:
             puntuados.append((min(minimo - 1, int(round(s * 10))), a, f"fuera del corte del reranker (pertinencia {s:.2f}); no se gastó una llamada al modelo"))
         sem = asyncio.Semaphore(4)
@@ -677,6 +720,11 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
             b = c["busqueda"]
             b["traidos"] = int(b.get("traidos") or 0) + len(puntuados)
+            # El rendimiento de la consulta queda en su registro: cuántos relevantes trajo.
+            for q_ in reversed(b["consultas"]):
+                if q_.get("consulta") == consulta["consulta"] and q_.get("iteracion") == ctx.numero:
+                    q_["relevantes"] = len(relevantes)
+                    break
             ex = b.setdefault("excluidos", [])
             for p_, a_, motivo_ in descartados:
                 ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "modo": modo, "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base})
@@ -797,9 +845,11 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     e = ctx.e
     preguntas = _criterio(ctx, inv)
-    previas = ctx.corrida().get("_consultasHechas", [])
+    # Consultas ya hechas en TODAS las corridas de la investigación, con su rendimiento.
+    previas = T.consultas_hechas(e, ctx.investigacion_id)
+    lecciones = await LEC.para(ctx.almacen, ctx.investigacion_id, ("consultas", "fuentes"), preguntas[:1500])
     nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
-    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv), consultas_previas="\n".join(previas[-20:]) or "Ninguna", indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
+    pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv), consultas_previas=T.consultas_previas_texto(e, ctx.investigacion_id), lecciones=lecciones, indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
     consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][: politicas.MAX_CONSULTAS_FOCO]
     consultas += consultas_por_nombre(nombres, consultas, previas)
     for q in consultas:
@@ -811,7 +861,7 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     if n_amplitud:
         pista_amp = ctx.pista(paso["id"], "literatura", f"Búsqueda en amplitud ({amplitud}): qué hay alrededor del objetivo", "GPT-6 Astra")
         try:
-            de_amplitud = await _consultas_amplitud(ctx, inv, n_amplitud, previas + [q["consulta"] for q in consultas], pista_amp)
+            de_amplitud = await _consultas_amplitud(ctx, inv, n_amplitud, previas + [q["consulta"] for q in consultas], pista_amp, lecciones)
         except PresupuestoAgotado:
             pista_amp.cerrar("Presupuesto agotado antes de escribir las consultas de amplitud; el paso se retoma al ampliarlo", "detenida")
             raise
@@ -1640,7 +1690,8 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
         pista.accion(f"Generando hipótesis a partir de {len(validas)} afirmaciones sostenidas y las preguntas abiertas")
         try:
             mundo = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv, texto_af[:1500]))
-            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=mundo, afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id) + "\n\n" + T.vivero_texto(inv), criterios_revision="\n".join(e["criteriosRevision"]))
+            lecciones_h = await LEC.para(ctx.almacen, ctx.investigacion_id, ("hipotesis",), texto_af[:1500])
+            pred = await ctx.llamar("cerebro", ctx.programas.hipotesis, objetivo=inv["objetivo"], configuracion=T.configuracion(inv), modelo_de_mundo=mundo, afirmaciones_sostenidas=texto_af[:12000], hipotesis_existentes=T.hipotesis_existentes(e["hipotesis"], ctx.investigacion_id) + "\n\n" + T.vivero_texto(inv), lecciones=lecciones_h, criterios_revision="\n".join(e["criteriosRevision"]))
             propuestas = list(pred.hipotesis)[: politicas.MAX_PROPUESTAS_POR_ITERACION]
         except PresupuestoAgotado:
             pista.cerrar("Presupuesto agotado antes de generar", "detenida")

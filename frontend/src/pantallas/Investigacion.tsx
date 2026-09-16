@@ -8,7 +8,7 @@ import { acciones } from '../datos/almacen';
 import type { Amplitud, Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { ConocimientoOperativoDelLaboratorio, FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
-import { AMPLITUD, CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
+import { AMBITO_LECCION, AMPLITUD, CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { partesAutomatizadas, textoAutomatizacion } from '../lib/parada';
 import { rutaDe } from '../lib/ruta';
@@ -364,6 +364,27 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       </Seccion>
 
       <PuertaYReproducciones inv={inv} estado={estado} ahora={ahora} />
+
+      {(() => {
+        const lecciones = (estado.lecciones ?? []).filter((l) => l.investigacionId === inv.id).sort((a, b) => (b.veces - a.veces) || (b.ultimaVez - a.ultimaVez));
+        return lecciones.length > 0 ? (
+          <Seccion detalle titulo={`Lo que Rosa aprendió a no repetir (${lecciones.length})`} nota="Lecciones generadas por regla al cerrar cada iteración: pasos que fallaron, consultas que no rindieron, bases que no respondieron, hipótesis cerradas por el Killer y por qué, ideas retiradas del vivero, análisis sin efecto. Cada paso las lee antes de actuar; una lección repetida pesa más.">
+            <ul className="lista-limpia lecciones">
+              {lecciones.slice(0, 40).map((l) => (
+                <li key={l.id} className="leccion">
+                  <Chip tono="borde">{AMBITO_LECCION[l.ambito]}</Chip>
+                  <span>{l.texto}</span>
+                  <span className="meta">
+                    {l.veces > 1 ? `visto ${l.veces} veces · ` : ''}
+                    {l.iteracion ? `iteración ${l.iteracion} · ` : ''}
+                    <Momento t={l.ultimaVez} ahora={Date.now()} soloRelativo />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Seccion>
+        ) : null;
+      })()}
 
       <Seccion detalle titulo="Corridas" nota="Cada corrida es un arranque del bucle con estas instrucciones.">
         {corridas.length === 0 ? (
