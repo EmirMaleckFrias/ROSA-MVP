@@ -1646,6 +1646,7 @@ export type TipoEvento =
   | 'mision'
   | 'vigilancia'
   | 'vivero'
+  | 'revision_registro'
   | 'dependencias';
 
 export interface Evento {

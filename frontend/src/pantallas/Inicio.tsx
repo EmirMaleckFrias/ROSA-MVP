@@ -29,7 +29,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
 
       {estado.investigaciones.map((inv) => {
         const d = digest(estado, inv.id, ahora);
-        if (d.eventos.length === 0 && d.esperan.total === 0) return null;
+        if (!d.hayNovedades) return null;
         return <Resumen key={inv.id} d={d} titulo={inv.titulo} ahora={ahora} onVisto={() => acciones.marcarVisita()} />;
       })}
 

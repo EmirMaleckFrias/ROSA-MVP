@@ -13,15 +13,17 @@ import { Chip, Momento } from './piezas';
 export function Resumen({ d, titulo, ahora, onVisto }: { d: Digest; titulo: string; ahora: number; onVisto: () => void }) {
   const [copiado, setCopiado] = useState(false);
   const [todos, setTodos] = useState(false);
-  if (d.eventos.length === 0 && d.esperan.total === 0) return null;
-  const desde = d.desde !== null ? formatearDuracion(ahora - d.desde) : null;
-  const visibles = todos ? d.eventos : d.eventos.slice(0, 6);
+  if (!d.hayNovedades) return null;
+  const ventana = d.desde !== null ? `desde tu última visita, hace ${formatearDuracion(ahora - d.desde)}` : 'los últimos siete días (todavía no habías pulsado «Visto»)';
+  const visibles = todos ? d.eventos : d.eventos.slice(0, 5);
   return (
-    <section className="resumen" aria-label="Mientras no estabas">
+    <section className="resumen" aria-label={`Mientras no estabas: ${titulo}`}>
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 600 }}>Mientras no estabas{desde ? ` (${desde})` : ''}</h3>
-          <p className="meta">Lo que Rosa hizo y lo que te espera. Cada línea lleva a su sitio.</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600 }}>
+            Mientras no estabas <span className="resumen-titulo">· {titulo}</span>
+          </h3>
+          <p className="meta">Lo que cambió {ventana}. «Visto» cierra la tarjeta hasta que haya algo nuevo; lo que te espera sigue en la tarjeta de cada investigación.</p>
         </div>
         <div className="acciones">
           <button
@@ -64,7 +66,7 @@ export function Resumen({ d, titulo, ahora, onVisto }: { d: Digest; titulo: stri
           ))}
         </ol>
       )}
-      {d.eventos.length > 6 && (
+      {d.eventos.length > 5 && (
         <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setTodos((v) => !v)}>
           {todos ? 'Ver menos' : `Ver los ${d.eventos.length} eventos`}
         </button>

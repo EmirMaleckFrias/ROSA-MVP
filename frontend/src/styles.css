@@ -4236,3 +4236,9 @@ details.versiones > :not(summary) {
 .nueva-corrida-texto {
   grid-column: 1 / -1;
 }
+
+/* El título de la investigación dentro de "Mientras no estabas". */
+.resumen-titulo {
+  font-weight: 500;
+  color: var(--text-2);
+}
