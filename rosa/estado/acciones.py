@@ -29,6 +29,9 @@ from typing import Any
 
 from rosa import config, politicas
 from rosa import parada as PARADA
+from rosa import cuestiones as CU
+from rosa import dependencias as DEP
+from rosa import registro as REG
 from rosa.estado import plantilla as P
 
 Estado = dict[str, Any]
@@ -271,6 +274,8 @@ def volver_a_iteracion(e: Estado, iteracion_id: str, que: str, ahora: int) -> bo
     if que in ("mundo", "ambos"):
         limite = origen["terminadaEn"]
         e["hechos"] = [h for h in e["hechos"] if not (h["investigacionId"] == c["investigacionId"] and h["actualizadoEn"] > limite and all(m["quien"] == config.QUIEN_ROSA for m in h["historial"]))]
+        # Las cuestiones que Rosa abrió o resolvió después del punto vuelven atrás con los hechos.
+        CU.podar_desde(e, c["investigacionId"], limite)
     c["iteracionActual"] = numero
     if c["estado"] in ("en_marcha", "esperando_plan"):
         c["estado"] = "esperando_plan"
@@ -737,7 +742,8 @@ def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str
     texto = {k: str(cambios.get(k, "")).strip() for k in ("titulo", "enunciado", "mecanismo")}
     if not texto["enunciado"] and not texto["titulo"]:
         return False
-    h.setdefault("versiones", []).append(P.version_de(h, ahora, quien, motivo.strip() or "Reformulada"))
+    version_anterior = P.version_de(h, ahora, quien, motivo.strip() or "Reformulada")
+    instantanea = REG.instantanea_extendida(h)  # certeza, Elo, cuántas afirmaciones y fuentes tenía esa versión
     h["version"] = version + 1
     for k, v in texto.items():
         if v:
@@ -757,10 +763,17 @@ def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str
     h.pop("_reformularPedida", None)
     h["_revisionPedida"] = True
     h["hallazgos"] = [x for x in h["hallazgos"] if x["estado"] != "abierto"] + [{**x, "estado": "atendido", "respuestaDeRosa": f"Atendido en la versión {version + 1}: {motivo.strip()[:200]}"} for x in h["hallazgos"] if x["estado"] == "abierto"]
+    # Instantánea con diff (rosa/registro.py): qué cambió campo a campo de esa versión a esta.
+    version_guardada = REG.version_con_diff(version_anterior, h)
+    version_guardada.update(instantanea)
+    h.setdefault("versiones", []).append(version_guardada)
+    resumen_cambios = REG.resumen_diff(version_guardada["cambios"])
     h["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "reformulada", "nota": f"Versión {version + 1}: {motivo.strip()[:300]}", "aCiegas": False})
-    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} versión {version + 1} ({quien}): {motivo.strip()[:120]}")
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} versión {version + 1} ({quien}): {motivo.strip()[:120]}. {resumen_cambios}")
     con_evento(e, h["investigacionId"], "hipotesis_decidida", f"Reformulada (versión {version + 1}): {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     recalcular_bloqueos(e, h)
+    # Propagación de dependencias: sus derivadas, sus planes y su hecho quedan pendientes de revisar.
+    DEP.propagar_reformulacion(e, h["id"], ahora, motivo)
     return True
 
 
@@ -843,12 +856,27 @@ def pedir_analisis(e: Estado, hipotesis_id: str, dataset_id: str, pregunta: str,
     return True
 
 
+def empeora_al_evaluar(c: dict) -> bool:
+    """Puerta "solo mejor o igual": un cambio evaluado cuyo acuerdo después es
+    menor que antes no se promueve. Sin evaluación numérica no hay puerta (se
+    promueve bajo la responsabilidad de quien lo hace). Misma regla en
+    frontend/src/datos/acciones.ts."""
+    ev = c.get("evaluacion") or {}
+    antes, despues = ev.get("antes"), ev.get("despues")
+    return isinstance(antes, (int, float)) and isinstance(despues, (int, float)) and despues < antes
+
+
 def promover_aprendizaje(e: Estado, cambio_id: str, quien: str, ahora: int) -> bool:
     """Promover un cambio de nivel 2 (criterio o programa). Solo una persona.
     Un criterio promovido entra a los criterios de revisión; un programa
-    promovido se carga en el siguiente arranque (el servidor mueve el fichero)."""
+    promovido se carga en el siguiente arranque (el servidor mueve el fichero).
+    Puerta "solo mejor o igual": si la evaluación dice que empeora, no pasa."""
     c = _buscar(e.get("aprendizaje", []), cambio_id)
     if not c or c["nivel"] != 2 or c["estado"] not in ("propuesto", "evaluado"):
+        return False
+    if empeora_al_evaluar(c):
+        ev = c["evaluacion"]
+        con_evento(e, c.get("investigacionId"), "incidencia", f"No se promueve el cambio '{c['descripcion'][:80]}': la evaluación empeora el acuerdo ({ev['antes']} antes, {ev['despues']} después). Solo se promueve lo que iguala o mejora.", "#/ajustes", ahora)
         return False
     c["estado"] = "promovido"
     c["resueltoEn"] = ahora
@@ -858,6 +886,117 @@ def promover_aprendizaje(e: Estado, cambio_id: str, quien: str, ahora: int) -> b
     if c["tipo"] == "programa":
         c["_promover"] = True
     con_evento(e, c.get("investigacionId"), "aprendizaje", f"Cambio de nivel 2 promovido por {quien}: {c['descripcion'][:100]}", "#/ajustes", ahora)
+    return True
+
+
+def fusionar_hipotesis(e: Estado, ganadora_id: str, absorbida_id: str, motivo: str, quien: str, ahora: int) -> bool:
+    """Fusión de ramas por torneo: dos hipótesis que dicen lo mismo (o una es un
+    caso particular de la otra) se funden en una. La ganadora hereda las
+    afirmaciones y las fuentes que no tenía (marcadas con heredadaDe), suma a la
+    absorbida en `absorbe`, y la absorbida queda descartada con `fusionadaEn`.
+    No es un descarte por evidencia: el motivo lo dice. Misma regla en
+    frontend/src/datos/acciones.ts."""
+    g = _buscar(e["hipotesis"], ganadora_id)
+    a = _buscar(e["hipotesis"], absorbida_id)
+    if not g or not a or g is a or g["investigacionId"] != a["investigacionId"] or a["estado"] == "descartada" or g["estado"] == "descartada":
+        return False
+
+    def clave(x: dict) -> tuple:
+        return (x.get("afirmacionId"),) if x.get("afirmacionId") else (x.get("texto"), x.get("cita"))
+
+    tiene = {clave(x) for x in g["afirmaciones"]}
+    heredadas = 0
+    for x in a["afirmaciones"]:
+        if clave(x) in tiene:
+            continue
+        g["afirmaciones"].append({**copy.deepcopy(x), "heredadaDe": a["id"]})
+        tiene.add(clave(x))
+        heredadas += 1
+    ids_fuentes = {f["id"] for f in g["procedencia"]["fuentes"]}
+    fuentes_nuevas = 0
+    for f in a["procedencia"]["fuentes"]:
+        if f["id"] not in ids_fuentes:
+            g["procedencia"]["fuentes"].append(copy.deepcopy(f))
+            ids_fuentes.add(f["id"])
+            fuentes_nuevas += 1
+    marca = datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()
+    g.setdefault("absorbe", []).append(a["id"])
+    g["fusionPropuesta"] = None
+    g["_evidenciaNueva"] = True
+    g.pop("_conclusionIntentada", None)
+    g["procedencia"]["registro"].append(f"{marca} fusión: absorbe a '{a['titulo'][:80]}' ({a['id']}) por {quien}: {motivo.strip()[:200]}. {heredadas} afirmaciones y {fuentes_nuevas} fuentes heredadas")
+    g["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"Fusionada con '{a['titulo'][:80]}': {motivo.strip()[:200]}", "creadoEn": ahora})
+    a["estado"] = "descartada"
+    a["candidata"] = False
+    a["fusionadaEn"] = g["id"]
+    a["fusionPropuesta"] = None
+    a["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "descartada", "nota": f"Fusionada en '{g['titulo'][:80]}' ({g['id']}): {motivo.strip()[:200]}", "aCiegas": False})
+    a["procedencia"]["registro"].append(f"{marca} fusionada en '{g['titulo'][:80]}' ({g['id']}) por {quien}: {motivo.strip()[:200]}")
+    recalcular_bloqueos(e, g)
+    recalcular_bloqueos(e, a)
+    con_evento(e, g["investigacionId"], "hipotesis_decidida", f"Fusión: '{a['titulo'][:60]}' se funde en '{g['titulo'][:60]}' ({motivo.strip()[:100]})", f"#/investigaciones/{g['investigacionId']}/hipotesis/{g['id']}", ahora)
+    return True
+
+
+def abrir_cuestion(e: Estado, investigacion_id: str, texto: str, que_la_resolveria: str, quien: str, ahora: int, hipotesis_id: str | None = None) -> bool:
+    """Una persona abre una cuestión (lo que rekursiv.ai llama Issue): queda en
+    la lista persistente de la investigación con origen 'persona'. Si ya había
+    una equivalente abierta, se funde con ella (rosa/cuestiones.py)."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv or not texto.strip():
+        return False
+    c = CU.nueva(investigacion_id, texto, {"tipo": "persona", "id": None}, que_la_resolveria, ahora, prioridad=3, hipotesis_ids=[hipotesis_id] if hipotesis_id else None, quien=quien)
+    guardada = CU.registrar(e, c)
+    if guardada is None:
+        con_evento(e, investigacion_id, "incidencia", f"No se abrió la cuestión «{texto.strip()[:80]}»: la investigación ya tiene {CU.MAX_CUESTIONES_ABIERTAS} abiertas", f"#/investigaciones/{investigacion_id}", ahora)
+        return False
+    con_evento(e, investigacion_id, "hecho_nuevo", f"Cuestión abierta por {quien}: {guardada['texto'][:100]}", f"#/investigaciones/{investigacion_id}", ahora)
+    return True
+
+
+def resolver_cuestion(e: Estado, cuestion_id: str, motivo: str, quien: str, ahora: int) -> bool:
+    c = CU.buscar(e, cuestion_id)
+    if not c or not CU.resolver(e, cuestion_id, quien, motivo.strip() or "Resuelta por una persona", ahora, quien=quien):
+        return False
+    con_evento(e, c["investigacionId"], "hecho_nuevo", f"Cuestión resuelta por {quien}: {c['texto'][:100]}", f"#/investigaciones/{c['investigacionId']}", ahora)
+    return True
+
+
+def descartar_cuestion(e: Estado, cuestion_id: str, motivo: str, quien: str, ahora: int) -> bool:
+    c = CU.buscar(e, cuestion_id)
+    if not c or not motivo.strip() or not CU.descartar(e, cuestion_id, motivo.strip(), quien, ahora):
+        return False
+    con_evento(e, c["investigacionId"], "hecho_nuevo", f"Cuestión descartada por {quien}: {c['texto'][:100]}", f"#/investigaciones/{c['investigacionId']}", ahora)
+    return True
+
+
+def reabrir_cuestion(e: Estado, cuestion_id: str, motivo: str, quien: str, ahora: int) -> bool:
+    c = CU.buscar(e, cuestion_id)
+    return bool(c) and CU.reabrir(e, cuestion_id, motivo.strip() or "Reabierta", quien, ahora)
+
+
+def atender_pendiente(e: Estado, tipo: str, id_: str, quien: str, nota: str, ahora: int) -> bool:
+    """Una persona da por revisado lo que la propagación de dependencias marcó
+    como pendiente (rosa/dependencias.py); el bloqueo se levanta."""
+    if not DEP.atender_pendiente(e, tipo, id_, quien, nota, ahora):
+        return False
+    if tipo == "hipotesis":
+        h = _buscar(e["hipotesis"], id_)
+        if h:
+            recalcular_bloqueos(e, h)
+            con_evento(e, h["investigacionId"], "hipotesis_decidida", f"{quien} revisó «{h['titulo'][:60]}» tras el cambio del que dependía" + (f": {nota.strip()[:100]}" if nota.strip() else ""), f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+    return True
+
+
+def rechazar_fusion(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> bool:
+    """La persona no quiere fusionar: la propuesta se retira y queda anotado."""
+    h = _buscar(e["hipotesis"], hipotesis_id)
+    if not h or not h.get("fusionPropuesta"):
+        return False
+    con = h["fusionPropuesta"].get("con")
+    h["fusionPropuesta"] = None
+    h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} fusión con {con} rechazada por {quien}")
+    con_evento(e, h["investigacionId"], "hipotesis_decidida", f"{quien} rechazó fusionar '{h['titulo'][:60]}'", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 
 
@@ -1269,11 +1408,33 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
     return _heredar(e, inv, datos)
 
 
+def copiar_hechos(e: Estado, origen_id: str, destino_id: str) -> int:
+    """Copia los hechos de una investigación a otra con el sufijo del destino en
+    el id (regla de herencia) y remapea los enlaces entre hechos (sustituyeA,
+    sustituidoPor, resuelveA, contradiceA) para que apunten a las copias; un
+    enlace a un hecho que no viaja se conserva tal cual. Misma regla en
+    frontend/src/datos/acciones.ts."""
+    propios = [x for x in e["hechos"] if x["investigacionId"] == origen_id]
+    mapa = {x["id"]: f"{x['id']}-{destino_id}" for x in propios}
+
+    def remapear(v: Any) -> Any:
+        if isinstance(v, list):
+            return [mapa.get(i, i) for i in v]
+        return mapa.get(v, v) if isinstance(v, str) else v
+
+    for h in propios:
+        copia = {**copy.deepcopy(h), "id": mapa[h["id"]], "investigacionId": destino_id}
+        for clave in ("sustituyeA", "sustituidoPor", "resuelveA", "contradiceA"):
+            if clave in copia:
+                copia[clave] = remapear(copia[clave])
+        e["hechos"].append(copia)
+    return len(propios)
+
+
 def _heredar(e: Estado, inv: dict, datos: dict) -> str:
     heredar = datos.get("heredarModeloDe")
     if heredar:
-        for h in [x for x in e["hechos"] if x["investigacionId"] == heredar]:
-            e["hechos"].append({**copy.deepcopy(h), "id": f"{h['id']}-{inv['id']}", "investigacionId": inv["id"]})
+        copiar_hechos(e, heredar, inv["id"])
     return inv["id"]
 
 
@@ -1298,8 +1459,7 @@ def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora:
         "preguntasABases": [],
     }
     e["investigaciones"].append(rama)
-    for h in [x for x in e["hechos"] if x["investigacionId"] == investigacion_id]:
-        e["hechos"].append({**copy.deepcopy(h), "id": f"{h['id']}-{nuevo}", "investigacionId": nuevo})
+    copiar_hechos(e, investigacion_id, nuevo)
     return nuevo
 
 

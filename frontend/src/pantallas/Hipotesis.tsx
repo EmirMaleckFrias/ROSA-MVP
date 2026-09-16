@@ -20,7 +20,7 @@ import { Revisor } from '../componentes/Revisor';
 import { Verificacion } from '../componentes/Verificacion';
 import { ConclusionDeRosa, HipotesisEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Chip, Confirmar, Momento, Seccion, Vacio, descargar } from '../componentes/piezas';
-import { Bloqueos, ConsultasABases, ContextoDeBases, DecisionesKiller, Dimensiones, EjecucionesInSilico, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
+import { Bloqueos, ConsultasABases, ContextoDeBases, DecisionesKiller, Dimensiones, EjecucionesInSilico, FusionYConflictos, GrafoCausalDeHipotesis, ProtocoloYEnmiendas, TarjetaDeHipotesis } from '../componentes/Rosa2018';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
 import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
@@ -300,6 +300,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <GrafoCausalDeHipotesis h={h} />
         <ConsultasABases h={h} ahora={ahora} />
 
+      <FusionYConflictos h={h} estado={estado} />
       <DecisionesKiller h={h} decisiones={estado.decisiones ?? []} ahora={ahora} conjuntoDorado={estado.conjuntoDorado ?? []} />
 
       <Seccion titulo="Enunciado">

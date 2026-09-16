@@ -44,7 +44,7 @@ from rosa.estado import plantilla as P
 MAX_CANDIDATAS_POR_HIPOTESIS = 8
 UMBRAL_SIMILITUD = 0.30
 MAX_HIPOTESIS_POR_CIERRE = 20
-RELACIONES_QUE_CUENTAN = ("apoya", "apoya_indirecta", "contradice")
+RELACIONES_QUE_CUENTAN = ("apoya", "apoya_indirecta", "contradice", "socava")
 
 
 class PresupuestoAgotadoEvidencia(Exception):
@@ -67,6 +67,18 @@ def afirmaciones_nuevas(corrida: dict[str, Any], iteracion: int) -> list[dict[st
         if a.get("iteracion") == iteracion and a.get("veredicto") in ("sostenida", "parcial") and a.get("fuenteId")
         and not a.get("entidadDistinta") and not a.get("sospechosoInyeccion") and not a.get("sintetico") and (a.get("texto") or "").strip()
     ]
+
+
+def apoyos_existentes(h: dict[str, Any]) -> list[dict[str, Any]]:
+    """Los apoyos que la hipótesis ya tiene (sostenidos o parciales, a favor o de
+    origen, no socavados), numerables para que el modelo señale cuál socava."""
+    return [a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial") and a.get("relacion") in (None, "apoya", "apoya_indirecta") and not a.get("socavadaPor")]
+
+
+def _misma_afirmacion(x: dict[str, Any], objetivo: dict[str, Any]) -> bool:
+    if objetivo.get("afirmacionId") and x.get("afirmacionId"):
+        return x["afirmacionId"] == objetivo["afirmacionId"]
+    return x.get("texto") == objetivo.get("texto") and x.get("cita") == objetivo.get("cita")
 
 
 def _ya_tiene(h: dict[str, Any], a: dict[str, Any]) -> bool:
@@ -120,10 +132,11 @@ async def elegir_candidatas(vivas: list[dict[str, Any]], afs: list[dict[str, Any
     return {h["id"]: candidatas_por_terminos(h, afs) for h in vivas}
 
 
-def _entrada(a: dict[str, Any], relacion: str, motivo: str, iteracion: int) -> dict[str, Any]:
+def _entrada(a: dict[str, Any], relacion: str, motivo: str, iteracion: int, socava_a: str | None = None) -> dict[str, Any]:
     """La afirmación tal como la guarda la hipótesis: la misma forma que al
-    nacer, más la relación y la iteración en que llegó."""
-    return {
+    nacer, más la relación y la iteración en que llegó. Si socava un apoyo,
+    `socavaA` es el afirmacionId del apoyo atacado."""
+    return {**({"socavaA": socava_a} if relacion == "socava" else {}),
         "afirmacionId": a.get("id"), "texto": a["texto"], "cita": a["cita"], "veredicto": a["veredicto"], "motivo": a.get("motivo", ""),
         "entidadDistinta": False, "tipo": a.get("tipo", "dato"), "clase": a.get("clase", "literatura"), "sintetico": False, "cohorte": a.get("cohorte", ""),
         "sospechosoInyeccion": bool(a.get("sospechosoInyeccion")), "nivelMedicion": a.get("nivelMedicion", "resultado_analisis"), "n": a.get("n", ""),
@@ -155,18 +168,29 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
             continue
         resumen["candidatas"] += len(cands)
         lista = "\n".join(f"{i + 1}. [{a['veredicto']}, {a.get('tipo', 'dato')}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for i, (a, _) in enumerate(cands))
+        existentes = apoyos_existentes(h)
+        lista_existentes = "\n".join(f"{i + 1}. {a['texto'][:220]} {a.get('cita', '')}" for i, a in enumerate(existentes)) or "Ninguna"
         try:
-            pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=T.hipotesis_texto(h), afirmaciones=K.como_dato(lista))
+            pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=T.hipotesis_texto(h), afirmaciones=K.como_dato(lista), afirmaciones_existentes=K.como_dato(lista_existentes))
         except PresupuestoAgotado:
             raise
         except Exception:  # noqa: BLE001  una hipótesis que falla no tumba las demás
             traceback.print_exc()
             continue
-        aceptadas: list[tuple[dict[str, Any], str, str]] = []
+        # (afirmación, relación, motivo, apoyo socavado o None)
+        aceptadas: list[tuple[dict[str, Any], str, str, dict[str, Any] | None]] = []
         for r in list(getattr(pred, "relaciones", []) or []):
             indice, relacion, motivo = getattr(r, "indice", 0), getattr(r, "relacion", ""), getattr(r, "motivo", "") or ""
-            if 1 <= int(indice) <= len(cands) and relacion in RELACIONES_QUE_CUENTAN:
-                aceptadas.append((cands[int(indice) - 1][0], relacion, motivo))
+            if not (1 <= int(indice) <= len(cands)) or relacion not in RELACIONES_QUE_CUENTAN:
+                continue
+            objetivo = None
+            if relacion == "socava":
+                sa = getattr(r, "socava_a", None)
+                # Sin un apoyo concreto al que atacar, "socava" no es evidencia: fuera.
+                if sa is None or not (1 <= int(sa) <= len(existentes)):
+                    continue
+                objetivo = existentes[int(sa) - 1]
+            aceptadas.append((cands[int(indice) - 1][0], relacion, motivo, objetivo))
         if not aceptadas:
             continue
         ahora = P.ahora_ms()
@@ -177,28 +201,37 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
                 return False
             ids_fuentes = {f["id"] for f in y["procedencia"]["fuentes"]}
             nuevas_fuentes = 0
-            for a, relacion, motivo in aceptadas:
-                y["afirmaciones"].append(_entrada(a, relacion, motivo, iteracion))
+            for a, relacion, motivo, objetivo in aceptadas:
+                socava_a = None
+                if relacion == "socava" and objetivo is not None:
+                    atacada = next((x for x in y["afirmaciones"] if _misma_afirmacion(x, objetivo)), None)
+                    if atacada is None:
+                        continue
+                    socava_a = atacada.get("afirmacionId") or f"{atacada.get('texto', '')[:80]}|{atacada.get('cita', '')}"
+                    atacada.setdefault("socavadaPor", []).append(a.get("id"))
+                y["afirmaciones"].append(_entrada(a, relacion, motivo, iteracion, socava_a))
                 f = fuentes.get(a["fuenteId"])
                 if f and a["fuenteId"] not in ids_fuentes:
                     y["procedencia"]["fuentes"].append(_fuente_publica(f, a))
                     ids_fuentes.add(a["fuenteId"])
                     nuevas_fuentes += 1
-            en_contra = sum(1 for _, r, _ in aceptadas if r == "contradice")
-            indirectas = sum(1 for _, r, _ in aceptadas if r == "apoya_indirecta")
+            en_contra = sum(1 for _, r, _, _ in aceptadas if r == "contradice")
+            indirectas = sum(1 for _, r, _, _ in aceptadas if r == "apoya_indirecta")
+            socavan = sum(1 for _, r, _, _ in aceptadas if r == "socava")
             # Cuántas llegaron por la búsqueda en amplitud: son los "diamantes de al lado".
-            de_amplitud = sum(1 for a, _, _ in aceptadas if (fuentes.get(a["fuenteId"]) or {}).get("modo") == "amplitud")
-            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas} a favor, {indirectas} indirectas, {en_contra} en contra), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else ""))
+            de_amplitud = sum(1 for a, _, _, _ in aceptadas if (fuentes.get(a["fuenteId"]) or {}).get("modo") == "amplitud")
+            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas - socavan} a favor, {indirectas} indirectas, {en_contra} en contra, {socavan} que socavan un apoyo), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else ""))
             y["_evidenciaNueva"] = iteracion
             y.pop("_conclusionIntentada", None)
             A.recalcular_bloqueos(e2, y)
-            texto = f"Evidencia nueva para «{y['titulo'][:60]}»: {len(aceptadas)} afirmaciones" + (f", {en_contra} en contra" if en_contra else "") + (f", {nuevas_fuentes} fuentes nuevas" if nuevas_fuentes else "") + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else "")
+            texto = f"Evidencia nueva para «{y['titulo'][:60]}»: {len(aceptadas)} afirmaciones" + (f", {en_contra} en contra" if en_contra else "") + (f", {socavan} que socavan un apoyo" if socavan else "") + (f", {nuevas_fuentes} fuentes nuevas" if nuevas_fuentes else "") + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else "")
             A.con_evento(e2, y["investigacionId"], "revision_automatica", texto, f"#/investigaciones/{y['investigacionId']}/hipotesis/{y['id']}", ahora)
             return True
 
         ctx.mutar(fn, "evidencia_acumulada")
         resumen["anadidas"] += len(aceptadas)
-        resumen["enContra"] += sum(1 for _, r, _ in aceptadas if r == "contradice")
+        resumen["enContra"] += sum(1 for _, r, _, _ in aceptadas if r == "contradice")
+        resumen["socavan"] = resumen.get("socavan", 0) + sum(1 for _, r, _, _ in aceptadas if r == "socava")
         resumen["ids"].append(h["id"])
         if pista:
             pista.resultado(f"{h['titulo'][:60]}: {len(aceptadas)} afirmaciones nuevas")
@@ -234,7 +267,7 @@ async def acumular_vivero(ctx: Any, iteracion: int, pista: Any = None) -> dict[s
         if cands:
             lista = "\n".join(f"{i + 1}. [{a['veredicto']}, {a.get('tipo', 'dato')}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" for i, (a, _) in enumerate(cands))
             try:
-                pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=_texto_semilla(s_), afirmaciones=K.como_dato(lista))
+                pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=_texto_semilla(s_), afirmaciones=K.como_dato(lista), afirmaciones_existentes="Ninguna")
                 for r in list(getattr(pred, "relaciones", []) or []):
                     indice, relacion, motivo = getattr(r, "indice", 0), getattr(r, "relacion", ""), getattr(r, "motivo", "") or ""
                     if 1 <= int(indice) <= len(cands) and relacion in RELACIONES_QUE_CUENTAN:

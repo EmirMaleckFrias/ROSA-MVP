@@ -502,6 +502,8 @@ export interface Corrida {
   metrica?: MetricaCorrida | null;
   /** Lo que heredó de la corrida anterior al empezar (traspaso ejecutable). */
   traspasoRecibido?: string;
+  /** Meta-campaña al terminar: diagnóstico del cerebro y cuántos cambios del arnés propuso (rosa/bucle/corrida.py _revisar_arnes). */
+  revisionArnes?: { fecha: number; diagnostico: string; propuestas: number; descartadas: number } | null;
 }
 
 export interface ParadaCorrida {
@@ -759,7 +761,11 @@ export interface Afirmacion {
   /** Cómo se relaciona con la hipótesis cuando llegó después de nacer esta
    *  (acumulación de evidencia al cerrar cada iteración). Ausente en las que
    *  la motivaron al nacer. */
-  relacion?: 'apoya' | 'apoya_indirecta' | 'contradice';
+  relacion?: 'apoya' | 'apoya_indirecta' | 'contradice' | 'socava';
+  /** Si socava: el afirmacionId del apoyo cuyo método o inferencia ataca. */
+  socavaA?: string | null;
+  /** Afirmaciones que socavan a esta; el techo GRADE no la cuenta mientras las tenga. */
+  socavadaPor?: string[];
   /** Iteración en la que se le añadió, si llegó después. */
   iteracion?: number;
   /** Por qué el modelo la relacionó así (población, marcador, sentido). */
@@ -983,6 +989,8 @@ export interface Partido {
   resultado: 'gano' | 'perdio' | 'tablas';
   resumenDebate: string;
   ejeDecisivo: 'correccion' | 'utilidad' | 'especificidad' | 'novedad' | 'deseabilidad';
+  /** Qué son una respecto a la otra según el juez (fusión de ramas). */
+  relacion?: 'distintas' | 'equivalentes' | 'a_subsume_b' | 'b_subsume_a' | 'incompatibles';
 }
 
 export interface Replicacion {
@@ -1180,6 +1188,15 @@ export interface VersionHipotesis {
   mecanismo: string;
   comprobacion: { biomarcador: string; cohorte: string; diseno: string };
   tarjeta: TarjetaHipotesis | null;
+  /** Qué cambió respecto a la versión siguiente, campo a campo (rosa/registro.py). */
+  cambios?: { campo: string; antes: string; despues: string }[];
+  /** Instantánea del estado de la evidencia cuando se cerró esta versión. */
+  certeza?: string | null;
+  direccion?: string | null;
+  nAfirmaciones?: number;
+  nFuentes?: number;
+  decisionKiller?: DecisionKiller | null;
+  elo?: number;
 }
 
 /** Decisiones que toma el Hypothesis Killer (ROSA2018, etapa 4). El
@@ -1223,7 +1240,16 @@ export interface Decision {
 /** Bloqueos no compensables de la priorizacion (ROSA2018, etapa 8): uno
  *  solo basta para sacar la hipotesis de los candidatos, puntue lo que
  *  puntue en lo demas. */
-export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada' | 'revision_registro_abierta';
+export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada' | 'revision_registro_abierta' | 'dependencia_pendiente';
+
+/** Propagación de dependencias (rosa/dependencias.py): algo de lo que esta pieza
+ *  depende cambió y nadie la volvió a revisar. Se levanta al atenderla. */
+export interface PendienteRevision {
+  causa: 'fuente_retractada' | 'hecho_sustituido' | 'hecho_contradicho' | 'hipotesis_reformulada' | 'fuente_corregida';
+  detalle: string;
+  origenId: string;
+  desde: number;
+}
 
 /** Una publicación que apareció después de la última comprobación de vigilancia. */
 export interface NovedadVigilada {
@@ -1319,6 +1345,18 @@ export interface Hipotesis {
   /** Fuerza de Bradley-Terry en escala Elo con intervalo del 95 % por bootstrap
    *  de los partidos. Es lo que ordena a las candidatas; el Elo es la vista. */
   bt?: { fuerza: number; ic95: [number, number]; partidos: number };
+  /** Grafo de evidencia (rosa/argumentacion.py): con quién no puede ser cierta a la
+   *  vez, declarado por el juez o deducido por signo opuesto en la misma arista causal. */
+  ataca?: { hipotesisId: Id; motivo: 'contradiccion_declarada' | 'mismo_mecanismo_direccion_opuesta'; detalle: string }[];
+  /** Candidatas con las que está en conflicto (se marca, no se descarta). */
+  conflictoCon?: Id[];
+  enExtensionFundamentada?: boolean;
+  /** Fusión de ramas por torneo: con quién es redundante, qué absorbió, en quién se fusionó. */
+  redundanteCon?: Id[];
+  absorbe?: Id[];
+  fusionadaEn?: Id | null;
+  fusionPropuesta?: { con: Id; relacion: 'equivalentes' | 'a_subsume_b' | 'b_subsume_a'; motivo: string; propuestaEn: number } | null;
+  pendienteRevision?: PendienteRevision | null;
   /** Evidencia acumulada de los analisis validos con e-valores (producto de
    *  kappa p^(kappa-1)); rechaza la nula al nivel alfa si llega a 1/alfa. */
   evidenciaSecuencial?: { eAcumulado: number; pruebas: { ejecucionId: Id; p: number; e: number }[]; alfa: number; kappa: number; rechazaNula: boolean } | null;
@@ -1372,6 +1410,7 @@ export interface PlanAnalisis {
   autor: string;
   /** Si es una reproduccion de un analisis publicado, su id. */
   reproduccionId: Id | null;
+  pendienteRevision?: PendienteRevision | null;
 }
 
 export type EstadoEjecucion = 'no_ejecutado' | 'en_curso' | 'error_tecnico' | 'completado' | 'tiempo_agotado';
@@ -1463,6 +1502,8 @@ export interface CambioAprendizaje {
   origen: string;
   estado: 'aplicado' | 'propuesto' | 'evaluado' | 'promovido' | 'revertido';
   evaluacion: { conjunto: string; casos: number; antes: number | null; despues: number | null; nota: string } | null;
+  /** Motivo y riesgo que dio la meta-campaña (origen 'arnes:<corrida>'), aparte de la descripción que se evalúa. */
+  nota?: string;
   quien: string;
   fecha: number;
   resueltoEn: number | null;
@@ -1561,14 +1602,47 @@ export interface HechoMundo {
   /** Identificadores canonicos de lo que nombra el hecho. */
   entidades?: EntidadCanonica[];
   estado: EstadoHecho;
-  /** Lo que dice la fuente, separado de lo que infiere Rosa. */
-  origen: 'fuente' | 'inferencia';
+  /** Lo que dice la fuente, separado de lo que infiere Rosa; 'laboratorio' si
+   *  viene de un resultado de laboratorio evaluado contra el prerregistro. */
+  origen: 'fuente' | 'inferencia' | 'laboratorio';
   procedencia: ProcedenciaHecho[];
   motivoDescarte: string | null;
   actualizadoEn: number;
   prioridad: number;
   citas: CitaSobreHecho[];
   historial: MovimientoHecho[];
+  /** Grafo de evidencia: las afirmaciones (con fragmento y cita) que lo sostienen. */
+  afirmacionIds?: string[];
+  /** Hechos que este deja obsoletos, y quién lo dejó obsoleto a él. */
+  sustituyeA?: Id[];
+  sustituidoPor?: Id | null;
+  /** Cuestiones que este hecho responde y hechos con los que choca sin sustituirlos. */
+  resuelveA?: Id[];
+  contradiceA?: Id[];
+  /** Cuándo se cerró (sustituido o respondido); actualizadoEn no se toca. */
+  cerradoEn?: number | null;
+  pendienteRevision?: PendienteRevision | null;
+}
+
+/** Una cuestión abierta de la investigación (lo que rekursiv.ai llama Issue):
+ *  de dónde salió, qué la resolvería y a qué hipótesis y hechos toca. Vive en
+ *  estado.cuestiones y la mantiene rosa/cuestiones.py. */
+export interface Cuestion {
+  id: Id;
+  investigacionId: Id;
+  texto: string;
+  estado: 'abierta' | 'resuelta' | 'descartada';
+  origen: { tipo: 'pregunta_modelo' | 'killer' | 'revisor' | 'paso_fallido' | 'persona' | 'analisis' | 'laboratorio' | 'escalera'; id: string | null };
+  queLaResolveria: string;
+  hipotesisIds: Id[];
+  hechoIds: Id[];
+  prioridad: number;
+  creadaEn: number;
+  actualizadaEn: number;
+  resueltaEn: number | null;
+  resolucion: { por: string; motivo: string } | null;
+  veces: number;
+  historial: { fecha: number; de: string | null; a: string; quien: string; motivo: string }[];
 }
 
 /* ---------------------------------------------------------------------
@@ -1769,6 +1843,7 @@ export interface EstadoRosa {
   hipotesis: Hipotesis[];
   comentarios: Comentario[];
   hechos: HechoMundo[];
+  cuestiones?: Cuestion[];
   /** Lecciones por regla de cada investigación: lo que Rosa aprendió a no repetir. */
   lecciones?: Leccion[];
   /** Aristas tipadas del modelo de mundo: base curada del campo y la
@@ -1836,6 +1911,8 @@ export interface RelacionCausal {
   contexto: string;
   hipotesisId: Id | null;
   actualizadoEn: number;
+  /** '+' si X aumenta Y, '-' si lo disminuye, null si la hipótesis no lo dice. */
+  signo?: '+' | '-' | null;
 }
 
 /** Un panel de evaluacion: hipotesis reales con un fallo plantado (cifra

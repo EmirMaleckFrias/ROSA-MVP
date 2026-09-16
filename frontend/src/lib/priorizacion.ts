@@ -17,6 +17,7 @@ export const ETIQUETA_BLOQUEO: Record<Bloqueo, string> = {
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Depende de una fuente retractada',
   revision_registro_abierta: 'Hallazgo grave del revisor sin atender',
+  dependencia_pendiente: 'Depende de algo que cambió y no se revisó',
 };
 
 export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
@@ -27,6 +28,7 @@ export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
   descartada_por_killer: 'El Killer o una persona la descarto en este contexto.',
   fuente_retractada: 'Una de sus fuentes está retractada.',
   revision_registro_abierta: 'El revisor de registro encontró algo grave (un identificador que no está en el registro, una ejecución afirmada y no completada, un recuento que no cuadra) en el dossier o en la última iteración cerrada, y nadie lo atendió todavía.',
+  dependencia_pendiente: 'Algo de lo que depende cambió (una fuente se retractó, un hecho del modelo de mundo fue sustituido o contradicho) y Rosa todavía no volvió a concluirla ni una persona la revisó.',
 };
 
 type Estado = Pick<EstadoRosa, 'investigaciones' | 'planesAnalisis' | 'ejecuciones' | 'hipotesis'> & Partial<Pick<EstadoRosa, 'artefactos' | 'corridas' | 'iteraciones'>>;
@@ -58,6 +60,8 @@ export function bloqueosDe(estado: Estado, h: Hipotesis): Bloqueo[] {
   if (h.estado === 'descartada' || h.decisionKiller === 'descartar_en_contexto') b.push('descartada_por_killer');
   if (h.procedencia.fuentes.some((f) => f.retraccion === 'retractado')) b.push('fuente_retractada');
   if (revisionRegistroAbierta(estado, h)) b.push('revision_registro_abierta');
+  // Propagación de dependencias: misma regla que rosa/priorizacion.py.
+  if (h.pendienteRevision) b.push('dependencia_pendiente');
   return b;
 }
 

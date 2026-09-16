@@ -330,6 +330,15 @@ export const TIPO_ARTEFACTO: Record<TipoArtefacto, string> = {
    ROSA2018: Killer, decisiones, bloqueos, analisis, retorno, aprendizaje
    --------------------------------------------------------------------- */
 
+/** Qué son dos hipótesis una respecto a la otra según el juez del torneo (fusión de ramas). */
+export const RELACION_TORNEO: Record<'distintas' | 'equivalentes' | 'a_subsume_b' | 'b_subsume_a' | 'incompatibles', string> = {
+  distintas: 'distintas',
+  equivalentes: 'equivalentes: dicen lo mismo con otras palabras',
+  a_subsume_b: 'una es un caso particular de la otra',
+  b_subsume_a: 'una es un caso particular de la otra',
+  incompatibles: 'incompatibles: no pueden ser ciertas a la vez',
+};
+
 export const DECISION_KILLER: Record<DecisionKiller, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string }> = {
   avanzar: { etiqueta: 'Avanza', tono: 'ok', nota: 'Pasa las comprobaciones críticas y tiene predicción falsable. Puede ser candidata al laboratorio.' },
   reformular: { etiqueta: 'Reformular', tono: 'aviso', nota: 'Falla algo arreglable (causalidad, falsabilidad, factibilidad o redundancia). Rosa escribe una versión nueva y la vuelve a juzgar.' },
@@ -387,6 +396,7 @@ export const BLOQUEO: Record<Bloqueo, string> = {
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Fuente retractada',
   revision_registro_abierta: 'Hallazgo grave del revisor sin atender',
+  dependencia_pendiente: 'Depende de algo que cambió y no se revisó',
 };
 
 export const CLASE_EVIDENCIA: Record<ClaseEvidencia, { etiqueta: string; nota: string }> = {

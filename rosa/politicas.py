@@ -78,7 +78,7 @@ RESULTADOS_LABORATORIO = ("apoyo_reproducido", "negativo_interpretable", "inconc
 
 # Bloqueos no compensables: si uno se cumple, la hipotesis no entra al
 # ranking de candidatos aunque puntue alto en todo lo demas.
-BLOQUEOS = ("trazabilidad_insuficiente", "datos_no_autorizados", "analisis_invalido", "sin_experimento_interpretable", "descartada_por_killer", "fuente_retractada", "revision_registro_abierta")
+BLOQUEOS = ("trazabilidad_insuficiente", "datos_no_autorizados", "analisis_invalido", "sin_experimento_interpretable", "descartada_por_killer", "fuente_retractada", "revision_registro_abierta", "dependencia_pendiente")
 
 
 # Contexto que entra al prompt (politica de contexto, no constantes sueltas).

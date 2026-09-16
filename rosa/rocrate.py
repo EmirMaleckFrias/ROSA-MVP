@@ -77,7 +77,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
     grafo: list[dict[str, Any]] = []
     partes: list[dict[str, str]] = []
     acciones: list[dict[str, str]] = []
-    prov: dict[str, Any] = {"prefix": {"rosa": "https://rosa.alzheimer-project.org/", "prov": "http://www.w3.org/ns/prov#", "xsd": "http://www.w3.org/2001/XMLSchema#"}, "entity": {}, "activity": {}, "agent": {}, "used": {}, "wasGeneratedBy": {}, "wasAssociatedWith": {}, "wasDerivedFrom": {}, "wasAttributedTo": {}}
+    prov: dict[str, Any] = {"prefix": {"rosa": "https://rosa.alzheimer-project.org/", "prov": "http://www.w3.org/ns/prov#", "xsd": "http://www.w3.org/2001/XMLSchema#"}, "entity": {}, "activity": {}, "agent": {}, "used": {}, "wasGeneratedBy": {}, "wasAssociatedWith": {}, "wasDerivedFrom": {}, "wasAttributedTo": {}, "wasRevisionOf": {}}
 
     def fichero(nombre: str, contenido: bytes, tipo: str, props: dict[str, Any] | None = None) -> str:
         ficheros[nombre] = contenido
@@ -109,6 +109,17 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         rs = f.get("riesgoSesgo") or {}
         w.writerow([f.get("id"), f.get("referencia"), f.get("titulo"), f.get("anio"), f.get("doi"), f.get("pmid"), f.get("nct"), f.get("tipoEstudio"), f.get("nivelEvidencia"), f.get("cohorte"), f.get("retraccion"), rs.get("instrumento"), rs.get("global")])
     fichero("fuentes.csv", buf.getvalue().encode("utf-8"), "text/csv")
+
+    # Versiones de la hipótesis como revisiones PROV (rosa/registro.py): una entidad por
+    # versión y wasRevisionOf de la n+1 a la n, con qué cambió campo a campo.
+    from rosa import registro as REG
+
+    for i, rev in enumerate(REG.revisiones_prov(h)):
+        prov["entity"].setdefault(f"rosa:{rev['revisionDe']}", {"prov:type": "prov:Entity", "rosa:version": rev["revisionDe"].rsplit("-v", 1)[-1]})
+        prov["entity"].setdefault(f"rosa:{rev['entidad']}", {"prov:type": "prov:Entity", "rosa:version": rev["entidad"].rsplit("-v", 1)[-1]})
+        prov["wasRevisionOf"][f"_:rev-{i}"] = {"prov:generatedEntity": f"rosa:{rev['entidad']}", "prov:usedEntity": f"rosa:{rev['revisionDe']}", "rosa:fecha": _iso(rev.get("fecha")), "rosa:quien": rev.get("quien", ""), "rosa:motivo": (rev.get("motivo") or "")[:300], "rosa:cambios": [c["campo"] for c in rev.get("cambios", [])]}
+    if h.get("versiones"):
+        prov["wasRevisionOf"]["_:rev-actual"] = {"prov:generatedEntity": "rosa:hipotesis.json", "prov:usedEntity": f"rosa:hipotesis-{h['id']}-v{h.get('version', 1)}"}
 
     # Decisiones del Killer y de personas como acciones.
     for i, d in enumerate(decisiones):

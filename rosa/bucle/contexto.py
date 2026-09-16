@@ -161,11 +161,47 @@ async def modelo_de_mundo_para(almacen: Any, investigacion_id: str, consulta: st
         if h["id"] not in ya:
             elegidos.append(h)
             ya.add(h["id"])
-    cuerpo = "\n".join(_linea_hecho(h, origen_de_heredado(h, por_id, investigaciones) if es_heredado(h) else None) for h in elegidos)
-    return mapa_del_modelo(propios, por_id, investigaciones) + f"\n\nHechos pertinentes ({len(elegidos)} de {len(propios)}, {modo}):\n" + cuerpo
+    # Vecinos del grafo (rosa/grafo.py): qué hipótesis respalda cada hecho elegido.
+    vecinos = _hipotesis_por_hecho(e, investigacion_id, elegidos)
+    cuerpo = "\n".join(_linea_hecho(h, origen_de_heredado(h, por_id, investigaciones) if es_heredado(h) else None) + _sufijo_vecinos(vecinos.get(h["id"])) for h in elegidos)
+    texto = mapa_del_modelo(propios, por_id, investigaciones) + f"\n\nHechos pertinentes ({len(elegidos)} de {len(propios)}, {modo}):\n" + cuerpo
+    from rosa import cuestiones as CU
+
+    if CU.abiertas(e, investigacion_id, 1):
+        texto += "\n\n" + CU.texto_abiertas(e, investigacion_id, maximo=8)
+    return texto
 
 
-def preguntas_abiertas(hechos: list[dict[str, Any]], investigacion_id: str, objetivo: str, maximo: int = 8, pregunta: str | None = None) -> str:
+def _hipotesis_por_hecho(e: dict[str, Any], investigacion_id: str, hechos: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Títulos de las hipótesis vecinas de cada hecho en el grafo de la
+    investigación (arista 'respalda'). Si el grafo no se puede construir, vacío:
+    el modelo de mundo nunca se cae por los vecinos."""
+    if not hechos:
+        return {}
+    inv = next((i for i in e.get("investigaciones", []) if i["id"] == investigacion_id), None)
+    if not inv:
+        return {}
+    try:
+        from rosa import grafo as GR
+
+        g = GR.construir_cacheado(e, inv)
+        salida: dict[str, list[str]] = {}
+        for h in hechos:
+            vecinos = GR.vecinos_de(g, f"he-{h['id']}", tipos=("hipotesis",))
+            if vecinos:
+                salida[h["id"]] = [v["etiqueta"] for v in vecinos[:3]]
+        return salida
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _sufijo_vecinos(titulos: list[str] | None) -> str:
+    if not titulos:
+        return ""
+    return " → respalda: " + "; ".join(f"«{t[:60]}»" for t in titulos)
+
+
+def preguntas_abiertas(hechos: list[dict[str, Any]], investigacion_id: str, objetivo: str, maximo: int = 8, pregunta: str | None = None, cuestiones: list[dict[str, Any]] | None = None) -> str:
     """El criterio de relevancia: primero el objetivo y la pregunta de la
     corrida, después las preguntas abiertas propias por prioridad. Una
     pregunta heredada de otra investigación solo entra si nombra algo del
@@ -184,9 +220,17 @@ def preguntas_abiertas(hechos: list[dict[str, Any]], investigacion_id: str, obje
 
     heredadas = [h for h in abiertas if es_heredado(h) and pertinente(h)]
     elegidas = (propias + heredadas)[:maximo]
-    if not elegidas:
+    # Cuestiones persistentes (rosa/cuestiones.py) que no son preguntas del modelo de
+    # mundo (esas ya están arriba): lo que el Killer o la escalera piden, con lo que
+    # las resolvería, para que el cribado sepa qué artículo las cierra.
+    otras = [c for c in (cuestiones or []) if c.get("investigacionId") == investigacion_id and c.get("estado") == "abierta" and (c.get("origen") or {}).get("tipo") != "pregunta_modelo"]
+    otras.sort(key=lambda c: (c.get("prioridad", 5), c.get("creadaEn", 0)))
+    otras = otras[: max(0, maximo - len(elegidas))]
+    if not elegidas and not otras:
         return cabecera + "\nSin preguntas abiertas propias todavía."
-    return cabecera + "\nPreguntas abiertas:\n" + "\n".join(f"{i + 1}. {h['enunciado']}" + (" (heredada)" if es_heredado(h) else "") for i, h in enumerate(elegidas))
+    lineas = [f"{i + 1}. {h['enunciado']}" + (" (heredada)" if es_heredado(h) else "") for i, h in enumerate(elegidas)]
+    lineas += [f"{len(elegidas) + i + 1}. {c['texto']}" + (f" (la resolvería: {c['queLaResolveria']})" if c.get("queLaResolveria") else "") for i, c in enumerate(otras)]
+    return cabecera + "\nPreguntas abiertas:\n" + "\n".join(lineas)
 
 
 def terminos_registro(objetivo: str, pregunta: str | None = None, detalle: str = "", maximo: int = 3) -> list[str]:
@@ -206,6 +250,19 @@ def terminos_registro(objetivo: str, pregunta: str | None = None, detalle: str =
         if (tok.isupper() and len(tok) >= 3 and tok.lower() not in _GENERICAS) or (re.search(r"\d", tok) and re.search(r"[A-Za-z]", tok)):
             anadir(tok)
     return salida[:maximo]
+
+
+def hechos_numerados(hechos: list[dict[str, Any]], investigacion_id: str, maximo: int = 40) -> tuple[str, list[dict[str, Any]]]:
+    """Los hechos sabidos de la investigación, numerados, para que el paso de
+    modelo de mundo pueda decir cuál sustituye o contradice un hecho nuevo (el
+    mismo patrón que `afirmaciones_sostenidas`: el índice 1-based del modelo se
+    resuelve contra la lista devuelta). Primero los propios por prioridad y
+    fecha; los heredados se marcan."""
+    propios = [h for h in hechos if h.get("investigacionId") == investigacion_id and h.get("estado") == "sabido" and h.get("tipo") != "hipotesis"]
+    propios.sort(key=lambda h: (es_heredado(h), h.get("prioridad", 5), -(h.get("actualizadoEn") or 0)))
+    lista = propios[:maximo]
+    lineas = [f"{i + 1}. [{h.get('tema', '')}] {h.get('enunciado', '')}" + (" (heredado)" if es_heredado(h) else "") for i, h in enumerate(lista)]
+    return ("\n".join(lineas) if lineas else "Ninguno todavía."), lista
 
 
 def afirmaciones_sostenidas(afirmaciones: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
@@ -506,6 +563,22 @@ def traspaso_iteracion(e: dict[str, Any], it: dict[str, Any], c: dict[str, Any])
     abiertos = [hz for hz in ((it.get("revisionRegistro") or {}).get("hallazgos") or []) if hz.get("estado") == "abierto"]
     if abiertos:
         lineas.append("Hallazgos del revisor de registro abiertos: " + "; ".join(f"{str(hz.get('clase', '')).replace('_', ' ')}: {(hz.get('detalle') or '')[:100]}" for hz in abiertos[:5]))
+    # Cuestiones persistentes y pendientes de revisar (grafo de evidencia).
+    desde = it.get("empezadaEn") or 0
+    cuestiones = [x for x in e.get("cuestiones", []) if x.get("investigacionId") == c.get("investigacionId")]
+    nuevas_c = [x for x in cuestiones if (x.get("creadaEn") or 0) >= desde and x.get("estado") == "abierta"]
+    resueltas_c = [x for x in cuestiones if (x.get("resueltaEn") or 0) >= desde and x.get("estado") == "resuelta"]
+    if nuevas_c:
+        lineas.append("Cuestiones abiertas en la iteración: " + "; ".join(f"«{x['texto'][:80]}»" + (f" (la resolvería: {x['queLaResolveria'][:60]})" if x.get("queLaResolveria") else "") for x in nuevas_c[:5]))
+    if resueltas_c:
+        lineas.append("Cuestiones resueltas en la iteración: " + "; ".join(f"«{x['texto'][:80]}»" for x in resueltas_c[:5]))
+    try:
+        from rosa import dependencias as DEP
+
+        if DEP.pendientes(e, c.get("investigacionId")):
+            lineas.append(DEP.texto_pendientes(e, c.get("investigacionId"), maximo=5).replace("\n", "; "))
+    except Exception:  # noqa: BLE001
+        pass
     if not lineas:
         return "La iteración anterior no dejó pasos fallidos, consultas vacías, bases caídas ni hallazgos abiertos."
     return "\n".join(f"- {l}" for l in lineas)

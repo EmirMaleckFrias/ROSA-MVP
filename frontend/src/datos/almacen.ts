@@ -716,6 +716,37 @@ export const acciones = {
     aplicar((e) => A.revertirAprendizaje(e, cambioId, QUIEN, motivo, Date.now()));
     enviar('revertirAprendizaje', { cambio_id: cambioId, quien: QUIEN, motivo });
   },
+  /** Fusión de ramas: la ganadora hereda la evidencia de la absorbida. */
+  fusionarHipotesis: (ganadoraId: string, absorbidaId: string, motivo: string) => {
+    aplicar((e) => A.fusionarHipotesis(e, ganadoraId, absorbidaId, motivo, QUIEN, Date.now()));
+    enviar('fusionarHipotesis', { ganadora_id: ganadoraId, absorbida_id: absorbidaId, motivo, quien: QUIEN });
+  },
+  rechazarFusion: (hipotesisId: string) => {
+    aplicar((e) => A.rechazarFusion(e, hipotesisId, QUIEN, Date.now()));
+    enviar('rechazarFusion', { hipotesis_id: hipotesisId, quien: QUIEN });
+  },
+  /** Cuestiones persistentes de la investigación (rosa/cuestiones.py). */
+  abrirCuestion: (investigacionId: string, texto: string, queLaResolveria: string, hipotesisId: string | null = null) => {
+    aplicar((e) => A.abrirCuestion(e, investigacionId, texto, queLaResolveria, QUIEN, Date.now(), hipotesisId));
+    enviar('abrirCuestion', { investigacion_id: investigacionId, texto, que_la_resolveria: queLaResolveria, quien: QUIEN, hipotesis_id: hipotesisId });
+  },
+  resolverCuestion: (cuestionId: string, motivo: string) => {
+    aplicar((e) => A.resolverCuestion(e, cuestionId, motivo, QUIEN, Date.now()));
+    enviar('resolverCuestion', { cuestion_id: cuestionId, motivo, quien: QUIEN });
+  },
+  descartarCuestion: (cuestionId: string, motivo: string) => {
+    aplicar((e) => A.descartarCuestion(e, cuestionId, motivo, QUIEN, Date.now()));
+    enviar('descartarCuestion', { cuestion_id: cuestionId, motivo, quien: QUIEN });
+  },
+  reabrirCuestion: (cuestionId: string, motivo: string) => {
+    aplicar((e) => A.reabrirCuestion(e, cuestionId, motivo, QUIEN, Date.now()));
+    enviar('reabrirCuestion', { cuestion_id: cuestionId, motivo, quien: QUIEN });
+  },
+  /** Dar por revisado lo que la propagación de dependencias marcó como pendiente. */
+  atenderPendiente: (tipo: 'hipotesis' | 'hecho' | 'plan', id: string, nota: string) => {
+    aplicar((e) => A.atenderPendiente(e, tipo, id, QUIEN, nota, Date.now()));
+    enviar('atenderPendiente', { tipo, id_: id, quien: QUIEN, nota });
+  },
   /** Evaluar un criterio propuesto sobre el conjunto reservado. Solo con servidor: gasta llamadas al juez. */
   evaluarAprendizaje: (cambioId: string) => {
     enviar('evaluarAprendizaje', { cambio_id: cambioId });

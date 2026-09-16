@@ -27,6 +27,7 @@ import re
 from typing import Any
 
 from rosa import politicas
+from rosa import metodos as METODOS
 from rosa.priorizacion import cohortes_de
 
 BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")
@@ -51,24 +52,16 @@ AVISAN = ("independencia_cohortes",)
 CRITICAS = ("citas_reales", "fidelidad_evidencia", "supuestos", "falsabilidad", "novedad")
 CONSECUENCIA = {**{c: "descartar" for c in DESCARTAN}, **{c: "reformular" for c in REFORMULAN}, **{c: "suspender" for c in SUSPENDEN}, **{c: "avisar" for c in AVISAN}}
 
-# Cohortes del Alzheimer que Rosa reconoce en titulos y resumenes cuando el
+# Cohortes del Alzheimer que Rosa reconoce en títulos y resúmenes cuando el
 # extractor no la dijo. Comparar por nombre es la regla de Cochrane 7.2.2
-# (misma cohorte = mismo estudio); aqui solo se normaliza el nombre.
-COHORTES_CONOCIDAS = [
-    "ADNI", "BioFINDER", "A4", "AIBL", "ROSMAP", "MSBB", "Mayo", "NACC", "UK Biobank", "SEA-AD", "WRAP", "DIAN", "Knight ADRC", "BIOCARD", "ALFA", "Amsterdam Dementia Cohort",
-    "Gothenburg", "H70", "TRIAD", "MCSA", "Framingham", "Rotterdam", "PREVENT-AD", "HABS", "OASIS", "EPAD", "Sydney Memory", "Three-City", "Whitehall", "AMP-AD",
-]
+# (misma cohorte = mismo estudio). El catálogo canónico con alias vive en
+# rosa/metodos.py ("método como nodo"); aquí solo se conserva la lista de
+# etiquetas por compatibilidad y la función delega.
+COHORTES_CONOCIDAS = [c["etiqueta"] for c in METODOS.COHORTES]
 
 
 def cohorte_en_texto(texto: str) -> str:
-    t = texto or ""
-    m = re.search(r"\bNCT\d{8}\b", t)
-    if m:
-        return m.group(0)
-    for c in COHORTES_CONOCIDAS:
-        if re.search(r"(?<![A-Za-z])" + re.escape(c) + r"(?![A-Za-z])", t, re.I):
-            return c
-    return ""
+    return METODOS.cohorte_en_texto(texto)
 
 
 def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[dict[str, str]]:
@@ -126,7 +119,14 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     if len(fuentes) <= 1:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "falla" if fuentes else "no_aplica", "detalle": "Una sola fuente: no hay replicación independiente" if fuentes else "Sin fuentes"})
     elif len(cohortes) >= 2:
-        c.append({"comprobacion": "independencia_cohortes", "resultado": "pasa", "detalle": f"{len(cohortes)} cohortes distintas: " + ", ".join(cohortes)})
+        # Cohortes distintas, pero ¿misma plataforma de medida? La concordancia entre
+        # estudios no es independiente del instrumento (rosa/metodos.py).
+        try:
+            metodos = METODOS.resumen_metodos(fuentes)
+            aviso = " " + METODOS.texto_metodos(fuentes) if metodos.get("compartenPlataforma") else ""
+        except Exception:  # noqa: BLE001
+            aviso = ""
+        c.append({"comprobacion": "independencia_cohortes", "resultado": "pasa", "detalle": f"{len(cohortes)} cohortes distintas: " + ", ".join(cohortes) + aviso})
     elif len(cohortes) == 1 and len(grupos) == 1:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "falla", "detalle": f"Todas las fuentes con cohorte identificada salen de la misma ({cohortes[0]}): varias publicaciones no son varias evidencias"})
     elif len(grupos) == 1 and pistas_misma:
@@ -286,8 +286,8 @@ def posible_misma_cohorte(f1: dict[str, Any], f2: dict[str, Any]) -> str:
     de la misma muestra: dos o más autores comunes, o el mismo centro, y
     publicadas con pocos años de diferencia. Cadena vacía si no hay pista.
     Es una heurística: sirve para no contar dos veces, nunca para descartar."""
-    if any((f.get("cohorte") or "") for f in (f1, f2)) and (f1.get("cohorte") or "").lower() != (f2.get("cohorte") or "").lower():
-        return ""  # cohortes nombradas y distintas: son independientes
+    if METODOS.misma_cohorte(f1, f2) is False:
+        return ""  # cohortes nombradas y distintas (por catálogo canónico): son independientes
     a1 = {a.lower() for a in f1.get("autores") or []}
     a2 = {a.lower() for a in f2.get("autores") or []}
     comunes = sorted(a1 & a2)
@@ -317,8 +317,7 @@ def grupos_de_cohorte(fuentes: list[dict[str, Any]]) -> tuple[list[list[str]], l
     motivos: list[str] = []
     for i, f1 in enumerate(prim):
         for f2 in prim[i + 1 :]:
-            n1, n2 = (f1.get("cohorte") or "").lower(), (f2.get("cohorte") or "").lower()
-            if n1 and n1 == n2:
+            if METODOS.misma_cohorte(f1, f2) is True:
                 padre[raiz(f1["id"])] = raiz(f2["id"])
                 continue
             m = posible_misma_cohorte(f1, f2)

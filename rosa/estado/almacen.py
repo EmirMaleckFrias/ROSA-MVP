@@ -344,6 +344,31 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_conclusiones(estado)
     _migrar_experimentos(estado)
     _migrar_rosa2018(estado)
+    _migrar_grafo(estado)
+
+
+def _migrar_grafo(estado: dict[str, Any]) -> None:
+    """Claves del grafo de evidencia (16 de septiembre de 2026): enlaces entre
+    hechos y afirmaciones, cuestiones persistentes, ataques y fusiones entre
+    hipótesis, pendientes de revisar. Un estado guardado antes no las tiene."""
+    estado.setdefault("cuestiones", [])
+    for h in estado.get("hechos", []):
+        h.setdefault("citas", [])
+        h.setdefault("historial", [])
+        h.setdefault("afirmacionIds", [])
+        h.setdefault("sustituyeA", [])
+        h.setdefault("sustituidoPor", None)
+        h.setdefault("resuelveA", [])
+        h.setdefault("contradiceA", [])
+        h.setdefault("cerradoEn", None)
+    for h in estado.get("hipotesis", []):
+        h.setdefault("ataca", [])
+        h.setdefault("conflictoCon", [])
+        h.setdefault("redundanteCon", [])
+        h.setdefault("absorbe", [])
+        h.setdefault("fusionadaEn", None)
+        h.setdefault("fusionPropuesta", None)
+        h.setdefault("pendienteRevision", None)
 
 
 def _migrar_rosa2018(estado: dict[str, Any]) -> None:
@@ -547,6 +572,13 @@ _TABLA: dict[str, Callable] = {
     "pedirAnalisis": A.pedir_analisis,
     "promoverAprendizaje": A.promover_aprendizaje,
     "revertirAprendizaje": A.revertir_aprendizaje,
+    "fusionarHipotesis": A.fusionar_hipotesis,
+    "rechazarFusion": A.rechazar_fusion,
+    "abrirCuestion": A.abrir_cuestion,
+    "resolverCuestion": A.resolver_cuestion,
+    "descartarCuestion": A.descartar_cuestion,
+    "reabrirCuestion": A.reabrir_cuestion,
+    "atenderPendiente": A.atender_pendiente,
     "generarDossier": A.generar_dossier,
     "actualizarProcedenciaDataset": A.actualizar_procedencia_dataset,
     "evaluarAprendizaje": A.evaluar_aprendizaje,

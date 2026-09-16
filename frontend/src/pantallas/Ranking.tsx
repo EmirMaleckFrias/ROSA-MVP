@@ -52,6 +52,11 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
           <Chip tono="borde">{h.cluster}</Chip>
           {h.decisionKiller && <Chip tono={DECISION_KILLER[h.decisionKiller].tono}>Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}</Chip>}
           <Bloqueos bloqueos={bloqueosDe(estado, h)} candidata={h.candidata} />
+          {(h.conflictoCon?.length ?? 0) > 0 && (
+            <Chip tono="aviso" title={`No puede ser cierta a la vez que: ${h.conflictoCon!.map((id) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id).join('; ')}. Rosa lo marca; decide la persona.`}>
+              Se contradice con {h.conflictoCon!.length === 1 ? 'otra' : h.conflictoCon!.length}
+            </Chip>
+          )}
           <span title={pocos ? 'Con menos de 3 partidos el Elo dice poco' : ''} className={pocos ? 'tono-aviso' : ''}>
             {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}
           </span>

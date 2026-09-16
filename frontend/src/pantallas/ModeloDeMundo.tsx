@@ -47,7 +47,7 @@ function CitasDelHecho({ h }: { h: HechoMundo }) {
   );
 }
 
-function TarjetaHecho({ h, ahora, fuentes }: { h: HechoMundo; ahora: number; fuentes?: Map<string, Fuente> }) {
+function TarjetaHecho({ h, ahora, fuentes, porId }: { h: HechoMundo; ahora: number; fuentes?: Map<string, Fuente>; porId?: Map<string, HechoMundo> }) {
   return (
     <div className="hecho">
       <div className="hecho-cabecera">
@@ -79,11 +79,48 @@ function TarjetaHecho({ h, ahora, fuentes }: { h: HechoMundo; ahora: number; fue
       )}
       <CitasDelHecho h={h} />
       {h.motivoDescarte && <p className="hecho-motivo">{h.motivoDescarte}</p>}
+      <EnlacesDelHecho h={h} porId={porId} />
+      {h.pendienteRevision && (
+        <p className="hecho-pendiente">
+          <Chip tono="aviso" title="Algo de lo que este hecho depende cambió (una fuente se retractó, otro hecho lo sustituyó o lo contradijo). Rosa lo marca; una persona lo revisa.">
+            Pendiente de revisar
+          </Chip>{' '}
+          {h.pendienteRevision.detalle}{' '}
+          <button type="button" className="btn btn-s" onClick={() => acciones.atenderPendiente('hecho', h.id, 'revisado en el modelo de mundo')}>
+            Ya lo revisé
+          </button>
+        </p>
+      )}
       <span className="meta">
         <Momento t={h.actualizadoEn} ahora={ahora} />
         {h.historial.length > 1 && ` · ${h.historial.length} movimientos`}
+        {(h.afirmacionIds?.length ?? 0) > 0 && ` · ${h.afirmacionIds!.length} ${h.afirmacionIds!.length === 1 ? 'afirmación lo sostiene' : 'afirmaciones lo sostienen'}`}
       </span>
     </div>
+  );
+}
+
+/** Los enlaces del grafo entre hechos: a quién sustituye, quién lo sustituyó, qué
+ *  preguntas respondió y con qué choca. Un hecho sustituido no se borra: queda aquí. */
+function EnlacesDelHecho({ h, porId }: { h: HechoMundo; porId?: Map<string, HechoMundo> }) {
+  const nombre = (id: string) => porId?.get(id)?.enunciado.slice(0, 90) ?? id;
+  type Fila = { etiqueta: string; ids: string[]; tono: 'ok' | 'mal' | 'aviso' | 'borde' };
+  const todas: Fila[] = [
+    { etiqueta: 'Sustituye a', ids: h.sustituyeA ?? [], tono: 'borde' },
+    { etiqueta: 'Sustituido por', ids: h.sustituidoPor ? [h.sustituidoPor] : [], tono: 'aviso' },
+    { etiqueta: 'Responde a', ids: h.resuelveA ?? [], tono: 'ok' },
+    { etiqueta: 'Choca con', ids: h.contradiceA ?? [], tono: 'mal' },
+  ];
+  const filas = todas.filter((f) => f.ids.length > 0);
+  if (filas.length === 0) return null;
+  return (
+    <ul className="hecho-enlaces">
+      {filas.map((f) => (
+        <li key={f.etiqueta}>
+          <Chip tono={f.tono}>{f.etiqueta}</Chip> {f.ids.map(nombre).join('; ')}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -100,6 +137,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
     return m;
   }, [estado.hipotesis, inv.id]);
   const propios = useMemo(() => estado.hechos.filter((h) => h.investigacionId === inv.id), [estado.hechos, inv.id]);
+  const porId = useMemo(() => new Map(propios.map((h) => [h.id, h])), [propios]);
   const temas = useMemo(() => [...new Set(propios.map((h) => h.tema))].sort(), [propios]);
   const q = busqueda.trim().toLowerCase();
   // Se busca tambien por identificador canonico y por alias (GFAP, P14136, HGNC:4235
@@ -283,7 +321,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                   <ListaAnimada className="mundo-tarjetas" como="ul">
                     {lista.map((h) => (
                       <ElementoAnimado key={h.id} como="li">
-                        <TarjetaHecho h={h} ahora={ahora} fuentes={fuentesPorId} />
+                        <TarjetaHecho h={h} ahora={ahora} fuentes={fuentesPorId}  porId={porId} />
                       </ElementoAnimado>
                     ))}
                   </ListaAnimada>

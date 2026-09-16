@@ -61,8 +61,8 @@ export function Verificacion({ afirmaciones, cobertura = null, ocultarCitas = fa
                   {a.relacion && (
                     <>
                       <br />
-                      <Chip tono={a.relacion === 'contradice' ? 'mal' : a.relacion === 'apoya' ? 'ok' : 'aviso'} title={`${a.motivoRelacion ?? ''}${a.iteracion ? ` Enlazada al cerrar la iteración ${a.iteracion}, después de nacer la hipótesis.` : ''}`.trim()}>
-                        {a.relacion === 'contradice' ? 'En contra' : a.relacion === 'apoya' ? 'A favor' : 'Apoyo indirecto'}
+                      <Chip tono={a.relacion === 'contradice' ? 'mal' : a.relacion === 'apoya' ? 'ok' : 'aviso'} title={`${a.motivoRelacion ?? ''}${a.relacion === 'socava' ? ' Ataca el método o la inferencia de otro apoyo de esta hipótesis, no la hipótesis; el apoyo socavado deja de contar para el techo de certeza.' : ''}${a.iteracion ? ` Enlazada al cerrar la iteración ${a.iteracion}, después de nacer la hipótesis.` : ''}`.trim()}>
+                        {a.relacion === 'contradice' ? 'En contra' : a.relacion === 'apoya' ? 'A favor' : a.relacion === 'socava' ? 'Socava un apoyo' : 'Apoyo indirecto'}
                       </Chip>
                     </>
                   )}

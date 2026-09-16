@@ -87,6 +87,9 @@ def estado_inicial() -> dict[str, Any]:
         "hipotesis": [],
         "comentarios": [],
         "hechos": [],
+        # Cuestiones persistentes por investigación (rosa/cuestiones.py): lo que está
+        # abierto, de dónde salió y qué lo resolvería.
+        "cuestiones": [],
         # Lecciones por regla: lo que la investigación aprendió a no repetir (rosa/lecciones.py).
         "lecciones": [],
         "evaluaciones": [],
@@ -306,12 +309,27 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         # Conectores: registro de consultas a bases y contexto de la diana.
         "consultas": [],
         "contextoBases": None,
+        # Grafo de evidencia (16 de septiembre de 2026): ataques declarados entre
+        # hipótesis (rosa/argumentacion.py), con quién está en conflicto entre las
+        # candidatas, con quién es redundante (fusión por torneo), qué absorbió y en
+        # quién se fusionó, y si depende de algo que cambió (rosa/dependencias.py).
+        "ataca": [],
+        "conflictoCon": [],
+        "redundanteCon": [],
+        "absorbe": [],
+        "fusionadaEn": None,
+        "fusionPropuesta": None,
+        "pendienteRevision": None,
     }
     h.update(campos)
     return h
 
 
-def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, estado: str, origen: str, procedencia: list[dict[str, Any]], ahora: int, prioridad: int = 5, motivo: str = "") -> dict[str, Any]:
+def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, estado: str, origen: str, procedencia: list[dict[str, Any]], ahora: int, prioridad: int = 5, motivo: str = "", afirmacion_ids: list[str] | None = None, citas: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Un hecho del modelo de mundo. `afirmacion_ids` son las afirmaciones (con su
+    fragmento y su cita) que lo sostienen; `citas` son las citas sobre el hecho al
+    estilo Scite (apoya, menciona, contrasta). Los enlaces entre hechos (sustituyeA,
+    sustituidoPor, resuelveA, contradiceA) los escribe el paso de modelo de mundo."""
     return {
         "id": nuevo_id("he"),
         "investigacionId": investigacion_id,
@@ -324,7 +342,13 @@ def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, est
         "motivoDescarte": None,
         "actualizadoEn": ahora,
         "prioridad": prioridad,
-        "citas": [],
+        "citas": list(citas or []),
+        "afirmacionIds": list(afirmacion_ids or []),
+        "sustituyeA": [],
+        "sustituidoPor": None,
+        "resuelveA": [],
+        "contradiceA": [],
+        "cerradoEn": None,
         "historial": [{"fecha": ahora, "de": None, "a": estado, "quien": config.QUIEN_ROSA, "motivo": motivo or "Añadido por Rosa"}],
     }
 

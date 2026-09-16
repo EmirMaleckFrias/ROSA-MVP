@@ -3908,6 +3908,46 @@ mark.fuerte {
   accent-color: var(--accent);
 }
 
+/* Profundidad hasta el dato (16 de septiembre de 2026): colores de los nodos
+   nuevos (afirmación con dato, análisis in silico, conjunto de datos, resultado
+   del laboratorio) y la escala secuencial del modo "Color por distancia al
+   dato". Un solo tono (verde azulado), más intenso cuanto más cerca de la
+   medición: 0 es la medición misma, 3 es a tres saltos o más; nulo es "sin
+   medición propia detrás". Cada tema tiene sus pasos: en oscuro el extremo
+   intenso es el claro. Rampas validadas con scripts/validate_palette.js de la
+   guía de visualización (luminosidad monótona, saltos >= 0,06 y contraste del
+   extremo claro >= 2:1 sobre la superficie de cada tema). */
+:root {
+  --grafo-afirmacion: #be185d;
+  --grafo-ejecucion: #0e7490;
+  --grafo-dataset: #4d7c0f;
+  --grafo-laboratorio: #115e59;
+  --grafo-dato-0: #134e4a;
+  --grafo-dato-1: #0f766e;
+  --grafo-dato-2: #0d9488;
+  --grafo-dato-3: #14b8a6;
+  --grafo-dato-nulo: #d6d3d1;
+}
+
+:root[data-theme='dark'] {
+  --grafo-afirmacion: #f472b6;
+  --grafo-ejecucion: #22d3ee;
+  --grafo-dataset: #a3e635;
+  --grafo-laboratorio: #2dd4bf;
+  --grafo-dato-0: #5eead4;
+  --grafo-dato-1: #14b8a6;
+  --grafo-dato-2: #0f766e;
+  --grafo-dato-3: #115e59;
+  --grafo-dato-nulo: #3f3f3c;
+}
+
+/* Muestra de la leyenda para "sin medición propia": gris con borde punteado, como el nodo. */
+.grafo-punto-nulo {
+  background: var(--grafo-dato-nulo);
+  border: 1.5px dashed var(--text-3);
+  box-sizing: border-box;
+}
+
 @media (max-width: 900px) {
   .grafo-marco {
     grid-template-columns: 1fr;
@@ -3934,6 +3974,17 @@ mark.fuerte {
 .aviso-conflicto.aviso-info {
   border-color: var(--accent-border);
   background: var(--accent-soft);
+}
+
+/* Grafo de evidencia en la ficha de la hipótesis: fusión propuesta, conflictos y pendientes. */
+.fusion-conflictos {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.fusion-conflictos .aviso-conflicto {
+  margin: 0;
 }
 
 /* ---------------------------------------------------------------------- 12
@@ -4352,4 +4403,53 @@ details.versiones > :not(summary) {
   line-height: 1.5;
   margin: 0;
   font-family: inherit;
+}
+
+/* Grafo de evidencia (16 de septiembre de 2026): cuestiones, enlaces entre hechos, versiones. */
+.cuestiones .cuestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.cuestiones .cuestion-cerrada {
+  opacity: 0.8;
+}
+
+.cuestion-nueva {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.cuestion-nueva input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.hecho-enlaces {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.hecho-pendiente {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+}
+
+.version-cambios {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+}
+
+.version-cambios s {
+  opacity: 0.7;
 }

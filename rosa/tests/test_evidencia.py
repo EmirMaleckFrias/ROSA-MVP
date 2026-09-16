@@ -50,8 +50,8 @@ def _preparar():
 
 
 class Rel:
-    def __init__(self, indice, relacion, motivo="por población y sentido"):
-        self.indice, self.relacion, self.motivo = indice, relacion, motivo
+    def __init__(self, indice, relacion, motivo="por población y sentido", socava_a=None):
+        self.indice, self.relacion, self.motivo, self.socava_a = indice, relacion, motivo, socava_a
 
 
 def _ctx(al, relaciones, llamadas, monkeypatch):
@@ -78,10 +78,10 @@ def test_acumula_por_terminos_sin_embeddings_y_sube_el_techo(monkeypatch):
         assert {a["afirmacionId"] for a in nuevas} == {"af-1", "af-2"} and {a["relacion"] for a in nuevas} == {"apoya", "contradice"}
         assert all(a["iteracion"] == 2 and a["cita"] == "[kim, resumen]" and a["cohorte"] == "ADNI" for a in nuevas)
         # La fuente entra en la procedencia con su cohorte: dos cohortes distintas, techo baja.
-        assert [f["id"] for f in h["procedencia"]["fuentes"]] == ["xie", "kim"] and PR.cohortes_de(h) == ["biocard", "adni"]
+        assert [f["id"] for f in h["procedencia"]["fuentes"]] == ["xie", "kim"] and PR.cohortes_de(h) == ["BIOCARD", "ADNI"]
         assert C.techo(h)[0] == "baja"
         assert "_conclusionIntentada" not in h and h["_evidenciaNueva"] == 2
-        assert any("2 afirmaciones nuevas enlazadas (1 a favor, 0 indirectas, 1 en contra), 1 fuentes nuevas" in x for x in h["procedencia"]["registro"])
+        assert any("2 afirmaciones nuevas enlazadas (1 a favor, 0 indirectas, 1 en contra, 0 que socavan un apoyo), 1 fuentes nuevas" in x for x in h["procedencia"]["registro"])
         assert any(ev["tipo"] == "revision_automatica" and "1 en contra" in ev["texto"] for ev in al.estado["eventos"])
         # Segunda pasada: nada nuevo que enlazar (ya las tiene), ninguna llamada más.
         r2 = asyncio.run(EV.acumular(ctx, 2))
@@ -118,3 +118,24 @@ def test_con_embeddings_elige_por_parecido_y_sin_pertinentes_no_toca_nada(monkey
 def test_afirmaciones_nuevas_filtra_lo_que_no_es_evidencia():
     c = {"_afirmaciones": [_af("a", "x", "f", ""), _af("b", "x", "f", "", veredicto="cita_no_resuelve"), _af("c", "x", "f", "", entidadDistinta=True), _af("d", "x", "f", "", sospechosoInyeccion=True), _af("e", "x", "f", "", iteracion=1), _af("g", "x", "f", "", sintetico=True)]}
     assert [a["id"] for a in EV.afirmaciones_nuevas(c, 2)] == ["a"]
+
+
+def test_socava_marca_el_apoyo_atacado_y_sin_destino_se_descarta(monkeypatch):
+    al = _preparar()
+    try:
+        llamadas = []
+        # af-1 socava el único apoyo existente (af-4, el 1 de la lista de apoyos); af-2 dice
+        # socava sin destino: no es evidencia y se queda fuera.
+        ctx = _ctx(al, [Rel(1, "socava", "la plataforma de BIOCARD no mide GFAP en plasma", socava_a=1), Rel(2, "socava", "sin destino")], llamadas, monkeypatch)
+        r = asyncio.run(EV.acumular(ctx, 2))
+        assert r["anadidas"] == 1 and r["socavan"] == 1 and r["enContra"] == 0
+        h = al.estado["hipotesis"][0]
+        nueva = next(a for a in h["afirmaciones"] if a.get("relacion") == "socava")
+        assert nueva["afirmacionId"] == "af-1" and nueva["socavaA"] == "af-4"
+        atacada = next(a for a in h["afirmaciones"] if a.get("afirmacionId") == "af-4")
+        assert atacada["socavadaPor"] == ["af-1"]
+        assert any("1 que socavan un apoyo" in x for x in h["procedencia"]["registro"])
+        # El apoyo socavado ya no es numerable como apoyo existente.
+        assert EV.apoyos_existentes(h) == []
+    finally:
+        al.cerrar()

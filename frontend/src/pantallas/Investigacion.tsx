@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { acciones } from '../datos/almacen';
-import type { Amplitud, Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
+import type { Amplitud, Cuestion, Dataset, EstadoRosa, Investigacion as Inv } from '../datos/tipos';
 import { Chip, Confirmar, Momento, Seccion } from '../componentes/piezas';
 import { ConocimientoOperativoDelLaboratorio, FormularioMision, Jerarquia, LibroDeProcedencia, MemoriaDelProyecto, PuertaYReproducciones, SubirDataset } from '../componentes/Rosa2018';
 import { AMBITO_LECCION, AMPLITUD, CLASIFICACION_DATOS, ESTADO_CORRIDA, ESTADO_INVESTIGACION } from '../lib/etiquetas';
@@ -365,6 +365,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
 
       <PuertaYReproducciones inv={inv} estado={estado} ahora={ahora} />
 
+      <Cuestiones inv={inv} estado={estado} />
       {(() => {
         const lecciones = (estado.lecciones ?? []).filter((l) => l.investigacionId === inv.id).sort((a, b) => (b.veces - a.veces) || (b.ultimaVez - a.ultimaVez));
         return lecciones.length > 0 ? (
@@ -427,5 +428,93 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         )}
       </Seccion>
     </div>
+  );
+}
+
+const ORIGEN_CUESTION: Record<Cuestion['origen']['tipo'], string> = {
+  pregunta_modelo: 'pregunta del modelo de mundo',
+  killer: 'lo pidió el Killer',
+  revisor: 'hallazgo del revisor',
+  paso_fallido: 'un paso que falló',
+  persona: 'la abrió una persona',
+  analisis: 'análisis',
+  laboratorio: 'laboratorio',
+  escalera: 'peldaño de la escalera de certeza',
+};
+
+/** Cuestiones persistentes (lo que rekursiv.ai llama Issues): qué está abierto, de
+ *  dónde salió y qué lo resolvería. Rosa las abre y las cierra; la persona también. */
+export function Cuestiones({ inv, estado }: { inv: Inv; estado: EstadoRosa }) {
+  const [texto, setTexto] = useState('');
+  const [resolveria, setResolveria] = useState('');
+  const [verResueltas, setVerResueltas] = useState(false);
+  const todas = (estado.cuestiones ?? []).filter((c) => c.investigacionId === inv.id);
+  const abiertas = todas.filter((c) => c.estado === 'abierta').sort((a, b) => a.prioridad - b.prioridad || a.creadaEn - b.creadaEn);
+  const cerradas = todas.filter((c) => c.estado !== 'abierta').sort((a, b) => (b.resueltaEn ?? b.actualizadaEn) - (a.resueltaEn ?? a.actualizadaEn));
+  const titulo = (id: string) => estado.hipotesis.find((h) => h.id === id)?.titulo ?? id;
+  return (
+    <Seccion detalle titulo={`Cuestiones abiertas (${abiertas.length})`} nota="Lo que la investigación tiene pendiente de responder, con su origen y lo que lo resolvería. Rosa las abre desde las preguntas del modelo de mundo, lo que pide el Killer y el peldaño siguiente de cada hipótesis; las cierra cuando un hecho nuevo las responde. Tú puedes abrir, resolver o descartar.">
+      {abiertas.length === 0 && <p className="meta">Ninguna cuestión abierta todavía.</p>}
+      <ul className="lista-limpia cuestiones">
+        {abiertas.slice(0, 40).map((c) => (
+          <li key={c.id} className="cuestion">
+            <div>
+              <Chip tono="borde" title="Prioridad 1 es lo más urgente">P{c.prioridad}</Chip> <span>{c.texto}</span>
+              <div className="meta">
+                {ORIGEN_CUESTION[c.origen.tipo]}
+                {c.hipotesisIds.length > 0 ? ` · sobre ${c.hipotesisIds.map(titulo).join('; ')}` : ''}
+                {c.veces > 1 ? ` · planteada ${c.veces} veces` : ''}
+                {c.queLaResolveria ? ` · la resolvería: ${c.queLaResolveria}` : ''}
+              </div>
+            </div>
+            <span className="acciones">
+              <Confirmar etiqueta="Resuelta" pregunta="La cuestión queda resuelta y deja de guiar la búsqueda." pedirTexto={{ etiqueta: 'Con qué se resolvió', marcador: 'El estudio X lo responde' }} onConfirmar={(m) => acciones.resolverCuestion(c.id, m)} />
+              <Confirmar etiqueta="Descartar" pregunta="La cuestión se descarta con un motivo y no se vuelve a plantear." pedirTexto={{ etiqueta: 'Motivo', marcador: 'No es pertinente para el objetivo' }} onConfirmar={(m) => acciones.descartarCuestion(c.id, m)} />
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="acciones cuestion-nueva"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          if (texto.trim() === '') return;
+          acciones.abrirCuestion(inv.id, texto, resolveria);
+          setTexto('');
+          setResolveria('');
+        }}
+      >
+        <input value={texto} onChange={(ev) => setTexto(ev.target.value)} placeholder="Abrir una cuestión: ¿qué falta por saber?" aria-label="Cuestión nueva" />
+        <input value={resolveria} onChange={(ev) => setResolveria(ev.target.value)} placeholder="Qué la resolvería (opcional)" aria-label="Qué la resolvería" />
+        <button type="submit" className="btn btn-s" disabled={texto.trim() === ''}>
+          Abrir
+        </button>
+      </form>
+      {cerradas.length > 0 && (
+        <button type="button" className="btn btn-s" onClick={() => setVerResueltas((v) => !v)}>
+          {verResueltas ? 'Ocultar' : 'Ver'} {cerradas.length} {cerradas.length === 1 ? 'resuelta o descartada' : 'resueltas o descartadas'}
+        </button>
+      )}
+      {verResueltas && (
+        <ul className="lista-limpia cuestiones">
+          {cerradas.slice(0, 40).map((c) => (
+            <li key={c.id} className="cuestion cuestion-cerrada">
+              <div>
+                <Chip tono={c.estado === 'resuelta' ? 'ok' : 'borde'}>{c.estado === 'resuelta' ? 'Resuelta' : 'Descartada'}</Chip> <span>{c.texto}</span>
+                <div className="meta">
+                  {c.resolucion ? `${c.resolucion.motivo}` : ''}
+                  {c.resueltaEn ? <> · <Momento t={c.resueltaEn} ahora={Date.now()} soloRelativo /></> : ''}
+                </div>
+              </div>
+              <span className="acciones">
+                <button type="button" className="btn btn-s" onClick={() => acciones.reabrirCuestion(c.id, 'reabierta por una persona')}>
+                  Reabrir
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Seccion>
   );
 }

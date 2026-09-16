@@ -115,6 +115,10 @@ class HechoPropuesto(BaseModel):
     tipo: Literal["hecho", "pregunta"]
     prioridad: int = Field(ge=1, le=9, description="1 es lo más urgente")
     afirmaciones: list[int] = Field(description="Índices de las afirmaciones sostenidas que lo respaldan; vacío si es pregunta")
+    resuelve: list[int] = Field(default_factory=list, description="Índices de las cuestiones abiertas (lista 'cuestiones_abiertas') que este hecho responde; vacío si ninguna")
+    sustituye: list[int] = Field(default_factory=list, description="Índices de los hechos existentes (lista 'hechos_existentes') que este hecho deja obsoletos porque los corrige o los precisa con evidencia más reciente; vacío si ninguno")
+    contradice: list[int] = Field(default_factory=list, description="Índices de los hechos existentes con los que este hecho choca sin sustituirlos (los dos quedan y la contradicción se anota); vacío si ninguno")
+    que_la_resolveria: str = Field(default="", description="Solo si es pregunta: qué dato, fuente o análisis concreto la cerraría")
 
 
 class HipotesisPropuesta(BaseModel):
@@ -145,6 +149,7 @@ class Comparacion(BaseModel):
     mejor: Literal["A", "B"]
     eje: Literal["correccion", "utilidad", "especificidad", "novedad", "deseabilidad"] = Field(description="El criterio que decidió")
     resumen: str = Field(description="Dos líneas de debate: que tiene una que no tiene la otra")
+    relacion: Literal["distintas", "equivalentes", "a_subsume_b", "b_subsume_a", "incompatibles"] = Field(default="distintas", description="Qué son una respecto a la otra: distintas (lo normal); equivalentes (dicen lo mismo con otras palabras: mismo marcador, misma población, mismo sentido); a_subsume_b o b_subsume_a (una es un caso particular de la otra); incompatibles (no pueden ser ciertas a la vez: mismo mecanismo o marcador con sentidos opuestos)")
 
 
 class Debilidad(BaseModel):
@@ -287,11 +292,18 @@ class ActualizarModeloDeMundo(dspy.Signature):
     """Actualizar el modelo de mundo con las afirmaciones sostenidas de la iteración.
     Proponer hechos nuevos (solo con respaldo en afirmaciones sostenidas, indicando cuales)
     y preguntas abiertas nuevas o repriorizadas. Nada de lo que ya está en el modelo se
-    repite. Lo que la fuente dice va como hecho; lo que Rosa infiere va como pregunta."""
+    repite. Lo que la fuente dice va como hecho; lo que Rosa infiere va como pregunta.
+    El modelo de mundo se mantiene, no solo crece: si una afirmación sostenida responde
+    una cuestión abierta, el hecho la señala en `resuelve`; si corrige o precisa un hecho
+    existente, lo señala en `sustituye` (el viejo queda como sustituido, no se borra); si
+    choca con uno sin sustituirlo, lo señala en `contradice`. Una pregunta nueva dice qué
+    dato la cerraría."""
 
     objetivo: str = dspy.InputField()
     modelo_de_mundo: str = dspy.InputField()
     afirmaciones_sostenidas: str = dspy.InputField(desc="Numeradas, con su cita")
+    hechos_existentes: str = dspy.InputField(desc="Hechos sabidos del modelo de mundo, numerados, a los que puede referirse `sustituye` y `contradice`")
+    cuestiones_abiertas: str = dspy.InputField(desc="Cuestiones abiertas de la investigación, numeradas, con lo que las resolvería; a ellas se refiere `resuelve`")
     hechos: list[HechoPropuesto] = dspy.OutputField()
 
 
@@ -339,6 +351,35 @@ class EvaluarSupuesto(dspy.Signature):
     supuesto: str = dspy.InputField()
     afirmaciones_sostenidas: str = dspy.InputField()
     evaluacion: SupuestoEvaluado = dspy.OutputField()
+
+
+class PropuestaArnes(BaseModel):
+    tipo: Literal["criterio", "politica"] = Field(description="criterio: una regla de revisión nueva para el Killer (se evalúa sola contra las decisiones humanas y se revierte si empeora); política: un cambio de política del bucle (presupuesto, amplitud, cuántas consultas, cuándo parar) que queda registrado para que una persona lo decida")
+    descripcion: str = Field(description="El cambio en una frase imperativa y comprobable, en castellano")
+    motivo: str = Field(description="Qué pasó en esta corrida que lo justifica: la lección, el fallo repetido o el hallazgo concreto, con su cifra")
+    riesgo: str = Field(description="Qué podría empeorar si se aplica (sesgo contra un tipo de hipótesis, menos amplitud, más coste)")
+
+
+class RevisarArnes(dspy.Signature):
+    """Meta-campaña al terminar una corrida: leer cómo rindió (peldaños de certeza
+    subidos y bajados por dólar, hipótesis que llegaron a baja o más, fallidos,
+    lecciones, hallazgos del revisor) y proponer como mucho tres cambios del arnés
+    que la harían rendir más la próxima vez. Cada propuesta cita la evidencia de esta
+    corrida; nada de generalidades. No se proponen cambios de prompts (eso lo hace otra
+    pieza, la optimización de programas) ni quitar comprobaciones del Killer: solo
+    criterios de revisión nuevos o políticas del bucle. Si la corrida rindió bien y no
+    hay nada que cambiar, la lista va vacía y el diagnóstico lo dice."""
+
+    objetivo: str = dspy.InputField()
+    metrica: str = dspy.InputField(desc="La métrica única de la corrida y su balance en una línea")
+    progreso: str = dspy.InputField(desc="Por iteración: peldaños subidos y bajados, hechos nuevos, fallidos, gasto acumulado")
+    lecciones: str = dspy.InputField(desc="Lo que la investigación aprendió a no repetir, por ámbito")
+    hallazgos_revisor: str = dspy.InputField(desc="Hallazgos del revisor de registro en las iteraciones de la corrida, por clase")
+    criterios_actuales: str = dspy.InputField(desc="Los criterios de revisión que el Killer ya aplica")
+    politicas_actuales: str = dspy.InputField(desc="Las políticas del bucle vigentes")
+    arnes: str = dspy.InputField(desc="Commit, hash de las firmas y programas optimizados con los que corrió")
+    diagnostico: str = dspy.OutputField(desc="Dos o tres frases en lenguaje corriente: por qué la corrida rindió lo que rindió")
+    propuestas: list[PropuestaArnes] = dspy.OutputField(desc="Entre cero y tres")
 
 
 class CompararHipotesis(dspy.Signature):
@@ -489,7 +530,8 @@ class ProponerExperimento(dspy.Signature):
 
 class RelacionEvidencia(BaseModel):
     indice: int = Field(description="Número de la afirmación candidata en la lista")
-    relacion: Literal["apoya", "apoya_indirecta", "contradice", "no_pertinente"] = Field(description="apoya: misma población, mismo marcador o intervención y mismo sentido que la hipótesis; apoya_indirecta: el mismo patrón en otra población, otro desenlace cercano o otra plataforma de medida (cuenta como evidencia indirecta, baja la certeza, no la dirección); contradice: misma población y marcador con el sentido contrario o sin el efecto; no_pertinente: no habla de lo que la hipótesis afirma aunque comparta palabras")
+    relacion: Literal["apoya", "apoya_indirecta", "contradice", "socava", "no_pertinente"] = Field(description="apoya: misma población, mismo marcador o intervención y mismo sentido que la hipótesis; apoya_indirecta: el mismo patrón en otra población, otro desenlace cercano o otra plataforma de medida (cuenta como evidencia indirecta, baja la certeza, no la dirección); contradice: misma población y marcador con el sentido contrario o sin el efecto; socava: no habla del sentido de la hipótesis sino que ataca el método o la inferencia de UNO de los apoyos ya presentes (la plataforma no mide eso, la cohorte no es la que dice, el análisis tenía fuga), y entonces `socava_a` dice cuál; no_pertinente: no habla de lo que la hipótesis afirma aunque comparta palabras")
+    socava_a: int | None = Field(default=None, description="Solo si relacion es socava: número del apoyo atacado en la lista `afirmaciones_existentes`")
     motivo: str = Field(description="Una frase: qué coincide o qué no (población, marcador, sentido)")
 
 
@@ -506,6 +548,7 @@ class AsignarEvidencia(dspy.Signature):
 
     hipotesis: str = dspy.InputField(desc="Título, enunciado, mecanismo y comprobación propuesta")
     afirmaciones: str = dspy.InputField(desc="Numeradas, con cita, cohorte y tipo")
+    afirmaciones_existentes: str = dspy.InputField(desc="Los apoyos que la hipótesis ya tiene, numerados, para señalar cuál socava una candidata; 'Ninguna' si no hay")
     relaciones: list[RelacionEvidencia] = dspy.OutputField(desc="Una entrada por afirmación candidata, en el mismo orden")
 
 
@@ -742,6 +785,7 @@ class RevisionKiller(BaseModel):
     alternativas: list[str] = Field(description="Explicaciones alternativas (causa inversa, confusor común, artefacto de medida) y que observación las distinguiria de la hipótesis. Al menos una")
     reformulacion_sugerida: str = Field(description="Si alguna comprobación reformulable falla: como habría que reescribir la hipótesis para que pase; vacío si no aplica")
     que_haria_falta: str = Field(description="Si algo quedo no_comprobable: que fuente o dato haria falta para evaluarla; vacio si nada")
+    contradice_a: list[str] = Field(default_factory=list, description="Ids (hip-...) de las otras hipótesis vivas con las que esta NO puede ser cierta a la vez (mismo mecanismo o marcador con sentido opuesto), copiados tal cual de la lista de hipótesis; vacío si ninguna. No es redundancia: dos hipótesis que dicen lo mismo no se contradicen")
     resumen: str = Field(description="Tres frases en lenguaje corriente: que pasa la hipótesis, que no, y que es lo más frágil")
 
 
@@ -1081,6 +1125,7 @@ class Programas:
         self.revisar_inicial = dspy.ChainOfThought(RevisarInicial)
         self.evaluar_supuesto = dspy.Predict(EvaluarSupuesto)
         self.comparar = dspy.ChainOfThought(CompararHipotesis)
+        self.revisar_arnes = dspy.ChainOfThought(RevisarArnes)
         self.meta = dspy.ChainOfThought(MetaRevisar)
         self.aclarar = dspy.ChainOfThought(AclararHipotesis)
         self.responder = dspy.ChainOfThought(ResponderComentarios)

@@ -32,6 +32,8 @@ from rosa import ontologias as ONTO
 from rosa import politicas
 from rosa import sesgo as SESGO
 from rosa import config, politicas
+from rosa import cuestiones as CU
+from rosa import dependencias as DEP
 from rosa import causal as CAUSAL
 from rosa import conectores as CON
 from rosa import killer as K
@@ -103,7 +105,7 @@ def _pregunta_de(ctx: "Ctx") -> str | None:
 def _criterio(ctx: "Ctx", inv: dict[str, Any]) -> str:
     """El criterio de relevancia de este paso: objetivo, pregunta de la corrida
     y preguntas abiertas propias (ver contexto.preguntas_abiertas)."""
-    return T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"], pregunta=_pregunta_de(ctx))
+    return T.preguntas_abiertas(ctx.e["hechos"], ctx.investigacion_id, inv["objetivo"], pregunta=_pregunta_de(ctx), cuestiones=ctx.e.get("cuestiones"))
 
 
 def destino_de_propuesta(afirmaciones: list[dict[str, Any]], fuentes: list[dict[str, Any]]) -> tuple[str, str, str]:
@@ -119,7 +121,7 @@ def _clave_articulo(a: dict[str, Any]) -> str:
         return f"doi:{str(a['doi']).lower()}"
     if a.get("pmid"):
         return f"pmid:{a['pmid']}"
-    return f"titulo:{V.normalizar(a.get('titulo') or '')}"
+    return f"título:{V.normalizar(a.get('titulo') or '')}"
 
 
 def _excluidos_previos(ctx: "Ctx", modo: str, relevancia_maxima: int) -> dict[str, dict[str, Any]]:
@@ -1050,6 +1052,15 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
             if not fuente.get("cohorte"):
                 dichas = [a["cohorte"] for a in nuevas if a.get("cohorte")]
                 fuente["cohorte"] = (max(set(dichas), key=dichas.count) if dichas else K.cohorte_en_texto(fuente.get("titulo", "") + " " + " ".join(fr.get("texto", "")[:600] for fr in fuente.get("fragmentos", [])[:1]))) or None
+            # Método como nodo (rosa/metodos.py): cohorte canónica, plataforma de medida y
+            # muestra reconocidas en título, fragmento y afirmaciones, con su origen.
+            try:
+                from rosa import metodos as METODOS
+
+                m_ = METODOS.metodo_de_fuente(fuente, nuevas)
+                fuente["metodo"] = {"cohorte": m_.get("cohorte"), "plataforma": m_.get("plataforma"), "muestra": m_.get("muestra"), "origen": m_.get("origen")}
+            except Exception:  # noqa: BLE001  el catálogo nunca tumba la extracción
+                pass
             c["busqueda"]["usados"] = len({a["fuenteId"] for a in c["_afirmaciones"]})
             return True
 
@@ -1189,20 +1200,28 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
         return "Sin afirmaciones sostenidas nuevas"
     pista.accion(f"Leyendo el modelo de mundo y {len(validas)} afirmaciones sostenidas o parciales")
     mundo = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv, texto[:1500]))
-    pred = await ctx.llamar("cerebro", ctx.programas.mundo, objetivo=inv["objetivo"], modelo_de_mundo=mundo, afirmaciones_sostenidas=texto)
+    # El modelo de mundo se mantiene, no solo crece: hechos existentes numerados (para
+    # sustituir o contradecir) y cuestiones abiertas numeradas (para resolver).
+    hechos_texto, hechos_lista = T.hechos_numerados(e["hechos"], ctx.investigacion_id)
+    cuestiones_texto, cuestiones_lista = CU.numeradas(e, ctx.investigacion_id)
+    pred = await ctx.llamar("cerebro", ctx.programas.mundo, objetivo=inv["objetivo"], modelo_de_mundo=mundo, afirmaciones_sostenidas=texto, hechos_existentes=hechos_texto, cuestiones_abiertas=cuestiones_texto)
     ahora = P.ahora_ms()
     fuentes = ctx.fuentes()
     anadidos = 0
     preguntas = 0
+    sustituidos = 0
+    contradichos = 0
+    resueltas = 0
     # Genes nombrados en los hechos nuevos, resueltos en HGNC (con cache en el estado).
     cache_ent = dict(ctx.e.get("entidadesCache") or {})
     simbolos_nuevos = sorted({s_ for hp in pred.hechos for s_ in simbolos_de_genes(hp.enunciado)})[:12]
     genes_resueltos = await ONTO.normalizar(simbolos_nuevos, [], cache_ent) if simbolos_nuevos else []
 
     def aplicar(e2: dict[str, Any]) -> bool:
-        nonlocal anadidos, preguntas
+        nonlocal anadidos, preguntas, sustituidos, contradichos, resueltas
         e2["entidadesCache"] = {k: v for k, v in list(cache_ent.items())[-2000:]}
         existentes = {V.normalizar(h["enunciado"]) for h in e2["hechos"] if h["investigacionId"] == ctx.investigacion_id}
+        por_id = {h["id"]: h for h in e2["hechos"]}
         for hp in pred.hechos:
             if V.normalizar(hp.enunciado) in existentes:
                 continue
@@ -1210,6 +1229,7 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
             if hp.tipo == "hecho" and not respaldo:
                 continue  # un hecho sin afirmacion sostenida no entra
             procedencia = []
+            citas = []
             for a in respaldo:
                 if a["fuenteId"] not in fuentes:
                     continue
@@ -1217,7 +1237,13 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
                 entrada = {"fuenteId": a["fuenteId"], "referencia": fuentes[a["fuenteId"]]["referencia"], "pagina": int(m.group(1)) if m else None}
                 if entrada not in procedencia:
                     procedencia.append(entrada)
-            h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteración {ctx.numero}")
+                # Cita sobre el hecho (patrón Scite): la referencia, la sección leída y el
+                # fragmento que lo sostiene. La página solo si el localizador la trae.
+                cita = {"referencia": fuentes[a["fuenteId"]]["referencia"], "seccion": a.get("localizador") or "", "clasificacion": "apoya", "fragmento": (a.get("fragmento") or "")[:300]}
+                if not any(c_["referencia"] == cita["referencia"] and c_["seccion"] == cita["seccion"] for c_ in citas):
+                    citas.append(cita)
+            h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteración {ctx.numero}",
+                              afirmacion_ids=[a["id"] for a in respaldo if a.get("id")], citas=citas)
             # Entidades canonicas del hecho: diccionario curado mas los genes que HGNC
             # resolvio (cache `entidadesCache` del estado). Con ellas el modelo de mundo
             # se puede consultar y deduplicar por identificador, no por cadena.
@@ -1226,21 +1252,65 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
             if ids_nuevo and any(len(ids_nuevo & ONTO.ids_de(x.get("entidades"))) >= 2 and V.normalizar(x["enunciado"])[:40] == V.normalizar(hp.enunciado)[:40] for x in e2["hechos"] if x["investigacionId"] == ctx.investigacion_id):
                 continue  # mismo comienzo y mismas entidades canonicas: es el mismo hecho con otras palabras
             e2["hechos"].append(h)
+            por_id[h["id"]] = h
             existentes.add(V.normalizar(hp.enunciado))
             if hp.tipo == "hecho":
                 anadidos += 1
                 A.con_evento(e2, ctx.investigacion_id, "hecho_nuevo", f"Hecho nuevo: {hp.enunciado[:120]}", f"#/investigaciones/{ctx.investigacion_id}/mundo", ahora)
+                # Sustituye: el viejo queda como sustituido (descartado con motivo, sin
+                # tocar actualizadoEn) y lo que dependía de él pasa a pendiente de revisar.
+                for i in list(getattr(hp, "sustituye", []) or []):
+                    if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
+                        continue
+                    viejo = por_id.get(hechos_lista[i - 1]["id"])
+                    if not viejo or viejo["id"] == h["id"] or viejo.get("estado") != "sabido":
+                        continue
+                    viejo["estado"] = "descartado"
+                    viejo["motivoDescarte"] = f"Sustituido en la iteración {ctx.numero} por un hecho más reciente: {hp.enunciado[:160]}"
+                    viejo["sustituidoPor"] = h["id"]
+                    viejo["cerradoEn"] = ahora
+                    viejo.setdefault("historial", []).append({"fecha": ahora, "de": "sabido", "a": "descartado", "quien": config.QUIEN_ROSA, "motivo": viejo["motivoDescarte"]})
+                    h["sustituyeA"].append(viejo["id"])
+                    sustituidos += 1
+                    DEP.propagar_sustitucion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
+                # Contradice: los dos quedan, la contradicción se anota como cita
+                # "contrasta" sobre el viejo y sus dependientes pasan a pendiente.
+                for i in list(getattr(hp, "contradice", []) or []):
+                    if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
+                        continue
+                    viejo = por_id.get(hechos_lista[i - 1]["id"])
+                    if not viejo or viejo["id"] == h["id"] or viejo["id"] in h["sustituyeA"]:
+                        continue
+                    h["contradiceA"].append(viejo["id"])
+                    viejo.setdefault("citas", []).append({"referencia": (citas[0]["referencia"] if citas else f"hecho {h['id']}"), "seccion": (citas[0]["seccion"] if citas else ""), "clasificacion": "contrasta", "fragmento": hp.enunciado[:300]})
+                    contradichos += 1
+                    DEP.propagar_contradiccion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
+                # Resuelve: cierra las cuestiones señaladas; si una era una pregunta del
+                # modelo de mundo, la pregunta pasa a sabida (respondida).
+                ids_resueltas = CU.cerradas_por_hecho(e2, ctx.investigacion_id, h, list(getattr(hp, "resuelve", []) or []), cuestiones_lista, ahora)
+                for cid in ids_resueltas:
+                    c_ = CU.buscar(e2, cid)
+                    for hid in (c_ or {}).get("hechoIds", []):
+                        preg = por_id.get(hid)
+                        if preg and preg.get("tipo") == "pregunta" and preg.get("estado") == "abierto":
+                            preg["estado"] = "sabido"
+                            preg["cerradoEn"] = ahora
+                            preg.setdefault("historial", []).append({"fecha": ahora, "de": "abierto", "a": "sabido", "quien": config.QUIEN_ROSA, "motivo": f"Respondida en la iteración {ctx.numero} por el hecho: {hp.enunciado[:160]}"})
+                            h["resuelveA"].append(hid)
+                resueltas += len(ids_resueltas)
             else:
                 preguntas += 1
+                # La pregunta también es una cuestión persistente, con lo que la resolvería.
+                CU.desde_pregunta_hecho(e2, h, getattr(hp, "que_la_resolveria", "") or "", ahora)
         return True
 
     ctx.mutar(aplicar, "modelo_de_mundo")
-    pista.resultado(f"{anadidos} hechos y {preguntas} preguntas nuevas")
+    pista.resultado(f"{anadidos} hechos y {preguntas} preguntas nuevas" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else ""))
     # Instantanea del modelo de mundo como artefacto.
     contenido = "# Modelo de mundo\n\n" + T.modelo_de_mundo(ctx.e["hechos"], ctx.investigacion_id, maximo=500, investigaciones=ctx.e["investigaciones"])
     ctx.mutar(lambda e2: A.guardar_artefacto(e2, ctx.investigacion_id, "Modelo de mundo", "modelo_mundo", contenido, f"Iteración {ctx.numero}: {anadidos} hechos y {preguntas} preguntas nuevas", ctx.numero, ahora), "artefacto")
-    pista.cerrar(f"{anadidos} hechos, {preguntas} preguntas")
-    return f"{anadidos} hechos y {preguntas} preguntas nuevas en el modelo de mundo"
+    pista.cerrar(f"{anadidos} hechos, {preguntas} preguntas" + (f", {sustituidos} sustituidos" if sustituidos else "") + (f", {resueltas} cuestiones resueltas" if resueltas else ""))
+    return f"{anadidos} hechos y {preguntas} preguntas nuevas en el modelo de mundo" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else "")
 
 
 # ---------------------------------------------------------------------------
@@ -1397,10 +1467,14 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     # comparten dos o mas entidades canonicas hablan quiza de lo mismo con otras
     # palabras; el juez lo recibe como pista, no como veredicto.
     await _anotar_entidades(ctx, h)
+    # Con quién es redundante (ids): el torneo les fuerza un partido dirimente y,
+    # si el juez las declara equivalentes, se fusionan (fusión de ramas).
+    redundantes_ids: list[str] = []
     if not any(c["comprobacion"] == "redundancia" for c in deterministas):
         parecidas = [(x, ONTO.comparten(h.get("entidades"), x.get("entidades"))) for x in e["hipotesis"] if x["id"] != h["id"] and x["investigacionId"] == h["investigacionId"] and x["estado"] != "descartada"]
         parecidas = [(x, c) for x, c in parecidas if c]
         if parecidas:
+            redundantes_ids += [x["id"] for x, _ in parecidas[:3]]
             deterministas.append({"comprobacion": "redundancia", "resultado": "no_comprobable", "detalle": "Comparte entidades canónicas con: " + "; ".join(f"{x['titulo'][:60]} ({', '.join(c)})" for x, c in parecidas[:3]) + ". El juez decide si es la misma hipótesis con otras palabras."})
     # Redundancia por significado (índice semántico): también contra las
     # descartadas, porque repetir una descartada con otras palabras es el
@@ -1413,6 +1487,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             if pista:
                 pista.nota(f"Índice semántico sin respuesta: {str(ex)[:80]}")
         if semejantes:
+            redundantes_ids += [x["id"] for x in semejantes[:3] if x.get("id") and x.get("estado") != "descartada"]
             resultado = "falla" if any(x["estado"] == "descartada" and x["similitud"] >= 0.95 for x in semejantes) else "no_comprobable"
             deterministas.append({"comprobacion": "redundancia", "resultado": resultado, "detalle": "Por significado se parece a: " + "; ".join(f"{x['titulo'][:60]} (similitud {x['similitud']:.2f}, {x['estado']}{', Killer: ' + x['decisionKiller'] if x.get('decisionKiller') else ''})" for x in semejantes[:3]) + (". Repite casi literalmente una hipótesis ya descartada." if resultado == "falla" else ". El juez decide si es la misma hipótesis con otras palabras.")})
     # Riesgo de sesgo por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE):
@@ -1448,12 +1523,14 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         rev = pred.revision
         del_juez = [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in rev.comprobaciones]
         resumen, sugerida, falta, alternativas, invalidante = rev.resumen.strip(), rev.reformulacion_sugerida.strip(), rev.que_haria_falta.strip(), list(rev.alternativas)[:4], rev.supuesto_invalidante.strip()
+        contradice_a = [c.strip() for c in (getattr(rev, "contradice_a", None) or []) if isinstance(c, str) and c.strip()][:6]
     except PresupuestoAgotado:
         raise
     except Exception as ex:  # noqa: BLE001
         if pista:
             pista.error(f"El Killer no respondió para {h['titulo'][:50]}: {str(ex)[:100]}; la hipótesis queda suspendida hasta la siguiente revisión")
         del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondió: {str(ex)[:120]}", "", "Repetir la revisión cuando el modelo responda", [], ""
+        contradice_a = []
     comprobaciones = K.fusionar(deterministas, del_juez)
     # El supuesto invalidante del juez solo tumba si algun supuesto esta contradicho
     # de verdad; si no, es un aviso de lo que haria falta comprobar.
@@ -1491,6 +1568,16 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         if regresion:
             d["regresion"] = regresion
         x["decisionKiller"] = decision
+        # Grafo de evidencia: con quién es redundante (partido dirimente en el torneo)
+        # y a quién contradice según el juez (ataque declarado; rosa/argumentacion.py
+        # calcula con ello qué candidatas no pueden ser ciertas a la vez).
+        vivas_ids = {y["id"] for y in e2["hipotesis"] if y["investigacionId"] == x["investigacionId"] and y["estado"] != "descartada" and y["id"] != x["id"]}
+        x["redundanteCon"] = sorted({i for i in redundantes_ids if i in vivas_ids})
+        if falta and decision in ("suspender", "reformular", "avanzar"):
+            CU.desde_killer(e2, x, falta, ahora)
+        for objetivo in contradice_a:
+            if objetivo in vivas_ids and not any(t.get("hipotesisId") == objetivo for t in x.setdefault("ataca", [])):
+                x["ataca"].append({"hipotesisId": objetivo, "motivo": "contradiccion_declarada", "detalle": f"El Killer (v{version_juzgada}) la declaró incompatible con {objetivo}: {resumen[:160]}"})
         # Motor causal minimo: grafo local tipado e identificacion por regla, con
         # las alternativas del Killer como nodos. Entra al modelo de mundo como arista.
         indep = next((c["resultado"] for c in comprobaciones if c["comprobacion"] == "independencia_cohortes"), None)
@@ -1670,7 +1757,10 @@ async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: st
 async def _torneo(ctx: Ctx, pista: Pista) -> int:
     inv = ctx.inv()
     propias = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id]
-    pares = torneo.emparejar(propias, maximo=6, semilla=ctx.numero)
+    # Pares forzados: las que el Killer marcó como redundantes juegan un partido
+    # dirimente (fusión de ramas por torneo, rosa/torneo.py).
+    forzados = [(h["id"], r) for h in propias if h["estado"] != "descartada" for r in (h.get("redundanteCon") or []) if not any(p.get("rivalId") == r and p.get("relacion") for p in h.get("partidos", []))]
+    pares = torneo.emparejar(propias, maximo=6, semilla=ctx.numero, forzados=forzados)
     if not pares:
         pista.nota("Menos de dos hipótesis vivas: no hay torneo")
         return 0
@@ -1690,20 +1780,40 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
         gano_a_1 = p1.comparacion.mejor == "A"
         gano_a_2 = p2.comparacion.mejor == "B"  # en la segunda llamada A y B van invertidas
         gano_a: bool | None = gano_a_1 if gano_a_1 == gano_a_2 else None
+        # Qué son una respecto a la otra, solo si el juez lo dijo igual en las dos llamadas.
+        relacion = torneo.relacion_acordada(getattr(p1.comparacion, "relacion", None), getattr(p2.comparacion, "relacion", None))
+        ahora = P.ahora_ms()
 
         def aplicar(e: dict[str, Any]) -> bool:
             x = next(y for y in e["hipotesis"] if y["id"] == a["id"])
             y_ = next(y for y in e["hipotesis"] if y["id"] == b["id"])
-            torneo.registrar_partido(x, y_, gano_a, ctx.numero, p1.comparacion.resumen, p1.comparacion.eje)
+            torneo.registrar_partido(x, y_, gano_a, ctx.numero, p1.comparacion.resumen, p1.comparacion.eje, relacion)
             for r in x["revisionesAutomaticas"] + y_["revisionesAutomaticas"]:
                 if r["tipo"] == "torneo":
                     r["fecha"] = P.ahora_ms()
+            if relacion in ("equivalentes", "a_subsume_b", "b_subsume_a"):
+                # Fusión de ramas: la ganadora del partido hereda la evidencia. Con
+                # tablas, la de más Elo. Descartar hipótesis es una decisión de persona
+                # salvo que la autonomía diga "actuar" (misma regla que el Killer).
+                gana_x = gano_a if gano_a is not None else x["elo"] >= y_["elo"]
+                ganadora, absorbida = (x, y_) if gana_x else (y_, x)
+                motivo = f"El torneo las declaró {relacion.replace('_', ' ')} en las dos lecturas del juez: {p1.comparacion.resumen[:160]}"
+                if e["autonomia"].get("descartar_hipotesis") == "actuar":
+                    A.fusionar_hipotesis(e, ganadora["id"], absorbida["id"], motivo, config.QUIEN_ROSA, ahora)
+                else:
+                    absorbida["fusionPropuesta"] = {"con": ganadora["id"], "relacion": relacion, "motivo": motivo, "propuestaEn": ahora}
+                    A.con_evento(e, x["investigacionId"], "revision_automatica", f"Rosa propone fusionar '{absorbida['titulo'][:60]}' en '{ganadora['titulo'][:60]}' ({relacion.replace('_', ' ')}); decide la persona", f"#/investigaciones/{x['investigacionId']}/hipotesis/{absorbida['id']}", ahora)
+            elif relacion == "incompatibles":
+                # Ataque declarado en las dos direcciones (rosa/argumentacion.py lo lee).
+                for de, hacia in ((x, y_), (y_, x)):
+                    if not any(t.get("hipotesisId") == hacia["id"] for t in de.setdefault("ataca", [])):
+                        de["ataca"].append({"hipotesisId": hacia["id"], "motivo": "contradiccion_declarada", "detalle": f"El juez del torneo las declaró incompatibles en la iteración {ctx.numero}: {p1.comparacion.resumen[:160]}"})
             return True
 
         ctx.mutar(aplicar, "partido")
         jugados += 1
         resultado = "tablas" if gano_a is None else ("gana A" if gano_a else "gana B")
-        pista.resultado(f"{a['titulo'][:50]} vs {b['titulo'][:50]}: {resultado} por {p1.comparacion.eje}")
+        pista.resultado(f"{a['titulo'][:50]} vs {b['titulo'][:50]}: {resultado} por {p1.comparacion.eje}" + (f"; {relacion.replace('_', ' ')}" if relacion != "distintas" else ""))
         cambios.append(f"{a['titulo'][:40]} vs {b['titulo'][:40]}: {resultado}")
     if jugados:
         ctx.evento("ranking_cambio", f"Torneo de la iteración {ctx.numero}: {jugados} partidos", f"#/investigaciones/{ctx.investigacion_id}/ranking")

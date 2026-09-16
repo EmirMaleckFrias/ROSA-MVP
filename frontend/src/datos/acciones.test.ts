@@ -8,7 +8,17 @@ import {
   enmendarExperimento,
   registrarProtocoloReal,
   aprobarPlan,
+  abrirCuestion,
+  atenderPendiente,
   bifurcarInvestigacion,
+  copiarHechos,
+  descartarCuestion,
+  empeoraAlEvaluar,
+  fusionarHipotesis,
+  promoverAprendizaje,
+  rechazarFusion,
+  reabrirCuestion,
+  resolverCuestion,
   borrarCriterio,
   crearInvestigacion,
   decidirDataset,
@@ -401,5 +411,111 @@ describe('borrarCriterio', () => {
     expect(borrarCriterio(servidor, 1, 'b').criteriosRevision).toEqual(['c']);
     expect(borrarCriterio(servidor, 1).criteriosRevision).toEqual(['b']);
     expect(borrarCriterio(servidor, 5, 'zzz')).toBe(servidor);
+  });
+});
+
+describe('grafo de evidencia: fusión, herencia de enlaces y puerta al promover', () => {
+  it('fusionar hereda afirmaciones y fuentes sin duplicar y descarta la absorbida con fusionadaEn', () => {
+    const e0 = estadoDeMuestra();
+    const vivas = e0.hipotesis.filter((h) => h.estado !== 'descartada' && h.investigacionId === e0.hipotesis[0]!.investigacionId);
+    const [g, a] = [vivas[0]!, vivas[1]!];
+    const e1 = fusionarHipotesis(e0, g.id, a.id, 'equivalentes según el torneo', 'Allegri', T);
+    const g1 = e1.hipotesis.find((h) => h.id === g.id)!;
+    const a1 = e1.hipotesis.find((h) => h.id === a.id)!;
+    const clave = (x: { afirmacionId?: string; texto: string; cita: string }) => x.afirmacionId ?? `${x.texto}|${x.cita}`;
+    expect(new Set(g1.afirmaciones.map(clave)).size).toBe(g1.afirmaciones.length);
+    expect(g1.afirmaciones.length).toBeGreaterThanOrEqual(g.afirmaciones.length);
+    expect(new Set(g1.procedencia.fuentes.map((f) => f.id)).size).toBe(g1.procedencia.fuentes.length);
+    expect(g1.absorbe).toEqual([a.id]);
+    expect(a1.estado).toBe('descartada');
+    expect(a1.fusionadaEn).toBe(g.id);
+    expect(e1.eventos.some((ev) => ev.tipo === 'hipotesis_decidida' && ev.texto.startsWith('Fusión'))).toBe(true);
+    // Repetir no hace nada; fusionar consigo misma tampoco.
+    expect(fusionarHipotesis(e1, g.id, a.id, 'otra vez', 'Allegri', T)).toBe(e1);
+    expect(fusionarHipotesis(e1, g.id, g.id, 'consigo misma', 'Allegri', T)).toBe(e1);
+  });
+  it('rechazar la fusión retira la propuesta y lo anota', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis[0]!;
+    const e = { ...e0, hipotesis: e0.hipotesis.map((x) => (x.id === h.id ? { ...x, fusionPropuesta: { con: 'hip-otra', relacion: 'equivalentes' as const, motivo: 'm', propuestaEn: T } } : x)) };
+    const e1 = rechazarFusion(e, h.id, 'Allegri', T);
+    const h1 = e1.hipotesis.find((x) => x.id === h.id)!;
+    expect(h1.fusionPropuesta).toBeNull();
+    expect(h1.procedencia.registro.at(-1)).toContain('rechazada por Allegri');
+    expect(rechazarFusion(e1, h.id, 'Allegri', T)).toBe(e1);
+  });
+  it('copiarHechos remapea los enlaces entre hechos hacia las copias', () => {
+    const e0 = estadoDeMuestra();
+    const inv = e0.hechos[0]!.investigacionId;
+    const viejo = { ...e0.hechos[0]!, id: 'he-viejo', investigacionId: inv, sustituidoPor: 'he-nuevo' };
+    const nuevo = { ...e0.hechos[0]!, id: 'he-nuevo', investigacionId: inv, sustituyeA: ['he-viejo', 'he-de-otra'] };
+    const copias = copiarHechos([viejo, nuevo], inv, 'inv-rama');
+    expect(copias.map((h) => h.id)).toEqual(['he-viejo-inv-rama', 'he-nuevo-inv-rama']);
+    expect(copias[1]!.sustituyeA).toEqual(['he-viejo-inv-rama', 'he-de-otra']);
+    expect(copias[0]!.sustituidoPor).toBe('he-nuevo-inv-rama');
+    expect(nuevo.sustituyeA).toEqual(['he-viejo', 'he-de-otra']);
+  });
+  it('promover no pasa si la evaluación empeora, pero sí sin evaluación o si iguala', () => {
+    const e0 = estadoDeMuestra();
+    const base = { id: 'apr-x', investigacionId: null, nivel: 2 as const, tipo: 'criterio' as const, descripcion: 'Criterio de prueba', origen: 'debilidad:x', quien: 'Rosa', fecha: T, resueltoEn: null, resueltoPor: null };
+    const peor = { ...base, id: 'apr-peor', estado: 'evaluado' as const, evaluacion: { conjunto: 'reservado', casos: 6, antes: 0.8, despues: 0.5, nota: '' } };
+    const igual = { ...base, id: 'apr-igual', estado: 'evaluado' as const, evaluacion: { conjunto: 'reservado', casos: 6, antes: 0.8, despues: 0.8, nota: '' } };
+    const sin = { ...base, id: 'apr-sin', estado: 'propuesto' as const, evaluacion: null };
+    const e = { ...e0, aprendizaje: [peor, igual, sin] };
+    expect(empeoraAlEvaluar(peor)).toBe(true);
+    const e1 = promoverAprendizaje(e, 'apr-peor', 'Allegri', T);
+    expect(e1.aprendizaje!.find((c) => c.id === 'apr-peor')!.estado).toBe('evaluado');
+    expect(e1.eventos.some((ev) => ev.tipo === 'incidencia' && ev.texto.includes('empeora'))).toBe(true);
+    expect(promoverAprendizaje(e, 'apr-igual', 'Allegri', T).aprendizaje!.find((c) => c.id === 'apr-igual')!.estado).toBe('promovido');
+    expect(promoverAprendizaje(e, 'apr-sin', 'Allegri', T).aprendizaje!.find((c) => c.id === 'apr-sin')!.estado).toBe('promovido');
+  });
+});
+
+describe('cuestiones persistentes y pendientes de revisar', () => {
+  it('abrir deduplica por texto normalizado, resolver exige estar abierta, descartar exige motivo, reabrir vuelve a abierta', () => {
+    const e0 = estadoDeMuestra();
+    const inv = e0.investigaciones[0]!.id;
+    const e1 = abrirCuestion(e0, inv, '¿La plataforma Simoa mide GFAP igual que Lumipulse?', 'Un estudio cabeza a cabeza', 'Allegri', T);
+    expect(e1.cuestiones).toHaveLength(1);
+    const e2 = abrirCuestion(e1, inv, 'La plataforma SIMOA mide GFAP igual que Lumipulse', '', 'Allegri', T + 1);
+    expect(e2.cuestiones).toHaveLength(1);
+    expect(e2.cuestiones![0]!.veces).toBe(2);
+    expect(abrirCuestion(e2, inv, '   ', '', 'Allegri', T)).toBe(e2);
+    const id = e2.cuestiones![0]!.id;
+    expect(descartarCuestion(e2, id, '', 'Allegri', T)).toBe(e2);
+    const e3 = resolverCuestion(e2, id, 'Lo respondió el estudio X', 'Allegri', T + 2);
+    expect(e3.cuestiones![0]!.estado).toBe('resuelta');
+    expect(e3.cuestiones![0]!.resolucion).toEqual({ por: 'Allegri', motivo: 'Lo respondió el estudio X' });
+    expect(resolverCuestion(e3, id, 'otra vez', 'Allegri', T)).toBe(e3);
+    const e4 = reabrirCuestion(e3, id, 'no era concluyente', 'Allegri', T + 3);
+    expect(e4.cuestiones![0]!.estado).toBe('abierta');
+    expect(e4.cuestiones![0]!.historial.map((m) => m.a)).toEqual(['abierta', 'resuelta', 'abierta']);
+  });
+  it('volver a una iteración con "mundo" poda las cuestiones que Rosa abrió después del punto y respeta las de la persona', () => {
+    const e0 = estadoDeMuestra();
+    const inv = e0.corridas.find((c) => c.id === 'cor-3')!.investigacionId;
+    const base = { investigacionId: inv, estado: 'abierta' as const, origen: { tipo: 'killer' as const, id: null }, queLaResolveria: '', hipotesisIds: [], hechoIds: [], prioridad: 3, actualizadaEn: 0, resueltaEn: null, resolucion: null, veces: 1 };
+    const rosa = { ...base, id: 'cu-rosa', texto: 'De Rosa, tarde', creadaEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'abierta', quien: 'Rosa', motivo: 'x' }] };
+    const persona = { ...base, id: 'cu-persona', texto: 'De la persona, tarde', creadaEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'abierta', quien: 'Allegri', motivo: 'x' }] };
+    const e = { ...e0, cuestiones: [rosa, persona] };
+    const e1 = volverAIteracion(e, 'it-13', 'mundo', T);
+    expect(e1.cuestiones!.map((c) => c.id)).toEqual(['cu-persona']);
+  });
+  it('atender un pendiente de revisar lo quita, anota el registro y levanta el bloqueo', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis[0]!;
+    const e = { ...e0, hipotesis: e0.hipotesis.map((x) => (x.id === h.id ? { ...x, pendienteRevision: { causa: 'hecho_sustituido' as const, detalle: 'El hecho X fue sustituido', origenId: 'he-x', desde: T }, bloqueos: ['dependencia_pendiente' as const] } : x)) };
+    const e1 = atenderPendiente(e, 'hipotesis', h.id, 'Allegri', 'revisada', T);
+    const h1 = e1.hipotesis.find((x) => x.id === h.id)!;
+    expect(h1.pendienteRevision).toBeNull();
+    expect(h1.bloqueos).toEqual([]);
+    expect(h1.procedencia.registro.at(-1)).toContain('atendida por Allegri');
+    expect(atenderPendiente(e1, 'hipotesis', h.id, 'Allegri', 'otra vez', T)).toBe(e1);
+    const hecho = e0.hechos[0]!;
+    const e2 = { ...e0, hechos: e0.hechos.map((x) => (x.id === hecho.id ? { ...x, pendienteRevision: { causa: 'fuente_retractada' as const, detalle: 'd', origenId: 'doi', desde: T } } : x)) };
+    const e3 = atenderPendiente(e2, 'hecho', hecho.id, 'Allegri', 'ok', T);
+    const hecho3 = e3.hechos.find((x) => x.id === hecho.id)!;
+    expect(hecho3.pendienteRevision).toBeNull();
+    expect(hecho3.historial.at(-1)!.motivo).toContain('atendida');
   });
 });

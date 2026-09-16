@@ -19,7 +19,9 @@
 
 import { partesAutomatizadas } from '../lib/parada';
 import type {
+  Afirmacion,
   AlcancePermiso,
+  Cuestion,
   Amplitud,
   AnclaComentario,
   AreaInvestigacion,
@@ -253,13 +255,17 @@ export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: '
     nueva,
   ];
   let hechos = estado.hechos;
+  let cuestiones = estado.cuestiones ?? [];
   if (que === 'mundo' || que === 'ambos') {
     const limite = origen.terminadaEn;
     hechos = estado.hechos.filter((h) => !(h.investigacionId === corrida.investigacionId && h.actualizadoEn > limite && h.historial.every((m) => m.quien === 'Rosa')));
+    // Misma regla para las cuestiones que Rosa abrió después del punto (rosa/cuestiones.py podar_desde).
+    cuestiones = cuestiones.filter((c) => !(c.investigacionId === corrida.investigacionId && c.creadaEn > limite && c.historial.every((m) => m.quien === 'Rosa')));
   }
   const siguiente: EstadoRosa = {
     ...estado,
     iteraciones,
+    cuestiones,
     hechos,
     corridas: reemplazar(estado.corridas, corrida.id, (c) => ({ ...c, iteracionActual: numero, estado: c.estado === 'en_marcha' || c.estado === 'esperando_plan' ? 'esperando_plan' : c.estado })),
   };
@@ -991,8 +997,7 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
   };
   let hechos = estado.hechos;
   if (datos.heredarModeloDe) {
-    const heredados = estado.hechos.filter((h) => h.investigacionId === datos.heredarModeloDe).map((h) => ({ ...h, id: `${h.id}-${id}`, investigacionId: id }));
-    hechos = [...estado.hechos, ...heredados];
+    hechos = [...estado.hechos, ...copiarHechos(estado.hechos, datos.heredarModeloDe, id)];
   }
   let siguiente: EstadoRosa = { ...estado, investigaciones: [...estado.investigaciones, inv], hechos };
   const m = datos.mision;
@@ -1099,12 +1104,161 @@ export function pedirAnalisis(estado: EstadoRosa, hipotesisId: string, datasetId
 
 /** Promover un cambio de nivel 2. Solo una persona; un criterio promovido
  *  entra a los criterios de revision. */
+/** Puerta "solo mejor o igual": un cambio evaluado cuyo acuerdo después es menor
+ *  que antes no se promueve. Misma regla que rosa/estado/acciones.py. */
+export function empeoraAlEvaluar(c: CambioAprendizaje): boolean {
+  const ev = c.evaluacion;
+  return !!ev && typeof ev.antes === 'number' && typeof ev.despues === 'number' && ev.despues < ev.antes;
+}
+
 export function promoverAprendizaje(estado: EstadoRosa, cambioId: string, quien: string, ahora: number): EstadoRosa {
   const c = (estado.aprendizaje ?? []).find((x) => x.id === cambioId);
   if (!c || c.nivel !== 2 || (c.estado !== 'propuesto' && c.estado !== 'evaluado')) return estado;
+  if (empeoraAlEvaluar(c)) {
+    return conEvento(estado, c.investigacionId ?? '', 'incidencia', `No se promueve el cambio '${c.descripcion.slice(0, 80)}': la evaluación empeora el acuerdo (${c.evaluacion?.antes} antes, ${c.evaluacion?.despues} después). Solo se promueve lo que iguala o mejora.`, '#/ajustes', ahora);
+  }
   const criterios = c.tipo === 'criterio' && !estado.criteriosRevision.includes(c.descripcion) ? [...estado.criteriosRevision, c.descripcion] : estado.criteriosRevision;
   const siguiente: EstadoRosa = { ...estado, criteriosRevision: criterios, aprendizaje: (estado.aprendizaje ?? []).map((x) => (x.id === cambioId ? { ...x, estado: 'promovido', resueltoEn: ahora, resueltoPor: quien } : x)) };
   return conEvento(siguiente, c.investigacionId ?? '', 'aprendizaje', `Cambio de nivel 2 promovido por ${quien}: ${c.descripcion.slice(0, 100)}`, '#/ajustes', ahora);
+}
+
+/** Fusión de ramas por torneo: la ganadora hereda las afirmaciones y fuentes que no
+ *  tenía; la absorbida queda descartada con fusionadaEn. Misma regla que
+ *  rosa/estado/acciones.py fusionar_hipotesis. */
+export function fusionarHipotesis(estado: EstadoRosa, ganadoraId: string, absorbidaId: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const g = estado.hipotesis.find((x) => x.id === ganadoraId);
+  const a = estado.hipotesis.find((x) => x.id === absorbidaId);
+  if (!g || !a || g === a || g.investigacionId !== a.investigacionId || a.estado === 'descartada' || g.estado === 'descartada') return estado;
+  const clave = (x: Afirmacion) => (x.afirmacionId ? `id:${x.afirmacionId}` : `t:${x.texto}|${x.cita}`);
+  const tiene = new Set(g.afirmaciones.map(clave));
+  const heredadas = a.afirmaciones.filter((x) => !tiene.has(clave(x))).map((x) => ({ ...x, heredadaDe: a.id }));
+  const idsFuentes = new Set(g.procedencia.fuentes.map((f) => f.id));
+  const fuentesNuevas = a.procedencia.fuentes.filter((f) => !idsFuentes.has(f.id));
+  const marca = new Date(ahora).toISOString();
+  const m = motivo.trim().slice(0, 200);
+  const hipotesis = estado.hipotesis.map((x) => {
+    if (x.id === g.id) {
+      return {
+        ...x,
+        afirmaciones: [...x.afirmaciones, ...heredadas],
+        absorbe: [...(x.absorbe ?? []), a.id],
+        fusionPropuesta: null,
+        procedencia: {
+          ...x.procedencia,
+          fuentes: [...x.procedencia.fuentes, ...fuentesNuevas],
+          registro: [...x.procedencia.registro, `${marca} fusión: absorbe a '${a.titulo.slice(0, 80)}' (${a.id}) por ${quien}: ${m}. ${heredadas.length} afirmaciones y ${fuentesNuevas.length} fuentes heredadas`],
+          mensajes: [...x.procedencia.mensajes, { id: nuevoId('m'), de: 'rosa' as const, texto: `Fusionada con '${a.titulo.slice(0, 80)}': ${m}`, creadoEn: ahora }],
+        },
+      };
+    }
+    if (x.id === a.id) {
+      return {
+        ...x,
+        estado: 'descartada' as const,
+        candidata: false,
+        fusionadaEn: g.id,
+        fusionPropuesta: null,
+        revisiones: [...x.revisiones, { fecha: ahora, quien, accion: 'descartada' as const, nota: `Fusionada en '${g.titulo.slice(0, 80)}' (${g.id}): ${m}`, aCiegas: false }],
+        procedencia: { ...x.procedencia, registro: [...x.procedencia.registro, `${marca} fusionada en '${g.titulo.slice(0, 80)}' (${g.id}) por ${quien}: ${m}`] },
+      };
+    }
+    return x;
+  });
+  // Los bloqueos los recalcula el servidor (rosa/priorizacion.py) y llegan por SSE.
+  return conEvento({ ...estado, hipotesis }, g.investigacionId, 'hipotesis_decidida', `Fusión: '${a.titulo.slice(0, 60)}' se funde en '${g.titulo.slice(0, 60)}' (${motivo.trim().slice(0, 100)})`, `#/investigaciones/${g.investigacionId}/hipotesis/${g.id}`, ahora);
+}
+
+/** Texto normalizado para deduplicar cuestiones: misma regla base que rosa/cuestiones.py
+ *  (minúsculas, sin tildes ni signos, espacios colapsados). El servidor además funde por
+ *  solape de palabras; aquí basta para no duplicar en la vista optimista. */
+export function normalizarCuestion(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9ñ\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function abrirCuestion(estado: EstadoRosa, investigacionId: string, texto: string, queLaResolveria: string, quien: string, ahora: number, hipotesisId: string | null = null): EstadoRosa {
+  const t = texto.trim();
+  if (t === '' || !estado.investigaciones.some((i) => i.id === investigacionId)) return estado;
+  const lista = estado.cuestiones ?? [];
+  const igual = lista.find((c) => c.investigacionId === investigacionId && c.estado === 'abierta' && normalizarCuestion(c.texto) === normalizarCuestion(t));
+  if (igual) {
+    const cuestiones = lista.map((c) => (c.id === igual.id ? { ...c, veces: c.veces + 1, actualizadaEn: ahora, hipotesisIds: hipotesisId && !c.hipotesisIds.includes(hipotesisId) ? [...c.hipotesisIds, hipotesisId] : c.hipotesisIds } : c));
+    return { ...estado, cuestiones };
+  }
+  const nueva: Cuestion = {
+    id: nuevoId('cu'),
+    investigacionId,
+    texto: t.slice(0, 300),
+    estado: 'abierta',
+    origen: { tipo: 'persona', id: null },
+    queLaResolveria: queLaResolveria.trim().slice(0, 300),
+    hipotesisIds: hipotesisId ? [hipotesisId] : [],
+    hechoIds: [],
+    prioridad: 3,
+    creadaEn: ahora,
+    actualizadaEn: ahora,
+    resueltaEn: null,
+    resolucion: null,
+    veces: 1,
+    historial: [{ fecha: ahora, de: null, a: 'abierta', quien, motivo: 'Abierta' }],
+  };
+  return conEvento({ ...estado, cuestiones: [...lista, nueva] }, investigacionId, 'hecho_nuevo', `Cuestión abierta por ${quien}: ${nueva.texto.slice(0, 100)}`, `#/investigaciones/${investigacionId}`, ahora);
+}
+
+function moverCuestion(estado: EstadoRosa, cuestionId: string, a: Cuestion['estado'], quien: string, motivo: string, ahora: number, resolucion: Cuestion['resolucion']): EstadoRosa {
+  const c = (estado.cuestiones ?? []).find((x) => x.id === cuestionId);
+  if (!c || c.estado === a) return estado;
+  const cuestiones = (estado.cuestiones ?? []).map((x) => (x.id === cuestionId ? { ...x, estado: a, actualizadaEn: ahora, resueltaEn: a === 'resuelta' ? ahora : null, resolucion: a === 'resuelta' ? resolucion : null, historial: [...x.historial, { fecha: ahora, de: x.estado, a, quien, motivo }] } : x));
+  return { ...estado, cuestiones };
+}
+
+export function resolverCuestion(estado: EstadoRosa, cuestionId: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const c = (estado.cuestiones ?? []).find((x) => x.id === cuestionId);
+  if (!c || c.estado === 'resuelta') return estado;
+  const m = motivo.trim() || 'Resuelta por una persona';
+  return conEvento(moverCuestion(estado, cuestionId, 'resuelta', quien, m, ahora, { por: quien, motivo: m }), c.investigacionId, 'hecho_nuevo', `Cuestión resuelta por ${quien}: ${c.texto.slice(0, 100)}`, `#/investigaciones/${c.investigacionId}`, ahora);
+}
+
+export function descartarCuestion(estado: EstadoRosa, cuestionId: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  const c = (estado.cuestiones ?? []).find((x) => x.id === cuestionId);
+  if (!c || motivo.trim() === '' || c.estado === 'descartada') return estado;
+  return conEvento(moverCuestion(estado, cuestionId, 'descartada', quien, motivo.trim(), ahora, null), c.investigacionId, 'hecho_nuevo', `Cuestión descartada por ${quien}: ${c.texto.slice(0, 100)}`, `#/investigaciones/${c.investigacionId}`, ahora);
+}
+
+export function reabrirCuestion(estado: EstadoRosa, cuestionId: string, motivo: string, quien: string, ahora: number): EstadoRosa {
+  return moverCuestion(estado, cuestionId, 'abierta', quien, motivo.trim() || 'Reabierta', ahora, null);
+}
+
+/** Una persona da por revisado lo que la propagación de dependencias marcó (rosa/dependencias.py). */
+export function atenderPendiente(estado: EstadoRosa, tipo: 'hipotesis' | 'hecho' | 'plan', id: string, quien: string, nota: string, ahora: number): EstadoRosa {
+  const marca = new Date(ahora).toISOString();
+  if (tipo === 'hipotesis') {
+    const h = estado.hipotesis.find((x) => x.id === id);
+    if (!h || !h.pendienteRevision) return estado;
+    const hipotesis = reemplazar(estado.hipotesis, id, (x) => ({ ...x, pendienteRevision: null, bloqueos: (x.bloqueos ?? []).filter((b) => b !== 'dependencia_pendiente'), procedencia: { ...x.procedencia, registro: [...x.procedencia.registro, `${marca} pendiente de revisar atendida por ${quien}: ${nota.trim()}`] } }));
+    return conEvento({ ...estado, hipotesis }, h.investigacionId, 'hipotesis_decidida', `${quien} revisó «${h.titulo.slice(0, 60)}» tras el cambio del que dependía${nota.trim() ? `: ${nota.trim().slice(0, 100)}` : ''}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+  }
+  if (tipo === 'hecho') {
+    const h = estado.hechos.find((x) => x.id === id);
+    if (!h || !h.pendienteRevision) return estado;
+    return { ...estado, hechos: estado.hechos.map((x) => (x.id === id ? { ...x, pendienteRevision: null, historial: [...x.historial, { fecha: ahora, de: x.estado, a: x.estado, quien, motivo: `Pendiente de revisar atendida: ${nota.trim()}` }] } : x)) };
+  }
+  const p = (estado.planesAnalisis ?? []).find((x) => x.id === id);
+  if (!p || !p.pendienteRevision) return estado;
+  return { ...estado, planesAnalisis: (estado.planesAnalisis ?? []).map((x) => (x.id === id ? { ...x, pendienteRevision: null } : x)) };
+}
+
+export function rechazarFusion(estado: EstadoRosa, hipotesisId: string, quien: string, ahora: number): EstadoRosa {
+  const h = estado.hipotesis.find((x) => x.id === hipotesisId);
+  if (!h || !h.fusionPropuesta) return estado;
+  const con = h.fusionPropuesta.con;
+  const hipotesis = reemplazar(estado.hipotesis, hipotesisId, (x) => ({ ...x, fusionPropuesta: null, procedencia: { ...x.procedencia, registro: [...x.procedencia.registro, `${new Date(ahora).toISOString()} fusión con ${con} rechazada por ${quien}`] } }));
+  return conEvento({ ...estado, hipotesis }, h.investigacionId, 'hipotesis_decidida', `${quien} rechazó fusionar '${h.titulo.slice(0, 60)}'`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
 export function revertirAprendizaje(estado: EstadoRosa, cambioId: string, quien: string, motivo: string, ahora: number): EstadoRosa {
@@ -1167,10 +1321,27 @@ export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: strin
     ramaDe: origen.id,
     vigilarLiteraturaHasta: null,
   };
-  const hechos = estado.hechos
-    .filter((h) => h.investigacionId === investigacionId)
-    .map((h) => ({ ...h, id: `${h.id}-${id}`, investigacionId: id }));
+  const hechos = copiarHechos(estado.hechos, investigacionId, id);
   return { estado: { ...estado, investigaciones: [...estado.investigaciones, rama], hechos: [...estado.hechos, ...hechos] }, id };
+}
+
+/** Copia los hechos de una investigación a otra con el sufijo del destino en el
+ *  id y remapea los enlaces entre hechos (sustituyeA, sustituidoPor, resuelveA,
+ *  contradiceA) hacia las copias; un enlace a un hecho que no viaja se conserva.
+ *  Misma regla que rosa/estado/acciones.py copiar_hechos. */
+export function copiarHechos(hechos: HechoMundo[], origenId: string, destinoId: string): HechoMundo[] {
+  const propios = hechos.filter((h) => h.investigacionId === origenId);
+  const mapa = new Map(propios.map((h) => [h.id, `${h.id}-${destinoId}`]));
+  const re = (v: string) => mapa.get(v) ?? v;
+  return propios.map((h) => ({
+    ...h,
+    id: mapa.get(h.id) ?? h.id,
+    investigacionId: destinoId,
+    ...(h.sustituyeA ? { sustituyeA: h.sustituyeA.map(re) } : {}),
+    ...(h.resuelveA ? { resuelveA: h.resuelveA.map(re) } : {}),
+    ...(h.contradiceA ? { contradiceA: h.contradiceA.map(re) } : {}),
+    ...(h.sustituidoPor ? { sustituidoPor: re(h.sustituidoPor) } : {}),
+  }));
 }
 
 export function actualizarConfiguracion(estado: EstadoRosa, investigacionId: string, configuracion: Investigacion['configuracion']): EstadoRosa {

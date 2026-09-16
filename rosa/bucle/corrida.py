@@ -20,6 +20,7 @@ por presupuesto o esperando aprobacion: espera sin gastar.
 from __future__ import annotations
 
 import asyncio
+import json
 import contextlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,9 @@ import re
 import traceback
 from typing import Any
 
+from rosa import argumentacion as ARG
+from rosa import cuestiones as CU
+from rosa import dependencias as DEP
 from rosa import sesgo as SESGO
 from rosa import certeza as CERTEZA, config, lecciones as LEC, parada as PARADA, politicas, priorizacion as PR, progreso as PROG, torneo
 from rosa import revisor_registro as RR
@@ -273,6 +277,10 @@ class Supervisor:
         for inv in list(e["investigaciones"]):
             if inv.get("_recomprobarRetracciones"):
                 await self._recomprobar_retracciones(inv)
+        for c in list(e.get("corridas", [])):
+            if c.get("_revisarArnes") and c.get("estado") == "terminada":
+                await self._revisar_arnes(c)
+                return
         for cambio in list(e.get("aprendizaje", [])):
             if cambio.get("_evaluar"):
                 await self._evaluar_cambio(cambio)
@@ -280,6 +288,69 @@ class Supervisor:
             if cambio.get("_promover"):
                 self._promover_programa(cambio)
         await self._completar_en_llano()
+
+    async def _revisar_arnes(self, c: dict[str, Any]) -> None:
+        """Meta-campaña (lo que rekursiv.ai llama auto-autoresearch, aquí con
+        puerta): al terminar una corrida, el cerebro lee cómo rindió y propone
+        hasta tres cambios del arnés. Un criterio entra como cambio de nivel 2
+        propuesto y se evalúa solo contra las decisiones humanas
+        (`_evaluar_cambio`): si empeora el acuerdo, `_fijar_evaluacion` lo revierte
+        sin que nadie lo pida; si iguala o mejora, queda evaluado y lo promueve una
+        persona (puerta "solo mejor o igual" en promover_aprendizaje). Una política
+        queda registrada como nivel 3 para que la decida una persona. Los prompts no
+        se tocan aquí."""
+        e = self.almacen.estado
+        inv = next((i for i in e["investigaciones"] if i["id"] == c["investigacionId"]), None)
+        ahora = P.ahora_ms()
+        if not inv:
+            self.almacen.mutar(lambda e2: _quitar_marca_arnes(e2, c["id"]), "aprendizaje")
+            return
+        progreso = "\n".join(f"- iteración {p.get('iteracion')}: {p.get('peldanosSubidos', 0)} peldaños subidos, {p.get('peldanosBajados', 0)} bajados, {p.get('hechosNuevos', 0)} hechos nuevos, {p.get('hipotesisNuevas', 0)} hipótesis nuevas, fallidos {json.dumps(p.get('fallidos') or {}, ensure_ascii=False)}, {p.get('usdAcumulado', 0)} USD acumulados" for p in c.get("progreso") or []) or "Sin iteraciones cerradas"
+        hallazgos: dict[str, int] = {}
+        for it in e.get("iteraciones", []):
+            if it.get("corridaId") == c["id"]:
+                for hz in ((it.get("revisionRegistro") or {}).get("hallazgos") or []):
+                    hallazgos[str(hz.get("clase", "otro"))] = hallazgos.get(str(hz.get("clase", "otro")), 0) + 1
+        try:
+            lecciones_txt = LEC.texto_de(LEC.recientes(e, inv["id"], maximo=12), maximo=12) or "Ninguna"
+        except Exception:  # noqa: BLE001
+            lecciones_txt = "Ninguna"
+        ctx = self._ctx(c)
+        try:
+            pred = await ctx.llamar(
+                "cerebro",
+                self.programas.revisar_arnes,
+                objetivo=inv["objetivo"],
+                metrica=f"{PROG.resumen_metrica(c.get('metrica')) or 'sin métrica'}. Detalle: {json.dumps(c.get('metrica') or {}, ensure_ascii=False)[:1500]}",
+                progreso=progreso,
+                lecciones=lecciones_txt,
+                hallazgos_revisor="\n".join(f"- {k.replace('_', ' ')}: {v}" for k, v in sorted(hallazgos.items())) or "Ninguno",
+                criterios_actuales="\n".join(e.get("criteriosRevision", [])) or "Ninguno",
+                politicas_actuales=json.dumps(politicas.resumen(), ensure_ascii=False)[:1500],
+                arnes=json.dumps(c.get("arnes") or {}, ensure_ascii=False),
+            )
+            diagnostico = (getattr(pred, "diagnostico", "") or "").strip()
+            propuestas = [{"tipo": getattr(p_, "tipo", ""), "descripcion": (getattr(p_, "descripcion", "") or "").strip(), "motivo": (getattr(p_, "motivo", "") or "").strip(), "riesgo": (getattr(p_, "riesgo", "") or "").strip()} for p_ in list(getattr(pred, "propuestas", []) or [])]
+        except PASOS.PresupuestoAgotado:
+            self.almacen.mutar(lambda e2: _quitar_marca_arnes(e2, c["id"], "sin presupuesto para la meta-campaña"), "aprendizaje")
+            return
+        except Exception as ex:  # noqa: BLE001
+            traceback.print_exc()
+            self.almacen.mutar(lambda e2: _quitar_marca_arnes(e2, c["id"], f"el cerebro no respondió: {str(ex)[:120]}"), "aprendizaje")
+            return
+
+        def fn(e2: dict[str, Any]) -> bool:
+            c2 = next((x for x in e2["corridas"] if x["id"] == c["id"]), None)
+            if not c2:
+                return False
+            c2.pop("_revisarArnes", None)
+            nuevos = cambios_desde_propuestas(e2, c2, propuestas, ahora)
+            c2["revisionArnes"] = {"fecha": ahora, "diagnostico": diagnostico[:600], "propuestas": len(nuevos), "descartadas": len(propuestas) - len(nuevos)}
+            texto = f"Meta-campaña de la corrida {c2['numero']}: {diagnostico[:200]}" + (f" Propone {len(nuevos)} {'cambio' if len(nuevos) == 1 else 'cambios'} del arnés; los criterios se evalúan solos y una persona decide." if nuevos else " Sin cambios que proponer.")
+            A.con_evento(e2, c2["investigacionId"], "aprendizaje", texto, "#/ajustes", ahora)
+            return True
+
+        self.almacen.mutar(fn, "aprendizaje")
 
     async def _reformular_por_persona(self, ctx: Ctx, h: dict[str, Any]) -> None:
         """La persona pidió refinar: Rosa reformula como versión nueva con su
@@ -574,6 +645,14 @@ class Supervisor:
             y["_conclusionIntentada"] = ctx.numero
             if conclusion:
                 y["conclusion"] = conclusion
+                # La conclusión rehecha atiende lo pendiente de revisar (propagación de
+                # dependencias) y el peldaño siguiente de la escalera queda como cuestión.
+                if y.get("pendienteRevision"):
+                    DEP.atender_pendiente(e, "hipotesis", y["id"], config.QUIEN_ROSA, "conclusión rehecha con la evidencia actual", conclusion["fecha"])
+                    A.recalcular_bloqueos(e, y)
+                escalera = conclusion.get("escalera") or []
+                if escalera and escalera[0].get("falta") and y["estado"] != "descartada":
+                    CU.desde_escalera(e, y, escalera[0]["falta"], conclusion["fecha"])
                 if conclusion.get("cambio"):
                     # Nivel 1 del aprendizaje: cambio lo que Rosa cree de esta hipotesis. Automatico y registrado.
                     de = conclusion["cambio"]["de"]
@@ -643,12 +722,15 @@ class Supervisor:
             fecha_txt = datetime.fromtimestamp(ahora / 1000).strftime("%d/%m/%Y")
             if clasificacion in ("apoyo_reproducido", "negativo_interpretable", "inconcluso", "correccion_contexto") and resultado["veredicto"] != "no_evaluable":
                 cita = f"[Datos del laboratorio: {resultado['fichero']}, {fecha_txt}]"
-                y["afirmaciones"].append({"texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": False, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
+                af_lab_id = P.nuevo_id("af")
+                y["afirmaciones"].append({"afirmacionId": af_lab_id, "texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": False, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
                 y["evidenciaEstadistica"] = "fuerte" if clasificacion == "apoyo_reproducido" else ("moderada" if clasificacion == "negativo_interpretable" else "debil")
                 # El resultado del laboratorio entra al modelo de mundo como hecho (la ficha lo
                 # prometía y el registro no lo cumplía): frena una hipótesis nueva con la misma predicción.
                 if clasificacion in ("apoyo_reproducido", "negativo_interpretable"):
-                    hecho = P.nuevo_hecho(y["investigacionId"], "hecho", "Resultado de laboratorio", f"{resultado['resultado'][:500]} (ensayo sobre «{y['titulo'][:60]}»: {resultado['veredicto']})", "sabido", "laboratorio", [{"fuenteId": None, "referencia": cita, "pagina": None}], ahora, prioridad=1, motivo=f"Resultado del laboratorio contra el prerregistro: {clasificacion.replace('_', ' ')}")
+                    hecho = P.nuevo_hecho(y["investigacionId"], "hecho", "Resultado de laboratorio", f"{resultado['resultado'][:500]} (ensayo sobre «{y['titulo'][:60]}»: {resultado['veredicto']})", "sabido", "laboratorio", [{"fuenteId": None, "referencia": cita, "pagina": None}], ahora, prioridad=1, motivo=f"Resultado del laboratorio contra el prerregistro: {clasificacion.replace('_', ' ')}",
+                                          afirmacion_ids=[af_lab_id], citas=[{"referencia": cita, "seccion": "datos del laboratorio", "clasificacion": "apoya" if clasificacion == "apoyo_reproducido" else "contrasta", "fragmento": (resultado.get("motivo") or "")[:300]}])
+                    hecho["hipotesisIds"] = [y["id"]]
                     e["hechos"].append(hecho)
                     A.con_evento(e, y["investigacionId"], "hecho_nuevo", f"Hecho nuevo del laboratorio: {resultado['resultado'][:120]}", f"#/investigaciones/{y['investigacionId']}/mundo", ahora)
             # Que hace Rosa con cada clase de resultado (taxonomia de retorno).
@@ -868,6 +950,10 @@ class Supervisor:
                         cambios += 1
                         tocada = True
                         f["retraccion"] = r[0]
+                        # Propagación de dependencias (rosa/dependencias.py): los hechos que
+                        # citan la fuente, las hipótesis y sus planes quedan pendientes.
+                        if r[0] in ("retractado", "corregido", "preocupacion"):
+                            DEP.propagar_retraccion(e, inv["id"], f["id"], f.get("doi"), ahora, causa="fuente_retractada" if r[0] == "retractado" else "fuente_corregida")
                     f["retraccionComprobadaEn"] = ahora
                 if tocada:
                     # Seguimiento de dependencias (plan completo, seccion 9): la fuente
@@ -1295,7 +1381,13 @@ class Supervisor:
                 if x["id"] in bt:
                     x["bt"] = bt[x["id"]]
             # Priorizacion: bloqueos no compensables y candidatas con diversidad.
+            # Marcos de argumentación (rosa/argumentacion.py): qué candidatas se atacan
+            # entre sí. Se marca, no se descarta; decide la persona.
+            ARG.marcar_conflictos(e2, inv["id"])
             ids = PR.marcar_candidatas(e2, inv["id"])
+            conflicto_txt = ARG.texto_conflictos(e2, inv["id"], ids)
+            if conflicto_txt:
+                A.con_evento(e2, inv["id"], "ranking_cambio", conflicto_txt[:400], f"#/investigaciones/{inv['id']}/ranking", ahora)
             if ids:
                 titulos = [next(x["titulo"][:50] for x in e2["hipotesis"] if x["id"] == i) for i in ids]
                 A.con_evento(e2, inv["id"], "ranking_cambio", f"Candidatas al laboratorio tras la iteración {it['numero']}: " + "; ".join(titulos), f"#/investigaciones/{inv['id']}/ranking", ahora)
@@ -1317,6 +1409,7 @@ class Supervisor:
                 c2["terminadaEn"] = ahora
                 c2["motivoCierre"] = terminar
                 c2["metrica"] = PROG.metrica_de_corrida(e2, c2["id"])
+                c2["_revisarArnes"] = True  # meta-campaña: el supervisor la recoge
                 resumen_m = PROG.resumen_metrica(c2["metrica"])
                 A.con_evento(e2, inv["id"], "corrida_estado", f"Corrida {c2['numero']} terminada: {terminar}" + (f". Balance: {resumen_m}" if resumen_m else ""), f"#/investigaciones/{inv['id']}/corrida", ahora)
             return True
@@ -1359,8 +1452,63 @@ def _fijar_evaluacion(e: dict[str, Any], cambio_id: str, evaluacion: dict[str, A
     c["evaluacion"] = evaluacion
     if c["estado"] == "propuesto" and evaluacion.get("casos"):
         c["estado"] = "evaluado"
-    A.con_evento(e, c.get("investigacionId"), "aprendizaje", f"Criterio evaluado sobre {evaluacion.get('casos', 0)} casos: acuerdo {evaluacion.get('antes')} antes, {evaluacion.get('despues')} después. {evaluacion.get('nota', '')}", "#/ajustes", ahora)
+    # Lo que propuso la meta-campaña se revierte solo si empeora: nadie tiene que
+    # limpiar detrás de Rosa. Lo que propuso una persona queda evaluado y lo decide ella.
+    if str(c.get("origen") or "").startswith("arnes:") and A.empeora_al_evaluar(c):
+        c["estado"] = "revertido"
+        c["resueltoEn"] = ahora
+        c["resueltoPor"] = config.QUIEN_ROSA
+        c["evaluacion"] = {**evaluacion, "nota": (evaluacion.get("nota") or "") + " Revertido por Rosa: la meta-campaña solo conserva lo que iguala o mejora."}
+    A.con_evento(e, c.get("investigacionId"), "aprendizaje", f"Criterio evaluado sobre {evaluacion.get('casos', 0)} casos: acuerdo {evaluacion.get('antes')} antes, {evaluacion.get('despues')} después. {c['evaluacion'].get('nota', '')}", "#/ajustes", ahora)
     return True
+
+
+def _quitar_marca_arnes(e: dict[str, Any], corrida_id: str, motivo: str = "") -> bool:
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c:
+        return False
+    c.pop("_revisarArnes", None)
+    if motivo:
+        A.con_evento(e, c["investigacionId"], "incidencia", f"La meta-campaña de la corrida {c['numero']} no se hizo: {motivo}", "#/ajustes", P.ahora_ms())
+    return True
+
+
+MAX_PROPUESTAS_ARNES = 3
+
+
+def _normal(texto: str) -> str:
+    return " ".join((texto or "").lower().split())
+
+
+def cambios_desde_propuestas(e: dict[str, Any], c: dict[str, Any], propuestas: list[dict[str, Any]], ahora: int) -> list[dict[str, Any]]:
+    """Convierte las propuestas de la meta-campaña en cambios de aprendizaje: un
+    criterio es nivel 2 propuesto con evaluación pendiente (`_evaluar`); una
+    política es nivel 3 propuesto (solo registro, la decide una persona). Se
+    descartan las repetidas, las que ya son criterio vigente, las vacías y las de
+    tipo desconocido; como mucho MAX_PROPUESTAS_ARNES. Devuelve los cambios creados."""
+    vigentes = {_normal(x) for x in e.get("criteriosRevision", [])}
+    previas = {_normal(x.get("descripcion", "")) for x in e.get("aprendizaje", []) if x.get("estado") != "revertido"}
+    creados: list[dict[str, Any]] = []
+    for p in propuestas:
+        descripcion = (p.get("descripcion") or "").strip()
+        tipo = p.get("tipo")
+        if not descripcion or tipo not in ("criterio", "politica") or _normal(descripcion) in vigentes or _normal(descripcion) in previas:
+            continue
+        motivo = (p.get("motivo") or "").strip()
+        riesgo = (p.get("riesgo") or "").strip()
+        texto = descripcion + (f" Motivo: {motivo[:200]}" if motivo else "") + (f" Riesgo: {riesgo[:160]}" if riesgo else "")
+        cambio = P.nuevo_cambio_aprendizaje(c["investigacionId"], 2 if tipo == "criterio" else 3, tipo, texto[:600], f"arnes:{c['id']}", "propuesto", config.QUIEN_ROSA, ahora)
+        if tipo == "criterio":
+            # El criterio evaluado es la descripción sola (es lo que entra a criteriosRevision).
+            cambio["descripcion"] = descripcion[:400]
+            cambio["nota"] = (f"Motivo: {motivo[:300]}" if motivo else "") + (f" Riesgo: {riesgo[:200]}" if riesgo else "")
+            cambio["_evaluar"] = ahora
+        e.setdefault("aprendizaje", []).append(cambio)
+        previas.add(_normal(descripcion))
+        creados.append(cambio)
+        if len(creados) >= MAX_PROPUESTAS_ARNES:
+            break
+    return creados
 
 
 def _omitir_pendientes(e: dict[str, Any], iteracion_id: str, motivo: str) -> bool:
@@ -1383,12 +1531,13 @@ def _terminar_corrida(e: dict[str, Any], corrida_id: str, motivo: str) -> bool:
     c["terminadaEn"] = ahora
     c["motivoCierre"] = motivo
     c["metrica"] = PROG.metrica_de_corrida(e, c["id"])
+    c["_revisarArnes"] = True  # meta-campaña: el supervisor la recoge
     resumen_m = PROG.resumen_metrica(c["metrica"])
     A.con_evento(e, c["investigacionId"], "corrida_estado", f"Corrida {c['numero']} terminada: {motivo}" + (f". Balance: {resumen_m}" if resumen_m else ""), f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
     return True
 
 
-MARCA_RELACION = {"contradice": ", EN CONTRA de la hipótesis", "apoya_indirecta": ", apoyo indirecto (otra población, desenlace o plataforma)", "apoya": ", a favor"}
+MARCA_RELACION = {"contradice": ", EN CONTRA de la hipótesis", "apoya_indirecta": ", apoyo indirecto (otra población, desenlace o plataforma)", "apoya": ", a favor", "socava": ", SOCAVA un apoyo (ataca el método o la inferencia de otra afirmación, no la hipótesis; el apoyo socavado no cuenta para el techo)"}
 VERBO_CERTEZA = {"alta": "La evidencia reunida sostiene que", "moderada": "La evidencia reunida probablemente sostiene que", "baja": "La evidencia sugiere, con limitaciones, que", "muy_baja": "La evidencia es muy incierta sobre si"}
 VERBO_CONTRA = {"alta": "La evidencia reunida contradice que", "moderada": "La evidencia reunida probablemente contradice que", "baja": "La evidencia sugiere, con limitaciones, que no se cumple que", "muy_baja": "La evidencia es muy incierta sobre si"}
 

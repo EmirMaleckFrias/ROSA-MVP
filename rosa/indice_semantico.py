@@ -205,6 +205,11 @@ def items_del_estado(e: dict[str, Any]) -> list[dict[str, Any]]:
         texto = f"{h.get('titulo', '')}. {h.get('enunciado', '')}".strip(". ")
         if texto:
             items.append({"id": f"hipotesis:{h['id']}", "tipo": "hipotesis", "investigacionId": h.get("investigacionId"), "texto": texto})
+    # Cuestiones abiertas (rosa/cuestiones.py): el modelo de mundo bajo demanda y
+    # el criterio de relevancia las encuentran por parecido.
+    for c in e.get("cuestiones", []):
+        if c.get("estado") == "abierta" and c.get("texto"):
+            items.append({"id": f"cuestion:{c['id']}", "tipo": "cuestion", "investigacionId": c.get("investigacionId"), "texto": (c["texto"] + (". " + c["queLaResolveria"] if c.get("queLaResolveria") else ""))[:600]})
     for c in e.get("corridas", []):
         for fid, f in (c.get("_fuentes") or {}).items():
             texto = f"{f.get('titulo', '')}. {(f.get('resumen') or '')[:600]}".strip(". ")

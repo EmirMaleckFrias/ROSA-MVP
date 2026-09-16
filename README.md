@@ -312,6 +312,86 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Grafo de evidencia: el modelo de mundo se mantiene, no solo crece (16 de septiembre de 2026, noche)
+
+Lo que rekursiv.ai llama Trackinizer (un grafo tipado de indagaciones, cuestiones,
+artefactos, experimentos y creencias con aristas con valencia), en Rosa sin motor de
+grafo aparte: el estado canónico ya es el grafo y lo que faltaba eran los enlaces, el
+peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
+
+- **Hechos con procedencia hasta la afirmación.** Cada hecho guarda `afirmacionIds`
+  (las afirmaciones con fragmento y cita que lo sostienen) y `citas` al estilo Scite
+  (apoya, menciona, contrasta), rellenadas desde la extracción y desde el laboratorio.
+  El hecho del laboratorio enlaza su afirmación y su hipótesis por id, no por texto.
+- **Sustituir, contradecir y resolver.** El paso de modelo de mundo recibe los hechos
+  existentes y las cuestiones abiertas numerados, y cada hecho nuevo puede decir a
+  cuáles sustituye (el viejo queda como sustituido, con `sustituidoPor`, sin borrarse
+  ni tocar `actualizadoEn`), con cuáles choca (`contradiceA`, más una cita "contrasta"
+  sobre el viejo) y qué cuestiones resuelve (`resuelveA`; la pregunta del modelo pasa a
+  respondida). Al heredar o bifurcar, los enlaces se remapean a las copias.
+- **Cuestiones persistentes** (`rosa/cuestiones.py`, lo que rekursiv llama Issues).
+  Cada una tiene origen (pregunta del modelo, lo que pide el Killer, el peldaño
+  siguiente de la escalera, una persona), qué la resolvería, a qué hipótesis y hechos
+  toca, prioridad, historial; se deduplican por texto y por solape de palabras, se
+  cierran cuando un hecho las responde, se podan al volver a una iteración, se indexan
+  por significado y entran al criterio de relevancia con lo que las resolvería. La
+  interfaz las enseña en la investigación ("Cuestiones abiertas") y la herramienta
+  `leer_cuestiones` las expone al agente.
+- **Valencia con peso y relación "socava"** (`rosa/certeza.py`, `rosa/bucle/evidencia.py`).
+  Cada apoyo pesa por regla (relación, diseño del estudio, riesgo de sesgo, tamaño de
+  muestra) y el techo GRADE lo usa: una fuente que solo contradice ya no suma cohorte,
+  dos revisiones narrativas no llegan a baja, y si la evidencia en contra pesa tanto
+  como la a favor el techo es muy baja. La relación nueva `socava` (propuesta de Codex,
+  del modelo de micropublicaciones) no habla de la hipótesis sino de UN apoyo concreto
+  (`socavaA`): ataca su método o su inferencia, y el apoyo socavado deja de contar.
+- **Método como nodo** (`rosa/metodos.py`, propuesta de Codex). Catálogo canónico de
+  cohortes, plataformas de medida y muestras con alias; sustituye la lista escrita a
+  mano de cohortes del Killer y unifica las tres reglas de "misma cohorte" que había
+  (priorización, certeza, Killer). Rosa puede decir "todas las fuentes miden con Simoa:
+  la concordancia no es independiente del instrumento".
+- **Grafo materializado en el backend** (`rosa/grafo.py`). El árbol que dibuja la
+  interfaz, portado uno a uno y ampliado con nodos de dato (afirmaciones con dato,
+  ejecuciones, conjuntos de datos, resultados de laboratorio). El modelo de mundo que
+  lee el cerebro y `leer_modelo_de_mundo` incluyen los vecinos de cada hecho (qué
+  hipótesis respalda). **Profundidad hasta el dato** (propuesta de Codex): saltos desde
+  cada nodo hasta la medición propia más cercana (ejecución válida, resultado de
+  laboratorio, observación original) y hasta la literatura leída; el árbol se puede
+  colorear por esa distancia.
+- **Ataques y marcos de argumentación** (`rosa/argumentacion.py`, propuesta de Codex
+  aplicada con cautela). Los ataques solo son explícitos: el juez del torneo o el
+  Killer declaran que dos hipótesis no pueden ser ciertas a la vez, o dos hipótesis
+  afirman la misma arista causal con signo opuesto (`signo` en `relaciones`). Con eso
+  Rosa calcula la extensión fundamentada de Dung y marca `conflictoCon` entre las
+  candidatas al laboratorio. Marca, nunca descarta: decide la persona.
+- **Fusión de ramas por torneo** (`rosa/torneo.py`, `fusionar_hipotesis`). El Killer
+  anota con quién es redundante cada hipótesis (`redundanteCon`); el torneo les fuerza
+  un partido dirimente y el juez dice qué son una respecto a la otra (equivalentes, una
+  subsume a la otra, incompatibles), solo si lo dice igual en las dos lecturas. Si son
+  equivalentes, la ganadora hereda la evidencia y la otra queda fusionada (no refutada);
+  con autonomía "preguntar" es una propuesta que la persona acepta o rechaza.
+- **Propagación de dependencias** (`rosa/dependencias.py`) y bloqueo
+  `dependencia_pendiente`. Cuando una fuente se retracta, un hecho se sustituye o
+  contradice, o una hipótesis se reformula, todo lo que dependía (hipótesis, hechos,
+  planes, derivadas) queda "pendiente de revisar" y fuera de las candidatas hasta que
+  Rosa lo vuelve a concluir o una persona lo atiende.
+- **Diff entre versiones** (`rosa/registro.py`, `frontend/src/lib/registro.ts`). Cada
+  versión guardada de una hipótesis lleva qué cambió campo a campo, la certeza y el
+  Elo que tenía; la ficha lo enseña ("De la v1 a la v2: cambió la cohorte") y el
+  RO-Crate exporta las revisiones como `wasRevisionOf` de PROV.
+
+## Meta-campaña del arnés (16 de septiembre de 2026, noche)
+
+Lo que rekursiv.ai llama auto-autoresearch, con puerta. Al terminar una corrida, el
+cerebro lee cómo rindió (peldaños por dólar, hipótesis en baja o más, fallidos,
+lecciones, hallazgos del revisor) y propone hasta tres cambios del arnés
+(`RevisarArnes`). Un criterio de revisión entra como cambio de nivel 2 propuesto y se
+evalúa solo contra las decisiones humanas; **si empeora el acuerdo se revierte solo**,
+si iguala o mejora queda evaluado y lo promueve una persona. Una política queda
+registrada como nivel 3 para que la decida una persona. Puerta "solo mejor o igual" en
+`promover_aprendizaje`: nada evaluado que empeore se puede promover, ni desde el botón.
+Los prompts no se tocan aquí: la optimización de programas (GEPA) es otra pieza, en
+construcción aparte.
+
 ## Rigor del trabajador de evidencia (16 de septiembre de 2026, noche)
 
 Lo que rekursiv.ai exige a su "evidence worker" (predicción antes de mirar,

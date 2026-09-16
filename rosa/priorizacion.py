@@ -63,6 +63,11 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
     # iteración cerrada de la investigación, retiene la candidatura y la exportación.
     if revision_registro_abierta(e, h):
         b.append(_bloqueo("revision_registro_abierta"))
+    # Propagación de dependencias (rosa/dependencias.py): algo de lo que la hipótesis
+    # depende cambió (una fuente se retractó, un hecho fue sustituido o contradicho) y
+    # Rosa o una persona todavía no la revisó. Se levanta al volver a concluirla.
+    if h.get("pendienteRevision"):
+        b.append(_bloqueo("dependencia_pendiente"))
     return b
 
 
@@ -124,11 +129,10 @@ def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
 
 
 def cohortes_de(h: dict[str, Any]) -> list[str]:
-    """Cohortes distintas entre las fuentes de la hipótesis. Dos artículos de
-    la misma cohorte son una sola evidencia."""
-    vistas: list[str] = []
-    for f in h.get("procedencia", {}).get("fuentes", []):
-        c = (f.get("cohorte") or "").strip().lower()
-        if c and c not in vistas:
-            vistas.append(c)
-    return vistas
+    """Cohortes distintas entre las fuentes de la hipótesis, por el catálogo
+    canónico de rosa/metodos.py (alias y nombres largos resuelven a la misma):
+    dos artículos de la misma cohorte son una sola evidencia. Devuelve la
+    etiqueta canónica (o el nombre dado si no está en el catálogo), una por grupo."""
+    from rosa import metodos as METODOS
+
+    return METODOS.cohortes_distintas(h)

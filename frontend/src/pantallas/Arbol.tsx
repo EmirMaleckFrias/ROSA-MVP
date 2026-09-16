@@ -1,19 +1,21 @@
-// El arbol de la investigacion: el grafo de lib/arbol.ts dibujado en SVG con
-// una disposicion por fuerzas propia. Se explora: al abrir se ven el tronco,
-// las ramas, las hipotesis vivas y los experimentos; pulsar un nodo
+// El árbol de la investigación: el grafo de lib/arbol.ts dibujado en SVG con
+// una disposición por fuerzas propia. Se explora: al abrir se ven el tronco,
+// las ramas, las hipótesis vivas y los experimentos; pulsar un nodo
 // despliega lo que lo sostiene (hechos, fuentes, entidades, rivales) y lo
-// selecciona; pulsar dos veces abre su ficha. La busqueda ilumina todo lo
+// selecciona; pulsar dos veces abre su ficha. La búsqueda ilumina todo lo
 // que toca una palabra o un identificador (GFAP, HGNC:4235). El deslizador
-// de iteraciones ensena como crecio el arbol. Se mueve con la rueda y
-// arrastrando el fondo.
+// de iteraciones enseña cómo creció el árbol. Se mueve con la rueda y
+// arrastrando el fondo. El conmutador "Color por distancia al dato" cambia el
+// relleno de los nodos por una escala secuencial según los saltos que los
+// separan de una medición propia (lib/arbol.ts calcula la distancia).
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Vacio } from '../componentes/piezas';
-import { alternar, buscar, construirArbol, incorporarNovedades, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
+import { alternar, buscar, construirArbol, fraseProfundidad, incorporarNovedades, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, SIN_DISTANCIA, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
 import { useMovimientoReducido } from '../lib/movimiento';
 
-const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12 };
+const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12, afirmacion: 6, ejecucion: 9, dataset: 8, laboratorio: 12 };
 const COLOR: Record<TipoNodo, string> = {
   objetivo: 'var(--accent)',
   rama: 'var(--accent-soft-2)',
@@ -24,6 +26,10 @@ const COLOR: Record<TipoNodo, string> = {
   fuente: 'var(--text-3)',
   entidad: 'var(--blue)',
   experimento: '#0f766e',
+  afirmacion: 'var(--grafo-afirmacion)',
+  ejecucion: 'var(--grafo-ejecucion)',
+  dataset: 'var(--grafo-dataset)',
+  laboratorio: 'var(--grafo-laboratorio)',
 };
 const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }> = {
   rama: { color: 'var(--border-strong)', ancho: 1.6 },
@@ -33,7 +39,26 @@ const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }
   causal: { color: '#ea580c', ancho: 1.4 },
   rival: { color: 'var(--red)', ancho: 1, guion: '4 4' },
   experimento: { color: '#0f766e', ancho: 1.8 },
+  dato: { color: 'var(--grafo-dato-1)', ancho: 1.3 },
 };
+
+type ModoColor = 'tipo' | 'dato';
+/** Escala secuencial por distancia al dato: un solo tono, más intenso cuanto
+ *  más cerca de la medición (0 = la medición misma) y más claro a cada salto.
+ *  Los tokens viven en styles.css con pasos propios para el tema oscuro. */
+const ESCALA_DATO = ['var(--grafo-dato-0)', 'var(--grafo-dato-1)', 'var(--grafo-dato-2)', 'var(--grafo-dato-3)'];
+const NOMBRE_ESCALA = ['La medición misma (0 saltos)', 'A 1 salto de una medición', 'A 2 saltos', 'A 3 saltos o más'];
+const COLOR_SIN_DATO = 'var(--grafo-dato-nulo)';
+/** Escalón de la escala para un nodo: 0 a 3, o 'nulo' si no hay camino al dato. */
+function escalonDato(n: NodoArbol): number | 'nulo' {
+  const d = n.profundidadDato ?? null;
+  return d === null ? 'nulo' : Math.min(d, ESCALA_DATO.length - 1);
+}
+function colorPorDato(n: NodoArbol): string {
+  if (SIN_DISTANCIA.has(n.tipo)) return COLOR[n.tipo];
+  const e = escalonDato(n);
+  return e === 'nulo' ? COLOR_SIN_DATO : ESCALA_DATO[e]!;
+}
 
 function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
   const posiciones = useRef(new Map<string, Posicion>());
@@ -41,7 +66,7 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
   const alfa = useRef(1);
   const semilla = useRef(1);
   const marco = useRef<number | null>(null);
-  // Un bucle de animacion que se enfria solo y se puede reavivar (al
+  // Un bucle de animación que se enfría solo y se puede reavivar (al
   // arrastrar un nodo, al desplegar): como el "animate" del grafo de Obsidian.
   const arrancar = (energia = 1) => {
     alfa.current = Math.max(alfa.current, energia);
@@ -72,7 +97,7 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
       }
     }
     // El estado de Rosa cambia cada pocos segundos por SSE y reconstruye el grafo:
-    // si el conjunto de nodos no cambio, no se vuelve a agitar el arbol.
+    // si el conjunto de nodos no cambió, no se vuelve a agitar el árbol.
     const firma = [...visibles].sort().join('|');
     const primera = firmaAnterior.current === '';
     firmaAnterior.current = firma;
@@ -87,8 +112,8 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
       alfa.current = 0;
       arrancar(primera ? 1 : 0.6);
     } else if (alfa.current > 0.03) {
-      // La limpieza del efecto anterior cancelo el fotograma en marcha (otro
-      // efecto reasigno los visibles al montar): se retoma donde estaba.
+      // La limpieza del efecto anterior canceló el fotograma en marcha (otro
+      // efecto reasignó los visibles al montar): se retoma donde estaba.
       arrancar(alfa.current);
     }
     return () => {
@@ -100,18 +125,18 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
   return { posiciones: posiciones.current, reavivar: (energia = 0.4) => (quieto ? setTick((t) => t + 1) : arrancar(energia)) };
 }
 
-/** Cuanto se ve la etiqueta de un nodo segun el zoom y su importancia (el
+/** Cuánto se ve la etiqueta de un nodo según el zoom y su importancia (el
  *  "text fade threshold" del grafo de Obsidian): el tronco siempre; ramas,
- *  hipotesis y experimentos desde un zoom normal; lo pequeno solo al acercar,
- *  o si esta iluminado o seleccionado. */
+ *  hipótesis y experimentos desde un zoom normal; lo pequeño solo al acercar,
+ *  o si está iluminado o seleccionado. */
 function opacidadEtiqueta(n: NodoArbol, k: number, vivo: boolean, sel: boolean): number {
   if (sel) return 1;
-  const umbral = n.tipo === 'objetivo' ? 0 : n.tipo === 'rama' || n.tipo === 'area' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 0.75 : 1.5;
+  const umbral = n.tipo === 'objetivo' ? 0 : n.tipo === 'rama' || n.tipo === 'area' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' || n.tipo === 'ejecucion' ? 0.75 : 1.5;
   const base = Math.max(0, Math.min(1, (k - umbral) / 0.35 + 1));
-  return vivo ? Math.max(base, n.tipo === 'fuente' || n.tipo === 'entidad' || n.tipo === 'hecho' || n.tipo === 'pregunta' ? 0.9 : 1) : base;
+  return vivo ? Math.max(base, n.tipo === 'fuente' || n.tipo === 'entidad' || n.tipo === 'hecho' || n.tipo === 'pregunta' || n.tipo === 'afirmacion' || n.tipo === 'dataset' ? 0.9 : 1) : base;
 }
 
-/** Parte una etiqueta en hasta dos lineas de unos 22 caracteres. */
+/** Parte una etiqueta en hasta dos líneas de unos 22 caracteres. */
 function lineas(texto: string, maximo = 22): string[] {
   if (texto.length <= maximo) return [texto];
   const palabras = texto.split(' ');
@@ -139,6 +164,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const anterior = useRef({ ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax });
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
+  const [modoColor, setModoColor] = useState<ModoColor>('tipo');
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const reducido = useMovimientoReducido();
@@ -166,8 +192,8 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
   const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido);
-  // Balanceo en reposo: un vaiven lento y distinto por nodo (solo al dibujar,
-  // no en la fisica) para que el arbol nunca parezca una foto. Con movimiento
+  // Balanceo en reposo: un vaivén lento y distinto por nodo (solo al dibujar,
+  // no en la física) para que el árbol nunca parezca una foto. Con movimiento
   // reducido no hay balanceo.
   const [reloj, setReloj] = useState(0);
   useEffect(() => {
@@ -189,6 +215,9 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
   };
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
+  const colorDe = (n: NodoArbol) => (modoColor === 'dato' ? colorPorDato(n) : COLOR[n.tipo]);
+  // Sin camino al dato: relleno gris y borde punteado (solo en el modo por distancia).
+  const sinDato = (n: NodoArbol) => modoColor === 'dato' && !SIN_DISTANCIA.has(n.tipo) && escalonDato(n) === 'nulo';
   // Resaltar solo al pasar el ratón (como Obsidian): el nodo y sus vecinos vivos, el
   // resto atenuado. La selección (el último nodo abierto) conserva su anillo y su
   // panel, pero no atenúa a los demás: sin ratón encima se ve el árbol entero
@@ -199,7 +228,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : foco === null || foco === id || (vecinosFoco?.has(id) ?? false));
 
   // La rueda va con un oyente nativo no pasivo: React registra onWheel como
-  // pasivo y preventDefault no haria nada (la pagina haria scroll).
+  // pasivo y preventDefault no haría nada (la página haría scroll).
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -209,7 +238,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       const p = enLienzo(e.clientX, e.clientY);
       setVista((v) => {
         const k = Math.max(0.25, Math.min(4, v.k * factor));
-        // Zoom alrededor del cursor: el punto bajo el raton no se mueve.
+        // Zoom alrededor del cursor: el punto bajo el ratón no se mueve.
         return { k, x: p.x - ((p.x - v.x) * k) / v.k, y: p.y - ((p.y - v.y) * k) / v.k };
       });
     };
@@ -221,7 +250,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     const nodo = (e.target as Element).closest('.grafo-nodo') as SVGGElement | null;
     if (nodo) {
       // Sin capturar el puntero: si el SVG lo captura, el navegador manda el
-      // clic al SVG y la esfera nunca recibe onClick (no se abria el panel).
+      // clic al SVG y la esfera nunca recibe onClick (no se abría el panel).
       const id = nodo.getAttribute('data-id');
       const p = id ? posiciones.get(id) : undefined;
       if (id && p) {
@@ -250,9 +279,9 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     }
     if (!arrastre.current) return;
     const a = arrastre.current;
-    // Al agarrar el arbol, las esferas no van pegadas al fondo: reciben un
+    // Al agarrar el árbol, las esferas no van pegadas al fondo: reciben un
     // impulso contrario, se columpian y vuelven a su sitio tiradas por los
-    // enlaces (el tronco esta fijo). Es la sacudida de un arbol de verdad.
+    // enlaces (el tronco está fijo). Es la sacudida de un árbol de verdad.
     const dx = e.clientX - (a.ux ?? a.x);
     const dy = e.clientY - (a.uy ?? a.y);
     a.ux = e.clientX;
@@ -271,7 +300,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     if (arrastreNodo.current) {
       const p = posiciones.get(arrastreNodo.current.id);
       if (p && arrastreNodo.current.id !== 'objetivo') p.fijo = false;
-      // Un arrastre no es un clic: si se movio, no se despliega ni se selecciona.
+      // Un arrastre no es un clic: si se movió, no se despliega ni se selecciona.
       const movido = arrastreNodo.current.movido;
       arrastreNodo.current = null;
       if (movido) {
@@ -297,8 +326,8 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
-        <Vacio titulo="El árbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya esta.', 'Cuando Rosa busque literatura y verifique afirmaciones, apareceran los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
-          Aqui se ve toda la investigacion conectada: que sostiene a que, que comparte una entidad con que, y que rivaliza con que.
+        <Vacio titulo="El árbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya está.', 'Cuando Rosa busque literatura y verifique afirmaciones, aparecerán los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
+          Aquí se ve toda la investigación conectada: qué sostiene a qué, qué comparte una entidad con qué, y qué rivaliza con qué.
         </Vacio>
       </div>
     );
@@ -306,7 +335,15 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
 
   const enlacesVisibles = grafo.enlaces.filter((e) => enTiempo.has(e.de) && enTiempo.has(e.a) && posiciones.has(e.de) && posiciones.has(e.a));
   const nodosVisibles = [...enTiempo].map((id) => grafo.porId.get(id)).filter((n): n is NodoArbol => Boolean(n) && posiciones.has(n!.id));
-  const cuentas = nodosVisibles.reduce<Partial<Record<TipoNodo, number>>>((acc, n) => ({ ...acc, [n.tipo]: (acc[n.tipo] ?? 0) + 1 }), {});
+  // Recuentos de la leyenda (por tipo y por escalón de distancia), solo de lo visible.
+  const cuentas: Partial<Record<TipoNodo, number>> = {};
+  const cuentasDato: Record<string, number> = {};
+  for (const n of nodosVisibles) {
+    cuentas[n.tipo] = (cuentas[n.tipo] ?? 0) + 1;
+    if (SIN_DISTANCIA.has(n.tipo)) continue;
+    const e = String(escalonDato(n));
+    cuentasDato[e] = (cuentasDato[e] ?? 0) + 1;
+  }
 
   return (
     <div className="contenido contenido-ancho">
@@ -314,9 +351,17 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Árbol de la investigación</h2>
-          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Con «Color por distancia al dato» cada nodo se colorea según lo cerca que esté de una medición propia de Rosa: un análisis in silico validado, un resultado del laboratorio o una observación original.</p>
         </div>
         <div className="acciones">
+          <div className="segmentos" role="group" aria-label="Color de los nodos">
+            <button type="button" aria-pressed={modoColor === 'tipo'} onClick={() => setModoColor('tipo')} title="Cada tipo de nodo con su color">
+              Color por tipo
+            </button>
+            <button type="button" aria-pressed={modoColor === 'dato'} onClick={() => setModoColor('dato')} title="Cuanto más intenso, más cerca de una medición propia de Rosa; gris punteado, solo literatura">
+              Color por distancia al dato
+            </button>
+          </div>
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
           <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); setVista({ x: 0, y: 0, k: 1 }); }}>
             Plegar todo
@@ -350,10 +395,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               return (
                 <g key={n.id} data-id={n.id} className={`grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
                   {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
-                  <circle r={r} fill={COLOR[n.tipo]} stroke={n.alerta ? 'var(--red)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : undefined} />
+                  <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'} strokeWidth={n.alerta ? 2 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) ? '2 2' : undefined} />
                   {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
+                  {n.tipo === 'laboratorio' && <path d="M-4.5 0.5 l3 3 l6 -7" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />}
                   {opEt > 0.02 && (
-                    <text y={r + 11} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' ? 10.5 : 9 }}>
+                    <text y={r + 11} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' ? 10.5 : 9 }}>
                       {filas.map((f, i) => (
                         <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
                           {f}
@@ -375,6 +421,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               {nodoSel.alerta && <p className="tono-mal" style={{ fontSize: 13 }}>{nodoSel.alerta}</p>}
               {nodoSel.alias && nodoSel.alias.length > 1 && <p className="meta">Alias: {nodoSel.alias.slice(0, 8).join(', ')}</p>}
               <p className="meta">Aparece desde la iteración {nodoSel.iteracion || 1}.</p>
+              {!SIN_DISTANCIA.has(nodoSel.tipo) && <p className="meta">{fraseProfundidad(nodoSel)}</p>}
               <h4>Conectado con</h4>
               <ul className="grafo-vecinos">
                 {grafo.enlaces
@@ -386,7 +433,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                     return (
                       <li key={`${e.de}|${e.a}|${e.tipo}`}>
                         <button type="button" className="enlace" onClick={() => { setSeleccion(otro.id); setVisibles((v) => new Set([...v, otro.id])); }}>
-                          <span className="grafo-punto" style={{ background: COLOR[otro.tipo] }} aria-hidden="true" /> {otro.etiqueta.length > 60 ? `${otro.etiqueta.slice(0, 58)}...` : otro.etiqueta}
+                          <span className="grafo-punto" style={{ background: colorDe(otro) }} aria-hidden="true" /> {otro.etiqueta.length > 60 ? `${otro.etiqueta.slice(0, 58)}...` : otro.etiqueta}
                         </button>
                         <span className="meta"> · {NOMBRE_ENLACE[e.tipo]}{e.etiqueta ? ` (${e.etiqueta})` : ''}</span>
                       </li>
@@ -402,13 +449,29 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
           ) : (
             <>
               <h3>Leyenda</h3>
-              <ul className="grafo-leyenda">
-                {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).map((t) => (
-                  <li key={t}>
-                    <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
-                  </li>
-                ))}
-              </ul>
+              {modoColor === 'dato' ? (
+                <>
+                  <p className="meta">El color dice a cuántos saltos está cada nodo de una medición propia (un análisis in silico validado, un resultado del laboratorio o una observación original sostenida): cuanto más claro, más lejos del dato. El tronco, las áreas, los clusters y las entidades canónicas conservan su color: son estructura o nombres, no evidencia.</p>
+                  <ul className="grafo-leyenda">
+                    {ESCALA_DATO.map((c, i) => (
+                      <li key={i}>
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA[i]} <span className="meta">{cuentasDato[String(i)] ?? 0}</span>
+                      </li>
+                    ))}
+                    <li>
+                      <span className="grafo-punto grafo-punto-nulo" aria-hidden="true" /> Sin medición propia: solo literatura <span className="meta">{cuentasDato.nulo ?? 0}</span>
+                    </li>
+                  </ul>
+                </>
+              ) : (
+                <ul className="grafo-leyenda">
+                  {(Object.keys(NOMBRE_TIPO) as TipoNodo[]).map((t) => (
+                    <li key={t}>
+                      <span className="grafo-punto" style={{ background: COLOR[t] }} aria-hidden="true" /> {NOMBRE_TIPO[t]} <span className="meta">{cuentas[t] ?? 0}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <h4>Enlaces</h4>
               <ul className="grafo-leyenda">
                 {(Object.keys(NOMBRE_ENLACE) as TipoEnlace[]).map((t) => (
@@ -417,7 +480,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                   </li>
                 ))}
               </ul>
-              <p className="meta">Borde rojo: descartada, bloqueada o con marca editorial. Punteada: descartada.</p>
+              <p className="meta">Borde rojo: descartada, bloqueada o con marca editorial. {modoColor === 'dato' ? 'Punteada: descartada o sin medición propia.' : 'Punteada: descartada.'}</p>
             </>
           )}
         </aside>

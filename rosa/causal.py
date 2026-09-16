@@ -214,6 +214,17 @@ def relaciones_iniciales() -> list[dict[str, Any]]:
     return [{"id": f"rel-base-{i}", "investigacionId": None, "de": r["de"], "a": r["a"], "tipo": "base_curada", "contexto": r["contexto"], "hipotesisId": None, "actualizadoEn": 0} for i, r in enumerate(BASE_CURADA)]
 
 
+def signo_de(h: dict[str, Any]) -> str | None:
+    """El sentido del efecto X -> Y que afirma la hipótesis: '+' si dice que X
+    aumenta Y, '-' si dice que lo disminuye, None si no se puede decir. Sale de
+    la tarjeta (dirección de la intervención) y, si no la hay, de las palabras del
+    enunciado (regla de rosa/killer.py). Con el signo, dos hipótesis con la misma
+    arista y sentidos opuestos se reconocen como incompatibles (rosa/argumentacion.py)."""
+    from rosa import argumentacion as ARG
+
+    return ARG.signo_de_hipotesis(h)
+
+
 def registrar_relacion(e: dict[str, Any], h: dict[str, Any], grafo: dict[str, Any], ahora: int) -> None:
     """La arista X -> Y de la hipotesis entra al modelo de mundo con su tipo
     (supuesto o inferencia con evidencia), una por hipotesis, actualizable."""
@@ -224,7 +235,7 @@ def registrar_relacion(e: dict[str, Any], h: dict[str, Any], grafo: dict[str, An
         return
     rels = e.setdefault("relaciones", [])
     existente = next((r for r in rels if r.get("hipotesisId") == h["id"]), None)
-    nueva = {"id": existente["id"] if existente else f"rel-{h['id']}", "investigacionId": h["investigacionId"], "de": ex, "a": ey, "tipo": xy["tipo"], "contexto": f"Hipótesis '{h.get('titulo', '')[:80]}' (v{h.get('version', 1)}): {grafo.get('identificacion')}", "hipotesisId": h["id"], "actualizadoEn": ahora}
+    nueva = {"id": existente["id"] if existente else f"rel-{h['id']}", "investigacionId": h["investigacionId"], "de": ex, "a": ey, "tipo": xy["tipo"], "contexto": f"Hipótesis '{h.get('titulo', '')[:80]}' (v{h.get('version', 1)}): {grafo.get('identificacion')}", "hipotesisId": h["id"], "actualizadoEn": ahora, "signo": signo_de(h)}
     if existente:
         existente.update(nueva)
     else:

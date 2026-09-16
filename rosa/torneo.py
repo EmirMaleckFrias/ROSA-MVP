@@ -30,9 +30,11 @@ def actualizar(elo_a: float, elo_b: float, gano_a: bool) -> tuple[int, int]:
     return round(elo_a + K * (sa - ea)), round(elo_b + K * ((1 - sa) - (1 - ea)))
 
 
-def emparejar(hipotesis: list[dict[str, Any]], maximo: int = 6, semilla: int | None = None) -> list[tuple[dict, dict]]:
-    """Pares para esta ronda: primero cada hipótesis sin partidos contra una
-    del top, luego pares de Elo cercano que no se hayan enfrentado ya."""
+def emparejar(hipotesis: list[dict[str, Any]], maximo: int = 6, semilla: int | None = None, forzados: list[tuple[str, str]] | None = None) -> list[tuple[dict, dict]]:
+    """Pares para esta ronda: primero los pares forzados (dos hipótesis que el
+    Killer marcó como redundantes: el partido dirimente decide si se fusionan),
+    después cada hipótesis sin partidos contra una del top, y luego pares de Elo
+    cercano que no se hayan enfrentado ya."""
     vivas = [h for h in hipotesis if h["estado"] in ("propuesta", "en_revision", "refinar", "aceptada")]
     if len(vivas) < 2:
         return []
@@ -40,6 +42,14 @@ def emparejar(hipotesis: list[dict[str, Any]], maximo: int = 6, semilla: int | N
     orden = sorted(vivas, key=lambda h: -h["elo"])
     pares: list[tuple[dict, dict]] = []
     usados: set[str] = set()
+    por_id = {h["id"]: h for h in vivas}
+    for ida, idb in forzados or []:
+        if len(pares) >= maximo:
+            break
+        if ida == idb or ida in usados or idb in usados or ida not in por_id or idb not in por_id:
+            continue
+        pares.append((por_id[ida], por_id[idb]))
+        usados.update({ida, idb})
     for h in vivas:
         if len(pares) >= maximo:
             break
@@ -63,16 +73,29 @@ def emparejar(hipotesis: list[dict[str, Any]], maximo: int = 6, semilla: int | N
     return pares
 
 
-def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None, iteracion: int, resumen: str, eje: str) -> None:
+RELACION_INVERSA = {"a_subsume_b": "b_subsume_a", "b_subsume_a": "a_subsume_b"}
+
+
+def relacion_acordada(rel_1: str | None, rel_2: str | None) -> str:
+    """La relación entre A y B que el juez declaró en las dos llamadas (la
+    segunda con A y B invertidas). Solo cuenta si coinciden; si no, 'distintas'."""
+    r1 = rel_1 or "distintas"
+    r2 = RELACION_INVERSA.get(rel_2 or "distintas", rel_2 or "distintas")
+    return r1 if r1 == r2 and r1 != "distintas" else "distintas"
+
+
+def registrar_partido(a: dict[str, Any], b: dict[str, Any], gano_a: bool | None, iteracion: int, resumen: str, eje: str, relacion: str | None = None) -> None:
     """Aplica el resultado a las dos hipotesis (en sitio). `gano_a=None` son
-    tablas: se anota el debate pero el Elo no se mueve."""
+    tablas: se anota el debate pero el Elo no se mueve. `relacion` es lo que el
+    juez dijo que son una respecto a la otra (equivalentes, una subsume a la
+    otra, incompatibles); se guarda desde el punto de vista de cada una."""
     if gano_a is not None:
         a["elo"], b["elo"] = actualizar(a["elo"], b["elo"], gano_a)
-    for h, rival, gano in ((a, b, gano_a), (b, a, None if gano_a is None else not gano_a)):
+    for h, rival, gano, rel in ((a, b, gano_a, relacion), (b, a, None if gano_a is None else not gano_a, RELACION_INVERSA.get(relacion or "", relacion))):
         h["historialElo"].append({"iteracion": iteracion, "elo": h["elo"]})
         if rival["id"] not in h["rivales"]:
             h["rivales"].append(rival["id"])
-        h["partidos"].append({"iteracion": iteracion, "rivalId": rival["id"], "resultado": "tablas" if gano is None else ("gano" if gano else "perdio"), "resumenDebate": resumen if gano is not None else f"Tablas (el juez discrepo al invertir el orden): {resumen}", "ejeDecisivo": eje})
+        h["partidos"].append({"iteracion": iteracion, "rivalId": rival["id"], "resultado": "tablas" if gano is None else ("gano" if gano else "perdio"), "resumenDebate": resumen if gano is not None else f"Tablas (el juez discrepo al invertir el orden): {resumen}", "ejeDecisivo": eje, **({"relacion": rel} if rel and rel != "distintas" else {})})
         for r in h["revisionesAutomaticas"]:
             if r["tipo"] == "torneo":
                 r["estado"] = "hecha" if r["estado"] == "pendiente" else "rehecha"

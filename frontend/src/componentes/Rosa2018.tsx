@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
-import { CAMPOS_ENMENDABLES } from '../datos/acciones';
+import { CAMPOS_ENMENDABLES, empeoraAlEvaluar } from '../datos/acciones';
 import type { CambioAprendizaje, CasoDorado, Comprobacion, ConocimientoOperativo, EntidadCanonica, Corrida, Dataset, Decision, DimensionesResultado, Ejecucion, EstadoRosa, Hipotesis, Investigacion, MetodoRegistrado, PasoRutaTerapeutica, PlanAnalisis, PreguntaCampana, ProcedenciaDataset, Reproduccion, Responsables, CampoEnmendable, AreaInvestigacion, ConectorCatalogo, RevisionRegistro, ProcedenciaArtefacto, ConsultaBase, NivelPermisoConector, SkillCatalogo, EstadoEspejo } from '../datos/tipos';
 import {
   ACCESO_DATASET,
@@ -31,8 +31,9 @@ import {
   TIPO_APRENDIZAJE,
   TIPO_METODO,
   USO_IA,
-  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR, CLASE_HALLAZGO_REGISTRO } from '../lib/etiquetas';
+  VEREDICTO_AUDITORIA, IDENTIFICACION_CAUSAL, TIPO_ARISTA, GRUPO_CONECTOR, ESTADO_CONECTOR, CLASE_HALLAZGO_REGISTRO, RELACION_TORNEO } from '../lib/etiquetas';
 import { EXPLICACION_BLOQUEO } from '../lib/priorizacion';
+import { cambiosPorVersion, etiquetaCampo, resumenDiff } from '../lib/registro';
 import { rutaDe } from '../lib/ruta';
 import { Chip, Confirmar, Momento, Seccion } from './piezas';
 
@@ -269,18 +270,32 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
       {(h.versiones?.length ?? 0) > 0 && (
         <details className="versiones">
           <summary>
-            Version {h.version ?? 1} · {h.versiones!.length} {h.versiones!.length === 1 ? 'version anterior' : 'versiones anteriores'} (reformular no sobrescribe)
+            Versión {h.version ?? 1} · {h.versiones!.length} {h.versiones!.length === 1 ? 'versión anterior' : 'versiones anteriores'} (reformular no sobrescribe)
           </summary>
           <ul className="lista-limpia">
-            {h.versiones!.map((v) => (
-              <li key={v.n}>
+            {cambiosPorVersion(h.versiones!, h).map(({ version: v, deN, aN, cambios }) => (
+              <li key={v.n ?? deN}>
                 <div>
                   <strong style={{ fontSize: 13 }}>
-                    v{v.n} · {v.quien} · <Momento t={v.fecha} ahora={Date.now()} />
+                    v{deN} · {v.quien} · <Momento t={v.fecha ?? 0} ahora={Date.now()} />
+                    {v.certeza ? ` · certeza ${v.certeza.replace('_', ' ')}` : ''}
+                    {typeof v.nFuentes === 'number' ? ` · ${v.nFuentes} fuentes` : ''}
                   </strong>
                   <p style={{ fontSize: 13 }}>{v.titulo}</p>
                   <p className="meta">{v.enunciado}</p>
-                  <p className="meta">Por que cambio: {v.motivo}</p>
+                  <p className="meta">Por qué cambió: {v.motivo}</p>
+                  <p className="meta">
+                    De la v{deN} a la v{aN}: {resumenDiff(cambios)}
+                  </p>
+                  {cambios.length > 0 && (
+                    <ul className="version-cambios">
+                      {cambios.map((c) => (
+                        <li key={c.campo}>
+                          <strong>{etiquetaCampo(c.campo)}</strong>: <s>{c.antes || 'vacío'}</s> → {c.despues || 'vacío'}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </li>
             ))}
@@ -485,6 +500,61 @@ export function Bloqueos({ bloqueos, candidata }: { bloqueos: Hipotesis['bloqueo
         </Chip>
       ))}
     </span>
+  );
+}
+
+/* ---------------------------------------------------------------------
+   Grafo de evidencia: fusión de ramas, conflictos y pendientes de revisar
+   --------------------------------------------------------------------- */
+
+const CAUSA_PENDIENTE: Record<NonNullable<Hipotesis['pendienteRevision']>['causa'], string> = {
+  fuente_retractada: 'una de sus fuentes se retractó',
+  hecho_sustituido: 'un hecho del que depende fue sustituido por otro más reciente',
+  hecho_contradicho: 'un hecho del que depende fue contradicho',
+  hipotesis_reformulada: 'la hipótesis de la que deriva se reformuló',
+  fuente_corregida: 'una de sus fuentes recibió una corrección editorial',
+};
+
+export function FusionYConflictos({ h, estado }: { h: Hipotesis; estado: EstadoRosa }) {
+  const titulo = (id: string) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id;
+  const fp = h.fusionPropuesta;
+  const conflictos = h.conflictoCon ?? [];
+  const pendiente = h.pendienteRevision;
+  if (!fp && conflictos.length === 0 && !pendiente && !h.fusionadaEn && (h.absorbe?.length ?? 0) === 0) return null;
+  return (
+    <div className="fusion-conflictos">
+      {fp && (
+        <div className="aviso-conflicto aviso-info">
+          <span>
+            <strong>Rosa propone fusionar esta hipótesis</strong> en «{titulo(fp.con)}» ({RELACION_TORNEO[fp.relacion]}). {fp.motivo} Si aceptas, la otra hereda las afirmaciones y fuentes de esta y esta queda cerrada como fusionada, no como refutada.
+          </span>
+          <span className="acciones">
+            <Confirmar etiqueta="Fusionar" pregunta={`«${titulo(fp.con)}» hereda la evidencia de esta hipótesis y esta se cierra como fusionada.`} onConfirmar={() => acciones.fusionarHipotesis(fp.con, h.id, fp.motivo)} />
+            <button type="button" className="btn btn-s" onClick={() => acciones.rechazarFusion(h.id)}>
+              No fusionar
+            </button>
+          </span>
+        </div>
+      )}
+      {h.fusionadaEn && <p className="meta">Fusionada en «{titulo(h.fusionadaEn)}»: su evidencia vive allí. No fue refutada.</p>}
+      {(h.absorbe?.length ?? 0) > 0 && <p className="meta">Absorbió por fusión: {h.absorbe!.map(titulo).join('; ')}.</p>}
+      {conflictos.length > 0 && (
+        <p className="meta">
+          <Chip tono="aviso" title="Marco de argumentación (Dung): dos hipótesis que se atacan no pueden ser ciertas a la vez. Rosa lo marca; no descarta ninguna.">
+            Se contradice con {conflictos.length === 1 ? 'otra candidata' : `${conflictos.length} candidatas`}
+          </Chip>{' '}
+          {conflictos.map(titulo).join('; ')}. Si las dos van al laboratorio, una sobra o hay que diseñar el experimento que las separe.
+        </p>
+      )}
+      {pendiente && (
+        <p className="meta">
+          <Chip tono="aviso" title={EXPLICACION_BLOQUEO.dependencia_pendiente}>Pendiente de revisar</Chip> {CAUSA_PENDIENTE[pendiente.causa]}: {pendiente.detalle} (desde el <Momento t={pendiente.desde} ahora={Date.now()} />). Rosa la volverá a concluir al cerrar la iteración; si ya la revisaste tú, márcalo.{' '}
+          <button type="button" className="btn btn-s" onClick={() => acciones.atenderPendiente('hipotesis', h.id, 'revisada por una persona')}>
+            Ya la revisé
+          </button>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1232,12 +1302,18 @@ function FilaAprendizaje({ c, ahora }: { c: CambioAprendizaje; ahora: number }) 
         <div className="acciones" style={{ gap: 6 }}>
           <Chip tono={e.tono}>{e.etiqueta}</Chip>
           <Chip tono="borde">{TIPO_APRENDIZAJE[c.tipo]}</Chip>
+          {c.origen.startsWith('arnes:') && (
+            <Chip tono="acento" title="Lo propuso la meta-campaña al terminar una corrida, leyendo cómo rindió. Un criterio se evalúa solo contra las decisiones humanas y se revierte si empeora; una política la decides tú.">
+              Meta-campaña
+            </Chip>
+          )}
           <span className="meta">
             {c.quien} · <Momento t={c.fecha} ahora={ahora} />
             {c.resueltoPor && c.resueltoPor !== c.quien ? ` · resuelto por ${c.resueltoPor}` : ''}
           </span>
         </div>
         <p style={{ fontSize: 13.5, marginTop: 4 }}>{c.descripcion}</p>
+        {c.nota && <p className="meta">{c.nota}</p>}
         {ev && (
           <p className="meta">
             {ev.casos > 0 ? `Evaluado sobre ${ev.casos} casos (${ev.conjunto}): acuerdo con las personas ${ev.antes ?? '?'} antes, ${ev.despues ?? '?'} después. ` : ''}
@@ -1252,7 +1328,13 @@ function FilaAprendizaje({ c, ahora }: { c: CambioAprendizaje; ahora: number }) 
               Evaluar
             </button>
           )}
-          <button type="button" className="btn btn-primario btn-s" onClick={() => acciones.promoverAprendizaje(c.id)}>
+          <button
+            type="button"
+            className="btn btn-primario btn-s"
+            disabled={empeoraAlEvaluar(c)}
+            title={empeoraAlEvaluar(c) ? 'No se puede promover: la evaluación dice que empeora el acuerdo con las decisiones humanas. Solo se promueve lo que iguala o mejora.' : 'Aplicar el cambio a Rosa.'}
+            onClick={() => acciones.promoverAprendizaje(c.id)}
+          >
             Promover
           </button>
           <Confirmar etiqueta="Revertir" pregunta="El cambio no se aplica y queda registrado como revertido." pedirTexto={{ etiqueta: 'Motivo', marcador: 'Empeora el acuerdo con las decisiones humanas' }} onConfirmar={(m) => acciones.revertirAprendizaje(c.id, m)} />

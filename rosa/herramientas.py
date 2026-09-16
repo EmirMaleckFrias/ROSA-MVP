@@ -110,10 +110,39 @@ def herramientas(estado: dict[str, Any], investigacion_id: str, registro: list[d
         if not hits:
             t = tema.lower()
             hits = [h for h in hechos if t in (h.get("enunciado", "") + " " + h.get("tema", "")).lower()][:12]
-        return _recortar([{"id": h["id"], "tipo": h.get("tipo"), "estado": h.get("estado"), "enunciado": h.get("enunciado"), "fuentes": [p.get("referencia") for p in h.get("procedencia", [])][:3]} for h in hits] or "Sin hechos sobre ese tema en el modelo de mundo")
+        # Vecinos del grafo (rosa/grafo.py): qué hipótesis respalda cada hecho, y las
+        # cuestiones ligadas. Sin fragmentos de fuentes: solo referencias y títulos.
+        inv = next((i for i in estado.get("investigaciones", []) if i["id"] == investigacion_id), None)
+        vecinos: dict[str, list[str]] = {}
+        if inv is not None and hits:
+            try:
+                from rosa import grafo as GR
 
+                g = GR.construir_cacheado(estado, inv)
+                for h in hits:
+                    vecinos[h["id"]] = [v["etiqueta"][:80] for v in GR.vecinos_de(g, f"he-{h['id']}", tipos=("hipotesis",))[:3]]
+            except Exception:  # noqa: BLE001  el grafo nunca tumba una herramienta
+                vecinos = {}
+        cuestiones_por_hecho: dict[str, list[str]] = {}
+        for c in estado.get("cuestiones", []):
+            if c.get("investigacionId") == investigacion_id and c.get("estado") == "abierta":
+                for hid in c.get("hechoIds", []):
+                    cuestiones_por_hecho.setdefault(hid, []).append(c.get("texto", "")[:100])
+        return _recortar([{"id": h["id"], "tipo": h.get("tipo"), "estado": h.get("estado"), "enunciado": h.get("enunciado"), "fuentes": [p.get("referencia") for p in h.get("procedencia", [])][:3], "respaldaHipotesis": vecinos.get(h["id"], []), "cuestionesLigadas": cuestiones_por_hecho.get(h["id"], []), "sustituidoPor": h.get("sustituidoPor"), "contradiceA": h.get("contradiceA") or []} for h in hits] or "Sin hechos sobre ese tema en el modelo de mundo")
+
+    async def leer_cuestiones(estado_filtro: str) -> str:
+        # Las cuestiones persistentes de la investigación (rosa/cuestiones.py): qué está
+        # abierto, de dónde salió y qué lo resolvería; o qué se resolvió ya y con qué.
+        filtro = (estado_filtro or "abierta").strip().lower()
+        if filtro not in ("abierta", "resuelta", "descartada", "todas"):
+            filtro = "abierta"
+        lista = [c for c in estado.get("cuestiones", []) if c.get("investigacionId") == investigacion_id and (filtro == "todas" or c.get("estado") == filtro)]
+        lista.sort(key=lambda c: (c.get("prioridad", 5), -(c.get("actualizadaEn") or 0)))
+        return _recortar([{"id": c["id"], "estado": c.get("estado"), "texto": c.get("texto"), "queLaResolveria": c.get("queLaResolveria"), "origen": c.get("origen"), "prioridad": c.get("prioridad"), "hipotesisIds": c.get("hipotesisIds", []), "resolucion": c.get("resolucion")} for c in lista[:15]] or f"Sin cuestiones en estado «{filtro}»")
+
+    tools.append(dspy.Tool(leer_cuestiones, name="leer_cuestiones", desc="Las cuestiones de la investigación (lo que está abierto, de dónde salió y qué lo resolvería; o lo ya resuelto). Usar antes de abrir una pregunta nueva.", args={"estado_filtro": {"type": "string", "description": "abierta, resuelta, descartada o todas"}}, arg_types={"estado_filtro": str}))
     tools.append(dspy.Tool(buscar_en_proyecto, name="buscar_en_proyecto", desc="Busca en el propio proyecto: hipótesis, hechos, artefactos, decisiones, fuentes y datasets de esta investigación. Usar antes de preguntar a una persona por algo que ya esta decidido.", args={"consulta": {"type": "string", "description": "Palabras del dominio, un identificador o una frase"}}, arg_types={"consulta": str}))
-    tools.append(dspy.Tool(leer_modelo_de_mundo, name="leer_modelo_de_mundo", desc="Los hechos sabidos y abiertos del modelo de mundo sobre un tema, con sus fuentes.", args={"tema": {"type": "string", "description": "Tema o biomarcador"}}, arg_types={"tema": str}))
+    tools.append(dspy.Tool(leer_modelo_de_mundo, name="leer_modelo_de_mundo", desc="Los hechos sabidos y abiertos del modelo de mundo sobre un tema, con sus fuentes, las hipótesis que respaldan y las cuestiones ligadas.", args={"tema": {"type": "string", "description": "Tema o biomarcador"}}, arg_types={"tema": str}))
     return tools
 
 
