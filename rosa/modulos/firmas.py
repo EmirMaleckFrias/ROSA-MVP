@@ -28,6 +28,8 @@ class PasoPropuesto(BaseModel):
     titulo: str = Field(description="Qué se hace, en una línea")
     detalle: str = Field(description="Como, en una o dos líneas")
     valor_decision: str = Field(default="", description="Qué decisión de la investigadora o de Rosa cambiaría según el resultado de este paso. Si la siguiente acción sería la misma salga lo que salga, decirlo: el paso vale poco")
+    espera: str = Field(default="", description="Solo en pasos de literatura o ensayos: qué evidencia debería aparecer si la hipótesis o la pregunta van bien, en una frase")
+    si_no_aparece: str = Field(default="", description="Solo en pasos de literatura o ensayos: qué se concluye si no aparece (por ejemplo 'la hipótesis sigue en una sola cohorte, certeza baja'), escrito antes de buscar")
     tipo: Literal["literatura", "ensayos", "extraccion", "verificacion", "novedad", "modelo", "hipotesis", "analisis", "meta"] = Field(description="Qué herramienta de Rosa ejecuta el paso. `análisis` solo si la investigación tiene datasets aprobados: ejecuta la predicción falsable de las hipótesis contra los datos en el sandbox")
     presupuesto: int = Field(description="Llamadas al modelo que se permite gastar", ge=1, le=80)
 
@@ -865,6 +867,9 @@ class PlanPropuesto(BaseModel):
     control_negativo: str = Field(description="La misma prueba con la variable dependiente barajada (semilla fija): debe dar nada. Si da algo, hay fuga o error")
     correccion_multiplicidad: str = Field(description="Cuantas pruebas se hacen y como se corrige; 'una sola prueba' si es una")
     umbral_efecto: str = Field(description="Qué valor del estadístico cuenta como efecto detectado, fijado ahora")
+    si_confirma: str = Field(default="", description="Qué hará Rosa si el análisis confirma la predicción (por ejemplo: subir la certeza por evidencia directa y proponer la réplica en otra cohorte)")
+    si_refuta: str = Field(default="", description="Qué hará Rosa si lo refuta (por ejemplo: bajar la dirección a en contra y no reinterpretar el negativo con subgrupos)")
+    si_no_evaluable: str = Field(default="", description="Qué hará Rosa si los datos no bastan (por ejemplo: pedir otro dataset; no cuenta ni a favor ni en contra)")
     criterio_no_evaluable: str = Field(description="Qué condición de los DATOS (n mínimo por grupo, faltantes, columna ausente, valores fuera de rango) hace que el análisis no se pueda evaluar. Solo condiciones comprobables en el fichero: nunca dudas sobre el método o la documentación. Si el texto del plan no fija un detalle del método, se elige la opción más fiel a la publicación, se declara en el plan y se calcula")
     entorno: Literal["tabular", "celula_unica"] = Field(default="tabular", description="tabular (pandas, numpy, scipy, statsmodels) para CSV, TSV y JSON; celula_unica (ademas scanpy y anndata) solo para ficheros h5ad de celula unica")
 

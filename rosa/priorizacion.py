@@ -58,7 +58,35 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
         b.append(_bloqueo("descartada_por_killer"))
     if any(f.get("retraccion") == "retractado" for f in h.get("procedencia", {}).get("fuentes", [])):
         b.append(_bloqueo("fuente_retractada"))
+    # Puerta de publicación (el "evidence worker" de rekursiv): un hallazgo grave y
+    # abierto del revisor de registro, en el dossier de la hipótesis o en la última
+    # iteración cerrada de la investigación, retiene la candidatura y la exportación.
+    if revision_registro_abierta(e, h):
+        b.append(_bloqueo("revision_registro_abierta"))
     return b
+
+
+def revision_registro_abierta(e: dict[str, Any], h: dict[str, Any]) -> bool:
+    """Verdadero si el dossier de la hipótesis o la última iteración cerrada de
+    su investigación tienen hallazgos del revisor de registro abiertos y de
+    gravedad alta (un DOI que no está en el registro, una ejecución afirmada y
+    no completada, un recuento que no cuadra). Misma regla en
+    frontend/src/lib/priorizacion.ts."""
+
+    def grave_abierto(hallazgos: list[dict[str, Any]] | None) -> bool:
+        return any(x.get("estado") == "abierto" and x.get("gravedad") == "alta" for x in (hallazgos or []))
+
+    if h.get("dossierArtefactoId"):
+        art = next((a for a in e.get("artefactos", []) if a["id"] == h["dossierArtefactoId"]), None)
+        ultima = (art.get("versiones") or [{}])[-1] if art else {}
+        if art and grave_abierto(((ultima.get("procedencia") or {}).get("revision") or {}).get("hallazgos")):
+            return True
+    corridas = {c["id"] for c in e.get("corridas", []) if c["investigacionId"] == h["investigacionId"]}
+    cerradas = [it for it in e.get("iteraciones", []) if it.get("corridaId") in corridas and it.get("terminadaEn")]
+    if not cerradas:
+        return False
+    ultima = max(cerradas, key=lambda it: it["terminadaEn"])
+    return grave_abierto((ultima.get("revisionRegistro") or {}).get("hallazgos"))
 
 
 def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = None) -> list[dict[str, Any]]:

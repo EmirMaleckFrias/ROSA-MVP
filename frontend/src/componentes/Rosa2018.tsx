@@ -704,6 +704,30 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
             <dd>
               {plan.tamanoEfectoMinimo}. Cuenta como efecto si: {plan.umbralEfecto}
             </dd>
+            {(plan.siConfirma || plan.siRefuta || plan.siNoEvaluable) && (
+              <>
+                <dt>Qué hará Rosa según salga</dt>
+                <dd>
+                  {plan.siConfirma && <>Si confirma: {plan.siConfirma}. </>}
+                  {plan.siRefuta && <>Si refuta: {plan.siRefuta}. </>}
+                  {plan.siNoEvaluable && <>Si no es evaluable: {plan.siNoEvaluable}.</>}
+                </dd>
+              </>
+            )}
+            {plan.planPadre && (
+              <>
+                <dt>Viene del plan</dt>
+                <dd>
+                  {plan.planPadre}. {plan.cambioRespectoAlPadre}
+                </dd>
+              </>
+            )}
+            {plan.selloExterno && (
+              <>
+                <dt>Sello externo del plan</dt>
+                <dd>{plan.selloExterno.ok ? `Sellado (RFC 3161) el ${plan.selloExterno.primeraHora ?? ''}` : `Sin sello externo${plan.selloExterno.error ? `: ${plan.selloExterno.error}` : ''}`}</dd>
+              </>
+            )}
             <dt>Baseline</dt>
             <dd>{plan.baseline}</dd>
             <dt>Control negativo</dt>

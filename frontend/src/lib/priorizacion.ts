@@ -16,6 +16,7 @@ export const ETIQUETA_BLOQUEO: Record<Bloqueo, string> = {
   sin_experimento_interpretable: 'Sin experimento interpretable',
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Depende de una fuente retractada',
+  revision_registro_abierta: 'Hallazgo grave del revisor sin atender',
 };
 
 export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
@@ -25,9 +26,10 @@ export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
   sin_experimento_interpretable: 'El experimento no dice que resultado la confirmaría y cual la refutaría.',
   descartada_por_killer: 'El Killer o una persona la descarto en este contexto.',
   fuente_retractada: 'Una de sus fuentes está retractada.',
+  revision_registro_abierta: 'El revisor de registro encontró algo grave (un identificador que no está en el registro, una ejecución afirmada y no completada, un recuento que no cuadra) en el dossier o en la última iteración cerrada, y nadie lo atendió todavía.',
 };
 
-type Estado = Pick<EstadoRosa, 'investigaciones' | 'planesAnalisis' | 'ejecuciones' | 'hipotesis'>;
+type Estado = Pick<EstadoRosa, 'investigaciones' | 'planesAnalisis' | 'ejecuciones' | 'hipotesis'> & Partial<Pick<EstadoRosa, 'artefactos' | 'corridas' | 'iteraciones'>>;
 
 export function bloqueosDe(estado: Estado, h: Hipotesis): Bloqueo[] {
   const b: Bloqueo[] = [];
@@ -55,7 +57,25 @@ export function bloqueosDe(estado: Estado, h: Hipotesis): Bloqueo[] {
   if (!x || (!criterios && !prerregistradoAntiguo)) b.push('sin_experimento_interpretable');
   if (h.estado === 'descartada' || h.decisionKiller === 'descartar_en_contexto') b.push('descartada_por_killer');
   if (h.procedencia.fuentes.some((f) => f.retraccion === 'retractado')) b.push('fuente_retractada');
+  if (revisionRegistroAbierta(estado, h)) b.push('revision_registro_abierta');
   return b;
+}
+
+/** Puerta de publicación: un hallazgo grave y abierto del revisor de registro,
+ *  en el dossier de la hipótesis o en la última iteración cerrada de su
+ *  investigación, retiene la candidatura. Misma regla que rosa/priorizacion.py. */
+export function revisionRegistroAbierta(estado: Estado, h: Hipotesis): boolean {
+  const graveAbierto = (hallazgos: { estado?: string; gravedad?: string }[] | undefined | null) => (hallazgos ?? []).some((x) => x.estado === 'abierto' && x.gravedad === 'alta');
+  if (h.dossierArtefactoId) {
+    const art = (estado.artefactos ?? []).find((a) => a.id === h.dossierArtefactoId);
+    const revision = art?.versiones[art.versiones.length - 1]?.procedencia?.revision;
+    if (art && graveAbierto(revision?.hallazgos)) return true;
+  }
+  const corridas = new Set((estado.corridas ?? []).filter((c) => c.investigacionId === h.investigacionId).map((c) => c.id));
+  const cerradas = (estado.iteraciones ?? []).filter((it) => corridas.has(it.corridaId) && it.terminadaEn !== null);
+  if (cerradas.length === 0) return false;
+  const ultima = cerradas.reduce((m, it) => ((it.terminadaEn ?? 0) > (m.terminadaEn ?? 0) ? it : m));
+  return graveAbierto(ultima.revisionRegistro?.hallazgos as { estado?: string; gravedad?: string }[] | undefined);
 }
 
 /** Las que hoy irian al laboratorio, en orden: sin bloqueos, con el Killer

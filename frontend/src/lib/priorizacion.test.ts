@@ -76,3 +76,20 @@ describe('cohortes', () => {
     expect(cohortesDe({ procedencia: { ...h.procedencia, fuentes } })).toEqual(['adni']);
   });
 });
+
+describe('puerta de publicación: hallazgo grave del revisor sin atender', () => {
+  it('retiene la candidatura por la última iteración cerrada o por el dossier', async () => {
+    const { estadoDeMuestra } = await import('../datos/muestra');
+    const { bloqueosDe, revisionRegistroAbierta } = await import('./priorizacion');
+    const base = estadoDeMuestra();
+    const h = base.hipotesis[0]!;
+    const corridas = base.corridas.filter((c) => c.investigacionId === h.investigacionId).map((c) => c.id);
+    const cerradas = base.iteraciones.filter((it) => corridas.includes(it.corridaId) && it.terminadaEn !== null);
+    const ultima = cerradas.reduce((m, it) => ((it.terminadaEn ?? 0) > (m.terminadaEn ?? 0) ? it : m));
+    const conGrave = { ...base, iteraciones: base.iteraciones.map((it) => (it.id === ultima.id ? { ...it, revisionRegistro: { ...(it.revisionRegistro ?? { hallazgos: [], porRegla: 0, juez: null, resumen: '', fecha: 0, estado: 'con_hallazgos' }), hallazgos: [{ id: 'x', clase: 'identificador_no_coincide', gravedad: 'alta', detalle: 'DOI que no está', origen: 'regla', estado: 'abierto' }] } } : it)) } as typeof base;
+    expect(revisionRegistroAbierta(conGrave, h)).toBe(true);
+    expect(bloqueosDe(conGrave, h)).toContain('revision_registro_abierta');
+    const atendido = { ...conGrave, iteraciones: conGrave.iteraciones.map((it) => (it.id === ultima.id ? { ...it, revisionRegistro: { ...it.revisionRegistro!, hallazgos: it.revisionRegistro!.hallazgos.map((x) => ({ ...x, estado: 'atendido' })) } } : it)) } as typeof base;
+    expect(revisionRegistroAbierta(atendido, h)).toBe(false);
+  });
+});

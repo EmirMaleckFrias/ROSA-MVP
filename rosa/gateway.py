@@ -51,6 +51,8 @@ class Modelos:
     volumen: dspy.LM
     """El reflexivo de GEPA: la documentacion pide un modelo fuerte a temperature=1.0 y max_tokens=32000."""
     reflexion: dspy.LM
+    """El juez a temperatura alta para las trayectorias de replicación: lecturas distintas, no la misma llamada repetida."""
+    replica: dspy.LM | None = None
 
 
 def modelos() -> Modelos:
@@ -59,4 +61,5 @@ def modelos() -> Modelos:
         juez=lm(JUEZ, max_tokens=16000),  # el Killer razona largo y devuelve once comprobaciones con detalle: a 8000 aun se truncaba
         volumen=lm(VOLUMEN),
         reflexion=lm(JUEZ, temperature=1.0, max_tokens=32000),
+        replica=lm(JUEZ, temperature=1.0, max_tokens=16000),
     )

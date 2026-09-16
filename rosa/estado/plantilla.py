@@ -171,8 +171,8 @@ def _arnes() -> dict[str, str]:
     return arnes()
 
 
-def nuevo_paso(titulo: str, detalle: str, presupuesto: int | None = None, humano: bool = False, valor_decision: str = "") -> dict[str, Any]:
-    return {"id": nuevo_id("paso"), "titulo": titulo, "detalle": detalle, "estado": "pendiente", "indicacionHumana": humano, "motivoFallo": None, "presupuesto": presupuesto, "valorDecision": valor_decision}
+def nuevo_paso(titulo: str, detalle: str, presupuesto: int | None = None, humano: bool = False, valor_decision: str = "", espera: str = "", si_no_aparece: str = "") -> dict[str, Any]:
+    return {"id": nuevo_id("paso"), "titulo": titulo, "detalle": detalle, "estado": "pendiente", "indicacionHumana": humano, "motivoFallo": None, "presupuesto": presupuesto, "valorDecision": valor_decision, "espera": espera, "siNoAparece": si_no_aparece}
 
 
 def nueva_iteracion(corrida_id: str, numero: int, ahora: int, plan: list[dict[str, Any]], limite: int | None = None) -> dict[str, Any]:
@@ -479,6 +479,13 @@ def nuevo_plan_analisis(investigacion_id: str, hipotesis_id: str | None, dataset
         "correccionMultiplicidad": "",
         "umbralEfecto": "",
         "criterioNoEvaluable": "",
+        # Intención completa (como pide el prerregistro): qué hará Rosa según salga, y
+        # de qué plan viene si es una réplica o una variante.
+        "siConfirma": "",
+        "siRefuta": "",
+        "siNoEvaluable": "",
+        "planPadre": None,
+        "cambioRespectoAlPadre": "",
         "semilla": 12345,
         "entorno": "tabular",
         "hashDatos": "",
@@ -502,6 +509,11 @@ def hash_plan(plan: dict[str, Any]) -> str:
     # El entorno (imagen del sandbox, con sus versiones de numpy y scipy) forma
     # parte del plan: cambiarlo es otro plan. Solo se incluye si no es el de
     # siempre, para que los planes ya congelados conserven su hash.
+    # La intención por resultado y el plan padre también son parte del plan: solo entran en
+    # el hash cuando están rellenos, para conservar los hashes ya congelados.
+    for clave in ("siConfirma", "siRefuta", "siNoEvaluable", "planPadre", "cambioRespectoAlPadre"):
+        if plan.get(clave):
+            canonico_dict[clave] = plan.get(clave)
     if (plan.get("entorno") or "tabular") != "tabular":
         canonico_dict["entorno"] = plan["entorno"]
     canonico = json.dumps(canonico_dict, sort_keys=True, ensure_ascii=False)

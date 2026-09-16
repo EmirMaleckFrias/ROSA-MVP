@@ -141,6 +141,21 @@ def _excluidos_previos(ctx: "Ctx", modo: str, relevancia_maxima: int) -> dict[st
     return salida
 
 
+def regresion_de_comprobaciones(e: dict[str, Any], h: dict[str, Any], comprobaciones: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Las comprobaciones que fallan ahora y pasaban en la decisión del Killer
+    sobre la versión anterior de la hipótesis. Reformular para arreglar una cosa
+    no puede colar otra peor."""
+    version = int(h.get("version", 1) or 1)
+    if version <= 1:
+        return []
+    previas = [d for d in e.get("decisiones", []) if d.get("hipotesisId") == h["id"] and str(d.get("etapa", "")).startswith("killer") and int(d.get("version") or 0) == version - 1]
+    if not previas:
+        return []
+    anterior = max(previas, key=lambda d: d.get("fecha") or 0)
+    pasaban = {c["comprobacion"] for c in anterior.get("comprobaciones", []) if c.get("resultado") == "pasa"}
+    return [{"comprobacion": c["comprobacion"], "antes": "pasa", "ahora": "falla", "detalle": (c.get("detalle") or "")[:160]} for c in comprobaciones if c.get("resultado") == "falla" and c["comprobacion"] in pasaban]
+
+
 def _liston_de(f: dict[str, Any]) -> int:
     """El listón de relevancia con el que entró la fuente: el de amplitud si llegó explorando."""
     return politicas.RELEVANCIA_MINIMA_AMPLITUD if f.get("modo") == "amplitud" else RELEVANCIA_MINIMA
@@ -215,7 +230,7 @@ class Ctx:
         """Una llamada a un modelo por rol, con el contexto para el contador.
         Si el modelo devuelve vacío o lo bloquea un filtro, reintenta una vez
         con el modelo de volumen y deja una incidencia."""
-        lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen}[rol]
+        lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen, "replica": getattr(self.modelos, "replica", None) or self.modelos.juez}[rol]
         # El corte de presupuesto de verdad: antes de llamar. (El callback de DSPy no
         # puede cortar: DSPy captura lo que lance y sigue.)
         if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
@@ -902,6 +917,12 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
         return True
 
     ctx.mutar(actualizar, "busqueda")
+    # Predicción escrita antes de buscar: si el paso esperaba algo y no trajo ninguna
+    # fuente relevante, la ausencia se interpreta con la regla escrita antes, no después.
+    if total.get("cribados", 0) == 0 and (paso.get("espera") or paso.get("siNoAparece")):
+        texto_lec = f"El paso «{paso['titulo'][:70]}» esperaba «{(paso.get('espera') or '')[:120]}» y no trajo ninguna fuente relevante; lo escrito antes: {(paso.get('siNoAparece') or 'sin conclusión declarada')[:160]}"
+        ahora_l = P.ahora_ms()
+        ctx.mutar(lambda e2, t=texto_lec, a=ahora_l: LEC.registrar(e2, [LEC.nueva(ctx.investigacion_id, "consultas", t, f"paso:{paso.get('id')}", ctx.corrida_id, ctx.numero, a)]) >= 0, "leccion")
     n_amp = sum(1 for q in consultas if q.get("modo") == "amplitud")
     return f"{len(consultas)} consultas ({len(consultas) - n_amp} de foco, {n_amp} de amplitud), {total.get('identificados', 0)} identificados, {total.get('cribados', 0)} relevantes, {total.get('textoCompleto', 0)} con texto completo"
 
@@ -1045,7 +1066,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], pista: Pista | None, pregunta: str) -> dict[str, int]:
+async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], pista: Pista | None, pregunta: str, rol: str = "juez") -> dict[str, int]:
     """Deterministas primero, juez después. Cambia el veredicto en sitio (y en
     el almacen). Devuelve el recuento por veredicto."""
     frags = ctx.fragmentos_verificador()
@@ -1072,7 +1093,7 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
         frag = r.fragmento
         async with sem:
             try:
-                pred = await ctx.llamar("juez", ctx.programas.juzgar, pregunta=pregunta, afirmacion=a["texto"], fragmento=K.como_dato(f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}"), pistas=r.pistas)
+                pred = await ctx.llamar(rol, ctx.programas.juzgar, pregunta=pregunta, afirmacion=a["texto"], fragmento=K.como_dato(f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}"), pistas=r.pistas)
                 v = pred.veredicto
                 a["veredicto"] = v.veredicto
                 a["motivo"] = v.motivo
@@ -1438,6 +1459,11 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
     if not del_juez and decision == "avanzar":
         decision, motivo = "suspender", "El juez no respondió: no se puede dar por revisada"
+    # Regresión entre versiones: la versión n+1 solo avanza si no falla lo que la n pasaba.
+    regresion = regresion_de_comprobaciones(e, h, comprobaciones)
+    if regresion and decision == "avanzar":
+        decision = "reformular"
+        motivo = f"Regresión respecto a la versión {h.get('version', 1) - 1}: ahora fallan {', '.join(r['comprobacion'].replace('_', ' ') for r in regresion)} que antes pasaban. {motivo}"
     ahora = P.ahora_ms()
     quien = ctx.modelos.juez.model
     fallidas = [c for c in comprobaciones if c["resultado"] in ("falla", "no_comprobable")]
@@ -1456,6 +1482,8 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             return d
         d = A.registrar_decision(e2, x, "killer_1", decision, motivo, quien, ahora, comprobaciones, falta)
         d["_alternativas"] = alternativas
+        if regresion:
+            d["regresion"] = regresion
         x["decisionKiller"] = decision
         # Motor causal minimo: grafo local tipado e identificacion por regla, con
         # las alternativas del Killer como nodos. Entra al modelo de mundo como arista.

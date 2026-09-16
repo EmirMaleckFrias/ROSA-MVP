@@ -225,8 +225,10 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
     # bootstrap, barajado): tres corridas, como pide CORE-Bench, para ver si la
     # cifra se mueve. Se cambia la semilla en el codigo y en el entorno.
     repeticiones: list[dict[str, Any]] = []
-    aleatorio = bool(re.search(r"permut|bootstrap|remuestr|aleator|baraj|shuffle", (plan.get("prueba", "") + " " + plan.get("baseline", "") + " " + plan.get("controlNegativo", "")).lower()))
-    if res.estado == "completado" and not res.no_evaluable and aleatorio:
+    # Tres semillas siempre que el análisis sea evaluable (antes solo si una expresión
+    # regular olía aleatoriedad): la estabilidad entre semillas es una comprobación
+    # crítica del auditor, y la puerta de reproducción no se abre con una corrida afortunada.
+    if res.estado == "completado" and not res.no_evaluable:
         for extra in (1, 2):
             semilla2 = plan["semilla"] + extra
             codigo2 = _cambiar_semilla(codigo, plan["semilla"], semilla2)
@@ -234,6 +236,10 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
             r2 = await asyncio.to_thread(X.ejecutar, codigo2, ruta, semilla2, sintetico, run["id"] + f"-s{extra}", entorno, ficheros)
             repeticiones.append({"semilla": semilla2, "estado": r2.estado, "resultados": r2.resultados if r2.estado == "completado" else {}})
     interpretacion = None
+    # Interpretación por regla: el estado (efecto detectado, sin efecto detectable, no
+    # evaluable) sale de comparar las cifras con el alfa y el umbral congelados y del
+    # control negativo; el juez redacta y el auditor audita. Reproducible por cualquiera.
+    regla = interpretacion_por_regla(plan, res, repeticiones) if res.estado == "completado" else None
     if res.estado == "completado":
         if res.no_evaluable:
             interpretacion = {"estado": "no_evaluable", "resumen": f"El análisis no se pudo evaluar con estos datos: {res.no_evaluable}"}
@@ -244,12 +250,19 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
             try:
                 pi = await ctx.llamar("juez", ctx.programas.interpretar, plan=_texto_plan(plan), resultados=("\n".join(f"{k}={v}" for k, v in res.resultados.items()) or "ninguna") + texto_rep, baseline="\n".join(f"{k}={v}" for k, v in res.baseline.items()) or "ninguna", control_negativo="\n".join(f"{k}={v}" for k, v in res.control.items()) or "ninguna")
                 interpretacion = {"estado": pi.interpretacion.estado, "resumen": pi.interpretacion.resumen.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in pi.interpretacion.cifras_clave][:10]}
+                if regla and regla.get("estado"):
+                    # La regla manda sobre el estado; el juez queda registrado por si discrepa.
+                    interpretacion["estadoJuez"] = interpretacion["estado"]
+                    interpretacion["estado"] = regla["estado"]
+                    interpretacion["porRegla"] = regla["detalle"]
+                    if regla["estado"] != interpretacion["estadoJuez"]:
+                        interpretacion["resumen"] = f"[Por regla: {regla['detalle']}] " + interpretacion["resumen"]
             except PresupuestoAgotado:
                 raise
             except Exception as ex:  # noqa: BLE001
                 interpretacion = {"estado": "no_evaluable", "resumen": f"El juez no pudo interpretar las cifras: {str(ex)[:120]}"}
     auditoria = None
-    deterministas = X.comprobaciones_deterministas(codigo, plan, res) if res.estado == "completado" else []
+    deterministas = X.comprobaciones_deterministas(codigo, plan, res, repeticiones) if res.estado == "completado" else []
     if res.estado == "completado" and interpretacion and interpretacion["estado"] != "no_evaluable":
         try:
             pa = await ctx.llamar(
@@ -265,7 +278,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
             comprobaciones = deterministas + [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle.strip()[:300]} for c in au.comprobaciones]
             veredicto = au.veredicto
             # Las deterministas criticas mandan: una fuga o un plan no cumplido invalidan aunque el juez dude.
-            if any(c["comprobacion"] in ("fuga_de_datos", "coincide_con_plan") and c["resultado"] == "falla" for c in deterministas):
+            if any(c["comprobacion"] in ("fuga_de_datos", "coincide_con_plan", "estabilidad_semillas") and c["resultado"] == "falla" for c in deterministas):
                 veredicto = "no_valido"
             auditoria = {"veredicto": veredicto, "comprobaciones": comprobaciones, "motivo": au.motivo.strip(), "quien": ctx.modelos.juez.model, "fecha": P.ahora_ms()}
             run_plausible = bool(au.plausibilidad_verificada)
@@ -358,6 +371,9 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
     skills_plan = SK.para_texto(T.hipotesis_texto(h) + " " + (pregunta or "") + " " + esquema[:1500] + " " + ds.get("nombre", ""))
     pp = await ctx.llamar("cerebro", ctx.programas.planificar, hipotesis=T.hipotesis_texto(h), prediccion_falsable=prediccion, pregunta_pedida=pregunta or "", esquema_datos=esquema, limites="; ".join(inv["limites"]) or "Ninguno", skills=SK.texto_para_prompt(skills_plan))
     p = pp.plan
+    # Linaje: el último plan de la misma hipótesis es el padre; se anota qué cambia
+    # (otro dataset = réplica de la receta; otra prueba = variante del método).
+    padre = max((x for x in ctx.e.get("planesAnalisis", []) if x.get("hipotesisId") == h["id"]), key=lambda x: x.get("congeladoEn") or 0, default=None)
     plan = P.nuevo_plan_analisis(
         ctx.investigacion_id,
         h["id"],
@@ -379,6 +395,11 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
         correccionMultiplicidad=p.correccion_multiplicidad.strip(),
         umbralEfecto=p.umbral_efecto.strip(),
         criterioNoEvaluable=p.criterio_no_evaluable.strip(),
+        siConfirma=(getattr(p, "si_confirma", "") or "").strip(),
+        siRefuta=(getattr(p, "si_refuta", "") or "").strip(),
+        siNoEvaluable=(getattr(p, "si_no_evaluable", "") or "").strip(),
+        planPadre=(padre or {}).get("id"),
+        cambioRespectoAlPadre=cambio_respecto_al_padre(padre, dataset_id, p.prueba.strip(), ds.get("nombre", "")) if padre else "",
         entorno=getattr(p, "entorno", "tabular") or "tabular",
         semilla=12345,
         hashDatos=proc["hash"],
@@ -393,6 +414,7 @@ async def analizar_hipotesis(ctx, h: dict[str, Any], dataset_id: str, pregunta: 
 
     ctx.mutar(congelar, "plan_analisis")
     pista.resultado(f"Plan congelado {plan['hashPlan']}: {plan['prueba'][:80]}")
+    await _sellar_plan(ctx, plan, pista)
     run = await _correr_plan(ctx, plan, ds, ruta, esquema, h["id"], "hipotesis", pista)
     ahora = P.ahora_ms()
     valido = run.get("auditoria") and run["auditoria"]["veredicto"] == "valido" and run.get("interpretacion") and run["interpretacion"]["estado"] in ("efecto_detectado", "sin_efecto_detectable")
@@ -526,3 +548,80 @@ def _estado_rep(e: dict[str, Any], rep_id: str, estado: str, plan_id: str | None
             puerta["fecha"] = P.ahora_ms()
         A.con_evento(e, inv["id"], "analisis", f"Reproducción {r['referencia']}: {estado}. Puerta: {puerta['superadas']} de {puerta['requeridas']} ({puerta['estado']})", f"#/investigaciones/{inv['id']}/investigacion", P.ahora_ms())
     return True
+
+
+def _p_valores(cifras: dict[str, Any]) -> list[float]:
+    salida = []
+    for k, v in (cifras or {}).items():
+        if re.search(r"^p(_|val|$)", str(k), re.I):
+            try:
+                salida.append(float(str(v).replace(",", ".")))
+            except ValueError:
+                continue
+    return salida
+
+
+def interpretacion_por_regla(plan: dict[str, Any], res: Any, repeticiones: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """El estado del análisis por regla, sin juez: no evaluable si los datos no
+    bastan o el control negativo dio señal; efecto detectado si el p-valor
+    principal baja del alfa congelado y se mantiene en las repeticiones con otra
+    semilla; sin efecto detectable en otro caso. None si el código no imprimió
+    ningún p-valor (entonces decide el juez con el umbral del plan)."""
+    if getattr(res, "no_evaluable", None):
+        return {"estado": "no_evaluable", "detalle": f"los datos no cumplen el criterio del plan: {res.no_evaluable}"}
+    alpha = float(plan.get("alpha") or 0.05)
+    ps_control = _p_valores(getattr(res, "control", {}) or {})
+    if ps_control and min(ps_control) < alpha:
+        return {"estado": "no_evaluable", "detalle": f"el control negativo (etiquetas barajadas) dio p = {min(ps_control):g} < {alpha:g}: hay fuga o error, no se puede evaluar"}
+    ps = _p_valores(getattr(res, "resultados", {}) or {})
+    if not ps:
+        return None
+    p = min(ps)
+    detectado = p < alpha
+    inestable = []
+    for r in repeticiones or []:
+        ps_r = _p_valores(r.get("resultados") or {})
+        if ps_r and (min(ps_r) < alpha) != detectado:
+            inestable.append(f"semilla {r.get('semilla')}: p = {min(ps_r):g}")
+    if inestable:
+        return {"estado": "sin_efecto_detectable", "detalle": f"p = {p:g} con la semilla del plan, pero el signo cambia con otras semillas ({'; '.join(inestable)}): no es estable, no cuenta como efecto"}
+    if detectado:
+        return {"estado": "efecto_detectado", "detalle": f"p = {p:g} < alfa {alpha:g}, estable en {len(repeticiones or [])} repeticiones"}
+    return {"estado": "sin_efecto_detectable", "detalle": f"p = {p:g} >= alfa {alpha:g}"}
+
+
+def cambio_respecto_al_padre(padre: dict[str, Any] | None, dataset_id: str, prueba: str, nombre_dataset: str) -> str:
+    """Qué cambia respecto al plan padre: la misma receta sobre otro dataset es una
+    réplica (sube la certeza por replicación); otra prueba es una variante del
+    método (no suma como réplica)."""
+    if not padre:
+        return ""
+    partes = []
+    if padre.get("datasetId") != dataset_id:
+        partes.append(f"otro dataset ({nombre_dataset or dataset_id}): réplica de la receta si la prueba es la misma")
+    if (padre.get("prueba") or "").strip().lower() != (prueba or "").strip().lower():
+        partes.append("otra prueba estadística: variante del método, no cuenta como réplica")
+    return "; ".join(partes) or "misma receta sobre el mismo dataset (repetición)"
+
+
+async def _sellar_plan(ctx, plan: dict[str, Any], pista: Pista | None) -> None:
+    """Sello RFC 3161 del hash del plan congelado, con autoridades externas: un
+    revisor puede comprobar fuera de Rosa que el plan existía antes de la cifra.
+    Nunca lanza; sin red queda el intento registrado."""
+    from rosa import sello as S
+
+    try:
+        sello = await asyncio.to_thread(S.sellar, plan["hashPlan"])
+    except Exception as ex:  # noqa: BLE001
+        sello = {"hash": plan["hashPlan"], "ok": False, "error": str(ex)[:200]}
+
+    def fn(e2: dict[str, Any]) -> bool:
+        x = next((p_ for p_ in e2.get("planesAnalisis", []) if p_["id"] == plan["id"]), None)
+        if not x:
+            return False
+        x["selloExterno"] = {k: sello.get(k) for k in ("algoritmo", "hash", "pedidoEn", "ok", "testigos", "primeraHora", "error")} | {"sellos": [{k: s_.get(k) for k in ("tsa", "url", "ca", "ok", "genTime", "error")} for s_ in (sello.get("sellos") or [])]}
+        return True
+
+    ctx.mutar(fn, "sello_plan")
+    if pista:
+        pista.nota(f"Sello externo del plan: {'ok' if sello.get('ok') else 'sin sello (' + str(sello.get('error') or 'ninguna autoridad respondió')[:80] + ')'}")

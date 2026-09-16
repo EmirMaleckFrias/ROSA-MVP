@@ -377,11 +377,13 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
 # ---------------------------------------------------------------------------
 
 
-def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resultado) -> list[dict[str, str]]:
+def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resultado, repeticiones: list[dict[str, Any]] | None = None) -> list[dict[str, str]]:
     """Lo que se puede comprobar sin juez: semilla, fuga por ajuste antes de
     partir, variables del plan presentes en el código, baseline y control
-    presentes, n por grupo, multiplicidad."""
+    presentes, n por grupo, multiplicidad, y estabilidad entre semillas
+    (crítica: un p que cruza el alfa según la semilla no es un efecto)."""
     c: list[dict[str, str]] = []
+    c.append(estabilidad_entre_semillas(plan, res, repeticiones))
     tiene_semilla = bool(re.search(r"random_state|\.seed\(|default_rng\(|ROSA_SEMILLA", codigo))
     c.append({"comprobacion": "semilla", "resultado": "pasa" if tiene_semilla else "falla", "detalle": "El código fija la semilla" if tiene_semilla else "El código no fija ninguna semilla: no es repetible"})
     pos_fit = codigo.find(".fit(")
@@ -413,3 +415,31 @@ def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resulta
     corrige = bool(re.search(r"bonferroni|holm|fdr|multipletests|benjamini", codigo, re.I)) or "una sola" in (plan.get("correccionMultiplicidad") or "").lower()
     c.append({"comprobacion": "multiplicidad", "resultado": "pasa" if (len(pvalores) <= 1 or corrige) else "falla", "detalle": f"{len(pvalores)} p-valores impresos; corrección en el código: {'si' if corrige else 'no'}"})
     return c
+
+
+def _p_min(cifras: dict[str, Any]) -> float | None:
+    ps = []
+    for k, v in (cifras or {}).items():
+        if re.search(r"^p(_|val|$)", str(k), re.I):
+            try:
+                ps.append(float(str(v).replace(",", ".")))
+            except ValueError:
+                continue
+    return min(ps) if ps else None
+
+
+def estabilidad_entre_semillas(plan: dict[str, Any], res: Resultado, repeticiones: list[dict[str, Any]] | None) -> dict[str, str]:
+    """Comprobación crítica: el p-valor principal debe caer del mismo lado del
+    alfa con todas las semillas. Sin repeticiones completadas, no comprobable."""
+    hechas = [r for r in (repeticiones or []) if r.get("estado") == "completado"]
+    if not hechas:
+        return {"comprobacion": "estabilidad_semillas", "resultado": "no_comprobable", "detalle": "Sin repeticiones con otra semilla completadas"}
+    alpha = float(plan.get("alpha") or 0.05)
+    p0 = _p_min(res.resultados)
+    if p0 is None:
+        return {"comprobacion": "estabilidad_semillas", "resultado": "no_comprobable", "detalle": "El código no imprimió ningún p-valor (RESULTADO p_...)"}
+    lados = [(r.get("semilla"), _p_min(r.get("resultados") or {})) for r in hechas]
+    cruzan = [f"semilla {s}: p = {p:g}" for s, p in lados if p is not None and (p < alpha) != (p0 < alpha)]
+    if cruzan:
+        return {"comprobacion": "estabilidad_semillas", "resultado": "falla", "detalle": f"p = {p0:g} con la semilla del plan; con otras semillas cruza el alfa {alpha:g} ({'; '.join(cruzan)})"}
+    return {"comprobacion": "estabilidad_semillas", "resultado": "pasa", "detalle": f"p del mismo lado del alfa {alpha:g} en {len(hechas) + 1} semillas"}

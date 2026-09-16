@@ -563,6 +563,9 @@ export interface PasoPlan {
   /** Que decision cambiaria segun el resultado de este paso. Si la siguiente
    *  accion es la misma salga lo que salga, el paso vale poco (plan completo, seccion 6). */
   valorDecision?: string;
+  /** Predicción escrita antes de buscar y qué se concluye si no aparece (pasos de literatura y ensayos). */
+  espera?: string;
+  siNoAparece?: string;
 }
 
 export type TipoPista = 'literatura' | 'ensayos' | 'grafo' | 'extraccion' | 'verificacion' | 'novedad' | 'modelo' | 'replicacion';
@@ -1220,7 +1223,7 @@ export interface Decision {
 /** Bloqueos no compensables de la priorizacion (ROSA2018, etapa 8): uno
  *  solo basta para sacar la hipotesis de los candidatos, puntue lo que
  *  puntue en lo demas. */
-export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada';
+export type Bloqueo = 'trazabilidad_insuficiente' | 'datos_no_autorizados' | 'analisis_invalido' | 'sin_experimento_interpretable' | 'descartada_por_killer' | 'fuente_retractada' | 'revision_registro_abierta';
 
 /** Una publicación que apareció después de la última comprobación de vigilancia. */
 export interface NovedadVigilada {
@@ -1353,6 +1356,14 @@ export interface PlanAnalisis {
   correccionMultiplicidad: string;
   umbralEfecto: string;
   criterioNoEvaluable: string;
+  /** Intención completa: qué hará Rosa según salga, y de qué plan viene (réplica o variante). */
+  siConfirma?: string;
+  siRefuta?: string;
+  siNoEvaluable?: string;
+  planPadre?: Id | null;
+  cambioRespectoAlPadre?: string;
+  /** Sello RFC 3161 del hash del plan congelado, si alguna autoridad respondió. */
+  selloExterno?: { hash: string | null; ok: boolean | null; primeraHora?: string | null; error?: string | null } | null;
   semilla: number;
   hashDatos: string;
   /** sha256 del plan canonico: cambiarlo despues es otro plan. */

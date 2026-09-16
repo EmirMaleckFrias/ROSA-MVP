@@ -579,6 +579,11 @@ export function asignarExperimento(estado: EstadoRosa, hipotesisId: string, labo
   const lab = laboratorio.trim();
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
   if (lab === '' || !h || !h.experimento) return estado;
+  // Misma regla que rosa/estado/acciones.py: sin criterio de confirmación y de refutación no se prerregistra.
+  const interpretable = ((h.experimento.confirma ?? '').trim() !== '' && (h.experimento.refuta ?? '').trim() !== '') || (h.experimento.ensayo ?? '').trim() !== '';
+  if (!h.experimento.prerregistradoEn && !interpretable) {
+    return conEvento(estado, h.investigacionId, 'incidencia', `No se puede prerregistrar «${h.titulo.slice(0, 60)}»: faltan el criterio de confirmación o el de refutación`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+  }
   let siguiente: EstadoRosa = {
     ...estado,
     hipotesis: reemplazar(estado.hipotesis, hipotesisId, (x) => ({ ...x, experimento: { ...x.experimento!, laboratorio: lab, estado: 'asignado' } })),

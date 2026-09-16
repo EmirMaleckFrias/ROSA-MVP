@@ -814,8 +814,8 @@ class Supervisor:
                 a["fragmento"], a["localizador"], a["fuenteId"], a["encabezado"] = fr.texto[:400], fr.localizador, fr.fuente_id, fr.encabezado
             a["veredicto"] = "sin_verificar"
         try:
-            with_temp = self.modelos
-            recuento = await PASOS.verificar_afirmaciones(ctx, copias, None, h["enunciado"]) if copias else {}
+            # Rol "replica": el juez a temperatura 1.0, para que cada trayectoria sea una lectura distinta.
+            recuento = await PASOS.verificar_afirmaciones(ctx, copias, None, h["enunciado"], rol="replica") if copias else {}
         except Exception:  # noqa: BLE001
             recuento = {}
         veredictos = [a["veredicto"] for a in copias]
@@ -1068,7 +1068,7 @@ class Supervisor:
                 if p.tipo == "literatura":
                     # La búsqueda en amplitud añade consultas al paso: su presupuesto crece con la fracción elegida.
                     coste = int(round(coste * (1 + politicas.AMPLITUD.get(PASOS.amplitud_de(inv), 0.0))))
-                paso = P.nuevo_paso(p.titulo, p.detalle, coste, valor_decision=(p.valor_decision or "").strip())
+                paso = P.nuevo_paso(p.titulo, p.detalle, coste, valor_decision=(p.valor_decision or "").strip(), espera=(getattr(p, "espera", "") or "").strip(), si_no_aparece=(getattr(p, "si_no_aparece", "") or "").strip())
                 paso["tipo"] = p.tipo
                 plan.append(paso)
             if hay_datos and not any(p.get("tipo") == "analisis" for p in plan) and (any(r["investigacionId"] == inv["id"] and r["estado"] == "pendiente" for r in e.get("reproducciones", [])) or any(h["investigacionId"] == inv["id"] and h.get("_analisisPedido") for h in e["hipotesis"])):

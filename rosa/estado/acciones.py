@@ -989,6 +989,12 @@ def asignar_experimento(e: Estado, hipotesis_id: str, laboratorio: str, ahora: i
         return False
     ahora = ahora if ahora is not None else P.ahora_ms()
     x = h["experimento"]
+    # Sin criterio de confirmación y de refutación no hay prerregistro que congelar:
+    # es lo que separa un negativo interpretable de una lectura a posteriori.
+    interpretable = ((x.get("confirma") or "").strip() and (x.get("refuta") or "").strip()) or (x.get("ensayo") or "").strip()
+    if not x.get("prerregistradoEn") and not interpretable:
+        con_evento(e, h["investigacionId"], "incidencia", f"No se puede prerregistrar «{h['titulo'][:60]}»: faltan el criterio de confirmación o el de refutación", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
+        return False
     x["laboratorio"] = lab
     x["estado"] = "asignado"
     if not x.get("prerregistradoEn"):

@@ -78,7 +78,7 @@ RESULTADOS_LABORATORIO = ("apoyo_reproducido", "negativo_interpretable", "inconc
 
 # Bloqueos no compensables: si uno se cumple, la hipotesis no entra al
 # ranking de candidatos aunque puntue alto en todo lo demas.
-BLOQUEOS = ("trazabilidad_insuficiente", "datos_no_autorizados", "analisis_invalido", "sin_experimento_interpretable", "descartada_por_killer", "fuente_retractada")
+BLOQUEOS = ("trazabilidad_insuficiente", "datos_no_autorizados", "analisis_invalido", "sin_experimento_interpretable", "descartada_por_killer", "fuente_retractada", "revision_registro_abierta")
 
 
 # Contexto que entra al prompt (politica de contexto, no constantes sueltas).
@@ -100,7 +100,7 @@ ELO_K = 32
 ELO_INICIAL = 1500
 # Presupuesto de tokens de entrada por rol y llamada (politica de contexto):
 # por encima, el contexto se recorta antes de llamar y queda registrado.
-TOKENS_MAX_POR_ROL = {"cerebro": 120_000, "juez": 90_000, "volumen": 40_000}
+TOKENS_MAX_POR_ROL = {"cerebro": 120_000, "juez": 90_000, "volumen": 40_000, "replica": 90_000}
 
 
 # Coste por decision: las horas de revision humana entran en el coste a esta

@@ -312,6 +312,51 @@ el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
 
+## Rigor del trabajador de evidencia (16 de septiembre de 2026, noche)
+
+Lo que rekursiv.ai exige a su "evidence worker" (predicción antes de mirar,
+tres semillas, aceptación por regla, cadena de ejecuciones, auditoría
+adversarial), en Rosa así:
+
+- **Predicción antes del dato.** Cada plan de análisis lleva "si confirma",
+  "si refuta" y "si no es evaluable" (qué hará Rosa en cada caso) y cada paso
+  del plan de la iteración lleva "espera" y "si no aparece". Los campos entran
+  en el hash congelado del plan, de modo que no se pueden retocar después de
+  ver el resultado. Un paso de literatura que esperaba algo y encuentra cero
+  relevantes deja una lección. En la interfaz: "Qué hará Rosa según salga".
+- **Tres semillas siempre.** Todo análisis completado y evaluable se repite
+  con dos semillas más. La comprobación determinista `estabilidad_semillas`
+  es crítica: si el p-valor principal cruza el alfa con otra semilla, la
+  ejecución es `no_valido` y el análisis no cuenta como efecto.
+- **Interpretación por regla.** El estado del análisis (efecto detectado, sin
+  efecto detectable, no evaluable) lo fija `interpretacion_por_regla` con el
+  alfa congelado, el control negativo y las repeticiones; el juez sigue
+  escribiendo la lectura en llano pero su estado queda guardado como
+  `estadoJuez`, no manda. Sin p-valor impreso decide el juez como antes.
+- **Cadena de planes.** Un plan nuevo sobre la misma hipótesis apunta al
+  anterior (`planPadre`) y dice qué cambia respecto a él (`cambioRespectoAlPadre`:
+  otra cohorte, otra prueba, misma receta). El plan congelado se sella por
+  RFC 3161 (`selloExterno`), igual que el prerregistro del experimento.
+- **Regresión entre versiones.** Si al reformular una hipótesis una
+  comprobación del Killer que pasaba en la versión anterior ahora falla,
+  la decisión "avanzar" se convierte en "reformular" con el motivo delante.
+- **Puerta de prerregistro.** No se asigna un experimento al laboratorio sin
+  criterio de confirmación y de refutación (o el ensayo con criterios del
+  esquema anterior); la interfaz y el backend aplican la misma regla y dejan
+  una incidencia.
+- **Puerta de publicación.** Un hallazgo grave y abierto del revisor de
+  registro (en el dossier o en la última iteración cerrada) retiene la
+  hipótesis como candidata: bloqueo `revision_registro_abierta`, visible en
+  el ranking.
+- **Réplica con su propio modelo.** El paso de replicación usa un rol
+  `replica` (mismo modelo que el juez, temperatura alta, presupuesto propio),
+  de modo que las trayectorias no comparten la muestra del cerebro.
+- **Panel del auditor** (`rosa/evaluacion/panel_auditor.py`). Fallos plantados
+  (identificador inventado, ejecución afirmada y no completada, recuento que
+  no cuadra, cita sin fuente, p-valor inestable) que el revisor de registro y
+  las comprobaciones deterministas tienen que detectar sin falsos positivos
+  sobre un caso limpio. Corre en la suite, sin llamadas a modelos.
+
 ## Memoria de errores, progreso y traspaso (16 de septiembre de 2026, tarde)
 
 Lo que rekursiv.ai llama aprender de los errores entre iteraciones, en Rosa

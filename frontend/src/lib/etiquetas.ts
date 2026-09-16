@@ -386,6 +386,7 @@ export const BLOQUEO: Record<Bloqueo, string> = {
   sin_experimento_interpretable: 'Sin experimento interpretable',
   descartada_por_killer: 'Descartada en este contexto',
   fuente_retractada: 'Fuente retractada',
+  revision_registro_abierta: 'Hallazgo grave del revisor sin atender',
 };
 
 export const CLASE_EVIDENCIA: Record<ClaseEvidencia, { etiqueta: string; nota: string }> = {
