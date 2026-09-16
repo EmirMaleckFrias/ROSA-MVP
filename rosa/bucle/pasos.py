@@ -492,18 +492,18 @@ def cuantas_de_amplitud(n_foco: int, amplitud: str) -> int:
 
 def consulta_novedad_del_campo(inv: dict[str, Any], ahora_ms: int) -> dict[str, Any] | None:
     """La consulta determinista de "novedad del campo": el objetivo, por
-    significado, acotado a lo publicado en los últimos meses. Solo con Exa."""
-    if not exa.disponible():
-        return None
+    significado, acotado a lo publicado en los últimos meses. Con Exa; sin
+    Exa, por términos clave en Europe PMC con la misma ventana de fecha."""
     desde = fecha_iso_de_ms(ahora_ms - politicas.DIAS_NOVEDAD_DEL_CAMPO * 86_400_000)
-    return {
-        "base": "exa",
-        "consulta": f"Novedades recientes en la investigación del Alzheimer relacionadas con: {inv['objetivo'][:400]}",
-        "tema": "Novedad reciente del campo",
-        "modo": "amplitud",
-        "porque": f"Lo publicado en los últimos {politicas.DIAS_NOVEDAD_DEL_CAMPO} días sobre el terreno del objetivo puede traer una segunda cohorte, un contraejemplo o una línea que el árbol no tiene",
-        "desde_fecha": desde,
-    }
+    porque = f"Lo publicado en los últimos {politicas.DIAS_NOVEDAD_DEL_CAMPO} días sobre el terreno del objetivo puede traer una segunda cohorte, un contraejemplo o una línea que el árbol no tiene"
+    if exa.disponible():
+        return {"base": "exa", "consulta": f"Novedades recientes en la investigación del Alzheimer relacionadas con: {inv['objetivo'][:400]}", "tema": "Novedad reciente del campo", "modo": "amplitud", "porque": porque, "desde_fecha": desde}
+    # Sin clave de Exa la novedad no se pierde: va a Europe PMC por términos clave del
+    # objetivo con la misma ventana de fecha (FIRST_PDATE), y queda anotado el desvío.
+    hasta = fecha_iso_de_ms(ahora_ms)
+    terminos = [t for t in T.terminos_clave(inv["objetivo"], maximo=6) if t.lower() != "alzheimer"][:4]
+    nucleo = " OR ".join(f'"{t}"' for t in terminos) if terminos else "biomarker*"
+    return {"base": "europepmc", "consulta": f"(Alzheimer*) AND ({nucleo}) AND FIRST_PDATE:[{desde} TO {hasta}]", "tema": "Novedad reciente del campo", "modo": "amplitud", "porque": porque, "desde_fecha": desde, "_desviada_de": "Exa (búsqueda semántica de publicaciones)"}
 
 
 async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, previas: list[str], pista: Pista | None = None) -> list[dict[str, Any]]:
@@ -518,8 +518,8 @@ async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, pre
     hechas = {q.lower() for q in previas}
     if novedad and novedad["consulta"].lower() not in hechas:
         salida.append(novedad)
-    elif novedad is None and pista:
-        pista.nota("Sin clave de Exa: la novedad reciente del campo no se puede consultar (no es que no haya novedades); se explora solo con temas adyacentes y sorpresa")
+        if novedad.get("_desviada_de") and pista:
+            pista.nota("Sin clave de Exa: la novedad reciente del campo se busca en Europe PMC por términos clave del objetivo, con la misma ventana de fecha")
     restantes = cuantas - len(salida)
     if restantes <= 0:
         return salida
@@ -591,8 +591,8 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
     # En amplitud, los pasajes destacados y el orden por similitud se guían con el
     # objetivo y el "por qué" de la consulta, no con la pregunta de foco: se busca lo que
     # podría cambiar algo. Es el mismo criterio que usa el reranker y el cribado.
-    criterio_amplitud = f"{inv['objetivo']}\n{consulta.get('porque') or ''}"[:500]
-    guia_pasajes = criterio_amplitud if modo == "amplitud" else preguntas[:500]
+    criterio_amplitud = f"{inv['objetivo']}\n{consulta.get('tema') or ''}\n{consulta.get('porque') or ''}"
+    guia_pasajes = criterio_amplitud[:500] if modo == "amplitud" else preguntas[:500]
     try:
         pista.accion(f"Consulta: {consulta['consulta']}")
         if modo == "amplitud" and consulta.get("porque"):
@@ -639,7 +639,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         # solo puntúa a los mejores; los demás quedan excluidos con su cifra.
         # En amplitud el reranker ordena contra el objetivo y el "por qué" de la consulta,
         # no contra la pregunta: lo que se busca es lo que podría cambiar algo.
-        pregunta_reranker = f"{inv['objetivo']}\n{consulta['tema']}\n{consulta.get('porque') or ''}" if modo == "amplitud" else f"{preguntas}\n{consulta['tema']}"
+        pregunta_reranker = criterio_amplitud if modo == "amplitud" else f"{preguntas}\n{consulta['tema']}"
         al_modelo, fuera = await cortar_con_reranker(pregunta_reranker, [a for a in articulos if a.get("titulo")], pista)
         # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA. En amplitud, con
         # otra pregunta (qué podría cambiar) y el listón un punto más bajo.

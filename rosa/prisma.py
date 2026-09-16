@@ -132,13 +132,14 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
     de_persona = [d for d in decisiones if d.get("etapa") == "persona"]
     acuerdo = ACU.acuerdo_dorado(e)
     arnes = corrida.get("arnes") or VERSION.arnes()
+    hubo_amplitud = any(q.get("modo") == "amplitud" for q in consultas)
     items = {
         "6_fuentes_de_informacion": [{"base": base, "consultas": x["consultas"], "resultados": x["resultados"], "ultimaBusqueda": _fecha(x["ultima"])} for base, x in sorted(por_base.items())],
         "7_estrategias_de_busqueda": [{"base": q.get("base"), "consulta": q.get("consulta"), "fecha": _fecha(q.get("fecha")), "resultados": q.get("resultados"), "iteracion": q.get("iteracion"), "tema": q.get("tema"), "modo": q.get("modo") or "foco"} for q in consultas],
         "8_proceso_de_seleccion": {
             "quienCriba": "Un modelo de lenguaje (rol volumen) puntua de 0 a 10 cada título y resumen frente a las preguntas abiertas; se conserva lo que llega al umbral. Ninguna persona criba registro a registro; las personas revisan las hipótesis y sus afirmaciones después.",
             "revisoresIndependientes": 0,
-            "herramientasAutomatizacion": [f"Rosa {arnes.get('commit') if isinstance(arnes, dict) else ''} (cribado por relevancia con {', '.join(modelos_cribado) or 'modelo de volumen'}; umbral {politicas.RELEVANCIA_MINIMA} de 10 en foco y {politicas.RELEVANCIA_MINIMA_AMPLITUD} de 10 en las consultas de amplitud, que se puntúan con la firma PuntuarRelevanciaAmplitud)"],
+            "herramientasAutomatizacion": [f"Rosa {arnes.get('commit') if isinstance(arnes, dict) else ''} (cribado por relevancia con {', '.join(modelos_cribado) or 'modelo de volumen'}; umbral {politicas.RELEVANCIA_MINIMA} de 10{' en foco y ' + str(politicas.RELEVANCIA_MINIMA_AMPLITUD) + ' de 10 en las consultas de amplitud, que se puntúan con la firma PuntuarRelevanciaAmplitud' if hubo_amplitud else ''})"],
         },
         "16a_flujo": flujo,
         "16b_excluidos_con_motivo": excluidos[:300],

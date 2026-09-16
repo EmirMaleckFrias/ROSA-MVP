@@ -1066,7 +1066,10 @@ class Supervisor:
             ctx.incidencia("modelo_bloqueado", "No se pudo proponer el plan con el modelo", str(ex)[:400], self.modelos.cerebro.model, "Se usa el plan por defecto de Rosa; se puede editar antes de aprobarlo.")
         if not plan:
             for titulo, detalle, tipo, pres in PLAN_POR_DEFECTO:
-                paso = P.nuevo_paso(titulo, detalle, COSTE_POR_TIPO.get(tipo, pres))
+                coste = COSTE_POR_TIPO.get(tipo, pres)
+                if tipo == "literatura":
+                    coste = int(round(coste * (1 + politicas.AMPLITUD.get(PASOS.amplitud_de(inv), 0.0))))
+                paso = P.nuevo_paso(titulo, detalle, coste)
                 paso["tipo"] = tipo
                 plan.append(paso)
         # Las indicaciones humanas pendientes de la iteracion anterior pasan a la nueva.

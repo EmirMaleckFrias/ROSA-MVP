@@ -32,7 +32,8 @@ def test_cuantas_de_amplitud_sigue_la_fraccion_elegida():
 def test_la_novedad_del_campo_solo_con_exa_y_con_fecha(monkeypatch):
     inv = {"objetivo": "Qué distingue a un biomarcador que predice beneficio clínico"}
     monkeypatch.setattr(exa, "disponible", lambda: False)
-    assert PASOS.consulta_novedad_del_campo(inv, 1_789_000_000_000) is None
+    sin_exa = PASOS.consulta_novedad_del_campo(inv, 1_789_000_000_000)
+    assert sin_exa["base"] == "europepmc" and sin_exa["modo"] == "amplitud" and "FIRST_PDATE:[2026-03-14 TO 2026-09-10]" in sin_exa["consulta"] and sin_exa["_desviada_de"].startswith("Exa")
     monkeypatch.setattr(exa, "disponible", lambda: True)
     q = PASOS.consulta_novedad_del_campo(inv, 1_789_000_000_000)
     assert q["base"] == "exa" and q["modo"] == "amplitud" and q["desde_fecha"] == "2026-03-14" and "beneficio clínico" in q["consulta"] and q["porque"]
@@ -170,5 +171,31 @@ def test_consulta_en_amplitud_puntua_con_otra_pregunta_y_marca_consulta_y_fuente
         assert PASOS._liston_de(f_amp) == 4 and PASOS._liston_de({"relevancia": 5}) == 5
         assert "se conservó porque podría cambiar: una segunda cohorte" in PASOS._criterio_para_fuente("Objetivo: x", f_amp)
         assert PASOS._criterio_para_fuente("Objetivo: x", {"modo": "foco"}) == "Objetivo: x"
+    finally:
+        al.cerrar()
+
+
+def test_en_amplitud_los_pasajes_de_exa_se_guian_con_el_objetivo_y_el_porque(monkeypatch):
+    al = _almacen()
+    try:
+        capturado = {}
+
+        async def buscar_falso(texto, maximo=10, desde_fecha=None, categoria=None, dominios=None, pregunta_pasajes=None, **kw):
+            capturado.update(texto=texto, desde_fecha=desde_fecha, pregunta_pasajes=pregunta_pasajes)
+            return [], 0, 0.0
+
+        monkeypatch.setattr(PASOS.exa, "buscar", buscar_falso)
+        ctx = Ctx(al, SimpleNamespace(), None, "cor", "inv", "it", 1)
+        paso = ctx.iteracion()["plan"][0]
+        q = {"base": "exa", "consulta": "Novedades recientes relacionadas con biomarcadores", "tema": "Novedad reciente del campo", "modo": "amplitud", "porque": "una segunda cohorte", "desde_fecha": "2026-03-14"}
+        asyncio.run(PASOS._consulta_literatura(ctx, paso, q, "Objetivo: x\nPregunta de esta corrida: ¿la caída de tau-PET anticipa el beneficio?"))
+        assert capturado["desde_fecha"] == "2026-03-14"
+        assert "beneficio clínico" in capturado["pregunta_pasajes"] and "una segunda cohorte" in capturado["pregunta_pasajes"] and "Novedad reciente del campo" in capturado["pregunta_pasajes"]
+        assert "tau-PET" not in capturado["pregunta_pasajes"]
+        reg = ctx.corrida()["busqueda"]["consultas"][-1]
+        assert reg["modo"] == "amplitud" and reg["desdeFecha"] == "2026-03-14" and reg["consulta"] == q["consulta"]
+        # En foco, los pasajes se guían con el criterio de foco.
+        asyncio.run(PASOS._consulta_literatura(ctx, paso, {"base": "exa", "consulta": "¿tau-PET?", "tema": "tau", "modo": "foco"}, "Objetivo: x\nPregunta de esta corrida: ¿la caída de tau-PET anticipa el beneficio?"))
+        assert "tau-PET" in capturado["pregunta_pasajes"] and capturado["desde_fecha"] is None
     finally:
         al.cerrar()
