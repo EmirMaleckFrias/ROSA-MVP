@@ -1,18 +1,9 @@
-import type { EstadoConexion } from '../datos/tipos';
 import { IconMenu, IconSearch } from './icons';
 import { fijarModo, useModo } from '../lib/modo';
-
-const CONEXION: Record<EstadoConexion, string> = {
-  conectando: 'Conectando',
-  en_linea: 'En linea',
-  sin_conexion: 'Sin conexión',
-  muestra: 'Datos de muestra',
-};
 
 interface Props {
   miga: string | null;
   titulo: string;
-  conexion: EstadoConexion;
   /** Decisiones que esperan a una persona en la investigacion actual. */
   esperan: number;
   onMenu: () => void;
@@ -20,7 +11,7 @@ interface Props {
   onAyuda?: () => void;
 }
 
-export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, onAyuda }: Props) {
+export function Cabecera({ miga, titulo, esperan, onMenu, onBuscar, onAyuda }: Props) {
   const modo = useModo();
   return (
     <header className="cabecera">
@@ -51,10 +42,6 @@ export function Cabecera({ miga, titulo, conexion, esperan, onMenu, onBuscar, on
             <span style={{ fontWeight: 600, fontSize: 14 }}>?</span>
           </button>
         )}
-        <span className={`estado-conexion ${conexion}`} title={CONEXION[conexion]}>
-          <i aria-hidden="true" />
-          {CONEXION[conexion]}
-        </span>
       </div>
     </header>
   );

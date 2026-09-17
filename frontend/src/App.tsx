@@ -166,7 +166,7 @@ export default function App() {
     <div className={`app ${conCajon ? 'con-cajon' : ''}`}>
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
-        <Cabecera miga={miga} titulo={titulo} conexion={estado.conexion} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
+        <Cabecera miga={miga} titulo={titulo} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
         {conservando && <div className="aviso-conflicto" role="status">No se pudo actualizar esta investigación. Se conserva la última vista recibida; los datos pueden estar desactualizados.</div>}
         {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} detalleId={ruta.detalleId} />}
         {aviso && (

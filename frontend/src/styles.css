@@ -419,34 +419,6 @@ pre {
   gap: 10px;
 }
 
-.estado-conexion {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.estado-conexion i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-3);
-}
-
-.estado-conexion.en_linea i {
-  background: var(--green);
-}
-
-.estado-conexion.sin_conexion i {
-  background: var(--red);
-}
-
-.estado-conexion.muestra i {
-  background: var(--amber);
-}
-
 .contenido {
   padding: 26px 28px 60px;
   max-width: 1120px;
