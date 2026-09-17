@@ -11,11 +11,30 @@
 // (verde a un paso de una medición propia, ámbar solo literatura, gris nada;
 // lib/arbol.ts calcula las distancias). El conmutador "Por distancia al dato"
 // pasa esa distancia al relleno con una escala secuencial.
+//
+// Vista 3D (petición de Emir, 16 de septiembre de 2026): el mismo árbol, con la
+// misma información (colores, anillos, alertas, rayas, leyenda, búsqueda,
+// desplegar al pulsar, ficha con doble clic), pero dispuesto en tres ejes y
+// mirado por una CÁMARA ORBITAL que gira alrededor del tronco. La geometría
+// vive en lib/arbol3d.ts: una disposición por fuerzas con coordenada z, una
+// PROYECCIÓN EN PERSPECTIVA (cámara estenopeica: cada punto se divide por su
+// distancia a la cámara, así lo lejano sale pequeño) y tres números de cámara,
+// la GUIÑADA (giro alrededor del eje vertical: arrastrar el fondo en
+// horizontal), el CABECEO (inclinación arriba y abajo: arrastrar en vertical,
+// acotado a más o menos 80 grados) y la DISTANCIA (la rueda). Aquí solo se
+// dibuja lo proyectado: el radio de cada círculo se multiplica por la escala,
+// la opacidad baja con la profundidad (niebla) y los nodos se pintan de lejos a
+// cerca para que los cercanos tapen a los lejanos. Cuando nadie toca el árbol
+// durante unos segundos gira solo, despacio, salvo con movimiento reducido. En
+// 3D no se arrastran nodos (el fondo gira el árbol) ni hay vaivén (el giro ya
+// le da vida). La elección de vista se recuerda en el navegador; por defecto
+// sigue la vista plana, para no cambiarle el árbol a quien ya lo conoce.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Vacio } from '../componentes/piezas';
 import { alternar, buscar, construirArbol, fraseProfundidad, incorporarNovedades, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, SIN_DISTANCIA, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
+import { acotarCamara, camaraInicial, distanciaEncuadre, ESPERA_GIRO_MS, niebla, ordenarPorProfundidad, paso3d, posicionInicial3d, proyectar, SENSIBILIDAD_GIRO, VELOCIDAD_GIRO, type Camara, type Posicion3, type Proyeccion } from '../lib/arbol3d';
 import { useMovimientoReducido } from '../lib/movimiento';
 
 const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12, afirmacion: 6, ejecucion: 9, dataset: 8, laboratorio: 12 };
@@ -45,7 +64,29 @@ const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }
   dato: { color: 'var(--grafo-dato-1)', ancho: 1.3 },
 };
 
+/** En 3D los nodos cambian de orden en el DOM cada cuadro (se pintan de lejos a
+ *  cerca) y el navegador trata cada movimiento como una inserción: reiniciaba la
+ *  animación de entrada `brotar` y las transiciones de opacidad de styles.css, y
+ *  las esferas parpadeaban. En esta vista todo se pinta sin transición. */
+const ESTILO_3D = { transition: 'none', animation: 'none' } as const;
 type ModoColor = 'tipo' | 'dato';
+type Vista = 'plana' | '3d';
+/** Clave del navegador donde se recuerda la vista elegida (sin tilde: es un identificador). */
+const CLAVE_VISTA = 'rosa-arbol-vista';
+function leerVista(): Vista {
+  try {
+    return localStorage.getItem(CLAVE_VISTA) === '3d' ? '3d' : 'plana';
+  } catch {
+    return 'plana';
+  }
+}
+function guardarVista(v: Vista): void {
+  try {
+    localStorage.setItem(CLAVE_VISTA, v);
+  } catch {
+    // Sin almacenamiento (modo privado, cuota llena): la elección dura lo que la pestaña.
+  }
+}
 /** Qué es cada tipo de nodo, dicho en llano para la leyenda (petición de Emir, 16 de
  *  septiembre de 2026: la leyenda tiene que explicar los colores como se explican en
  *  una conversación, no listar nombres y recuentos). */
@@ -105,8 +146,20 @@ function colorPorDato(n: NodoArbol): string {
   return l === 'nulo' ? COLOR_SIN_DATO : ESCALA_LIT[l]!;
 }
 
-function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
-  const posiciones = useRef(new Map<string, Posicion>());
+/** Un motor de disposición: cómo nace un nodo y cómo avanza un paso de la física.
+ *  Hay dos, el plano (lib/arbol.ts) y el de tres ejes (lib/arbol3d.ts). */
+interface Motor<P extends { fijo?: boolean }> {
+  inicial: (g: Grafo, posiciones: Map<string, P>, id: string, semilla: number) => P;
+  paso: (g: Grafo, visibles: Set<string>, posiciones: Map<string, P>, alfa: number) => void;
+}
+const MOTOR_PLANO: Motor<Posicion> = { inicial: posicionInicial, paso };
+const MOTOR_3D: Motor<Posicion3> = { inicial: posicionInicial3d, paso: paso3d };
+
+/** La simulación por fuerzas, común a las dos vistas. `activo` en false la
+ *  congela (la vista que no se ve no gasta fotogramas) conservando las
+ *  posiciones: al volver a ella retoma donde estaba y solo coloca lo nuevo. */
+function useSimulacionDe<P extends { fijo?: boolean }>(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean, motor: Motor<P>) {
+  const posiciones = useRef(new Map<string, P>());
   const [, setTick] = useState(0);
   const alfa = useRef(1);
   const semilla = useRef(1);
@@ -117,7 +170,7 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
     alfa.current = Math.max(alfa.current, energia);
     if (marco.current !== null) return;
     const animar = () => {
-      for (let k = 0; k < 2; k++) paso(grafo, visibles, posiciones.current, alfa.current);
+      for (let k = 0; k < 2; k++) motor.paso(grafo, visibles, posiciones.current, alfa.current);
       alfa.current = Math.max(0.02, alfa.current * 0.975);
       setTick((t) => t + 1);
       if (alfa.current > 0.03) marco.current = requestAnimationFrame(animar);
@@ -127,11 +180,12 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
   };
   const firmaAnterior = useRef('');
   useEffect(() => {
+    if (!activo) return;
     // Los nodos nuevos nacen junto a un vecino colocado; los que se van, se olvidan.
     let cambio = false;
     for (const id of visibles) {
       if (!posiciones.current.has(id)) {
-        posiciones.current.set(id, posicionInicial(grafo, posiciones.current, id, semilla.current++));
+        posiciones.current.set(id, motor.inicial(grafo, posiciones.current, id, semilla.current++));
         cambio = true;
       }
     }
@@ -148,7 +202,7 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
     firmaAnterior.current = firma;
     if (quieto) {
       if (cambio || primera) {
-        for (let i = 0; i < 240; i++) paso(grafo, visibles, posiciones.current, Math.max(0.05, 1 - i / 240));
+        for (let i = 0; i < 240; i++) motor.paso(grafo, visibles, posiciones.current, Math.max(0.05, 1 - i / 240));
         setTick((t) => t + 1);
       }
       return;
@@ -158,7 +212,8 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
       arrancar(primera ? 1 : 0.6);
     } else if (alfa.current > 0.03) {
       // La limpieza del efecto anterior canceló el fotograma en marcha (otro
-      // efecto reasignó los visibles al montar): se retoma donde estaba.
+      // efecto reasignó los visibles al montar, o se cambió de vista): se
+      // retoma donde estaba.
       arrancar(alfa.current);
     }
     return () => {
@@ -166,14 +221,26 @@ function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean) {
       marco.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grafo, visibles, quieto]);
-  return { posiciones: posiciones.current, reavivar: (energia = 0.4) => (quieto ? setTick((t) => t + 1) : arrancar(energia)) };
+  }, [grafo, visibles, quieto, activo]);
+  return { posiciones: posiciones.current, reavivar: (energia = 0.4) => (quieto ? setTick((t) => t + 1) : arrancar(energia)), asentada: () => marco.current === null };
+}
+
+function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean) {
+  return useSimulacionDe(grafo, visibles, quieto, activo, MOTOR_PLANO);
+}
+
+/** La misma simulación con la física de tres ejes (lib/arbol3d.ts): mismo
+ *  enfriamiento, mismo reavivar, otra estructura de posición (x, y, z). */
+function useSimulacion3d(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean) {
+  return useSimulacionDe(grafo, visibles, quieto, activo, MOTOR_3D);
 }
 
 /** Cuánto se ve la etiqueta de un nodo según el zoom y su importancia (el
  *  "text fade threshold" del grafo de Obsidian): el tronco siempre; ramas,
  *  hipótesis y experimentos desde un zoom normal; lo pequeño solo al acercar,
- *  o si está iluminado o seleccionado. */
+ *  o si está iluminado o seleccionado. En 3D el "zoom" de cada nodo es su
+ *  escala proyectada, así que las etiquetas pequeñas solo salen en los nodos
+ *  cercanos a la cámara y las de peso alto se leen desde más lejos. */
 function opacidadEtiqueta(n: NodoArbol, k: number, vivo: boolean, sel: boolean): number {
   if (sel) return 1;
   const umbral = n.tipo === 'objetivo' ? 0 : n.tipo === 'rama' || n.tipo === 'area' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' || n.tipo === 'ejecucion' ? 0.75 : 1.5;
@@ -202,6 +269,10 @@ function lineas(texto: string, maximo = 22): string[] {
 export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa }) {
   const hip = useMemo(() => estado.hipotesis.filter((h) => h.investigacionId === inv.id), [estado.hipotesis, inv.id]);
   const grafo = useMemo(() => construirArbol(estado, inv), [estado, inv]);
+  // Sin hipótesis ni hechos no hay árbol que dibujar (se enseña qué pasará). Se
+  // calcula aquí, antes de los efectos, porque el de la rueda tiene que volver a
+  // engancharse cuando el SVG aparece por primera vez.
+  const vacio = hip.length === 0 && estado.hechos.filter((h) => h.investigacionId === inv.id).length === 0;
   const [visibles, setVisibles] = useState<Set<string>>(() => visiblesIniciales(grafo, hip));
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
@@ -210,8 +281,25 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useState<string | null>(null);
   const [modoColor, setModoColor] = useState<ModoColor>('tipo'); // Por defecto: relleno por tipo y familia de mecanismo, anillo por distancia al dato (petición de Emir, 16 de septiembre de 2026)
+  const [tipoVista, setTipoVista] = useState<Vista>(leerVista);
+  const vista3d = tipoVista === '3d';
+  /** Último instante en que alguien tocó el árbol en 3D: el giro automático espera unos segundos desde entonces. */
+  const ultimoToque = useRef(0);
+  const cambiarVista = (v: Vista) => {
+    setTipoVista(v);
+    guardarVista(v);
+    ultimoToque.current = performance.now();
+  };
+  // La cámara orbital de la vista 3D (guiñada, cabeceo, distancia), siempre acotada.
+  const [camara, setCamara] = useState<Camara>(camaraInicial);
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
+  // Último punto del puntero mientras se gira la cámara. El giro es incremental
+  // (cada movimiento suma su diferencia a la cámara actual) y no absoluto desde
+  // el punto de agarre: así, al topar con el cabeceo máximo, la cámara responde
+  // en cuanto el puntero vuelve, sin tener que desandar el exceso.
+  const arrastreCamara = useRef<{ x: number; y: number } | null>(null);
+  const hoverRef = useRef<string | null>(null);
   const reducido = useMovimientoReducido();
   const svgRef = useRef<SVGSVGElement>(null);
   const ancho = 900;
@@ -236,13 +324,42 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
-  const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido);
+  // El nodo bajo el ratón solo cuenta mientras se dibuja: si desaparece (Plegar
+  // todo, el deslizador de iteraciones) nunca dispara pointerleave y, sin esto,
+  // el giro automático quedaría pausado para siempre y el árbol atenuado.
+  const foco = hover !== null && enTiempo.has(hover) ? hover : null;
+  hoverRef.current = foco;
+  // Las dos simulaciones existen siempre (regla de los hooks) pero solo corre la de la vista activa.
+  const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido, !vista3d);
+  const { posiciones: posiciones3, asentada: asentada3 } = useSimulacion3d(grafo, enTiempo, reducido, vista3d);
+  // Encuadre automático de la cámara 3D: mientras `encuadrar` está encendido, la
+  // distancia se ajusta sola para que todo lo visible quepa en el lienzo. Se
+  // enciende al cambiar lo visible o de vista y lo apaga la rueda (la persona
+  // manda). Con animación, el ajuste avanza un 15 % por cuadro hasta encajar;
+  // con movimiento reducido se aplica de una vez, porque la simulación ya se
+  // asentó en su efecto.
+  const encuadrar = useRef(true);
+  const enTiempoRef = useRef(enTiempo);
+  enTiempoRef.current = enTiempo;
+  const camaraRef = useRef(camara);
+  camaraRef.current = camara;
+  const puntosVisibles = () => [...enTiempoRef.current].map((id) => posiciones3.get(id)).filter((p): p is Posicion3 => Boolean(p));
+  useEffect(() => {
+    encuadrar.current = true;
+    if (!vista3d || !reducido) return;
+    setCamara((c) => {
+      const distancia = distanciaEncuadre(puntosVisibles(), c, ancho, alto);
+      return distancia === c.distancia ? c : acotarCamara({ ...c, distancia });
+    });
+    encuadrar.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enTiempo, vista3d, reducido]);
   // Balanceo en reposo: un vaivén lento y distinto por nodo (solo al dibujar,
   // no en la física) para que el árbol nunca parezca una foto. Con movimiento
-  // reducido no hay balanceo.
+  // reducido no hay balanceo; en 3D tampoco, el giro ya da vida.
   const [reloj, setReloj] = useState(0);
   useEffect(() => {
-    if (reducido) return;
+    if (reducido || vista3d) return;
     let id = 0;
     const paso_ = (t: number) => {
       setReloj(t / 1000);
@@ -250,15 +367,43 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     };
     id = requestAnimationFrame(paso_);
     return () => cancelAnimationFrame(id);
-  }, [reducido]);
+  }, [reducido, vista3d]);
   const vaiven = (id: string, peso: number) => {
-    if (reducido) return { x: 0, y: 0 };
+    if (reducido || vista3d) return { x: 0, y: 0 };
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
     const fase = (h % 628) / 100;
     const amp = 1.6 + Math.min(2.5, peso) * 0.5;
     return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
   };
+  // Giro automático en 3D: cuando nadie toca el árbol durante ESPERA_GIRO_MS
+  // (ni arrastra, ni tiene el ratón sobre un nodo) la guiñada avanza despacio.
+  // Con movimiento reducido, el árbol no gira solo.
+  useEffect(() => {
+    if (!vista3d || reducido) return;
+    let id = 0;
+    let previo = performance.now();
+    ultimoToque.current = previo;
+    const girar = (t: number) => {
+      const dt = Math.min(0.1, Math.max(0, (t - previo) / 1000));
+      previo = t;
+      if (encuadrar.current) {
+        const objetivo = distanciaEncuadre(puntosVisibles(), camaraRef.current, ancho, alto);
+        const delta = objetivo - camaraRef.current.distancia;
+        if (Math.abs(delta) < 0.5) {
+          // Encajado: se fija el valor exacto y, si la simulación ya se asentó, se deja de ajustar.
+          if (asentada3()) encuadrar.current = false;
+          if (delta !== 0) setCamara((c) => acotarCamara({ ...c, distancia: objetivo }));
+        } else setCamara((c) => acotarCamara({ ...c, distancia: c.distancia + delta * 0.15 }));
+      }
+      if (t - ultimoToque.current > ESPERA_GIRO_MS && !hoverRef.current && !arrastreCamara.current) {
+        setCamara((c) => acotarCamara({ ...c, guinada: c.guinada + VELOCIDAD_GIRO * dt }));
+      }
+      id = requestAnimationFrame(girar);
+    };
+    id = requestAnimationFrame(girar);
+    return () => cancelAnimationFrame(id);
+  }, [vista3d, reducido]);
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
   // Familias de mecanismo: orden estable por primera aparición entre las hipótesis visibles.
   const clusterDe = useMemo(() => new Map(estado.hipotesis.filter((x) => x.investigacionId === inv.id).map((x) => [x.id, x.cluster || 'Sin cluster'])), [estado.hipotesis, inv.id]);
@@ -286,19 +431,25 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   // resto atenuado. La selección (el último nodo abierto) conserva su anillo y su
   // panel, pero no atenúa a los demás: sin ratón encima se ve el árbol entero
   // (petición de Emir, 16 de septiembre de 2026).
-  const foco = hover;
   const vecinosFoco = useMemo(() => (foco ? new Set(grafo.vecinos.get(foco) ?? []) : null), [grafo, foco]);
   const atenuar = iluminados.size > 0 || foco !== null;
   const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : foco === null || foco === id || (vecinosFoco?.has(id) ?? false));
 
   // La rueda va con un oyente nativo no pasivo: React registra onWheel como
-  // pasivo y preventDefault no haría nada (la página haría scroll).
+  // pasivo y preventDefault no haría nada (la página haría scroll). En la vista
+  // plana acerca alrededor del cursor; en 3D cambia la distancia de la cámara.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const alRueda = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      if (vista3d) {
+        ultimoToque.current = performance.now();
+        encuadrar.current = false;
+        setCamara((c) => acotarCamara({ ...c, distancia: c.distancia / factor }));
+        return;
+      }
       const p = enLienzo(e.clientX, e.clientY);
       setVista((v) => {
         const k = Math.max(0.25, Math.min(4, v.k * factor));
@@ -309,9 +460,17 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     svg.addEventListener('wheel', alRueda, { passive: false });
     return () => svg.removeEventListener('wheel', alRueda);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [vista3d, vacio]);
   const empezarArrastre = (e: React.PointerEvent) => {
     const nodo = (e.target as Element).closest('.grafo-nodo') as SVGGElement | null;
+    if (vista3d) {
+      ultimoToque.current = performance.now();
+      // En 3D los nodos no se arrastran (el clic llega entero a pulsar); el fondo gira la cámara.
+      if (nodo) return;
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      arrastreCamara.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
     if (nodo) {
       // Sin capturar el puntero: si el SVG lo captura, el navegador manda el
       // clic al SVG y la esfera nunca recibe onClick (no se abría el panel).
@@ -327,6 +486,18 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y };
   };
   const mover = (e: React.PointerEvent) => {
+    if (arrastreCamara.current) {
+      // Girar la cámara: el movimiento horizontal es guiñada y el vertical, cabeceo.
+      // Los signos hacen que el frente del árbol siga al puntero.
+      const a = arrastreCamara.current;
+      const dx = e.clientX - a.x;
+      const dy = e.clientY - a.y;
+      a.x = e.clientX;
+      a.y = e.clientY;
+      ultimoToque.current = performance.now();
+      setCamara((c) => acotarCamara({ ...c, guinada: c.guinada - dx * SENSIBILIDAD_GIRO, cabeceo: c.cabeceo + dy * SENSIBILIDAD_GIRO }));
+      return;
+    }
     if (arrastreNodo.current) {
       const a = arrastreNodo.current;
       const p = posiciones.get(a.id);
@@ -361,6 +532,10 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     setVista((v) => ({ ...v, x: a.vx + (e.clientX - a.x), y: a.vy + (e.clientY - a.y) }));
   };
   const soltar = () => {
+    if (arrastreCamara.current) {
+      arrastreCamara.current = null;
+      ultimoToque.current = performance.now();
+    }
     if (arrastreNodo.current) {
       const p = posiciones.get(arrastreNodo.current.id);
       if (p && arrastreNodo.current.id !== 'objetivo') p.fijo = false;
@@ -382,11 +557,12 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       return;
     }
     if (detalle > 1) return; // la segunda pulsación de un doble clic no vuelve a plegar
+    ultimoToque.current = performance.now();
     setSeleccion(n.id);
     setVisibles((v) => alternar(grafo, v, n.id));
   };
 
-  if (hip.length === 0 && estado.hechos.filter((h) => h.investigacionId === inv.id).length === 0) {
+  if (vacio) {
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
@@ -397,10 +573,55 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     );
   }
 
-  const enlacesVisibles = grafo.enlaces.filter((e) => enTiempo.has(e.de) && enTiempo.has(e.a) && posiciones.has(e.de) && posiciones.has(e.a));
-  const nodosVisibles = [...enTiempo].map((id) => grafo.porId.get(id)).filter((n): n is NodoArbol => Boolean(n) && posiciones.has(n!.id));
+  const colocado = (id: string) => (vista3d ? posiciones3.has(id) : posiciones.has(id));
+  const enlacesVisibles = grafo.enlaces.filter((e) => enTiempo.has(e.de) && enTiempo.has(e.a) && colocado(e.de) && colocado(e.a));
+  const nodosVisibles = [...enTiempo].map((id) => grafo.porId.get(id)).filter((n): n is NodoArbol => Boolean(n) && colocado(n!.id));
   // La leyenda explica solo los tipos de nodo que existen en este árbol (visibles o plegados).
   const tiposPresentes = new Set(grafo.nodos.map((n) => n.tipo));
+  // Vista 3D: cada nodo visible se proyecta una vez por fotograma y se pinta de
+  // lejos a cerca; lo que queda detrás de la cámara no se dibuja.
+  const proyecciones = new Map<string, Proyeccion>();
+  let ordenados: NodoArbol[] = nodosVisibles;
+  if (vista3d) {
+    for (const n of nodosVisibles) proyecciones.set(n.id, proyectar(posiciones3.get(n.id)!, camara, ancho, alto));
+    // Los que quedan detrás de la cámara siguen montados con opacidad cero: desmontarlos y volverlos a montar reiniciaría su animación de entrada.
+    ordenados = ordenarPorProfundidad(nodosVisibles.map((n) => n.id), posiciones3, camara).map((id) => grafo.porId.get(id)!);
+  }
+
+  /** El círculo de un nodo con su relleno, su anillo y sus rayas: idéntico en las dos vistas. */
+  const circulo = (n: NodoArbol, r: number, sinTransicion: boolean) => (
+    <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : anilloDe(n) ?? (sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)')} strokeWidth={n.alerta ? 2 : anilloDe(n) ? 3 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) || (anilloDe(n) && claveDistancia(n) === 'nulo') ? '2 2' : undefined} style={sinTransicion ? ESTILO_3D : undefined} />
+  );
+  const etiqueta = (n: NodoArbol, y: number, opEt: number, sinTransicion = false) => (
+    <text y={y} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' ? 10.5 : 9, ...(sinTransicion ? ESTILO_3D : undefined) }}>
+      {lineas(n.etiqueta).map((f, i) => (
+        <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
+          {f}
+        </tspan>
+      ))}
+    </text>
+  );
+  const iconos = (n: NodoArbol) => (
+    <>
+      {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
+      {n.tipo === 'laboratorio' && <path d="M-4.5 0.5 l3 3 l6 -7" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />}
+    </>
+  );
+  const claseNodo = (n: NodoArbol, vivo: boolean, sel: boolean) => `grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`;
+  const propsNodo = (n: NodoArbol) => ({
+    onClick: (e: React.MouseEvent) => pulsar(n, e.detail),
+    onDoubleClick: () => {
+      if (n.href) window.location.hash = n.href;
+    },
+    onPointerEnter: () => setHover(n.id),
+    onPointerLeave: () => setHover((h) => (h === n.id ? null : h)),
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': `${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') pulsar(n, 1);
+    },
+  });
 
   return (
     <div className="contenido contenido-ancho">
@@ -408,9 +629,17 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Árbol de la investigación</h2>
-          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Por defecto el relleno de cada nodo dice qué es (las hipótesis, el color de su familia de mecanismo) y el anillo cuánto lo sostiene: verde si está a un paso de una medición propia de Rosa (un análisis in silico validado, un resultado del laboratorio o una observación original), ámbar si solo hay literatura leída detrás, gris punteado si nada todavía. Con «Por distancia al dato» esa distancia pasa al relleno con una escala secuencial.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Por defecto el relleno de cada nodo dice qué es (las hipótesis, el color de su familia de mecanismo) y el anillo cuánto lo sostiene: verde si está a un paso de una medición propia de Rosa (un análisis in silico validado, un resultado del laboratorio o una observación original), ámbar si solo hay literatura leída detrás, gris punteado si nada todavía. Con «Por distancia al dato» esa distancia pasa al relleno con una escala secuencial. Con «Vista 3D» el mismo árbol se despliega en tres dimensiones: arrastra el fondo para girarlo (en horizontal gira, en vertical se inclina), usa la rueda para acercar la cámara, y los nodos lejanos se ven más pequeños y tenues; si nadie lo toca durante unos segundos, gira solo. En 3D los nodos no se arrastran: el fondo gira el árbol.</p>
         </div>
         <div className="acciones">
+          <div className="segmentos" role="group" aria-label="Vista del árbol">
+            <button type="button" aria-pressed={!vista3d} onClick={() => cambiarVista('plana')} title="El árbol en el plano: arrastra el fondo para desplazarlo y los nodos para moverlos">
+              Vista plana
+            </button>
+            <button type="button" aria-pressed={vista3d} onClick={() => cambiarVista('3d')} title="El árbol en tres dimensiones: arrastra el fondo para girarlo, rueda para acercar; lo lejano se ve pequeño y tenue">
+              Vista 3D
+            </button>
+          </div>
           <div className="segmentos" role="group" aria-label="Color de los nodos">
             <button type="button" aria-pressed={modoColor === 'tipo'} onClick={() => setModoColor('tipo')} title="Relleno por tipo de nodo y por familia de mecanismo en las hipótesis; anillo por distancia al dato">
               Por tipo y mecanismo
@@ -420,7 +649,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
             </button>
           </div>
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
-          <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); setVista({ x: 0, y: 0, k: 1 }); }}>
+          <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); setVista({ x: 0, y: 0, k: 1 }); setCamara(camaraInicial()); }}>
             Plegar todo
           </button>
           <button type="button" className="btn btn-s" onClick={() => { setVisibles(new Set(grafo.nodos.map((n) => n.id))); }} title="Despliega hasta las fuentes: puede ser mucho">
@@ -430,44 +659,72 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       </div>
 
       <div className="grafo-marco">
-        <svg ref={svgRef} className="grafo" viewBox={`${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Árbol de ${inv.titulo}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
-          <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
-            {enlacesVisibles.map((e) => {
-              const a = posiciones.get(e.de)!;
-              const b = posiciones.get(e.a)!;
-              const va = vaiven(e.de, grafo.porId.get(e.de)?.peso ?? 1);
-              const vb = vaiven(e.a, grafo.porId.get(e.a)?.peso ?? 1);
-              const t = TRAZO[e.tipo];
-              const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
-              return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="grafo-enlace" />;
-            })}
-            {nodosVisibles.map((n) => {
-              const p = posiciones.get(n.id)!;
-              const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
-              const vivo = destacado(n.id);
-              const sel = seleccion === n.id;
-              const opEt = opacidadEtiqueta(n, vista.k, vivo && atenuar, sel || hover === n.id);
-              const filas = lineas(n.etiqueta);
-              const v = vaiven(n.id, n.peso);
-              return (
-                <g key={n.id} data-id={n.id} className={`grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`} transform={`translate(${p.x + v.x} ${p.y + v.y})`} onClick={(e) => pulsar(n, e.detail)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onPointerEnter={() => setHover(n.id)} onPointerLeave={() => setHover((h) => (h === n.id ? null : h))} role="button" tabIndex={0} aria-label={`${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`} onKeyDown={(e) => { if (e.key === 'Enter') pulsar(n, 1); }}>
-                  {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
-                  <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : anilloDe(n) ?? (sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)')} strokeWidth={n.alerta ? 2 : anilloDe(n) ? 3 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) || (anilloDe(n) && claveDistancia(n) === 'nulo') ? '2 2' : undefined} />
-                  {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
-                  {n.tipo === 'laboratorio' && <path d="M-4.5 0.5 l3 3 l6 -7" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />}
-                  {opEt > 0.02 && (
-                    <text y={r + 11} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' ? 10.5 : 9 }}>
-                      {filas.map((f, i) => (
-                        <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
-                          {f}
-                        </tspan>
-                      ))}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </g>
+        <svg ref={svgRef} className="grafo" viewBox={vista3d ? `0 0 ${ancho} ${alto}` : `${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Árbol de ${inv.titulo}${vista3d ? ' en tres dimensiones' : ''}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onPointerLeave={() => setHover(null)}>
+          {vista3d ? (
+            <g>
+              {enlacesVisibles.map((e) => {
+                const a = proyecciones.get(e.de);
+                const b = proyecciones.get(e.a);
+                if (!a || !b) return null;
+                const t = TRAZO[e.tipo];
+                const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
+                // La niebla del enlace es la del extremo más lejano; el grosor sigue a la escala media.
+                // Un extremo detrás de la cámara deja el enlace montado pero invisible.
+                const op = a.visible && b.visible ? (vivo ? 0.75 : 0.12) * Math.min(niebla(a.profundidad, camara), niebla(b.profundidad, camara)) : 0;
+                return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={t.color} strokeWidth={Math.max(0.4, t.ancho * ((a.escala + b.escala) / 2))} strokeDasharray={t.guion} opacity={op} className="grafo-enlace" style={ESTILO_3D} />;
+              })}
+              {ordenados.map((n) => {
+                const p = proyecciones.get(n.id)!;
+                const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3) * p.escala;
+                const vivo = destacado(n.id);
+                const sel = seleccion === n.id;
+                // La escala proyectada hace de zoom: las etiquetas pequeñas solo en los nodos cercanos.
+                const opEt = p.visible ? opacidadEtiqueta(n, p.escala, vivo && atenuar, sel || hover === n.id) : 0;
+                // La etiqueta encoge o crece con la profundidad (acotado para que siga leyéndose): otra pista de la tercera dimensión.
+                const kEtiqueta = Math.max(0.6, Math.min(1.25, p.escala));
+                return (
+                  <g key={n.id} data-id={n.id} className={claseNodo(n, vivo, sel)} transform={`translate(${p.x} ${p.y})`} opacity={p.visible ? niebla(p.profundidad, camara) : 0} style={ESTILO_3D} {...propsNodo(n)} tabIndex={p.visible ? 0 : -1} pointerEvents={p.visible ? undefined : 'none'} aria-hidden={p.visible ? undefined : true}>
+                    {n.tipo === 'objetivo' && <circle r={r + 6 * p.escala} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6 * p.escala} style={ESTILO_3D} />}
+                    {circulo(n, r, true)}
+                    <g transform={`scale(${p.escala})`}>{iconos(n)}</g>
+                    {opEt > 0.02 && (
+                      <g transform={`translate(0 ${r + 11}) scale(${kEtiqueta})`} style={ESTILO_3D}>
+                        {etiqueta(n, 0, opEt, true)}
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          ) : (
+            <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
+              {enlacesVisibles.map((e) => {
+                const a = posiciones.get(e.de)!;
+                const b = posiciones.get(e.a)!;
+                const va = vaiven(e.de, grafo.porId.get(e.de)?.peso ?? 1);
+                const vb = vaiven(e.a, grafo.porId.get(e.a)?.peso ?? 1);
+                const t = TRAZO[e.tipo];
+                const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
+                return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="grafo-enlace" />;
+              })}
+              {nodosVisibles.map((n) => {
+                const p = posiciones.get(n.id)!;
+                const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
+                const vivo = destacado(n.id);
+                const sel = seleccion === n.id;
+                const opEt = opacidadEtiqueta(n, vista.k, vivo && atenuar, sel || hover === n.id);
+                const v = vaiven(n.id, n.peso);
+                return (
+                  <g key={n.id} data-id={n.id} className={claseNodo(n, vivo, sel)} transform={`translate(${p.x + v.x} ${p.y + v.y})`} {...propsNodo(n)}>
+                    {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
+                    {circulo(n, r, false)}
+                    {iconos(n)}
+                    {opEt > 0.02 && etiqueta(n, r + 11, opEt)}
+                  </g>
+                );
+              })}
+            </g>
+          )}
         </svg>
         <aside className="grafo-panel">
           {nodoSel ? (

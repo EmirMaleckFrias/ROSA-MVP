@@ -585,3 +585,12 @@ cosas déjalas en pendiente para mañana"). Ninguno se toca sin su visto bueno.
   el próximo reinicio del servidor; no reiniciar con una corrida viva.
 - Hechos con enunciado repetido de corridas anteriores (Belder, Chatterjee):
   la deduplicación del paso de modelo no los fundió.
+- (17 de septiembre, tras la corrida 7) El límite de tiempo de una corrida se
+  cuenta en tiempo de reloj: el Mac durmió toda la noche con la iteración 2 a
+  medias y al despertar Rosa dio por cumplidos los 40 minutos y omitió cinco
+  pasos. Mientras corra una corrida el equipo no puede dormirse (`caffeinate`
+  o ajuste de energía); lo correcto es que Rosa cuente tiempo de trabajo o
+  detecte la suspensión del proceso y no la cargue a la corrida
+  (rosa/parada.py y el cierre de iteración en rosa/bucle/corrida.py).
+- Una consulta de literatura devolvió 3.377 identificados en la iteración 2:
+  recortar o dividir las consultas que superen un umbral antes de cribar.
