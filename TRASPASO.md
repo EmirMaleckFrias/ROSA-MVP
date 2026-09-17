@@ -594,3 +594,14 @@ cosas déjalas en pendiente para mañana"). Ninguno se toca sin su visto bueno.
   (rosa/parada.py y el cierre de iteración en rosa/bucle/corrida.py).
 - Una consulta de literatura devolvió 3.377 identificados en la iteración 2:
   recortar o dividir las consultas que superen un umbral antes de cribar.
+- (17 de septiembre, corrida 8) El tiempo que un plan espera la aprobación
+  humana cuenta contra el tope de la corrida (21 de los 60 minutos se fueron
+  esperando el plan de la iteración 1), y la comprobación del tope se hace
+  después de aprobar el plan: la iteración 2 se aprobó a las 09:35 y se cerró
+  a las 09:36 con los siete pasos omitidos, pero igual corrió lecciones,
+  revisor de registro y meta-campaña sobre una iteración vacía (llamadas al
+  juez sin nada que juzgar). Propuesta: no contar la espera humana, comprobar
+  el tope antes de proponer el plan, y no correr los cierres cuando todos los
+  pasos se omitieron.
+- La métrica de la corrida 8 dice `hipotesisNuevas: 5` cuando no nació ninguna
+  hipótesis; revisar qué cuenta rosa/progreso.py en ese campo.
