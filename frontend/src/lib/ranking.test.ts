@@ -392,3 +392,18 @@ describe('adversario: entradas raras que un registro antiguo o un modelo pueden 
     expect(performance.now() - t0).toBeLessThan(4000);
   });
 });
+
+describe('ruta evaluada', () => {
+  it('lee cubiertos, siguiente y coherente de h.ruta y los acota; sin ruta devuelve null', () => {
+    const estado = estadoDeMuestra();
+    const base = estado.hipotesis[0]!;
+    const con = componentesDe(estado, { ...base, ruta: { cubiertos: 5, siguiente: 'opciones_intervencion', coherente: false } as unknown as Hipotesis['ruta'] });
+    expect(con.ruta).toEqual({ cubiertos: 5, siguiente: 'opciones_intervencion', coherente: false });
+    expect(componentesDe(estado, { ...base, ruta: null }).ruta).toBeNull();
+    expect(componentesDe(estado, { ...base, ruta: undefined }).ruta).toBeNull();
+    // Registros rotos: cubiertos fuera de rango o sin número, siguiente que no es texto.
+    expect(componentesDe(estado, { ...base, ruta: { cubiertos: 99, siguiente: 7, coherente: true } as unknown as Hipotesis['ruta'] }).ruta).toEqual({ cubiertos: 8, siguiente: null, coherente: true });
+    expect(componentesDe(estado, { ...base, ruta: { cubiertos: 'x' } as unknown as Hipotesis['ruta'] }).ruta).toBeNull();
+    expect(componentesDe(estado, { ...base, ruta: 'texto' as unknown as Hipotesis['ruta'] }).ruta).toBeNull();
+  });
+});

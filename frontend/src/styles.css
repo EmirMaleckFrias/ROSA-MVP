@@ -4693,6 +4693,9 @@ details.versiones > :not(summary) {
 
 .cifra-ap-casos li {
   display: grid;
+  grid-template-columns: 1fr;
+  justify-items: start;
+  text-align: left;
   gap: 2px;
   font-size: 12.5px;
   padding: 6px 0;
@@ -4725,6 +4728,11 @@ details.versiones > :not(summary) {
 .mapa-ruta-tabla .tabla th,
 .mapa-ruta-tabla .tabla td {
   vertical-align: top;
+}
+
+/* La columna "Hipótesis" del mapa de ruta: sin ancho mínimo la cabecera se partía letra a letra. */
+.mapa-ruta-tabla .tabla th.num {
+  min-width: 72px;
 }
 
 .ruta-paso {

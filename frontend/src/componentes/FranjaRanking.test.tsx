@@ -313,3 +313,21 @@ describe('adversario: alternativas como las escribe hoy el Killer y desde el gra
     expect(chips()).toEqual(['Confusor']);
   });
 });
+
+describe('chip de la ruta evaluada', () => {
+  it('con h.ruta enseña los pasos cubiertos y el que toca, y avisa si el declarado no es coherente; sin ruta cae al paso declarado', async () => {
+    const e = estadoDeMuestra();
+    const base = e.hipotesis[0]!;
+    const h = { ...base, tarjeta: { ...(base.tarjeta ?? {}), pasoRuta: 'evidencia_poblacion' }, ruta: { cubiertos: 4, siguiente: 'opciones_intervencion', coherente: false } } as unknown as typeof base;
+    await act(async () => root.render(<FranjaRanking estado={e} h={h} />));
+    const chips = [...nodo.querySelectorAll('.chip')].map((c) => c.textContent ?? '');
+    expect(chips.some((c) => c.startsWith('Ruta 4/8, toca opciones de intervención'))).toBe(true);
+    expect(chips.some((c) => c.includes('Ruta 8/8'))).toBe(false);
+    const aviso = [...nodo.querySelectorAll('.chip')].find((c) => (c.textContent ?? '').startsWith('Ruta 4/8'))!;
+    expect(aviso.getAttribute('title')).toContain('va por delante');
+    const sinRuta = { ...h, ruta: null } as unknown as typeof base;
+    await act(async () => root.render(<FranjaRanking estado={e} h={sinRuta} />));
+    const chips2 = [...nodo.querySelectorAll('.chip')].map((c) => c.textContent ?? '');
+    expect(chips2.some((c) => c.startsWith('Ruta 8/8'))).toBe(true);
+  });
+});

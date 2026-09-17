@@ -60,6 +60,10 @@ export interface ComponentesRanking {
   partidos: number;
   novedad: { estado: EstadoNovedad; detalle: string };
   pasoRuta: PasoRutaTerapeutica | null;
+  /** La ruta terapéutica evaluada por regla (rosa/ruta.py, h.ruta): pasos
+   *  cubiertos de ocho, el paso que toca y si el declarado es coherente. Null
+   *  si el bucle no la calculó todavía; entonces la franja enseña el declarado. */
+  ruta: { cubiertos: number; siguiente: PasoRutaTerapeutica | null; coherente: boolean } | null;
   conflictoCon: { id: string; titulo: string }[];
   pendiente: boolean;
   pendienteDetalle: string | null;
@@ -256,6 +260,8 @@ export function componentesDe(estado: EstadoParaRanking, hipotesis: Hipotesis): 
   const direccion = clave(h.conclusion?.direccion);
   const killer = clave(h.decisionKiller);
   const pasoRuta = clave(h.tarjeta?.pasoRuta);
+  const r = h.ruta;
+  const ruta = r && typeof r === 'object' && Number.isFinite(Number(r.cubiertos)) ? { cubiertos: Math.max(0, Math.min(8, Math.round(Number(r.cubiertos)))), siguiente: typeof r.siguiente === 'string' && r.siguiente.trim() ? (r.siguiente as PasoRutaTerapeutica) : null, coherente: r.coherente !== false } : null;
   return {
     certeza: certezaDe(h),
     direccion: direccion ? (direccion as DireccionEvidencia) : null,
@@ -272,6 +278,7 @@ export function componentesDe(estado: EstadoParaRanking, hipotesis: Hipotesis): 
     partidos: h.partidos.length,
     novedad: novedadDe(h),
     pasoRuta: pasoRuta ? (pasoRuta as PasoRutaTerapeutica) : null,
+    ruta,
     conflictoCon,
     pendiente: Boolean(pendiente),
     pendienteDetalle: pendiente && typeof pendiente === 'object' ? texto(pendiente.detalle).trim() || null : null,

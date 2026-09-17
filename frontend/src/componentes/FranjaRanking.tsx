@@ -78,6 +78,13 @@ function etiquetaPaso(p: PasoRutaTerapeutica): string {
   return e ? `Ruta ${e.orden}/8: ${e.etiqueta}` : `Ruta: ${legible(p)}`;
 }
 
+/** La ruta evaluada por regla: cuántos pasos de ocho cubre la evidencia y cuál toca. */
+function etiquetaRuta(r: NonNullable<ComponentesRanking['ruta']>): string {
+  if (!r.siguiente) return `Ruta ${r.cubiertos}/8: completa`;
+  const e = de(PASO_RUTA as Record<string, { etiqueta: string; orden: number }>, r.siguiente);
+  return `Ruta ${r.cubiertos}/8, toca ${e ? e.etiqueta.toLowerCase() : legible(r.siguiente)}`;
+}
+
 function ChipCerteza({ c }: { c: ComponentesRanking }) {
   if (!c.certeza) {
     return (
@@ -187,11 +194,15 @@ export function FranjaRanking({ estado, h, explicar = false }: { estado: EstadoP
         <Chip tono={novedad.tono} title={`${novedad.nota}${c.novedad.detalle ? ` Detalle: ${c.novedad.detalle}` : ''}`}>
           {novedad.etiqueta}
         </Chip>
-        {c.pasoRuta && (
+        {c.ruta ? (
+          <Chip tono={c.ruta.coherente ? 'acento' : 'aviso'} title={`Ruta terapéutica evaluada por regla sobre la evidencia que tiene: pasos cubiertos de ocho y el primero que falta. ${c.ruta.coherente ? 'El paso que declara la tarjeta es coherente con lo cubierto.' : 'El paso que declara la tarjeta va por delante de lo que la evidencia cubre.'}`}>
+            {etiquetaRuta(c.ruta)}
+          </Chip>
+        ) : c.pasoRuta ? (
           <Chip tono="acento" title={DEFINICIONES.pasoRuta}>
             {etiquetaPaso(c.pasoRuta)}
           </Chip>
-        )}
+        ) : null}
         {c.conflictoCon.length > 0 && (
           <Chip tono="aviso" title={`${DEFINICIONES.conflicto} Con: ${c.conflictoCon.map((x) => x.titulo).join('; ')}.`}>
             Se contradice con {c.conflictoCon.length === 1 ? 'otra' : formatearEntero(c.conflictoCon.length)}

@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 import { Contador, ElementoAnimado, ListaAnimada } from '../componentes/Animado';
 import type { EstadoRosa, Hipotesis, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip } from '../componentes/piezas';
-import { Bloqueos, Candidatas } from '../componentes/Rosa2018';
+import { Candidatas } from '../componentes/Rosa2018';
 import { FranjaRanking } from '../componentes/FranjaRanking';
 import { calibracion } from '../lib/calidad';
 import { DECISION_KILLER, ESTADO_HIPOTESIS } from '../lib/etiquetas';
@@ -41,7 +41,6 @@ function GraficaElo({ puntos }: { puntos: Hipotesis['historialElo'] }) {
 
 function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigacion; estado: EstadoRosa }) {
   const d = variacionElo(h);
-  const pocos = h.partidos.length < 3;
   return (
     <a className="ranking-fila" href={rutaDe(inv.id, 'hipotesis', h.id)}>
       <span className="ranking-pos">{i + 1}</span>
@@ -51,16 +50,11 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
           <Chip>{ESTADO_HIPOTESIS[h.estado]}</Chip>
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <Chip tono="borde">{h.cluster}</Chip>
-          {h.decisionKiller && <Chip tono={DECISION_KILLER[h.decisionKiller].tono}>Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}</Chip>}
-          <Bloqueos bloqueos={bloqueosDe(estado, h)} candidata={h.candidata} />
           {(h.conflictoCon?.length ?? 0) > 0 && (
             <Chip tono="aviso" title={`No puede ser cierta a la vez que: ${h.conflictoCon!.map((id) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id).join('; ')}. Rosa lo marca; decide la persona.`}>
               Se contradice con {h.conflictoCon!.length === 1 ? 'otra' : h.conflictoCon!.length}
             </Chip>
           )}
-          <span title={pocos ? 'Con menos de 3 partidos el Elo dice poco' : ''} className={pocos ? 'tono-aviso' : ''}>
-            {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}
-          </span>
           <span>
             {h.rivales.length} {h.rivales.length === 1 ? 'rival' : 'rivales'}
           </span>
