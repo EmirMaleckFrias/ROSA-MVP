@@ -23,10 +23,13 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
   const mb = 30 + alturaBanda;
   const n = puntos.length;
   const x = (i: number) => ml + (n === 1 ? (W - ml - mr) / 2 : (i / (n - 1)) * (W - ml - mr));
-  const maxPeld = Math.max(1, ...puntos.map((p) => p.peldanosTotales));
+  // Sin peldaños todavía, el eje lo dice con palabras: un "1" arriba se leía como si alguna hipótesis hubiera subido (Emir, 17 de septiembre de 2026).
+  const maxReal = Math.max(0, ...puntos.map((p) => p.peldanosTotales));
+  const maxPeld = Math.max(1, maxReal);
   const yPeld = (v: number) => mt + (1 - v / maxPeld) * (H - mt - mb);
   const maxHechos = Math.max(1, ...puntos.map((p) => p.hechosAcumulados));
-  const yHechos = (v: number) => mt + (1 - v / maxHechos) * (H - mt - mb);
+  // La línea de hechos acumulados siempre acaba en su máximo: se dibuja al 88 % de la altura para que no se esconda bajo la rejilla superior.
+  const yHechos = (v: number) => mt + (1 - (0.88 * v) / maxHechos) * (H - mt - mb);
   const camino = (f: (p: (typeof puntos)[number]) => number) => puntos.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${f(p).toFixed(1)}`).join(' ');
   const ultimo = puntos[n - 1]!;
   const terminadas = corridas.filter((c) => c.metrica).sort((a, b) => b.numero - a.numero);
@@ -40,11 +43,11 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
       titulo="Progreso de la investigación"
       nota="Cada punto es una iteración cerrada, de todas las corridas seguidas. La línea morada suma los peldaños de certeza (muy baja 0, baja 1, moderada 2, alta 3) de las hipótesis vivas; la gris, los hechos acumulados. Abajo, en rojo, lo que falló en cada iteración. Las rayas verticales marcan un cambio de versión de Rosa. Es la vara: si la línea morada no sube, Rosa lee pero no avanza."
     >
-      <svg className="grafica-progreso" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Progreso: ${ultimo.peldanosTotales} peldaños de certeza tras ${n} iteraciones`}>
+      <svg className="grafica-progreso" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Progreso: ${ultimo.peldanosTotales} peldaños de certeza tras ${n} iteraciones${maxReal === 0 ? '; ninguna hipótesis ha subido todavía' : ''}`}>
         {[0, 0.5, 1].map((f) => (
           <line key={f} className="gp-rejilla" x1={ml} x2={W - mr} y1={yPeld(f * maxPeld)} y2={yPeld(f * maxPeld)} />
         ))}
-        <text className="gp-eje" x={ml - 4} y={yPeld(maxPeld) + 4} textAnchor="end">{maxPeld}</text>
+        <text className="gp-eje" x={ml - 4} y={yPeld(maxPeld) + 4} textAnchor="end">{maxReal > 0 ? maxPeld : 'ninguno'}</text>
         <text className="gp-eje" x={ml - 4} y={yPeld(0) + 4} textAnchor="end">0</text>
         <text className="gp-eje gp-titulo-eje" x={ml - 4} y={mt - 10} textAnchor="end">peldaños</text>
         {puntos.filter((p) => p.cambioDeArnes).map((p) => (
@@ -73,10 +76,11 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
         ))}
         <text className="gp-eje gp-fallido-etiqueta" x={ml - 4} y={yBanda} textAnchor="end">fallos</text>
       </svg>
+      {maxReal === 0 && <p className="meta">Ninguna hipótesis ha subido un peldaño de certeza todavía: la línea morada está en cero y el eje marca hasta dónde llegaría el primero.</p>}
       <div className="gp-leyenda meta">
         <span><i className="gp-muestra gp-muestra-peldanos" /> peldaños de certeza</span>
         <span><i className="gp-muestra gp-muestra-hechos" /> hechos acumulados</span>
-        <span><i className="gp-muestra gp-muestra-fallos" /> fallidos</span>
+        <span><i className="gp-muestra gp-muestra-fallos" /> fallos</span>
       </div>
       {terminadas.length > 0 && (
         <ul className="lista-limpia gp-balances">
