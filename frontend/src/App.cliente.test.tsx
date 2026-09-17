@@ -73,6 +73,16 @@ describe('la aplicacion montada en el cliente', () => {
     await act(async () => aplicar(() => base));
     expect(raiz.textContent).not.toContain('Se conserva la última vista');
   });
+  it('avisa arriba al perder la conexión y ofrece reintentar', async () => {
+    localStorage.setItem('rosa.recorrido.v1', '1');
+    const e = estadoDeMuestra();
+    e.conexion = 'sin_conexion';
+    await act(async () => aplicar(() => e));
+    const raiz = await montar('#/');
+    const aviso = raiz.querySelector('.panel-sin-conexion');
+    expect(aviso?.textContent).toContain('Sin conexión a internet');
+    expect([...aviso!.querySelectorAll('button')].some((b) => b.textContent === 'Reintentar')).toBe(true);
+  });
   it('inicio con el recorrido de primera vez', async () => {
     localStorage.removeItem('rosa.recorrido.v1');
     const raiz = await montar('#/');

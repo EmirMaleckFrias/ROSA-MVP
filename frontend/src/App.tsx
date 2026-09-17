@@ -6,7 +6,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { Limite } from './componentes/Limite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { cerrarAvisoConflicto, useAvisoConflicto, useRosa } from './datos/almacen';
+import { cerrarAvisoConflicto, reintentarConexion, useAvisoConflicto, useRosa } from './datos/almacen';
 import { BarraLateral } from './componentes/BarraLateral';
 import { BusquedaGlobal } from './componentes/BusquedaGlobal';
 import { Cabecera } from './componentes/Cabecera';
@@ -60,6 +60,7 @@ export default function App() {
   const [cajonAbierto, setCajonAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [recorrido, setRecorrido] = useState(() => !recorridoVisto());
+  const [reintentando, setReintentando] = useState(false);
 
   const irA = (hash: string) => {
     window.location.hash = hash;
@@ -162,11 +163,28 @@ export default function App() {
 
   const conCajon = cajonAbierto && ruta.tipo === 'investigacion' && ruta.pantalla === 'hipotesis' && ruta.detalleId !== null;
 
+  const reintentar = async () => {
+    setReintentando(true);
+    try {
+      await reintentarConexion();
+    } finally {
+      setReintentando(false);
+    }
+  };
+
   return (
     <div className={`app ${conCajon ? 'con-cajon' : ''}`}>
       <BarraLateral estado={estado} ruta={ruta} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} onBuscar={() => setBuscando(true)} />
       <main className="principal">
         <Cabecera miga={miga} titulo={titulo} esperan={esperan} onMenu={() => setMenuAbierto(true)} onBuscar={() => setBuscando(true)} onAyuda={() => setRecorrido(true)} />
+        {estado.conexion === 'sin_conexion' && (
+          <div className="panel-sin-conexion" role="alert">
+            <span>Sin conexión a internet</span>
+            <button type="button" className="btn btn-s" disabled={reintentando} onClick={() => void reintentar()}>
+              {reintentando ? 'Reintentando…' : 'Reintentar'}
+            </button>
+          </div>
+        )}
         {conservando && <div className="aviso-conflicto" role="status">No se pudo actualizar esta investigación. Se conserva la última vista recibida; los datos pueden estar desactualizados.</div>}
         {inv && ruta.tipo === 'investigacion' && <HiloDelProceso estado={estado} inv={inv} pantalla={ruta.pantalla} detalleId={ruta.detalleId} />}
         {aviso && (

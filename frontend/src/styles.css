@@ -419,6 +419,31 @@ pre {
   gap: 10px;
 }
 
+.panel-sin-conexion {
+  position: sticky;
+  top: 56px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 7px 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--red) 45%, var(--border));
+  background: color-mix(in srgb, var(--red) 14%, var(--bg));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .panel-sin-conexion {
+    top: 56px;
+    justify-content: space-between;
+    padding-inline: 16px;
+  }
+}
+
 .contenido {
   padding: 26px 28px 60px;
   max-width: 1120px;

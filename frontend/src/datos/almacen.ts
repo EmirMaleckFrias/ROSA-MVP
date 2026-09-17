@@ -291,6 +291,26 @@ async function resincronizar(): Promise<void> {
   abrirEventos();
 }
 
+/** Reintento explícito desde la interfaz cuando se pierde la red. Conserva la
+ * vista actual hasta que el servidor conteste con un estado completo. */
+export async function reintentarConexion(): Promise<boolean> {
+  if (modo !== 'servidor') return false;
+  try {
+    const r = await fetch(conToken(`${API}/estado`), { cache: 'no-store', headers: cabeceras(false) });
+    if (!r.ok) throw new Error(`Estado ${r.status}`);
+    const cuerpo = (await r.json()) as EstadoRosa;
+    if (!Array.isArray(cuerpo.investigaciones)) throw new Error('Respuesta sin forma de EstadoRosa');
+    const version = versionDe(r.headers.get('X-Rosa-Version'));
+    if (version === null || version >= vivo.version) recibirRemoto(cuerpo, version);
+    ultimaSenal = Date.now();
+    abrirEventos();
+    return true;
+  } catch {
+    if (vivo.estado.conexion !== 'sin_conexion') aplicar((e) => ({ ...e, conexion: 'sin_conexion' }));
+    return false;
+  }
+}
+
 function abrirEventos(): void {
   if (retirado) return;
   if (fuenteEventos) fuenteEventos.close();
