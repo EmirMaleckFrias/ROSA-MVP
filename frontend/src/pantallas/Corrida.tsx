@@ -414,10 +414,14 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
               onAprobarPlan={viva ? () => acciones.aprobarPlan(iteracion.id) : undefined}
             />
           </div>
-          {!iteracion.planAprobado && viva && (
+          {viva && (
+            // Visible durante toda la corrida, no solo mientras un plan espera: dos
+            // corridas perdieron su tiempo porque la casilla solo aparecía en ese
+            // momento y nadie la vio (Emir, 17 de septiembre de 2026). Desde hoy la
+            // corrida nace con la autoaprobación encendida; aquí se apaga o se enciende.
             <label className="interruptor">
               <input type="checkbox" checked={corrida.autoAprobarPlanSegundos !== null} onChange={(e) => acciones.fijarAutoaprobacionPlan(corrida.id, e.target.checked ? 60 : null)} />
-              Autoaprobar el plan si no respondo en 60 segundos (como hace Devin). Si esta apagado, Rosa espera lo que haga falta.
+              Autoaprobar cada plan si no respondo en 60 segundos. Si está apagado, Rosa espera lo que haga falta y ese tiempo de espera no cuenta contra el tope de la corrida.
             </label>
           )}
           {viva && iteracion.planAprobado && (

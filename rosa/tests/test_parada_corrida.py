@@ -26,7 +26,7 @@ def test_resumen_parada_y_texto_condicion():
     assert PARADA.resumen_parada({"horas": 1, "iteraciones": 3, "llamadas": 500, "texto": "sin cambios"}) == "1 hora, 3 iteraciones, 500 llamadas al modelo o «sin cambios», lo que llegue primero"
     inv = {"condicionParada": "cuando el modelo de mundo deje de cambiar"}
     assert PARADA.texto_condicion(inv, {"parada": None}) == "cuando el modelo de mundo deje de cambiar"
-    assert PARADA.texto_condicion(inv, {"parada": {"horas": 2, "iteraciones": None, "llamadas": None, "texto": ""}}).startswith("Esta corrida: como mucho 2 horas. Además sigue valiendo")
+    assert PARADA.texto_condicion(inv, {"parada": {"horas": 2, "iteraciones": None, "llamadas": None, "texto": ""}}).startswith("Esta corrida: como mucho 2 horas (tiempo de trabajo, sin contar esperas). La condición de la investigación sigue valiendo en lo que esta corrida no fija")
 
 
 def test_la_corrida_se_detiene_con_lo_que_llegue_primero():
