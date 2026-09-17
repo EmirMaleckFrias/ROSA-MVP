@@ -196,7 +196,9 @@ class Supervisor:
                     cambiado = True
                 if c["estado"] in ("detenida", "terminada"):
                     continue
-                seg = round((ahora - c["empezadaEn"]) / 1000)
+                if contabilizar_tiempo(c, ahora):
+                    cambiado = True
+                seg = round(tiempo_trabajo_ms(c, ahora) / 1000)
                 if seg != c["gasto"]["segundos"] and seg % 5 == 0:
                     c["gasto"]["segundos"] = seg
                     cambiado = True
@@ -1348,6 +1350,23 @@ class Supervisor:
     async def _cerrar_iteracion(self, c: dict[str, Any], it: dict[str, Any]) -> None:
         e = self.almacen.estado
         inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
+        if it["plan"] and not any(p["estado"] in ("hecho", "fallido") for p in it["plan"]):
+            # Ningún paso llegó a ejecutarse (el tope se cumplió antes de empezar):
+            # no hay nada que resumir, revisar ni aprender. Antes corrían igual el
+            # resumen, el resumen en llano, las lecciones, el revisor de registro y la
+            # meta-revisión sobre una iteración vacía (corridas 8 y 9).
+            motivo = next((p.get("motivoFallo") for p in it["plan"] if p.get("motivoFallo")), "") or "ningún paso llegó a ejecutarse"
+            ahora_v = P.ahora_ms()
+
+            def vacio(e2: dict[str, Any]) -> bool:
+                it2 = next(x for x in e2["iteraciones"] if x["id"] == it["id"])
+                it2["terminadaEn"] = ahora_v
+                it2["resumen"] = f"Iteración cerrada sin ejecutar ningún paso: {motivo}."
+                A.con_evento(e2, inv["id"], "iteracion_terminada", f"Iteración {it['numero']} cerrada sin ejecutar ningún paso: {motivo}", f"#/investigaciones/{inv['id']}/corrida", ahora_v)
+                return True
+
+            self.almacen.mutar(vacio, "iteracion_vacia")
+            return
         ctx = Ctx(self.almacen, self.programas, self.modelos, c["id"], inv["id"], it["id"], it["numero"])
         hechos_nuevos = [h for h in e["hechos"] if h["investigacionId"] == inv["id"] and h["actualizadoEn"] >= it["empezadaEn"] and h["historial"] and h["historial"][0]["quien"] == config.QUIEN_ROSA]
         hip_nuevas = [h for h in e["hipotesis"] if h["investigacionId"] == inv["id"] and h["iteracion"] == it["numero"] and h["origen"] == "rosa"]
@@ -1785,6 +1804,41 @@ def _estado_paso(e: dict[str, Any], iteracion_id: str, paso_id: str, estado: str
     return False
 
 
+# Un tic del supervisor cada segundo; si entre dos tics pasan más de dos minutos,
+# el proceso estuvo suspendido (el equipo dormido, el portátil cerrado) y ese
+# hueco no es tiempo de trabajo de la corrida.
+UMBRAL_SUSPENSION_MS = 120_000
+ESTADOS_DE_ESPERA_HUMANA = ("esperando_plan", "esperando_aprobacion", "pausada")
+
+
+def tiempo_trabajo_ms(c: dict[str, Any], ahora: int) -> int:
+    """Milisegundos que la corrida ha trabajado de verdad: el reloj de pared menos
+    lo que pasó esperando a una persona (plan sin aprobar, permiso de gasto, pausa)
+    y menos las pausas del proceso. Es lo que se compara con el tope en horas.
+    Antes se comparaba el reloj de pared: la corrida 8 gastó 21 de sus 60 minutos
+    esperando la aprobación del plan y la 7 se cerró al despertar el Mac tras una
+    noche dormido (Emir, 17 de septiembre de 2026)."""
+    return max(0, int(ahora - c["empezadaEn"] - int(c.get("esperaHumanaMs") or 0) - int(c.get("pausaMs") or 0)))
+
+
+def contabilizar_tiempo(c: dict[str, Any], ahora: int) -> bool:
+    """En cada tic: si la corrida espera a una persona, el tiempo desde el tic
+    anterior va a `esperaHumanaMs`; si entre tics pasó más de UMBRAL_SUSPENSION_MS,
+    el hueco va a `pausaMs`. Devuelve True si cambió algo público."""
+    ultimo = c.get("_ultimoTic")
+    c["_ultimoTic"] = ahora
+    if not isinstance(ultimo, (int, float)) or ahora <= ultimo:
+        return False
+    delta = int(ahora - ultimo)
+    if c.get("estado") in ESTADOS_DE_ESPERA_HUMANA:
+        c["esperaHumanaMs"] = int(c.get("esperaHumanaMs") or 0) + delta
+        return True
+    if delta > UMBRAL_SUSPENSION_MS:
+        c["pausaMs"] = int(c.get("pausaMs") or 0) + delta
+        return True
+    return False
+
+
 def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int | None = None, mision: dict[str, Any] | None = None) -> str | None:
     """Solo se automatiza lo que se puede medir en el texto de la condición:
     "N iteraciones", "N minutos" u "N horas" de corrida, y "N llamadas".
@@ -1797,7 +1851,7 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
     propia = c.get("parada") or {}
     if propia:
         horas_propias = propia.get("horas")
-        if horas_propias and (ahora - c["empezadaEn"]) / 3_600_000 >= float(horas_propias):
+        if horas_propias and tiempo_trabajo_ms(c, ahora) / 3_600_000 >= float(horas_propias):
             return f"Se cumplió el tiempo fijado para esta corrida ({PARADA.resumen_parada({'horas': horas_propias})})"
         if propia.get("iteraciones") and numero >= int(propia["iteraciones"]):
             return f"Se alcanzaron las {int(propia['iteraciones'])} iteraciones fijadas para esta corrida"
@@ -1814,32 +1868,39 @@ def _condicion_de_parada(texto: str, numero: int, c: dict[str, Any], ahora: int 
             motivo_texto = _parada_por_texto(str(propia["texto"]), numero, c, ahora)
             if motivo_texto:
                 return motivo_texto + " (fijada para esta corrida)"
-    return _parada_por_texto(texto, numero, c, ahora, mision)
+    # Lo que la persona fijó para esta corrida manda sobre la condición general de
+    # la investigación en ese mismo eje: con "3 horas" en la corrida, el "1 hora"
+    # de la investigación no la cierra (pasó en la corrida 9). El presupuesto de la
+    # misión sigue contando siempre.
+    omitir = {eje for eje, clave in (("tiempo", "horas"), ("iteraciones", "iteraciones"), ("llamadas", "llamadas")) if propia.get(clave)}
+    return _parada_por_texto(texto, numero, c, ahora, mision, omitir=frozenset(omitir))
 
 
-def _parada_por_texto(texto: str, numero: int, c: dict[str, Any], ahora: int, mision: dict[str, Any] | None = None) -> str | None:
+def _parada_por_texto(texto: str, numero: int, c: dict[str, Any], ahora: int, mision: dict[str, Any] | None = None, omitir: frozenset[str] = frozenset()) -> str | None:
+    """`omitir`: ejes ("tiempo", "iteraciones", "llamadas") que la corrida ya fijó por
+    su cuenta y que el texto de la investigación no debe volver a aplicar."""
     t = texto.lower()
     if mision and mision.get("presupuesto"):
         pres = mision["presupuesto"]
         usd = c["gasto"].get("usd", 0.0)
         if pres.get("usd") and usd >= pres["usd"]:
             return f"Se alcanzó el presupuesto de la misión en dinero ({usd:.2f} de {pres['usd']:.2f} USD estimados)"
-        horas = (ahora - c["empezadaEn"]) / 3_600_000
+        horas = tiempo_trabajo_ms(c, ahora) / 3_600_000
         if pres.get("horas") and horas >= pres["horas"]:
             return f"Se alcanzó el presupuesto de la misión en tiempo ({horas:.1f} de {pres['horas']:.0f} horas)"
     m = re.search(r"(\d+)\s*iteraci", t)
-    if m and numero >= int(m.group(1)):
+    if m and "iteraciones" not in omitir and numero >= int(m.group(1)):
         return f"Se alcanzaron las {m.group(1)} iteraciones de la condición de parada"
     m = re.search(r"(\d+(?:[.,]\d+)?)\s*(min\b|minuto|hora|h\b|dia|día)", t)
-    if m:
+    if m and "tiempo" not in omitir:
         n = float(m.group(1).replace(",", "."))
         unidad = m.group(2)
         segundos = n * (60 if unidad.startswith("min") else 3600 if unidad in ("hora", "h") or unidad.startswith("hora") else 86400)
-        transcurrido = (ahora - c["empezadaEn"]) / 1000
+        transcurrido = tiempo_trabajo_ms(c, ahora) / 1000
         if transcurrido >= segundos:
             return f"Se cumplio el tiempo de la condición de parada ({m.group(1)} {unidad.rstrip('.')}{'' if unidad.endswith('s') or unidad in ('h', 'min') else 's'})"
     m = re.search(r"(\d+)\s*llamadas", t)
-    if m and c["gasto"]["llamadas"] >= int(m.group(1)):
+    if m and "llamadas" not in omitir and c["gasto"]["llamadas"] >= int(m.group(1)):
         return f"Se alcanzaron las {m.group(1)} llamadas de la condición de parada"
     return None
 

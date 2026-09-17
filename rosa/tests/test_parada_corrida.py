@@ -36,8 +36,11 @@ def test_la_corrida_se_detiene_con_lo_que_llegue_primero():
     assert f("cuando el modelo de mundo deje de cambiar", 3, c, ahora=7_200_000).startswith("Se cumplió el tiempo fijado para esta corrida (2 horas)")
     assert f("cuando el modelo de mundo deje de cambiar", 6, c, ahora=1000) == "Se alcanzaron las 6 iteraciones fijadas para esta corrida"
     assert f("x", 1, dict(c, gasto={"llamadas": 800}), ahora=1000) == "Se alcanzaron las 800 llamadas fijadas para esta corrida"
-    # La condición de la investigación sigue valiendo aunque la propia no haya llegado.
-    assert f("2 iteraciones", 2, c, ahora=1000).startswith("Se alcanzaron las 2 iteraciones de la condición")
+    # La condición de la investigación no vuelve a aplicar un eje que la corrida fijó
+    # (la corrida dice 6 iteraciones: el "2 iteraciones" general no la cierra), pero
+    # sí los ejes que la corrida no fijó (aquí el texto propio está vacío).
+    assert f("2 iteraciones", 2, c, ahora=1000) is None
+    assert f("2 iteraciones", 6, c, ahora=1000) == "Se alcanzaron las 6 iteraciones fijadas para esta corrida"
     # Texto propio automatizable.
     c2 = {"empezadaEn": 0, "gasto": {"llamadas": 0}, "parada": {"horas": None, "iteraciones": None, "llamadas": None, "texto": "30 minutos"}}
     assert f("nunca", 1, c2, ahora=29 * 60_000) is None and f("nunca", 1, c2, ahora=31 * 60_000).endswith("(fijada para esta corrida)")
@@ -58,3 +61,57 @@ def test_iniciar_corrida_guarda_la_parada_y_alinea_el_presupuesto():
     cid2 = A.iniciar_corrida(e, "inv", 3000)
     c2 = next(x for x in e["corridas"] if x["id"] == cid2)
     assert c2["parada"] is None and c2["numero"] == 2 and "Se detiene" not in e["eventos"][-1]["texto"]
+
+
+def _c(**k):
+    base = {"estado": "en_marcha", "empezadaEn": 0, "gasto": {"llamadas": 0, "usd": 0.0}, "parada": None}
+    base.update(k)
+    return base
+
+
+def test_la_parada_propia_manda_sobre_la_condicion_general_en_su_eje():
+    """Corrida 9 (17 de septiembre de 2026): la persona fijó 3 horas y la corrida se
+    cerró a la hora por el "1 hora" de la condición general de la investigación."""
+    propia = {"horas": 3.0, "iteraciones": None, "llamadas": None, "texto": "", "certeza": None, "cuantas": None, "sinCambio": None}
+    c = _c(parada=propia)
+    dos_horas = 2 * 3_600_000
+    assert f("1 hora o 3 iteraciones", 1, c, ahora=dos_horas) is None
+    assert "3 horas" in (f("1 hora", 1, c, ahora=3 * 3_600_000) or "")
+    # Los ejes que la corrida no fijó siguen viniendo de la investigación.
+    assert "3 iteraciones" in (f("1 hora o 3 iteraciones", 3, c, ahora=dos_horas) or "")
+    # Sin parada propia, la condición general aplica tal cual.
+    assert "1 hora" in (f("1 hora", 1, _c(), ahora=dos_horas) or "")
+
+
+def test_la_espera_humana_y_las_pausas_no_cuentan_como_tiempo_de_trabajo():
+    from rosa.bucle import corrida as CO
+
+    propia = {"horas": 1.0, "iteraciones": None, "llamadas": None, "texto": "", "certeza": None, "cuantas": None, "sinCambio": None}
+    dos_horas = 2 * 3_600_000
+    # Dos horas de reloj, hora y media esperando el plan: media hora de trabajo, no para.
+    c = _c(parada=propia, esperaHumanaMs=int(1.5 * 3_600_000))
+    assert f("", 1, c, ahora=dos_horas) is None
+    assert CO.tiempo_trabajo_ms(c, dos_horas) == 30 * 60_000
+    # Con el equipo dormido una hora, tampoco.
+    c2 = _c(parada=propia, pausaMs=3_600_000 + 1)
+    assert f("", 1, c2, ahora=dos_horas) is None
+    # Sin esperas ni pausas, a las dos horas sí para.
+    assert f("", 1, _c(parada=propia), ahora=dos_horas)
+    # La condición general en texto también usa el tiempo de trabajo.
+    assert f("1 hora", 1, _c(esperaHumanaMs=dos_horas), ahora=dos_horas) is None
+
+
+def test_contabilizar_tiempo_separa_espera_humana_pausas_y_trabajo():
+    from rosa.bucle import corrida as CO
+
+    c = _c(estado="esperando_plan")
+    assert CO.contabilizar_tiempo(c, 1_000) is False  # primer tic: solo fija la marca
+    assert CO.contabilizar_tiempo(c, 61_000) is True and c["esperaHumanaMs"] == 60_000
+    c["estado"] = "en_marcha"
+    assert CO.contabilizar_tiempo(c, 62_000) is False and c.get("pausaMs", 0) == 0  # un segundo de trabajo
+    assert CO.contabilizar_tiempo(c, 62_000 + 10 * 60_000) is True and c["pausaMs"] == 10 * 60_000  # diez minutos sin tics: dormido
+    c["estado"] = "esperando_aprobacion"
+    CO.contabilizar_tiempo(c, 62_000 + 10 * 60_000 + 5_000)
+    assert c["esperaHumanaMs"] == 65_000
+    # Un reloj que va hacia atrás no resta nada.
+    assert CO.contabilizar_tiempo(c, 0) is False

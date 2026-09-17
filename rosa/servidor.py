@@ -73,6 +73,16 @@ def token_interno() -> str:
     return ruta.read_text(encoding="utf-8").strip()
 
 
+def igual_secreto(dado: Any, esperado: Any) -> bool:
+    """Comparación en tiempo constante que no lanza: `secrets.compare_digest` con
+    cadenas exige ASCII y una cabecera con tildes o emojis tumbaba la petición con
+    TypeError (visto en el log el 17 de septiembre de 2026). Se compara en bytes."""
+    try:
+        return secrets.compare_digest(str(dado or "").encode("utf-8", "surrogateescape"), str(esperado or "").encode("utf-8", "surrogateescape"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def crear_app(almacen: Almacen) -> FastAPI:
     @contextlib.asynccontextmanager
     async def _vida(_app: FastAPI):
@@ -131,14 +141,14 @@ def crear_app(almacen: Almacen) -> FastAPI:
         acceso = getattr(app.state, 'acceso', None)
         usuario = acceso.usuario(request.cookies.get(COOKIE)) if acceso else None
         request.state.usuario = usuario
-        interno = secrets.compare_digest(request.headers.get('x-rosa-interno', ''), app.state.token_interno)
+        interno = igual_secreto(request.headers.get('x-rosa-interno', ''), app.state.token_interno)
         if path.startswith('/api/') and not publico and not usuario and not interno:
             return JSONResponse({'detail': 'Inicia sesión con tu correo verificado'}, status_code=401)
         # 1. Si hay token configurado (servidor expuesto fuera de la maquina), toda
         #    la API lo exige, por cabecera o, para el flujo SSE, por parametro.
         if config.ROSA_TOKEN and path.startswith("/api/") and not usuario and not publico and not interno:
             dado = request.headers.get("x-rosa-token") or request.query_params.get("token")
-            if not dado or not secrets.compare_digest(dado, config.ROSA_TOKEN):
+            if not dado or not igual_secreto(dado, config.ROSA_TOKEN):
                 return JSONResponse({"detail": "Falta el token de acceso a Rosa"}, status_code=401)
         # 2. Toda escritura desde el navegador lleva la cabecera X-Rosa: una pagina
         #    ajena no puede mandarla sin preflight, y sin CORS el preflight falla.
@@ -319,7 +329,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
     async def accion(nombre: str, request: Request) -> dict[str, Any]:
         if nombre not in ACCIONES:
             raise HTTPException(404, f"Acción desconocida: {nombre}")
-        if nombre in ACCIONES_INTERNAS and not secrets.compare_digest(request.headers.get("x-rosa-interno", ""), app.state.token_interno):
+        if nombre in ACCIONES_INTERNAS and not igual_secreto(request.headers.get("x-rosa-interno", ""), app.state.token_interno):
             raise HTTPException(403, f"{nombre} solo la aplica el servidor de Rosa")
         if "application/json" not in request.headers.get("content-type", ""):
             raise HTTPException(415, "Los argumentos van como application/json")

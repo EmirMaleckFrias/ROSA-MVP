@@ -159,7 +159,14 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         "metaRevisiones": [],
         "procesos": [],
         "panorama": [],
-        "autoAprobarPlanSegundos": None,
+        # Por defecto el plan se aprueba solo tras 60 s: dos corridas perdieron su
+        # tiempo esperando una aprobación que nadie dio (Emir, 17 de septiembre de
+        # 2026). La casilla de la pantalla de la corrida lo apaga.
+        "autoAprobarPlanSegundos": 60,
+        # Tiempo esperando a una persona y pausas del proceso: no cuentan como
+        # tiempo de trabajo frente al tope en horas (rosa/bucle/corrida.py).
+        "esperaHumanaMs": 0,
+        "pausaMs": 0,
         "arnes": _arnes(),
         "pregunta": None,
         # Parada propia de la corrida (horas, iteraciones, llamadas, texto); lo que

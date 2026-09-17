@@ -557,6 +557,10 @@ export interface Corrida {
   panorama: Direccion[];
   /** Si el plan de cada iteracion se autoaprueba tras N segundos sin respuesta. Null = espera siempre. */
   autoAprobarPlanSegundos: number | null;
+  /** Milisegundos que la corrida pasó esperando a una persona (plan sin aprobar, permiso de gasto, pausa); no cuentan frente al tope en horas. */
+  esperaHumanaMs?: number;
+  /** Milisegundos en que el proceso estuvo suspendido (equipo dormido); tampoco cuentan. */
+  pausaMs?: number;
   /** Que Rosa exacta corrio: commit del codigo, hash de las firmas DSPy y
    *  programas optimizados cargados. Para auditar cada hipotesis. */
   arnes?: { commit: string; firmas: string; optimizados: string };

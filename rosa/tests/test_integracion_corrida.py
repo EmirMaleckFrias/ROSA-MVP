@@ -777,3 +777,26 @@ def test_proponer_plan_pasa_todos_los_campos_de_la_firma(monkeypatch):
     # La preparación ya deja una iteración vacía; la del planificador es la última.
     it = [i for i in al.estado["iteraciones"] if i["corridaId"] == ids["cor"]][-1]
     assert it["plan"] and it["plan"][0]["tipo"] == "literatura" and it["plan"][0]["titulo"] == "Leer ensayos"
+
+
+def test_cerrar_una_iteracion_sin_pasos_ejecutados_no_llama_a_ningun_modelo(monkeypatch):
+    """Corridas 8 y 9: el tope se cumplió antes de empezar la iteración, todos los
+    pasos se omitieron y aun así corrieron el resumen, el resumen en llano, las
+    lecciones, el revisor y la meta-revisión (llamadas al juez sobre nada)."""
+    al, ids = _preparar()
+    sup, ctx, llamadas = _supervisor(al, ids, {}, monkeypatch)
+
+    def preparar(e):
+        it = next(i for i in e["iteraciones"] if i["id"] == ids["it"])
+        it["plan"] = [dict(P.nuevo_paso("Leer", "literatura", 10), tipo="literatura", estado="omitido", motivoFallo="Se cumplió el tiempo fijado para esta corrida (1 hora)")]
+        it["empezadaEn"] = 1
+        return True
+
+    al.mutar(preparar, "preparar")
+    c = next(x for x in al.estado["corridas"] if x["id"] == ids["cor"])
+    it = next(i for i in al.estado["iteraciones"] if i["id"] == ids["it"])
+    asyncio.run(sup._cerrar_iteracion(c, it))
+    assert llamadas.vistas == []
+    it2 = next(i for i in al.estado["iteraciones"] if i["id"] == ids["it"])
+    assert it2["terminadaEn"] and it2["resumen"].startswith("Iteración cerrada sin ejecutar ningún paso")
+    assert any(ev["tipo"] == "iteracion_terminada" and "sin ejecutar" in ev["texto"] for ev in al.estado["eventos"])

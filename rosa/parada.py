@@ -146,9 +146,12 @@ def resumen_parada(p: dict[str, Any] | None) -> str:
 
 def texto_condicion(inv: dict[str, Any], c: dict[str, Any] | None) -> str:
     """La condición completa que ve el planificador: la de esta corrida (si la
-    hay) y la de la investigación, que siempre vale."""
+    hay) y la de la investigación en lo que esta corrida no fija. Lo que la
+    persona fija para la corrida manda en su eje (tiempo, iteraciones, llamadas);
+    el resto de la condición general sigue valiendo. El tiempo se cuenta como
+    tiempo de trabajo: la espera a una persona y las pausas del equipo no cuentan."""
     propia = resumen_parada((c or {}).get("parada"))
     base = (inv.get("condicionParada") or "").strip() or "Sin condición de parada declarada"
     if not propia:
         return base
-    return f"Esta corrida: como mucho {propia}. Además sigue valiendo la condición de la investigación: {base}"
+    return f"Esta corrida: como mucho {propia} (tiempo de trabajo, sin contar esperas). La condición de la investigación sigue valiendo en lo que esta corrida no fija: {base}"
