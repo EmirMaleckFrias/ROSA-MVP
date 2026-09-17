@@ -5,13 +5,17 @@
 // el panel de selección dice la distancia con sus tildes y nada de lo que se
 // pinta lleva guiones largos. Se monta con movimiento reducido para que la
 // disposición por fuerzas corra en el efecto, sin fotogramas, y el test sea
-// determinista.
+// determinista. Desde el 17 de septiembre el árbol se pinta en un canvas, así
+// que lo que se comprueba es la ESCENA (lib/lienzo_arbol.ts: posiciones,
+// radios, opacidades y colores como tokens) que la pantalla registra para su
+// lienzo, no el DOM; jsdom no tiene contexto 2D y no se pinta nada.
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { estadoDeMuestra } from '../datos/muestra';
 import type { Afirmacion, Ejecucion, EstadoRosa, PlanAnalisis } from '../datos/tipos';
 import { DISTANCIA_MAXIMA, DISTANCIA_MINIMA, FOCAL } from '../lib/arbol3d';
+import { escenaDe, huella, type NodoEscena } from '../lib/lienzo_arbol';
 import { Arbol } from './Arbol';
 
 vi.mock('../datos/almacen', () => ({ acciones: new Proxy({}, { get: () => () => undefined }) }));
@@ -27,6 +31,8 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   };
+  // jsdom no trae contexto 2D (y lo avisa por consola): la pantalla registra la escena y no pinta.
+  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
   // Movimiento reducido: la simulación se asienta en el efecto y no hay vaivén.
   window.matchMedia = (q: string) => ({ matches: q.includes('reduce'), media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }) as MediaQueryList;
 });
@@ -72,60 +78,51 @@ const boton = (texto: string) => [...nodo.querySelectorAll('button')].find((b) =
 const pulsar = async (el: Element) => act(async () => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
 describe('la pantalla del árbol', () => {
+  const lienzo = () => nodo.querySelector('canvas.grafo') as HTMLCanvasElement;
+  const escena = () => escenaDe(lienzo())!;
+  const nodoEsc = (id: string): NodoEscena => {
+    const n = escena().nodos.find((x) => x.id === id);
+    if (!n) throw new Error(`no hay nodo ${id} en la escena`);
+    return n;
+  };
+  const cuantos = () => escena().nodos.length;
+  const atenuados = () => escena().nodos.filter((n) => !n.vivo).length;
+  /** El botón de la lista accesible de un nodo: pulsarlo equivale a pulsar el nodo. */
+  const botonNodo = (id: string) => nodo.querySelector(`ul[role="list"] button[data-id="${id}"]`)!;
+  const finitos = () => escena().nodos.every((n) => Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.r) && n.opacidad >= 0 && n.opacidad <= 1);
+
   it('cambia de color por tipo a color por distancia al dato, con la leyenda y el panel en castellano', async () => {
     const e = estadoConDato();
     const inv = e.investigaciones[0]!;
     await act(async () => root.render(<Arbol inv={inv} estado={e} />));
-    // Abre en el modo por tipo y mecanismo (por defecto desde el 16 de septiembre de 2026):
-    // relleno por familia y tipo, anillo por distancia al dato.
+    // Por defecto, por tipo y mecanismo: el relleno de hip-1 es el de su familia y el anillo, la distancia al dato.
     expect(boton('Por tipo y mecanismo').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.textContent).toContain('Anillo verde');
-    expect(nodo.textContent).toContain('Afirmación con dato');
-    expect(nodo.textContent).toContain('Análisis in silico');
-    expect(nodo.textContent).toContain('Conjunto de datos');
-    expect(nodo.textContent).not.toContain('Sin medición propia ni literatura leída');
-    // Se despliega todo para que haya entidades, fuentes y el análisis en pantalla.
+    expect(nodoEsc('hip-1').estilo.relleno).toMatch(/var\(--grafo-cluster-\d\)/);
+    expect(nodo.textContent).toContain('El color de dentro: qué es cada nodo');
+    expect(nodo.textContent).toContain('Hipótesis: cada una lleva el color de su familia de mecanismo.');
+    expect(nodo.textContent).toContain('Anillo verde: a un paso de una medición propia de Rosa');
+    // Desplegar todo: aparecen el análisis in silico y la entidad canónica.
     await pulsar(boton('Desplegar todo'));
-    const circulo = (id: string) => nodo.querySelector(`g[data-id="${id}"] circle:last-of-type`)!;
-    expect(circulo('run-1')).toBeTruthy();
-    expect(circulo('hip-1').getAttribute('fill')).toMatch(/var\(--grafo-cluster-\d\)/);
-    expect(circulo('hip-1').getAttribute('stroke')).toMatch(/var\(--grafo-(dato|lit)-\d\)|var\(--text-3\)/);
-    // Vuelta al modo por distancia.
+    expect(nodoEsc('run-1').estilo.relleno).toBe('var(--grafo-ejecucion)');
+    const entidad = escena().nodos.find((n) => n.id.startsWith('ent-'))!;
+    expect(entidad.estilo.relleno).toBe('var(--blue)');
+    // Por distancia al dato: hip-1 a un salto (intenso), la ejecución en el escalón 0.
     await pulsar(boton('Por distancia al dato'));
     expect(boton('Por distancia al dato').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.textContent).toContain('Sin medición propia ni literatura leída');
+    expect(nodoEsc('run-1').estilo.relleno).toBe('var(--grafo-dato-0)');
+    expect(nodoEsc('hip-1').estilo.relleno).toBe('var(--grafo-dato-1)');
+    // La entidad canónica conserva su color: es un nombre, no evidencia.
+    expect(escena().nodos.find((n) => n.id.startsWith('ent-'))!.estilo.relleno).toBe('var(--blue)');
+    expect(nodo.textContent).toContain('El color de dentro: a qué distancia está del dato');
     expect(nodo.textContent).toContain('La medición misma (0 saltos)');
-    expect(circulo('run-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');
-    expect(circulo('af-obs-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');
-    expect(circulo('hip-1').getAttribute('fill')).toBe('var(--grafo-dato-1)');
-    // Una hipótesis viva sin medición propia: ámbar si tiene literatura leída detrás
-    // (segunda escala), gris punteado si no tiene nada. La descartada (hip-5) conserva
-    // su punteado propio y la leyenda lo dice.
-    expect(circulo('hip-3').getAttribute('fill')).toMatch(/var\(--grafo-(lit-[123]|dato-nulo)\)/);
-    if (circulo('hip-3').getAttribute('fill') === 'var(--grafo-dato-nulo)') expect(circulo('hip-3').getAttribute('stroke-dasharray')).toBe('2 2');
-    expect(circulo('hip-5').getAttribute('fill')).toMatch(/var\(--grafo-(lit-[123]|dato-nulo)\)/);
-    expect(circulo('hip-5').getAttribute('stroke-dasharray')).toBe('3 2');
-    expect(nodo.textContent).toContain('Punteada: descartada o sin medición propia.');
-    // El tronco y las entidades conservan su color: no son evidencia.
-    expect(circulo('objetivo').getAttribute('fill')).toBe('var(--accent)');
-    const entidad = nodo.querySelector('g[data-id^="ent-"] circle:last-of-type')!;
-    expect(entidad.getAttribute('fill')).toBe('var(--blue)');
-    expect(entidad.getAttribute('stroke-dasharray')).toBeNull();
-    // Panel de selección: una entidad no lleva frase de distancia (se pulsa
-    // antes que hip-3, que al plegarse se la llevaría).
-    await pulsar(nodo.querySelector('g[data-id^="ent-"]')!);
-    const panel = nodo.querySelector('.grafo-panel')!;
-    expect(panel.textContent).toContain('Entidad canónica');
-    expect(panel.textContent).not.toContain('medición propia');
-    // La distancia en una frase.
-    await pulsar(nodo.querySelector('g[data-id="hip-1"]')!);
-    expect(panel.textContent).toContain('A 1 salto de una medición propia.');
-    await pulsar(nodo.querySelector('g[data-id="run-1"]')!);
-    expect(panel.textContent).toContain('Es una medición propia: análisis in silico completado y auditado como válido.');
-    await pulsar(nodo.querySelector('g[data-id="hip-3"]')!);
-    expect(panel.textContent).toMatch(/Sin medición propia detrás; literatura a \d+ saltos?\./);
-    // Nada de lo pintado lleva guiones largos (U+2014, escapado para que el
-    // carácter no aparezca en el código) ni palabras visibles sin tilde.
+    // Pulsar hip-1 (por la lista accesible) lo selecciona y el panel dice su distancia con tildes.
+    await pulsar(botonNodo('hip-1'));
+    expect(nodoEsc('hip-1').sel).toBe(true);
+    const panel = nodo.querySelector('.grafo-panel')!.textContent ?? '';
+    expect(panel).toContain('Hipótesis');
+    expect(panel).toContain('A 1 salto de una medición propia.');
+    expect(panel).toContain('Aparece desde la iteración');
+    // Nada lleva guiones largos ni palabras sin tilde.
     expect(nodo.textContent).not.toContain('\u2014');
     expect(nodo.textContent).not.toMatch(/\b(hipotesis|investigacion|medicion|analisis|arbol|iteracion)\b/);
   });
@@ -139,8 +136,6 @@ describe('la pantalla del árbol', () => {
       el.dispatchEvent(new Event('input', { bubbles: true }));
     });
   };
-  const numero = (texto: string | null) => Number(texto);
-  const finito = (texto: string | null) => Number.isFinite(numero(texto));
 
   it('pasa a la vista 3D y vuelve a la plana conservando colores, anillos, búsqueda, deslizador y plegado', async () => {
     const e = estadoConDato();
@@ -149,72 +144,61 @@ describe('la pantalla del árbol', () => {
     // Por defecto, la vista plana: no se le cambia el árbol a quien ya lo conoce.
     expect(boton('Vista plana').getAttribute('aria-pressed')).toBe('true');
     expect(boton('Vista 3D').getAttribute('aria-pressed')).toBe('false');
-    const svg = () => nodo.querySelector('svg.grafo')!;
-    expect(svg().getAttribute('viewBox')).toBe('-450 -280 900 560');
+    expect(escena().modo).toBe('plana');
+    expect(lienzo().getAttribute('data-vista')).toBe('plana');
     await pulsar(boton('Vista 3D'));
     expect(boton('Vista 3D').getAttribute('aria-pressed')).toBe('true');
     expect(boton('Vista plana').getAttribute('aria-pressed')).toBe('false');
     expect(localStorage.getItem('rosa-arbol-vista')).toBe('3d');
-    expect(svg().getAttribute('viewBox')).toBe('0 0 900 560');
-    expect(svg().getAttribute('aria-label')).toContain('en tres dimensiones');
+    expect(escena().modo).toBe('3d');
+    expect(lienzo().getAttribute('aria-label')).toContain('en tres dimensiones');
     // El tronco se proyecta en el centro del lienzo; todo nodo tiene posición y radio finitos y una niebla entre 0 y 1.
-    const grupo = (id: string) => nodo.querySelector(`g[data-id="${id}"]`)!;
-    const circulo = (id: string) => nodo.querySelector(`g[data-id="${id}"] circle:last-of-type`)!;
-    expect(grupo('objetivo').getAttribute('transform')).toBe('translate(450 280)');
-    const grupos = [...nodo.querySelectorAll('g.grafo-nodo')];
-    expect(grupos.length).toBeGreaterThan(3);
-    for (const g of grupos) {
-      const m = /translate\(([-\d.e]+) ([-\d.e]+)\)/.exec(g.getAttribute('transform') ?? '');
-      expect(m, g.getAttribute('data-id') ?? '').toBeTruthy();
-      expect(finito(m![1]!) && finito(m![2]!)).toBe(true);
-      const op = numero(g.getAttribute('opacity'));
-      expect(op).toBeGreaterThan(0);
-      expect(op).toBeLessThanOrEqual(1);
-      const r = numero(g.querySelector('circle:last-of-type')!.getAttribute('r'));
-      expect(r).toBeGreaterThan(0);
-    }
+    expect(nodoEsc('objetivo')).toMatchObject({ x: 450, y: 280 });
+    expect(cuantos()).toBeGreaterThan(3);
+    expect(finitos()).toBe(true);
+    for (const n of escena().nodos) expect(n.r, n.id).toBeGreaterThan(0);
     // Relleno por familia y anillo de evidencia, idénticos a la vista plana.
-    expect(circulo('hip-1').getAttribute('fill')).toMatch(/var\(--grafo-cluster-\d\)/);
-    expect(circulo('hip-1').getAttribute('stroke')).toMatch(/var\(--grafo-(dato|lit)-\d\)|var\(--text-3\)/);
-    expect(circulo('objetivo').getAttribute('fill')).toBe('var(--accent)');
+    expect(nodoEsc('hip-1').estilo.relleno).toMatch(/var\(--grafo-cluster-\d\)/);
+    expect(nodoEsc('hip-1').estilo.anillo).toMatch(/var\(--grafo-(dato|lit)-\d\)|var\(--text-3\)/);
+    expect(nodoEsc('objetivo').estilo.relleno).toBe('var(--accent)');
     // Desplegar todo en 3D: aparecen el análisis, la observación, la entidad y la
     // descartada (que sigue a rayas), con sus colores.
     await pulsar(boton('Desplegar todo'));
-    expect(circulo('hip-5').getAttribute('stroke-dasharray')).toBe('3 2');
-    expect(circulo('run-1')).toBeTruthy();
-    expect(circulo('af-obs-1')).toBeTruthy();
-    const entidad = nodo.querySelector('g[data-id^="ent-"] circle:last-of-type')!;
-    expect(entidad.getAttribute('fill')).toBe('var(--blue)');
-    const conTodo = nodo.querySelectorAll('g.grafo-nodo').length;
+    expect(nodoEsc('hip-5').estilo.guion).toBe('3 2');
+    expect(nodoEsc('run-1')).toBeTruthy();
+    expect(nodoEsc('af-obs-1')).toBeTruthy();
+    expect(escena().nodos.find((n) => n.id.startsWith('ent-'))!.estilo.relleno).toBe('var(--blue)');
+    const conTodo = cuantos();
+    // La lista accesible tiene un botón por nodo visible.
+    expect(nodo.querySelectorAll('ul[role="list"] button').length).toBe(conTodo);
     // El modo por distancia también funciona en 3D.
     await pulsar(boton('Por distancia al dato'));
-    expect(circulo('run-1').getAttribute('fill')).toBe('var(--grafo-dato-0)');
-    expect(circulo('hip-1').getAttribute('fill')).toBe('var(--grafo-dato-1)');
+    expect(nodoEsc('run-1').estilo.relleno).toBe('var(--grafo-dato-0)');
+    expect(nodoEsc('hip-1').estilo.relleno).toBe('var(--grafo-dato-1)');
     await pulsar(boton('Por tipo y mecanismo'));
     // La búsqueda ilumina en 3D: lo que no nombra GFAP queda atenuado, lo que sí, no.
     const buscador = nodo.querySelector('input[aria-label="Buscar en el árbol"]') as HTMLInputElement;
     await escribir(buscador, 'GFAP');
-    const atenuados = () => [...nodo.querySelectorAll('g.grafo-nodo')].filter((g) => (g.getAttribute('class') ?? '').includes('grafo-atenuado')).length;
     expect(atenuados()).toBeGreaterThan(0);
-    expect(atenuados()).toBeLessThan(nodo.querySelectorAll('g.grafo-nodo').length);
-    expect(nodo.querySelector('g[data-id^="ent-"]')!.getAttribute('class')).not.toContain('grafo-atenuado');
+    expect(atenuados()).toBeLessThan(cuantos());
+    expect(escena().nodos.find((n) => n.id.startsWith('ent-'))!.vivo).toBe(true);
     await escribir(buscador, '');
     expect(atenuados()).toBe(0);
     // Pulsar un nodo en 3D lo selecciona (el panel dice qué es) y despliega o pliega sus vecinos.
-    await pulsar(grupo('hip-1'));
+    await pulsar(botonNodo('hip-1'));
     expect(nodo.querySelector('.grafo-panel')!.textContent).toContain('Hipótesis');
     expect(nodo.querySelector('.grafo-panel')!.textContent).toContain('A 1 salto de una medición propia.');
     // El deslizador de iteraciones filtra también en 3D.
     const deslizador = nodo.querySelector('#grafo-iteracion') as HTMLInputElement;
     await escribir(deslizador, '1');
     expect(nodo.textContent).toContain('hasta la iteración 1');
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBeLessThan(conTodo);
+    expect(cuantos()).toBeLessThan(conTodo);
     await pulsar(boton('Volver al presente'));
     // Plegar todo en 3D vuelve a lo inicial y a la cámara de salida.
     await pulsar(boton('Plegar todo'));
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBeLessThan(conTodo);
+    expect(cuantos()).toBeLessThan(conTodo);
     expect(nodo.querySelector('.grafo-panel')!.textContent).toContain('Leyenda');
-    expect(grupo('objetivo').getAttribute('transform')).toBe('translate(450 280)');
+    expect(nodoEsc('objetivo')).toMatchObject({ x: 450, y: 280 });
     // Cambiar de investigación con la vista 3D abierta: el grafo se reconstruye entero sin romper.
     const e2 = structuredClone(e);
     const inv2 = { ...e2.investigaciones[0]!, id: 'inv-2', titulo: 'Otra investigación distinta' };
@@ -224,17 +208,16 @@ describe('la pantalla del árbol', () => {
     for (const c of e2.corridas) c.investigacionId = 'inv-2';
     for (const r of e2.ejecuciones ?? []) r.investigacionId = 'inv-2';
     await act(async () => root.render(<Arbol inv={inv2} estado={e2} />));
-    expect(svg().getAttribute('aria-label')).toContain('Otra investigación distinta');
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBeGreaterThan(3);
-    for (const g of nodo.querySelectorAll('g.grafo-nodo')) expect(/translate\([-\d.e]+ [-\d.e]+\)/.test(g.getAttribute('transform') ?? '')).toBe(true);
+    expect(lienzo().getAttribute('aria-label')).toContain('Otra investigación distinta');
+    expect(cuantos()).toBeGreaterThan(3);
+    expect(finitos()).toBe(true);
     // Vuelta a la vista plana: todo sigue.
     await pulsar(boton('Vista plana'));
     expect(boton('Vista plana').getAttribute('aria-pressed')).toBe('true');
     expect(localStorage.getItem('rosa-arbol-vista')).toBe('plana');
-    expect(svg().getAttribute('viewBox')).toBe('-450 -280 900 560');
-    expect(circulo('hip-1').getAttribute('fill')).toMatch(/var\(--grafo-cluster-\d\)/);
-    expect(grupo('objetivo').getAttribute('transform')).toBe('translate(0 0)');
-    expect(grupo('objetivo').getAttribute('opacity')).toBeNull();
+    expect(escena().modo).toBe('plana');
+    expect(nodoEsc('hip-1').estilo.relleno).toMatch(/var\(--grafo-cluster-\d\)/);
+    expect(nodoEsc('objetivo')).toMatchObject({ x: 450, y: 280, opacidad: 1 });
     // Ayuda y leyenda en castellano, sin guiones largos ni palabras sin tilde.
     expect(nodo.textContent).toContain('Con «Vista 3D» el mismo árbol se despliega en tres dimensiones');
     expect(nodo.textContent).not.toContain('\u2014');
@@ -246,31 +229,28 @@ describe('la pantalla del árbol', () => {
     const e = estadoConDato();
     await act(async () => root.render(<Arbol inv={e.investigaciones[0]!} estado={e} />));
     expect(boton('Vista 3D').getAttribute('aria-pressed')).toBe('true');
-    expect(nodo.querySelector('svg.grafo')!.getAttribute('viewBox')).toBe('0 0 900 560');
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBeGreaterThan(3);
+    expect(escena().modo).toBe('3d');
+    expect(cuantos()).toBeGreaterThan(3);
   });
 
-  /** Radio proyectado del tronco: RADIO.objetivo (22) por el factor de peso (0,8 + 1,2 · 0,3) por FOCAL / distancia. */
+  /** Radio del tronco: RADIO.objetivo (22) por el factor de peso (0,8 + 1,2 · 0,3) por FOCAL / distancia. */
   const radioTronco = (distancia: number) => 22 * (0.8 + Math.min(1.4, 4) * 0.3) * Math.min(4, FOCAL / distancia);
-  const rTronco = () => numero(nodo.querySelector('g[data-id="objetivo"] circle:last-of-type')!.getAttribute('r'));
-  /** Orden de los nodos en el DOM con su posición, su opacidad y su radio: la huella de un cuadro. */
-  const transformes = () => [...nodo.querySelectorAll('g.grafo-nodo')].map((g) => `${g.getAttribute('data-id')}=${g.getAttribute('transform')}|${g.getAttribute('opacity')}|${g.querySelector('circle:last-of-type')?.getAttribute('r')}`).join(';');
+  const rTronco = () => nodoEsc('objetivo').r;
+  /** La huella de un cuadro: orden, posición, radio y opacidad de cada nodo. */
+  const transformes = () => huella(escena());
   const dentroDelMarco = () => {
-    for (const g of nodo.querySelectorAll('g.grafo-nodo')) {
-      const m = /translate\(([-\d.e]+) ([-\d.e]+)\)/.exec(g.getAttribute('transform') ?? '');
-      if (!m) return `${g.getAttribute('data-id')}: sin posición`;
-      const x = numero(m[1]!);
-      const y = numero(m[2]!);
-      if (!(x >= 0 && x <= 900 && y >= 0 && y <= 560)) return `${g.getAttribute('data-id')}: fuera (${x}, ${y})`;
-    }
+    for (const n of escena().nodos) if (!(n.x >= 0 && n.x <= 900 && n.y >= 0 && n.y <= 560)) return `${n.id}: fuera (${n.x}, ${n.y})`;
     return 'todos dentro';
   };
+  /** Un evento de puntero sobre el lienzo: con un canvas sin tamaño (jsdom) las coordenadas del evento son las lógicas. */
   const puntero = async (el: Element, tipo: string, x: number, y: number) => act(async () => el.dispatchEvent(new MouseEvent(tipo, { bubbles: true, clientX: x, clientY: y })));
+  /** El puntero sale del lienzo: React deriva onPointerLeave del pointerout nativo con relatedTarget fuera. */
+  const salirDelLienzo = async (el: Element) => act(async () => el.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })));
   const rueda = async (el: Element, deltaY: number, veces = 1) => {
     for (let i = 0; i < veces; i++) await act(async () => el.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true })));
   };
 
-  it('la rueda y el arrastre no sacan la cámara de sus límites, el arrastre es incremental y el almacenamiento roto no tumba la vista', async () => {
+  it('la rueda y el arrastre no sacan la cámara de sus límites, el arrastre es incremental, el ratón ilumina y pulsa por cercanía, y el almacenamiento roto no tumba la vista', async () => {
     // Modo privado o cuota llena: localStorage lanza. La vista arranca plana y aun así se puede pasar a 3D.
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('almacenamiento no disponible'); });
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('almacenamiento no disponible'); });
@@ -280,66 +260,75 @@ describe('la pantalla del árbol', () => {
       expect(boton('Vista plana').getAttribute('aria-pressed')).toBe('true');
       await pulsar(boton('Vista 3D'));
       expect(boton('Vista 3D').getAttribute('aria-pressed')).toBe('true');
-      expect(nodo.querySelector('svg.grafo')!.getAttribute('viewBox')).toBe('0 0 900 560');
+      expect(escena().modo).toBe('3d');
     } finally {
       getItem.mockRestore();
       setItem.mockRestore();
     }
-    const svg = nodo.querySelector('svg.grafo')!;
+    const svg = lienzo();
     // Cámara de salida encuadrada: nunca más cerca que la distancia inicial, y todo dentro del lienzo.
     expect(rTronco()).toBeLessThanOrEqual(radioTronco(1000) + 1e-6);
     expect(dentroDelMarco()).toBe('todos dentro');
-    // Sin animación: en 3D cada nodo, enlace y etiqueta se pinta sin la animación de
-    // entrada ni las transiciones de styles.css, porque el orden en el DOM cambia con
-    // la profundidad y cada movimiento las reiniciaría (el parpadeo que vio Emir).
-    for (const el of nodo.querySelectorAll('g.grafo-nodo, line.grafo-enlace, text.grafo-etiqueta')) {
-      const estilo = el.getAttribute('style') ?? '';
-      expect(estilo, `${el.tagName} ${el.getAttribute('data-id') ?? ''}`).toContain('transition: none');
-      expect(estilo, `${el.tagName} ${el.getAttribute('data-id') ?? ''}`).toContain('animation: none');
-    }
     // Desplegar todo: el árbol crece y la cámara se aleja sola hasta abarcarlo entero.
     const antesDesplegar = rTronco();
     await pulsar(boton('Desplegar todo'));
     expect(rTronco()).toBeLessThan(antesDesplegar);
     expect(dentroDelMarco()).toBe('todos dentro');
-    const conTodo = nodo.querySelectorAll('g.grafo-nodo').length;
+    const conTodo = cuantos();
     // Sesenta pasos de rueda hacia dentro: la distancia se para en la mínima. La rueda
-    // manda sobre el encuadre y ningún nodo se desmonta aunque quede detrás de la cámara.
+    // manda sobre el encuadre y ningún nodo sale de la escena aunque quede detrás de la cámara.
     await rueda(svg, -100, 60);
     expect(rTronco()).toBeCloseTo(radioTronco(DISTANCIA_MINIMA), 3);
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBe(conTodo);
+    expect(cuantos()).toBe(conTodo);
     // Cien hacia fuera: en la máxima. Ningún nodo pierde su posición finita.
     await rueda(svg, 100, 100);
     expect(rTronco()).toBeCloseTo(radioTronco(DISTANCIA_MAXIMA), 3);
-    expect(nodo.querySelectorAll('g.grafo-nodo').length).toBe(conTodo);
-    for (const g of nodo.querySelectorAll('g.grafo-nodo')) {
-      const m = /translate\(([-\d.e]+) ([-\d.e]+)\)/.exec(g.getAttribute('transform') ?? '');
-      expect(m && finito(m[1]!) && finito(m[2]!), g.getAttribute('data-id') ?? '').toBe(true);
-    }
+    expect(cuantos()).toBe(conTodo);
+    expect(finitos()).toBe(true);
     await rueda(svg, -100, 20);
     // Arrastrar el fondo en horizontal gira el árbol: los nodos cambian de sitio, el tronco no.
+    // El fondo es un punto sin nodo: la esquina del lienzo.
     const antesGiro = transformes();
-    await puntero(svg, 'pointerdown', 300, 300);
-    await puntero(svg, 'pointermove', 550, 300);
+    await puntero(svg, 'pointerdown', 2, 2);
+    await puntero(svg, 'pointermove', 252, 2);
     expect(transformes()).not.toBe(antesGiro);
-    expect(nodo.querySelector('g[data-id="objetivo"]')!.getAttribute('transform')).toBe('translate(450 280)');
+    expect(nodoEsc('objetivo')).toMatchObject({ x: 450, y: 280 });
     // Arrastrar 3000 píxeles hacia abajo pide un cabeceo de unos 24 radianes: se acota a 80 grados.
-    await puntero(svg, 'pointermove', 550, 3300);
+    await puntero(svg, 'pointermove', 252, 3002);
     const enElTope = transformes();
-    await puntero(svg, 'pointermove', 550, 6300);
+    await puntero(svg, 'pointermove', 252, 6002);
     expect(transformes()).toBe(enElTope); // más allá del tope, nada cambia
     // Diez píxeles de vuelta: la cámara responde en seguida, sin desandar los 3000 de exceso.
-    await puntero(svg, 'pointermove', 550, 6290);
+    await puntero(svg, 'pointermove', 252, 5992);
     expect(transformes()).not.toBe(enElTope);
-    await puntero(svg, 'pointerup', 550, 6290);
-    for (const g of nodo.querySelectorAll('g.grafo-nodo')) expect(/translate\([-\d.e]+ [-\d.e]+\)/.test(g.getAttribute('transform') ?? ''), g.getAttribute('data-id') ?? '').toBe(true);
-    // Un nodo en 3D no se arrastra: pulsar sobre él no abre un arrastre de cámara.
-    const hip = nodo.querySelector('g[data-id="hip-1"]')!;
+    await puntero(svg, 'pointerup', 252, 5992);
+    expect(finitos()).toBe(true);
+    // El ratón sobre un nodo lo ilumina (por cercanía) y atenúa a los que no son sus vecinos; al salir del lienzo, nada queda atenuado.
+    const hip = nodoEsc('hip-1');
+    await puntero(svg, 'pointermove', hip.x + 1, hip.y - 1);
+    expect(nodoEsc('hip-1').hover).toBe(true);
+    expect(atenuados()).toBeGreaterThan(0);
+    await salirDelLienzo(svg);
+    expect(nodoEsc('hip-1').hover).toBe(false);
+    expect(atenuados()).toBe(0);
+    // Un nodo en 3D no se arrastra: agarrarlo y mover no gira la cámara, y soltar tras moverse no es un clic.
     const antes = transformes();
-    await puntero(hip, 'pointerdown', 400, 400);
-    await puntero(svg, 'pointermove', 700, 400);
+    const seleccionAntes = nodoEsc('hip-1').sel;
+    await puntero(svg, 'pointerdown', hip.x, hip.y);
+    await puntero(svg, 'pointermove', hip.x + 300, hip.y);
     expect(transformes()).toBe(antes);
-    await puntero(svg, 'pointerup', 700, 400);
+    await puntero(svg, 'pointerup', hip.x + 300, hip.y);
+    expect(nodoEsc('hip-1').sel).toBe(seleccionAntes);
+    // Pulsar (bajar y soltar sin mover) sobre el nodo lo selecciona; el panel lo dice.
+    const h = nodoEsc('hip-1');
+    await puntero(svg, 'pointerdown', h.x, h.y);
+    await puntero(svg, 'pointerup', h.x, h.y);
+    expect(nodoEsc('hip-1').sel).toBe(true);
+    expect(nodo.querySelector('.grafo-panel')!.textContent).toContain('Hipótesis');
+    // Y lo mismo desde el teclado, por la lista accesible.
+    await pulsar(botonNodo('objetivo'));
+    expect(nodoEsc('objetivo').sel).toBe(true);
+    expect(botonNodo('objetivo').getAttribute('aria-pressed')).toBe('true');
   });
 
   it('la rueda funciona aunque el árbol naciera vacío, y un árbol vacío con la vista 3D guardada explica qué pasará', async () => {
@@ -348,18 +337,19 @@ describe('la pantalla del árbol', () => {
     const inv = e.investigaciones[0]!;
     const vacio: EstadoRosa = { ...e, hipotesis: [], hechos: [] };
     await act(async () => root.render(<Arbol inv={inv} estado={vacio} />));
-    expect(nodo.querySelector('svg.grafo')).toBeNull();
+    expect(nodo.querySelector('canvas.grafo')).toBeNull();
     expect(nodo.textContent).toContain('El árbol todavía no tiene ramas');
-    // Llegan las hipótesis por SSE: aparece el SVG y la rueda tiene que estar enganchada.
+    // Llegan las hipótesis por SSE: aparece el lienzo y la rueda tiene que estar enganchada.
     await act(async () => root.render(<Arbol inv={inv} estado={e} />));
-    const svg = nodo.querySelector('svg.grafo')!;
+    const svg = lienzo();
     const antes = rTronco();
     await rueda(svg, -100, 1);
     expect(rTronco()).toBeCloseTo(antes * 1.12, 3); // un paso de rueda acerca la cámara un 12 %
   });
 
-  it('en 3D el árbol gira solo tras unos segundos sin tocarlo, se para con el ratón encima y al desmontar no queda ningún fotograma pendiente', async () => {
-    // Animación encendida: los fotogramas van a una cola manual para contarlos y vaciarlos.
+  /** Arnés con animación encendida: los fotogramas van a una cola manual para
+   *  contarlos y vaciarlos a voluntad. Devuelve `fotogramas(n, ms)` y la cola. */
+  const conAnimacion = async (cuerpo: (fotogramas: (n: number, ms?: number) => Promise<void>, pendientes: Map<number, FrameRequestCallback>) => Promise<void>) => {
     movimiento.reducido = false;
     const pendientes = new Map<number, FrameRequestCallback>();
     let siguiente = 0;
@@ -384,67 +374,113 @@ describe('la pantalla del árbol', () => {
       }
     };
     try {
+      await cuerpo(fotogramas, pendientes);
+    } finally {
+      movimiento.reducido = true;
+      vi.unstubAllGlobals();
+    }
+  };
+
+  it('la rueda fija la distancia: ni la simulación al asentarse, ni el giro automático, ni un estado nuevo la devuelven; solo Plegar todo', async () => {
+    await conAnimacion(async (fotogramas) => {
       localStorage.setItem('rosa-arbol-vista', '3d');
       const e = estadoConDato();
       await act(async () => root.render(<Arbol inv={e.investigaciones[0]!} estado={e} />));
-      expect(pendientes.size).toBeGreaterThan(0); // la simulación y el vigía del giro
+      await fotogramas(60, 10);
+      const svg = lienzo();
+      // La persona acerca la cámara con la rueda: cinco pasos.
+      await rueda(svg, -100, 5);
+      await fotogramas(2, 10);
+      const elegida = rTronco();
+      expect(elegida).toBeGreaterThan(radioTronco(1000));
+      // Desplegar todo: nacen nodos, la simulación se asienta durante 200 cuadros... y la distancia no se mueve.
+      await pulsar(boton('Desplegar todo'));
+      for (let i = 0; i < 4; i++) {
+        await fotogramas(50, 10);
+        expect(rTronco()).toBeCloseTo(elegida, 6);
+      }
+      // Pasan los 3 s y el árbol gira solo: la guiñada cambia, la distancia no.
+      await fotogramas(120, 10);
+      const girando = transformes();
+      await fotogramas(5, 10);
+      expect(transformes()).not.toBe(girando);
+      expect(rTronco()).toBeCloseTo(elegida, 6);
+      // Llega un estado nuevo por SSE (mismo árbol, otro objeto): tampoco.
+      await act(async () => root.render(<Arbol inv={e.investigaciones[0]!} estado={structuredClone(e)} />));
+      await fotogramas(30, 10);
+      expect(rTronco()).toBeCloseTo(elegida, 6);
+      // Plegar todo devuelve la cámara de salida y el encuadre vuelve a mandar.
+      await pulsar(boton('Plegar todo'));
+      await fotogramas(200, 10);
+      expect(rTronco()).toBeLessThanOrEqual(radioTronco(1000) + 1e-6);
+      expect(dentroDelMarco()).toBe('todos dentro');
+    });
+  }, 30000);
+
+  it('en 3D el árbol gira solo tras unos segundos sin tocarlo, se para con el ratón encima, la huella es estable entre cuadros y al desmontar no queda ningún fotograma pendiente', async () => {
+    await conAnimacion(async (fotogramas, pendientes) => {
+      localStorage.setItem('rosa-arbol-vista', '3d');
+      const e = estadoConDato();
+      await act(async () => root.render(<Arbol inv={e.investigaciones[0]!} estado={e} />));
+      expect(pendientes.size).toBe(1); // un solo bucle: física, encuadre, giro y pintado
       // La simulación se enfría en unos 140 fotogramas y el encuadre encaja detrás; a los 3 s empieza el giro.
       await fotogramas(200, 10);
       expect(dentroDelMarco()).toBe('todos dentro');
       const quieto = transformes();
       await fotogramas(3, 10);
       // Antes de los 3 s, con la cámara quieta y la simulación enfriada, dos cuadros
-      // seguidos dan el mismo orden de ids, la misma opacidad y el mismo radio por nodo.
+      // seguidos dan el mismo orden de ids, la misma posición, radio y opacidad por nodo.
       expect(transformes()).toBe(quieto);
-      await fotogramas(110, 10); // pasa de los 3 s
+      await fotogramas(160, 10); // pasa de los 3 s (contados desde el montaje, con reloj real de por medio)
       const girando = transformes();
-      await fotogramas(5);
+      await fotogramas(5, 10);
       expect(transformes()).not.toBe(girando);
-      expect(nodo.querySelector('g[data-id="objetivo"]')!.getAttribute('transform')).toBe('translate(450 280)');
+      expect(nodoEsc('objetivo')).toMatchObject({ x: 450, y: 280 });
       // Con el ratón sobre un nodo, el giro se para; al salir del lienzo, sigue.
-      const hip = nodo.querySelector('g[data-id="hip-1"]')!;
-      await act(async () => hip.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+      const svg = lienzo();
+      const hip = nodoEsc('hip-1');
+      await puntero(svg, 'pointermove', hip.x, hip.y);
+      expect(nodoEsc('hip-1').hover).toBe(true);
       const parado = transformes();
-      await fotogramas(5);
+      await fotogramas(5, 10);
       expect(transformes()).toBe(parado);
-      await act(async () => hip.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })));
-      await fotogramas(5);
+      await salirDelLienzo(svg);
+      await fotogramas(5, 10);
       expect(transformes()).not.toBe(parado);
-      // El nodo bajo el ratón desaparece sin pointerleave (Plegar todo lo quita): el giro no puede quedarse pausado.
+      // El nodo bajo el ratón desaparece (Plegar todo lo quita): el giro no puede quedarse pausado.
       await pulsar(boton('Desplegar todo'));
-      await fotogramas(200); // la simulación se asienta con lo nuevo y el encuadre la sigue cuadro a cuadro
+      await fotogramas(200, 10); // la simulación se asienta con lo nuevo y el encuadre la sigue cuadro a cuadro
       expect(rTronco()).toBeLessThan(radioTronco(1000)); // la cámara se alejó sola para abarcar el árbol desplegado
       expect(dentroDelMarco()).toBe('todos dentro');
-      const run = nodo.querySelector('g[data-id="run-1"]')!;
-      await act(async () => run.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+      const run = nodoEsc('run-1');
+      await puntero(svg, 'pointermove', run.x, run.y);
+      expect(nodoEsc('run-1').hover).toBe(true);
       const conRaton = transformes();
-      await fotogramas(5);
+      await fotogramas(5, 10);
       expect(transformes()).toBe(conRaton);
       await pulsar(boton('Plegar todo'));
-      expect(nodo.querySelector('g[data-id="run-1"]')).toBeNull();
-      await fotogramas(200); // cámara de salida y simulación asentada de nuevo
+      expect(escena().nodos.find((n) => n.id === 'run-1')).toBeUndefined();
+      await fotogramas(200, 10); // cámara de salida y simulación asentada de nuevo
       const trasPlegar = transformes();
-      await fotogramas(5);
+      await fotogramas(5, 10);
       expect(transformes()).not.toBe(trasPlegar);
-      expect([...nodo.querySelectorAll('g.grafo-nodo')].some((g) => (g.getAttribute('class') ?? '').includes('grafo-atenuado'))).toBe(false);
-      // Al volver a la vista plana, el giro se cancela: tras enfriarse la simulación solo queda el vaivén.
+      expect(atenuados()).toBe(0);
+      // Al volver a la vista plana, el mismo bucle sigue solo (vaivén): un fotograma pendiente.
       await pulsar(boton('Vista plana'));
-      await fotogramas(250); // la simulación plana se enfría en unos 140 fotogramas
+      await fotogramas(250, 10);
       expect(pendientes.size).toBe(1);
-      // Y de vuelta a 3D: solo el vigía del giro (la simulación ya estaba asentada).
+      expect(escena().modo).toBe('plana');
+      // Y de vuelta a 3D: sigue siendo uno.
       await pulsar(boton('Vista 3D'));
-      await fotogramas(250);
+      await fotogramas(250, 10);
       expect(pendientes.size).toBe(1);
       // Al desmontar no queda nada en la cola, ni nada que se vuelva a encolar.
       await act(async () => root.unmount());
-      await fotogramas(3);
+      await fotogramas(3, 10);
       expect(pendientes.size).toBe(0);
       root = createRoot(nodo); // para que el afterEach desmonte algo
-    } finally {
-      movimiento.reducido = true;
-      vi.unstubAllGlobals();
-    }
-  }, 30000); // unos mil cuadros con render cada uno: con la suite entera en paralelo supera los 5 s por defecto
+    });
+  }, 30000);
 
   it('con una investigación vacía explica qué pasará, con tildes', async () => {
     const e = structuredClone(estadoDeMuestra());

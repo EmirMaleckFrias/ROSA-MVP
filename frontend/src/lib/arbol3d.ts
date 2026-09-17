@@ -268,17 +268,24 @@ export function posicionInicial3d(g: Grafo, posiciones: Map<string, Posicion3>, 
 export function paso3d(g: Grafo, visibles: Set<string>, posiciones: Map<string, Posicion3>, alfa: number): void {
   const a_ = sinNaN(alfa);
   const ids = [...visibles].filter((id) => posiciones.has(id));
+  // Lo que no cambia dentro del doble bucle se calcula una vez por nodo (y no
+  // una vez por par): la posición, el peso saneado y si tiene etiqueta que leer.
+  // Con 400 nodos son 80.000 pares por paso; esto no cambia el resultado.
+  const cuerpos = ids.map((id) => posiciones.get(id)!);
+  const pesos = ids.map((id) => pesoDe(g.porId.get(id)));
+  const conEtiqueta = ids.map((id) => {
+    const n = g.porId.get(id);
+    return n !== undefined && n.tipo !== 'fuente' && n.tipo !== 'entidad';
+  });
   // Repulsión entre todos los pares. Dos nodos exactamente en el mismo punto se
   // separan por una dirección de la espiral que depende del par, no del azar:
   // así la disposición es determinista y los tests, reproducibles.
   for (let i = 0; i < ids.length; i++) {
-    const a = posiciones.get(ids[i]!)!;
-    const na = g.porId.get(ids[i]!);
-    const pa = pesoDe(na);
+    const a = cuerpos[i]!;
+    const pa = pesos[i]!;
     for (let j = i + 1; j < ids.length; j++) {
-      const b = posiciones.get(ids[j]!)!;
-      const nb = g.porId.get(ids[j]!);
-      const pb = pesoDe(nb);
+      const b = cuerpos[j]!;
+      const pb = pesos[j]!;
       let dx = a.x - b.x;
       let dy = a.y - b.y;
       let dz = a.z - b.z;
@@ -292,7 +299,7 @@ export function paso3d(g: Grafo, visibles: Set<string>, posiciones: Map<string, 
       }
       // Saturada por debajo de 12 unidades (como en la vista plana) y mayor
       // entre dos nodos con etiqueta, que son los que tienen texto que leer.
-      const conTexto = na && nb && na.tipo !== 'fuente' && nb.tipo !== 'fuente' && na.tipo !== 'entidad' && nb.tipo !== 'entidad' ? 1.8 : 1;
+      const conTexto = conEtiqueta[i] && conEtiqueta[j] ? 1.8 : 1;
       const f = (3400 * conTexto * (pa + pb) * 0.5 * a_) / Math.max(d2, 144);
       const d = Math.sqrt(d2);
       const fx = (dx / d) * f;

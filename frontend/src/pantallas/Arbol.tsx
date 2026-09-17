@@ -29,15 +29,30 @@
 // 3D no se arrastran nodos (el fondo gira el árbol) ni hay vaivén (el giro ya
 // le da vida). La elección de vista se recuerda en el navegador; por defecto
 // sigue la vista plana, para no cambiarle el árbol a quien ya lo conoce.
+//
+// Cómo se pinta (17 de septiembre de 2026, "sube los fps del árbol"): el árbol
+// se dibuja en un <canvas> 2D, no en SVG. Con SVG cada cuadro obligaba al
+// navegador a recalcular el estilo y recomponer unos novecientos elementos (8 de
+// los 16 ms que hay por cuadro) aunque solo cambiaran atributos; un canvas se
+// pinta entero de un trazo en dos o tres milisegundos. React monta el lienzo,
+// una lista oculta con un botón por nodo (teclado y lectores de pantalla) y el
+// panel; UN SOLO bucle de requestAnimationFrame hace la física, el encuadre, el
+// giro automático y el vaivén, construye la ESCENA (lib/lienzo_arbol.ts: el
+// modelo de lo que se ve) y la pinta solo si algo cambió. Las posiciones, la
+// cámara, la vista y el nodo bajo el ratón viven en refs (fuentes de verdad
+// mutables), no en estado de React: cambiarlos no vuelve a renderizar nada. Los
+// colores son los tokens de styles.css leídos con getComputedStyle (Paleta) y
+// se releen al cambiar el tema. El ratón se resuelve por distancia al nodo más
+// cercano (nodoBajoPuntero). Con movimiento reducido no hay bucle: cada cambio
+// fuerza un render de React, cuyo efecto pinta el lienzo una vez.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EstadoRosa, Investigacion } from '../datos/tipos';
 import { AvisoMuestra, Chip, Vacio } from '../componentes/piezas';
 import { alternar, buscar, construirArbol, fraseProfundidad, incorporarNovedades, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, SIN_DISTANCIA, visiblesIniciales, type Grafo, type NodoArbol, type Posicion, type TipoEnlace, type TipoNodo } from '../lib/arbol';
-import { acotarCamara, camaraInicial, distanciaEncuadre, ESPERA_GIRO_MS, niebla, ordenarPorProfundidad, paso3d, posicionInicial3d, proyectar, SENSIBILIDAD_GIRO, VELOCIDAD_GIRO, type Camara, type Posicion3, type Proyeccion } from '../lib/arbol3d';
+import { acotarCamara, camaraInicial, distanciaEncuadre, ESPERA_GIRO_MS, paso3d, posicionInicial3d, SENSIBILIDAD_GIRO, VELOCIDAD_GIRO, type Camara, type Posicion3 } from '../lib/arbol3d';
+import { ajusteLienzo, construirEscena, dibujar, nodoBajoPuntero, Paleta, registrarEscena, RESPALDOS_PALETA, type Escena, type EstiloNodo, type Trazo } from '../lib/lienzo_arbol';
 import { useMovimientoReducido } from '../lib/movimiento';
-
-const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12, afirmacion: 6, ejecucion: 9, dataset: 8, laboratorio: 12 };
 const COLOR: Record<TipoNodo, string> = {
   objetivo: 'var(--accent)',
   rama: 'var(--accent-soft-2)',
@@ -53,7 +68,7 @@ const COLOR: Record<TipoNodo, string> = {
   dataset: 'var(--grafo-dataset)',
   laboratorio: 'var(--grafo-laboratorio)',
 };
-const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }> = {
+const TRAZO: Record<TipoEnlace, Trazo> = {
   rama: { color: 'var(--border-strong)', ancho: 1.6 },
   cita: { color: 'var(--text-3)', ancho: 0.8 },
   respalda: { color: 'var(--green)', ancho: 1 },
@@ -64,11 +79,6 @@ const TRAZO: Record<TipoEnlace, { color: string; ancho: number; guion?: string }
   dato: { color: 'var(--grafo-dato-1)', ancho: 1.3 },
 };
 
-/** En 3D los nodos cambian de orden en el DOM cada cuadro (se pintan de lejos a
- *  cerca) y el navegador trata cada movimiento como una inserción: reiniciaba la
- *  animación de entrada `brotar` y las transiciones de opacidad de styles.css, y
- *  las esferas parpadeaban. En esta vista todo se pinta sin transición. */
-const ESTILO_3D = { transition: 'none', animation: 'none' } as const;
 type ModoColor = 'tipo' | 'dato';
 type Vista = 'plana' | '3d';
 /** Clave del navegador donde se recuerda la vista elegida (sin tilde: es un identificador). */
@@ -155,116 +165,48 @@ interface Motor<P extends { fijo?: boolean }> {
 const MOTOR_PLANO: Motor<Posicion> = { inicial: posicionInicial, paso };
 const MOTOR_3D: Motor<Posicion3> = { inicial: posicionInicial3d, paso: paso3d };
 
-/** La simulación por fuerzas, común a las dos vistas. `activo` en false la
- *  congela (la vista que no se ve no gasta fotogramas) conservando las
- *  posiciones: al volver a ella retoma donde estaba y solo coloca lo nuevo. */
-function useSimulacionDe<P extends { fijo?: boolean }>(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean, motor: Motor<P>) {
-  const posiciones = useRef(new Map<string, P>());
-  const [, setTick] = useState(0);
-  const alfa = useRef(1);
-  const semilla = useRef(1);
-  const marco = useRef<number | null>(null);
-  // Un bucle de animación que se enfría solo y se puede reavivar (al
-  // arrastrar un nodo, al desplegar): como el "animate" del grafo de Obsidian.
-  const arrancar = (energia = 1) => {
-    alfa.current = Math.max(alfa.current, energia);
-    if (marco.current !== null) return;
-    const animar = () => {
-      for (let k = 0; k < 2; k++) motor.paso(grafo, visibles, posiciones.current, alfa.current);
-      alfa.current = Math.max(0.02, alfa.current * 0.975);
-      setTick((t) => t + 1);
-      if (alfa.current > 0.03) marco.current = requestAnimationFrame(animar);
-      else marco.current = null;
-    };
-    marco.current = requestAnimationFrame(animar);
-  };
-  const firmaAnterior = useRef('');
-  useEffect(() => {
-    if (!activo) return;
-    // Los nodos nuevos nacen junto a un vecino colocado; los que se van, se olvidan.
-    let cambio = false;
-    for (const id of visibles) {
-      if (!posiciones.current.has(id)) {
-        posiciones.current.set(id, motor.inicial(grafo, posiciones.current, id, semilla.current++));
-        cambio = true;
-      }
+/** Pone al día las posiciones de un motor con lo visible: los nodos nuevos nacen
+ *  junto a un vecino colocado, los que se van se olvidan. Devuelve si hubo cambio
+ *  (o es la primera vez). Sin animación (`quieto`) asienta el árbol aquí mismo con
+ *  240 pasos; con animación deja la energía (`alfa`) alta para que el bucle la gaste.
+ *  El estado de Rosa cambia cada pocos segundos por SSE y reconstruye el grafo: si
+ *  el conjunto de nodos no cambió (misma firma), no se vuelve a agitar el árbol. */
+function sincronizar<P extends { fijo?: boolean }>(motor: Motor<P>, grafo: Grafo, visibles: Set<string>, posiciones: Map<string, P>, firma: { current: string }, alfa: { current: number }, semilla: { current: number }, quieto: boolean): boolean {
+  let cambio = false;
+  for (const id of visibles) {
+    if (!posiciones.has(id)) {
+      posiciones.set(id, motor.inicial(grafo, posiciones, id, semilla.current++));
+      cambio = true;
     }
-    for (const id of [...posiciones.current.keys()]) {
-      if (!visibles.has(id)) {
-        posiciones.current.delete(id);
-        cambio = true;
-      }
-    }
-    // El estado de Rosa cambia cada pocos segundos por SSE y reconstruye el grafo:
-    // si el conjunto de nodos no cambió, no se vuelve a agitar el árbol.
-    const firma = [...visibles].sort().join('|');
-    const primera = firmaAnterior.current === '';
-    firmaAnterior.current = firma;
-    if (quieto) {
-      if (cambio || primera) {
-        for (let i = 0; i < 240; i++) motor.paso(grafo, visibles, posiciones.current, Math.max(0.05, 1 - i / 240));
-        setTick((t) => t + 1);
-      }
-      return;
-    }
-    if (cambio || primera) {
-      alfa.current = 0;
-      arrancar(primera ? 1 : 0.6);
-    } else if (alfa.current > 0.03) {
-      // La limpieza del efecto anterior canceló el fotograma en marcha (otro
-      // efecto reasignó los visibles al montar, o se cambió de vista): se
-      // retoma donde estaba.
-      arrancar(alfa.current);
-    }
-    return () => {
-      if (marco.current !== null) cancelAnimationFrame(marco.current);
-      marco.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grafo, visibles, quieto, activo]);
-  return { posiciones: posiciones.current, reavivar: (energia = 0.4) => (quieto ? setTick((t) => t + 1) : arrancar(energia)), asentada: () => marco.current === null };
-}
-
-function useSimulacion(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean) {
-  return useSimulacionDe(grafo, visibles, quieto, activo, MOTOR_PLANO);
-}
-
-/** La misma simulación con la física de tres ejes (lib/arbol3d.ts): mismo
- *  enfriamiento, mismo reavivar, otra estructura de posición (x, y, z). */
-function useSimulacion3d(grafo: Grafo, visibles: Set<string>, quieto: boolean, activo: boolean) {
-  return useSimulacionDe(grafo, visibles, quieto, activo, MOTOR_3D);
-}
-
-/** Cuánto se ve la etiqueta de un nodo según el zoom y su importancia (el
- *  "text fade threshold" del grafo de Obsidian): el tronco siempre; ramas,
- *  hipótesis y experimentos desde un zoom normal; lo pequeño solo al acercar,
- *  o si está iluminado o seleccionado. En 3D el "zoom" de cada nodo es su
- *  escala proyectada, así que las etiquetas pequeñas solo salen en los nodos
- *  cercanos a la cámara y las de peso alto se leen desde más lejos. */
-function opacidadEtiqueta(n: NodoArbol, k: number, vivo: boolean, sel: boolean): number {
-  if (sel) return 1;
-  const umbral = n.tipo === 'objetivo' ? 0 : n.tipo === 'rama' || n.tipo === 'area' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' || n.tipo === 'ejecucion' ? 0.75 : 1.5;
-  const base = Math.max(0, Math.min(1, (k - umbral) / 0.35 + 1));
-  return vivo ? Math.max(base, n.tipo === 'fuente' || n.tipo === 'entidad' || n.tipo === 'hecho' || n.tipo === 'pregunta' || n.tipo === 'afirmacion' || n.tipo === 'dataset' ? 0.9 : 1) : base;
-}
-
-/** Parte una etiqueta en hasta dos líneas de unos 22 caracteres. */
-function lineas(texto: string, maximo = 22): string[] {
-  if (texto.length <= maximo) return [texto];
-  const palabras = texto.split(' ');
-  const salida: string[] = [];
-  let actual = '';
-  for (const p of palabras) {
-    if ((actual + ' ' + p).trim().length > maximo && actual) {
-      salida.push(actual);
-      actual = p;
-      if (salida.length === 2) break;
-    } else actual = (actual + ' ' + p).trim();
   }
-  if (salida.length < 2 && actual) salida.push(actual);
-  if (salida.length === 2 && salida.join(' ').length < texto.length) salida[1] = `${salida[1]!.slice(0, maximo - 3)}...`;
-  return salida;
+  for (const id of [...posiciones.keys()]) {
+    if (!visibles.has(id)) {
+      posiciones.delete(id);
+      cambio = true;
+    }
+  }
+  const nueva = [...visibles].sort().join('|');
+  const primera = firma.current === '';
+  firma.current = nueva;
+  if (!cambio && !primera) return false;
+  if (quieto) for (let i = 0; i < 240; i++) motor.paso(grafo, visibles, posiciones, Math.max(0.05, 1 - i / 240));
+  else alfa.current = primera ? 1 : 0.6;
+  return true;
 }
+
+/** Lo que el bucle necesita saber del último render de React para construir la escena. */
+interface Contexto {
+  grafo: Grafo;
+  enTiempo: Set<string>;
+  vista3d: boolean;
+  reducido: boolean;
+  iluminados: Set<string>;
+  seleccion: string | null;
+  estiloDe: (n: NodoArbol) => EstiloNodo;
+}
+
+const ANCHO = 900;
+const ALTO = 560;
 
 export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa }) {
   const hip = useMemo(() => estado.hipotesis.filter((h) => h.investigacionId === inv.id), [estado.hipotesis, inv.id]);
@@ -278,8 +220,59 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const [texto, setTexto] = useState('');
   const [hasta, setHasta] = useState<number>(grafo.iteracionMax);
   const anterior = useRef({ ids: new Set(grafo.nodos.map((n) => n.id)), iteracionMax: grafo.iteracionMax });
-  const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
-  const [hover, setHover] = useState<string | null>(null);
+  // Fuentes de verdad mutables que leen React y el bucle: posiciones de cada
+  // motor, energía de la simulación, la vista plana (desplazamiento y zoom), la
+  // cámara 3D y el reloj del vaivén. Cambiarlas no hace render por sí solo: con
+  // animación las pinta el bucle en el siguiente cuadro; sin ella, `repintar`.
+  const pos2 = useRef(new Map<string, Posicion>());
+  const pos3 = useRef(new Map<string, Posicion3>());
+  const alfa2 = useRef(1);
+  const alfa3 = useRef(1);
+  const firma2 = useRef('');
+  const firma3 = useRef('');
+  const semilla = useRef(1);
+  const vistaRef = useRef({ x: 0, y: 0, k: 1 });
+  const camaraRef = useRef<Camara>(camaraInicial());
+  const relojRef = useRef(0);
+  const [, setTick] = useState(0);
+  const repintar = () => setTick((t) => t + 1);
+  // Encuadre automático de la cámara 3D: la distancia se ajusta sola para que
+  // todo lo visible quepa en el lienzo, pero SOLO si nadie ha tocado la cámara
+  // (regla de Emir, 17 de septiembre de 2026: "el zoom se devuelve rápido"). La
+  // rueda o el arrastre encienden `camaraTocada` y el encuadre queda apagado
+  // para este árbol hasta "Plegar todo" o cambiar de investigación. Mientras no
+  // esté tocada, encuadra al abrir la vista, al desplegar y mientras la
+  // simulación se asienta; el giro automático nunca cambia la distancia.
+  const camaraTocada = useRef(false);
+  const encuadrar = useRef(true);
+  // Hay algo nuevo que pintar (física, cámara, vista, ratón): el bucle solo
+  // pinta cuando está encendido, así un árbol quieto no gasta nada.
+  const sucio = useRef(true);
+  /** La última escena pintada: el bucle la construye, el puntero la consulta. */
+  const escenaRef = useRef<Escena | null>(null);
+  const lienzoRef = useRef<HTMLCanvasElement>(null);
+  /** El contexto 2D del lienzo, pedido una sola vez por montaje (null donde no hay canvas, como jsdom). */
+  const ctx2dRef = useRef<{ lienzo: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null } | null>(null);
+  const contexto2d = (lienzo: HTMLCanvasElement): CanvasRenderingContext2D | null => {
+    if (ctx2dRef.current?.lienzo === lienzo) return ctx2dRef.current.ctx;
+    let ctx2d: CanvasRenderingContext2D | null = null;
+    try {
+      ctx2d = typeof lienzo.getContext === 'function' ? lienzo.getContext('2d') ?? null : null;
+    } catch {
+      ctx2d = null;
+    }
+    ctx2dRef.current = { lienzo, ctx: ctx2d };
+    return ctx2d;
+  };
+  const paleta = useRef(new Paleta(typeof document === 'undefined' ? null : document.documentElement, RESPALDOS_PALETA));
+  const fuente = useRef('system-ui, sans-serif');
+  /** Escala y desplazamiento del lienzo lógico (900 por 560) dentro del canvas real. */
+  const ajuste = useRef({ escala: 1, dx: 0, dy: 0, anchoPx: 0, altoPx: 0 });
+  const ctx = useRef<Contexto | null>(null);
+  /** El nodo bajo el ratón, en un ref: cambiarlo no vuelve a renderizar nada. */
+  const hoverRef = useRef<string | null>(null);
+  /** Pulsación empezada sobre un nodo (para que soltar sin mover sea un clic). */
+  const pulsacion = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const [modoColor, setModoColor] = useState<ModoColor>('tipo'); // Por defecto: relleno por tipo y familia de mecanismo, anillo por distancia al dato (petición de Emir, 16 de septiembre de 2026)
   const [tipoVista, setTipoVista] = useState<Vista>(leerVista);
   const vista3d = tipoVista === '3d';
@@ -289,9 +282,10 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     setTipoVista(v);
     guardarVista(v);
     ultimoToque.current = performance.now();
+    // Al abrir la vista 3D se encuadra, salvo que la cámara ya esté tocada.
+    encuadrar.current = !camaraTocada.current;
+    sucio.current = true;
   };
-  // La cámara orbital de la vista 3D (guiñada, cabeceo, distancia), siempre acotada.
-  const [camara, setCamara] = useState<Camara>(camaraInicial);
   const arrastre = useRef<{ x: number; y: number; vx: number; vy: number; ux?: number; uy?: number } | null>(null);
   const arrastreNodo = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   // Último punto del puntero mientras se gira la cámara. El giro es incremental
@@ -299,19 +293,24 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   // el punto de agarre: así, al topar con el cabeceo máximo, la cámara responde
   // en cuanto el puntero vuelve, sin tener que desandar el exceso.
   const arrastreCamara = useRef<{ x: number; y: number } | null>(null);
-  const hoverRef = useRef<string | null>(null);
   const reducido = useMovimientoReducido();
-  const svgRef = useRef<SVGSVGElement>(null);
-  const ancho = 900;
-  const alto = 560;
-  // Coordenadas del lienzo a partir de un evento del puntero (para el zoom al
-  // cursor y para arrastrar nodos con la vista movida).
+  const ancho = ANCHO;
+  const alto = ALTO;
+  // Coordenadas del lienzo lógico (0..900, 0..560) a partir de un evento del
+  // puntero, deshaciendo la escala y el centrado del canvas. Con un canvas sin
+  // tamaño (tests) la escala es 1 y las coordenadas del evento son las lógicas.
+  const puntoLogico = (clientX: number, clientY: number) => {
+    const lienzo = lienzoRef.current;
+    const a = ajuste.current;
+    if (!lienzo) return { x: 0, y: 0 };
+    const caja = lienzo.getBoundingClientRect();
+    const dpr = a.anchoPx > 0 && caja.width > 0 ? a.anchoPx / caja.width : 1;
+    return { x: ((clientX - caja.left) * dpr - a.dx) / a.escala, y: ((clientY - caja.top) * dpr - a.dy) / a.escala };
+  };
+  /** Lo mismo pero centrado en el tronco (la vista plana mide desde el centro). */
   const enLienzo = (clientX: number, clientY: number) => {
-    const svg = svgRef.current;
-    if (!svg) return { x: 0, y: 0 };
-    const caja = svg.getBoundingClientRect();
-    const escala = ancho / caja.width;
-    return { x: (clientX - caja.left) * escala - ancho / 2, y: (clientY - caja.top) * escala - alto / 2 };
+    const p = puntoLogico(clientX, clientY);
+    return { x: p.x - ancho / 2, y: p.y - alto / 2 };
   };
 
   // Sigue las novedades del servidor, sin restablecer la exploración de la persona.
@@ -325,85 +324,193 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   const iluminados = useMemo(() => buscar(grafo, texto), [grafo, texto]);
   const enTiempo = useMemo(() => new Set([...visibles].filter((id) => (grafo.porId.get(id)?.iteracion ?? 0) <= hasta)), [visibles, hasta, grafo]);
   // El nodo bajo el ratón solo cuenta mientras se dibuja: si desaparece (Plegar
-  // todo, el deslizador de iteraciones) nunca dispara pointerleave y, sin esto,
-  // el giro automático quedaría pausado para siempre y el árbol atenuado.
-  const foco = hover !== null && enTiempo.has(hover) ? hover : null;
-  hoverRef.current = foco;
-  // Las dos simulaciones existen siempre (regla de los hooks) pero solo corre la de la vista activa.
-  const { posiciones, reavivar } = useSimulacion(grafo, enTiempo, reducido, !vista3d);
-  const { posiciones: posiciones3, asentada: asentada3 } = useSimulacion3d(grafo, enTiempo, reducido, vista3d);
-  // Encuadre automático de la cámara 3D: mientras `encuadrar` está encendido, la
-  // distancia se ajusta sola para que todo lo visible quepa en el lienzo. Se
-  // enciende al cambiar lo visible o de vista y lo apaga la rueda (la persona
-  // manda). Con animación, el ajuste avanza un 15 % por cuadro hasta encajar;
-  // con movimiento reducido se aplica de una vez, porque la simulación ya se
-  // asentó en su efecto.
-  const encuadrar = useRef(true);
+  // todo, el deslizador de iteraciones) el giro automático no puede quedarse
+  // pausado ni el árbol atenuado.
+  const focoActual = () => (hoverRef.current !== null && enTiempoRef.current.has(hoverRef.current) ? hoverRef.current : null);
   const enTiempoRef = useRef(enTiempo);
   enTiempoRef.current = enTiempo;
-  const camaraRef = useRef(camara);
-  camaraRef.current = camara;
-  const puntosVisibles = () => [...enTiempoRef.current].map((id) => posiciones3.get(id)).filter((p): p is Posicion3 => Boolean(p));
+  const puntosVisibles = () => [...enTiempoRef.current].map((id) => pos3.current.get(id)).filter((p): p is Posicion3 => Boolean(p));
+  // Otra investigación: cámara y vista de salida, y el encuadre vuelve a mandar.
   useEffect(() => {
+    camaraTocada.current = false;
     encuadrar.current = true;
-    if (!vista3d || !reducido) return;
-    setCamara((c) => {
+    camaraRef.current = camaraInicial();
+    vistaRef.current = { x: 0, y: 0, k: 1 };
+  }, [inv.id]);
+  // Cambios estructurales (lo visible, la vista, el grafo): se colocan los nodos
+  // nuevos y se olvidan los que se van; sin animación se asienta aquí mismo y, si
+  // toca, se encuadra de una vez. Siempre se vuelve a renderizar para montar lo nuevo.
+  useEffect(() => {
+    if (vista3d) sincronizar(MOTOR_3D, grafo, enTiempo, pos3.current, firma3, alfa3, semilla, reducido);
+    else sincronizar(MOTOR_PLANO, grafo, enTiempo, pos2.current, firma2, alfa2, semilla, reducido);
+    encuadrar.current = !camaraTocada.current;
+    sucio.current = true;
+    if (reducido && vista3d && encuadrar.current) {
+      const c = camaraRef.current;
       const distancia = distanciaEncuadre(puntosVisibles(), c, ancho, alto);
-      return distancia === c.distancia ? c : acotarCamara({ ...c, distancia });
-    });
-    encuadrar.current = false;
+      if (distancia !== c.distancia) camaraRef.current = acotarCamara({ ...c, distancia });
+    }
+    repintar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enTiempo, vista3d, reducido]);
-  // Balanceo en reposo: un vaivén lento y distinto por nodo (solo al dibujar,
-  // no en la física) para que el árbol nunca parezca una foto. Con movimiento
-  // reducido no hay balanceo; en 3D tampoco, el giro ya da vida.
-  const [reloj, setReloj] = useState(0);
-  useEffect(() => {
-    if (reducido || vista3d) return;
-    let id = 0;
-    const paso_ = (t: number) => {
-      setReloj(t / 1000);
-      id = requestAnimationFrame(paso_);
-    };
-    id = requestAnimationFrame(paso_);
-    return () => cancelAnimationFrame(id);
-  }, [reducido, vista3d]);
-  const vaiven = (id: string, peso: number) => {
-    if (reducido || vista3d) return { x: 0, y: 0 };
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    const fase = (h % 628) / 100;
-    const amp = 1.6 + Math.min(2.5, peso) * 0.5;
-    return { x: Math.sin(reloj * 0.7 + fase) * amp, y: Math.cos(reloj * 0.55 + fase * 1.3) * amp * 0.8 };
+  }, [grafo, enTiempo, vista3d, reducido]);
+  /** Vuelve a dar energía a la simulación plana (al arrastrar un nodo o el fondo). */
+  const reavivar = (energia = 0.4) => {
+    if (reducido) repintar();
+    else alfa2.current = Math.max(alfa2.current, energia);
   };
-  // Giro automático en 3D: cuando nadie toca el árbol durante ESPERA_GIRO_MS
-  // (ni arrastra, ni tiene el ratón sobre un nodo) la guiñada avanza despacio.
-  // Con movimiento reducido, el árbol no gira solo.
+  /** Construye la escena con lo que hay en los refs y la pinta en el canvas. */
+  const pintar = () => {
+    const c = ctx.current;
+    const lienzo = lienzoRef.current;
+    if (!c || !lienzo) return;
+    const escena = construirEscena({
+      modo: c.vista3d ? '3d' : 'plana',
+      grafo: c.grafo,
+      ids: c.enTiempo,
+      pos2: pos2.current,
+      pos3: pos3.current,
+      camara: camaraRef.current,
+      vista: vistaRef.current,
+      reloj: c.reducido || c.vista3d ? null : relojRef.current,
+      ancho,
+      alto,
+      estiloDe: c.estiloDe,
+      trazoDe: (t) => TRAZO[t],
+      foco: focoActual(),
+      iluminados: c.iluminados,
+      seleccion: c.seleccion,
+    });
+    escenaRef.current = escena;
+    registrarEscena(lienzo, escena);
+    sucio.current = false;
+    // Sin contexto 2D (jsdom en los tests) la escena queda registrada y no se pinta.
+    const ctx2d = contexto2d(lienzo);
+    if (!ctx2d) return;
+    const a = ajuste.current;
+    dibujar(ctx2d, escena, { paleta: paleta.current, fuente: fuente.current, escala: a.escala, dx: a.dx, dy: a.dy, anchoPx: lienzo.width, altoPx: lienzo.height });
+  };
+  // Tamaño real del canvas: sigue al de su caja (y a la densidad de píxeles) y
+  // encaja el lienzo lógico centrado y sin deformar, como hacía el viewBox del SVG.
   useEffect(() => {
-    if (!vista3d || reducido) return;
+    const lienzo = lienzoRef.current;
+    if (!lienzo) return;
+    const medir = () => {
+      const caja = lienzo.getBoundingClientRect();
+      const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      const anchoPx = Math.round(caja.width * dpr);
+      const altoPx = Math.round(caja.height * dpr);
+      if (anchoPx > 0 && altoPx > 0 && (lienzo.width !== anchoPx || lienzo.height !== altoPx)) {
+        lienzo.width = anchoPx;
+        lienzo.height = altoPx;
+      }
+      ajuste.current = { ...ajusteLienzo(ancho, alto, anchoPx, altoPx), anchoPx, altoPx };
+      sucio.current = true;
+      pintar();
+    };
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(medir);
+    observador.observe(lienzo);
+    return () => observador.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vacio]);
+  // Los colores son los tokens de styles.css: se releen al cambiar el tema (data-theme
+  // en la raíz o la preferencia del sistema) y la fuente, una vez.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const raiz = document.documentElement;
+    const leerFuente = () => {
+      const f = typeof getComputedStyle === 'function' ? getComputedStyle(raiz).getPropertyValue('--font-sans').trim() : '';
+      fuente.current = f || 'system-ui, sans-serif';
+    };
+    leerFuente();
+    const refrescar = () => {
+      paleta.current.refrescar();
+      leerFuente();
+      sucio.current = true;
+      pintar();
+    };
+    const observador = typeof MutationObserver === 'function' ? new MutationObserver(refrescar) : null;
+    observador?.observe(raiz, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+    const medio = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
+    medio?.addEventListener?.('change', refrescar);
+    return () => {
+      observador?.disconnect();
+      medio?.removeEventListener?.('change', refrescar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vacio]);
+  // Tras cada render de React (cambió lo visible, la selección, la búsqueda, el
+  // color o la vista) se vuelve a pintar una vez; con animación el bucle también lo haría.
+  useEffect(() => {
+    sucio.current = true;
+    pintar();
+  });
+  // EL BUCLE: un solo requestAnimationFrame para la física, el encuadre, el giro
+  // automático, el vaivén y el pintado. Con movimiento reducido no hay bucle.
+  useEffect(() => {
+    if (reducido || vacio) return;
     let id = 0;
     let previo = performance.now();
     ultimoToque.current = previo;
-    const girar = (t: number) => {
+    const cuadro = (t: number) => {
       const dt = Math.min(0.1, Math.max(0, (t - previo) / 1000));
       previo = t;
-      if (encuadrar.current) {
-        const objetivo = distanciaEncuadre(puntosVisibles(), camaraRef.current, ancho, alto);
-        const delta = objetivo - camaraRef.current.distancia;
-        if (Math.abs(delta) < 0.5) {
-          // Encajado: se fija el valor exacto y, si la simulación ya se asentó, se deja de ajustar.
-          if (asentada3()) encuadrar.current = false;
-          if (delta !== 0) setCamara((c) => acotarCamara({ ...c, distancia: objetivo }));
-        } else setCamara((c) => acotarCamara({ ...c, distancia: c.distancia + delta * 0.15 }));
+      const c = ctx.current;
+      if (c) {
+        if (c.vista3d) {
+          if (alfa3.current > 0.03) {
+            for (let k = 0; k < 2; k++) paso3d(c.grafo, c.enTiempo, pos3.current, alfa3.current);
+            alfa3.current = Math.max(0.02, alfa3.current * 0.975);
+            sucio.current = true;
+          }
+          if (encuadrar.current) {
+            const cam = camaraRef.current;
+            const objetivo = distanciaEncuadre(puntosVisibles(), cam, ancho, alto);
+            const delta = objetivo - cam.distancia;
+            if (Math.abs(delta) < 0.5) {
+              // Encajado: se fija el valor exacto y, si la simulación ya se asentó, se deja de ajustar.
+              if (alfa3.current <= 0.03) encuadrar.current = false;
+              if (delta !== 0) {
+                camaraRef.current = acotarCamara({ ...cam, distancia: objetivo });
+                sucio.current = true;
+              }
+            } else {
+              camaraRef.current = acotarCamara({ ...cam, distancia: cam.distancia + delta * 0.15 });
+              sucio.current = true;
+            }
+          }
+          // Giro automático: cuando nadie toca el árbol durante ESPERA_GIRO_MS (ni
+          // arrastra, ni tiene el ratón sobre un nodo) la guiñada avanza despacio. Solo la guiñada.
+          if (t - ultimoToque.current > ESPERA_GIRO_MS && !focoActual() && !arrastreCamara.current) {
+            const cam = camaraRef.current;
+            camaraRef.current = acotarCamara({ ...cam, guinada: cam.guinada + VELOCIDAD_GIRO * dt });
+            sucio.current = true;
+          }
+        } else {
+          if (alfa2.current > 0.03) {
+            // La física plana (lib/arbol.ts, repulsión y separación de etiquetas en
+            // O(n²)) puede pasar de 15 ms por paso con cientos de nodos; si un paso
+            // se come el presupuesto del cuadro, se da uno solo (el árbol se asienta
+            // más despacio, pero no a tirones).
+            const t0 = performance.now();
+            paso(c.grafo, c.enTiempo, pos2.current, alfa2.current);
+            if (performance.now() - t0 < 5) paso(c.grafo, c.enTiempo, pos2.current, alfa2.current);
+            alfa2.current = Math.max(0.02, alfa2.current * 0.975);
+            sucio.current = true;
+          }
+          // El vaivén en reposo mueve el árbol cada cuadro.
+          relojRef.current = t / 1000;
+          sucio.current = true;
+        }
+        if (sucio.current) pintar();
       }
-      if (t - ultimoToque.current > ESPERA_GIRO_MS && !hoverRef.current && !arrastreCamara.current) {
-        setCamara((c) => acotarCamara({ ...c, guinada: c.guinada + VELOCIDAD_GIRO * dt }));
-      }
-      id = requestAnimationFrame(girar);
+      id = requestAnimationFrame(cuadro);
     };
-    id = requestAnimationFrame(girar);
+    id = requestAnimationFrame(cuadro);
     return () => cancelAnimationFrame(id);
-  }, [vista3d, reducido]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista3d, reducido, vacio]);
   const nodoSel = seleccion ? grafo.porId.get(seleccion) ?? null : null;
   // Familias de mecanismo: orden estable por primera aparición entre las hipótesis visibles.
   const clusterDe = useMemo(() => new Map(estado.hipotesis.filter((x) => x.investigacionId === inv.id).map((x) => [x.id, x.cluster || 'Sin cluster'])), [estado.hipotesis, inv.id]);
@@ -430,132 +537,187 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
   // Resaltar solo al pasar el ratón (como Obsidian): el nodo y sus vecinos vivos, el
   // resto atenuado. La selección (el último nodo abierto) conserva su anillo y su
   // panel, pero no atenúa a los demás: sin ratón encima se ve el árbol entero
-  // (petición de Emir, 16 de septiembre de 2026).
-  const vecinosFoco = useMemo(() => (foco ? new Set(grafo.vecinos.get(foco) ?? []) : null), [grafo, foco]);
-  const atenuar = iluminados.size > 0 || foco !== null;
-  const destacado = (id: string) => (iluminados.size > 0 ? iluminados.has(id) : foco === null || foco === id || (vecinosFoco?.has(id) ?? false));
+  // (petición de Emir, 16 de septiembre de 2026). Lo calcula la escena
+  // (lib/lienzo_arbol.ts) a partir del nodo bajo el ratón y de la búsqueda.
+  /** Relleno, anillo y rayas de un nodo: lo que la escena necesita de los modos de color. */
+  const estiloDe = (n: NodoArbol): EstiloNodo => ({
+    relleno: colorDe(n),
+    anillo: n.alerta ? 'var(--red)' : anilloDe(n) ?? (sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)'),
+    anchoAnillo: n.alerta ? 2 : anilloDe(n) ? 3 : 1.5,
+    guion: n.estado === 'descartada' ? '3 2' : sinDato(n) || (anilloDe(n) && claveDistancia(n) === 'nulo') ? '2 2' : null,
+  });
+  ctx.current = { grafo, enTiempo, vista3d, reducido, iluminados, seleccion, estiloDe };
 
   // La rueda va con un oyente nativo no pasivo: React registra onWheel como
   // pasivo y preventDefault no haría nada (la página haría scroll). En la vista
   // plana acerca alrededor del cursor; en 3D cambia la distancia de la cámara.
   useEffect(() => {
-    const svg = svgRef.current;
+    const svg = lienzoRef.current;
     if (!svg) return;
     const alRueda = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       if (vista3d) {
         ultimoToque.current = performance.now();
+        camaraTocada.current = true;
         encuadrar.current = false;
-        setCamara((c) => acotarCamara({ ...c, distancia: c.distancia / factor }));
+        const c = camaraRef.current;
+        camaraRef.current = acotarCamara({ ...c, distancia: c.distancia / factor });
+        sucio.current = true;
+        if (reducido) repintar();
         return;
       }
       const p = enLienzo(e.clientX, e.clientY);
-      setVista((v) => {
-        const k = Math.max(0.25, Math.min(4, v.k * factor));
-        // Zoom alrededor del cursor: el punto bajo el ratón no se mueve.
-        return { k, x: p.x - ((p.x - v.x) * k) / v.k, y: p.y - ((p.y - v.y) * k) / v.k };
-      });
+      const v = vistaRef.current;
+      const k = Math.max(0.25, Math.min(4, v.k * factor));
+      // Zoom alrededor del cursor: el punto bajo el ratón no se mueve.
+      vistaRef.current = { k, x: p.x - ((p.x - v.x) * k) / v.k, y: p.y - ((p.y - v.y) * k) / v.k };
+      sucio.current = true;
+      if (reducido) repintar();
     };
     svg.addEventListener('wheel', alRueda, { passive: false });
     return () => svg.removeEventListener('wheel', alRueda);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista3d, vacio]);
+  }, [vista3d, vacio, reducido]);
+  /** El nodo bajo el puntero según la última escena pintada. */
+  const nodoEn = (e: React.PointerEvent | React.MouseEvent): NodoArbol | null => {
+    const escena = escenaRef.current;
+    if (!escena) return null;
+    const p = puntoLogico(e.clientX, e.clientY);
+    const id = nodoBajoPuntero(escena, p.x, p.y);
+    return id ? grafo.porId.get(id) ?? null : null;
+  };
+  const ponerHover = (id: string | null) => {
+    if (hoverRef.current === id) return;
+    hoverRef.current = id;
+    sucio.current = true;
+    if (reducido) repintar();
+    else pintar();
+  };
   const empezarArrastre = (e: React.PointerEvent) => {
-    const nodo = (e.target as Element).closest('.grafo-nodo') as SVGGElement | null;
+    const nodo = nodoEn(e);
     if (vista3d) {
       ultimoToque.current = performance.now();
-      // En 3D los nodos no se arrastran (el clic llega entero a pulsar); el fondo gira la cámara.
-      if (nodo) return;
+      // En 3D los nodos no se arrastran: soltar sin mover es pulsar; el fondo gira la cámara.
+      if (nodo) {
+        pulsacion.current = { id: nodo.id, x0: e.clientX, y0: e.clientY, movido: false };
+        return;
+      }
       (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
       arrastreCamara.current = { x: e.clientX, y: e.clientY };
       return;
     }
     if (nodo) {
-      // Sin capturar el puntero: si el SVG lo captura, el navegador manda el
-      // clic al SVG y la esfera nunca recibe onClick (no se abría el panel).
-      const id = nodo.getAttribute('data-id');
-      const p = id ? posiciones.get(id) : undefined;
-      if (id && p) {
-        arrastreNodo.current = { id, x0: e.clientX, y0: e.clientY, movido: false };
+      const p = pos2.current.get(nodo.id);
+      if (p) {
+        arrastreNodo.current = { id: nodo.id, x0: e.clientX, y0: e.clientY, movido: false };
         p.fijo = true;
       }
       return;
     }
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-    arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y };
+    arrastre.current = { x: e.clientX, y: e.clientY, vx: vistaRef.current.x, vy: vistaRef.current.y };
   };
   const mover = (e: React.PointerEvent) => {
+    if (pulsacion.current) {
+      if (Math.hypot(e.clientX - pulsacion.current.x0, e.clientY - pulsacion.current.y0) > 4) pulsacion.current.movido = true;
+      return;
+    }
     if (arrastreCamara.current) {
       // Girar la cámara: el movimiento horizontal es guiñada y el vertical, cabeceo.
-      // Los signos hacen que el frente del árbol siga al puntero.
+      // Los signos hacen que el frente del árbol siga al puntero. El giro es
+      // incremental (cada movimiento suma su diferencia a la cámara actual), así al
+      // topar con el cabeceo máximo la cámara responde en cuanto el puntero vuelve.
       const a = arrastreCamara.current;
       const dx = e.clientX - a.x;
       const dy = e.clientY - a.y;
       a.x = e.clientX;
       a.y = e.clientY;
       ultimoToque.current = performance.now();
-      setCamara((c) => acotarCamara({ ...c, guinada: c.guinada - dx * SENSIBILIDAD_GIRO, cabeceo: c.cabeceo + dy * SENSIBILIDAD_GIRO }));
+      camaraTocada.current = true;
+      encuadrar.current = false;
+      const c = camaraRef.current;
+      camaraRef.current = acotarCamara({ ...c, guinada: c.guinada - dx * SENSIBILIDAD_GIRO, cabeceo: c.cabeceo + dy * SENSIBILIDAD_GIRO });
+      sucio.current = true;
+      if (reducido) repintar();
       return;
     }
     if (arrastreNodo.current) {
       const a = arrastreNodo.current;
-      const p = posiciones.get(a.id);
+      const p = pos2.current.get(a.id);
       if (!p) return;
       if (Math.hypot(e.clientX - a.x0, e.clientY - a.y0) > 4) a.movido = true;
       const l = enLienzo(e.clientX, e.clientY);
       // Del lienzo a las coordenadas del grafo (deshaciendo la vista).
-      p.x = (l.x - vista.x) / vista.k;
-      p.y = (l.y - vista.y) / vista.k;
+      const v = vistaRef.current;
+      p.x = (l.x - v.x) / v.k;
+      p.y = (l.y - v.y) / v.k;
       p.vx = 0;
       p.vy = 0;
+      sucio.current = true;
       reavivar(0.35); // los vecinos siguen al que se arrastra
       return;
     }
-    if (!arrastre.current) return;
-    const a = arrastre.current;
-    // Al agarrar el árbol, las esferas no van pegadas al fondo: reciben un
-    // impulso contrario, se columpian y vuelven a su sitio tiradas por los
-    // enlaces (el tronco está fijo). Es la sacudida de un árbol de verdad.
-    const dx = e.clientX - (a.ux ?? a.x);
-    const dy = e.clientY - (a.uy ?? a.y);
-    a.ux = e.clientX;
-    a.uy = e.clientY;
-    if (!reducido) {
-      for (const p of posiciones.values()) {
-        if (p.fijo) continue;
-        p.vx -= (dx * 0.12) / vista.k;
-        p.vy -= (dy * 0.12) / vista.k;
+    if (arrastre.current) {
+      const a = arrastre.current;
+      // Al agarrar el árbol, las esferas no van pegadas al fondo: reciben un
+      // impulso contrario, se columpian y vuelven a su sitio tiradas por los
+      // enlaces (el tronco está fijo). Es la sacudida de un árbol de verdad.
+      const dx = e.clientX - (a.ux ?? a.x);
+      const dy = e.clientY - (a.uy ?? a.y);
+      a.ux = e.clientX;
+      a.uy = e.clientY;
+      if (!reducido) {
+        for (const p of pos2.current.values()) {
+          if (p.fijo) continue;
+          p.vx -= (dx * 0.12) / vistaRef.current.k;
+          p.vy -= (dy * 0.12) / vistaRef.current.k;
+        }
+        reavivar(0.25);
       }
-      reavivar(0.25);
+      vistaRef.current = { ...vistaRef.current, x: a.vx + (e.clientX - a.x), y: a.vy + (e.clientY - a.y) };
+      sucio.current = true;
+      if (reducido) repintar();
+      return;
     }
-    setVista((v) => ({ ...v, x: a.vx + (e.clientX - a.x), y: a.vy + (e.clientY - a.y) }));
+    // Sin arrastre: el ratón ilumina el nodo que tiene debajo y sus vecinos.
+    ponerHover(nodoEn(e)?.id ?? null);
   };
-  const soltar = () => {
+  const soltar = (e: React.PointerEvent) => {
     if (arrastreCamara.current) {
       arrastreCamara.current = null;
       ultimoToque.current = performance.now();
     }
+    if (pulsacion.current) {
+      const p = pulsacion.current;
+      pulsacion.current = null;
+      if (!p.movido && e.type === 'pointerup') {
+        const n = grafo.porId.get(p.id);
+        if (n) pulsar(n, 1);
+      }
+    }
     if (arrastreNodo.current) {
-      const p = posiciones.get(arrastreNodo.current.id);
-      if (p && arrastreNodo.current.id !== 'objetivo') p.fijo = false;
-      // Un arrastre no es un clic: si se movió, no se despliega ni se selecciona.
-      const movido = arrastreNodo.current.movido;
+      const a = arrastreNodo.current;
+      const p = pos2.current.get(a.id);
+      if (p && a.id !== 'objetivo') p.fijo = false;
       arrastreNodo.current = null;
-      if (movido) {
-        reavivar(0.3);
-        ultimoArrastreMovido.current = true;
-        return;
+      // Un arrastre no es un clic: si se movió, no se despliega ni se selecciona.
+      if (a.movido) reavivar(0.3);
+      else if (e.type === 'pointerup') {
+        const n = grafo.porId.get(a.id);
+        if (n) pulsar(n, 1);
       }
     }
     arrastre.current = null;
   };
-  const ultimoArrastreMovido = useRef(false);
+  const salir = () => {
+    ponerHover(null);
+  };
+  const dobleClic = (e: React.MouseEvent) => {
+    const n = nodoEn(e);
+    if (n?.href) window.location.hash = n.href;
+  };
   const pulsar = (n: NodoArbol, detalle: number) => {
-    if (ultimoArrastreMovido.current) {
-      ultimoArrastreMovido.current = false;
-      return;
-    }
     if (detalle > 1) return; // la segunda pulsación de un doble clic no vuelve a plegar
     ultimoToque.current = performance.now();
     setSeleccion(n.id);
@@ -573,55 +735,11 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     );
   }
 
-  const colocado = (id: string) => (vista3d ? posiciones3.has(id) : posiciones.has(id));
+  const colocado = (id: string) => (vista3d ? pos3.current.has(id) : pos2.current.has(id));
   const enlacesVisibles = grafo.enlaces.filter((e) => enTiempo.has(e.de) && enTiempo.has(e.a) && colocado(e.de) && colocado(e.a));
   const nodosVisibles = [...enTiempo].map((id) => grafo.porId.get(id)).filter((n): n is NodoArbol => Boolean(n) && colocado(n!.id));
   // La leyenda explica solo los tipos de nodo que existen en este árbol (visibles o plegados).
   const tiposPresentes = new Set(grafo.nodos.map((n) => n.tipo));
-  // Vista 3D: cada nodo visible se proyecta una vez por fotograma y se pinta de
-  // lejos a cerca; lo que queda detrás de la cámara no se dibuja.
-  const proyecciones = new Map<string, Proyeccion>();
-  let ordenados: NodoArbol[] = nodosVisibles;
-  if (vista3d) {
-    for (const n of nodosVisibles) proyecciones.set(n.id, proyectar(posiciones3.get(n.id)!, camara, ancho, alto));
-    // Los que quedan detrás de la cámara siguen montados con opacidad cero: desmontarlos y volverlos a montar reiniciaría su animación de entrada.
-    ordenados = ordenarPorProfundidad(nodosVisibles.map((n) => n.id), posiciones3, camara).map((id) => grafo.porId.get(id)!);
-  }
-
-  /** El círculo de un nodo con su relleno, su anillo y sus rayas: idéntico en las dos vistas. */
-  const circulo = (n: NodoArbol, r: number, sinTransicion: boolean) => (
-    <circle r={r} fill={colorDe(n)} stroke={n.alerta ? 'var(--red)' : anilloDe(n) ?? (sinDato(n) ? 'var(--text-3)' : n.tipo === 'rama' || n.tipo === 'area' ? 'var(--accent)' : 'var(--surface)')} strokeWidth={n.alerta ? 2 : anilloDe(n) ? 3 : 1.5} strokeDasharray={n.estado === 'descartada' ? '3 2' : sinDato(n) || (anilloDe(n) && claveDistancia(n) === 'nulo') ? '2 2' : undefined} style={sinTransicion ? ESTILO_3D : undefined} />
-  );
-  const etiqueta = (n: NodoArbol, y: number, opEt: number, sinTransicion = false) => (
-    <text y={y} textAnchor="middle" className="grafo-etiqueta" opacity={opEt} style={{ fontSize: n.tipo === 'objetivo' ? 13 : n.tipo === 'rama' || n.tipo === 'hipotesis' || n.tipo === 'experimento' || n.tipo === 'laboratorio' ? 10.5 : 9, ...(sinTransicion ? ESTILO_3D : undefined) }}>
-      {lineas(n.etiqueta).map((f, i) => (
-        <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
-          {f}
-        </tspan>
-      ))}
-    </text>
-  );
-  const iconos = (n: NodoArbol) => (
-    <>
-      {n.tipo === 'experimento' && <path d="M-4 -5 h8 v3 l3 6 a2 2 0 0 1 -2 3 h-10 a2 2 0 0 1 -2 -3 l3 -6 z" fill="none" stroke="#fff" strokeWidth={1.2} transform="scale(0.9)" />}
-      {n.tipo === 'laboratorio' && <path d="M-4.5 0.5 l3 3 l6 -7" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />}
-    </>
-  );
-  const claseNodo = (n: NodoArbol, vivo: boolean, sel: boolean) => `grafo-nodo grafo-${n.tipo} ${vivo ? '' : 'grafo-atenuado'} ${sel ? 'grafo-seleccionado' : ''} ${hover === n.id ? 'grafo-hover' : ''}`;
-  const propsNodo = (n: NodoArbol) => ({
-    onClick: (e: React.MouseEvent) => pulsar(n, e.detail),
-    onDoubleClick: () => {
-      if (n.href) window.location.hash = n.href;
-    },
-    onPointerEnter: () => setHover(n.id),
-    onPointerLeave: () => setHover((h) => (h === n.id ? null : h)),
-    role: 'button',
-    tabIndex: 0,
-    'aria-label': `${NOMBRE_TIPO[n.tipo]}: ${n.etiqueta}`,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') pulsar(n, 1);
-    },
-  });
 
   return (
     <div className="contenido contenido-ancho">
@@ -649,7 +767,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
             </button>
           </div>
           <input className="entrada entrada-s" style={{ width: 220 }} value={texto} placeholder="Buscar en el árbol" onChange={(e) => setTexto(e.target.value)} aria-label="Buscar en el árbol" />
-          <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); setVista({ x: 0, y: 0, k: 1 }); setCamara(camaraInicial()); }}>
+          <button type="button" className="btn btn-s" onClick={() => { setVisibles(visiblesIniciales(grafo, hip)); setSeleccion(null); vistaRef.current = { x: 0, y: 0, k: 1 }; camaraRef.current = camaraInicial(); camaraTocada.current = false; encuadrar.current = true; sucio.current = true; repintar(); }}>
             Plegar todo
           </button>
           <button type="button" className="btn btn-s" onClick={() => { setVisibles(new Set(grafo.nodos.map((n) => n.id))); }} title="Despliega hasta las fuentes: puede ser mucho">
@@ -659,73 +777,21 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       </div>
 
       <div className="grafo-marco">
-        <svg ref={svgRef} className="grafo" viewBox={vista3d ? `0 0 ${ancho} ${alto}` : `${-ancho / 2} ${-alto / 2} ${ancho} ${alto}`} role="img" aria-label={`Árbol de ${inv.titulo}${vista3d ? ' en tres dimensiones' : ''}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onPointerLeave={() => setHover(null)}>
-          {vista3d ? (
-            <g>
-              {enlacesVisibles.map((e) => {
-                const a = proyecciones.get(e.de);
-                const b = proyecciones.get(e.a);
-                if (!a || !b) return null;
-                const t = TRAZO[e.tipo];
-                const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
-                // La niebla del enlace es la del extremo más lejano; el grosor sigue a la escala media.
-                // Un extremo detrás de la cámara deja el enlace montado pero invisible.
-                const op = a.visible && b.visible ? (vivo ? 0.75 : 0.12) * Math.min(niebla(a.profundidad, camara), niebla(b.profundidad, camara)) : 0;
-                return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={t.color} strokeWidth={Math.max(0.4, t.ancho * ((a.escala + b.escala) / 2))} strokeDasharray={t.guion} opacity={op} className="grafo-enlace" style={ESTILO_3D} />;
-              })}
-              {ordenados.map((n) => {
-                const p = proyecciones.get(n.id)!;
-                const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3) * p.escala;
-                const vivo = destacado(n.id);
-                const sel = seleccion === n.id;
-                // La escala proyectada hace de zoom: las etiquetas pequeñas solo en los nodos cercanos.
-                const opEt = p.visible ? opacidadEtiqueta(n, p.escala, vivo && atenuar, sel || hover === n.id) : 0;
-                // La etiqueta encoge o crece con la profundidad (acotado para que siga leyéndose): otra pista de la tercera dimensión.
-                const kEtiqueta = Math.max(0.6, Math.min(1.25, p.escala));
-                return (
-                  <g key={n.id} data-id={n.id} className={claseNodo(n, vivo, sel)} transform={`translate(${p.x} ${p.y})`} opacity={p.visible ? niebla(p.profundidad, camara) : 0} style={ESTILO_3D} {...propsNodo(n)} tabIndex={p.visible ? 0 : -1} pointerEvents={p.visible ? undefined : 'none'} aria-hidden={p.visible ? undefined : true}>
-                    {n.tipo === 'objetivo' && <circle r={r + 6 * p.escala} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6 * p.escala} style={ESTILO_3D} />}
-                    {circulo(n, r, true)}
-                    <g transform={`scale(${p.escala})`}>{iconos(n)}</g>
-                    {opEt > 0.02 && (
-                      <g transform={`translate(0 ${r + 11}) scale(${kEtiqueta})`} style={ESTILO_3D}>
-                        {etiqueta(n, 0, opEt, true)}
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-          ) : (
-            <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
-              {enlacesVisibles.map((e) => {
-                const a = posiciones.get(e.de)!;
-                const b = posiciones.get(e.a)!;
-                const va = vaiven(e.de, grafo.porId.get(e.de)?.peso ?? 1);
-                const vb = vaiven(e.a, grafo.porId.get(e.a)?.peso ?? 1);
-                const t = TRAZO[e.tipo];
-                const vivo = !atenuar || (destacado(e.de) && destacado(e.a));
-                return <line key={`${e.de}|${e.a}|${e.tipo}`} x1={a.x + va.x} y1={a.y + va.y} x2={b.x + vb.x} y2={b.y + vb.y} stroke={t.color} strokeWidth={t.ancho} strokeDasharray={t.guion} opacity={vivo ? 0.75 : 0.12} className="grafo-enlace" />;
-              })}
-              {nodosVisibles.map((n) => {
-                const p = posiciones.get(n.id)!;
-                const r = RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
-                const vivo = destacado(n.id);
-                const sel = seleccion === n.id;
-                const opEt = opacidadEtiqueta(n, vista.k, vivo && atenuar, sel || hover === n.id);
-                const v = vaiven(n.id, n.peso);
-                return (
-                  <g key={n.id} data-id={n.id} className={claseNodo(n, vivo, sel)} transform={`translate(${p.x + v.x} ${p.y + v.y})`} {...propsNodo(n)}>
-                    {n.tipo === 'objetivo' && <circle r={r + 6} fill="none" stroke="var(--accent)" strokeOpacity={0.25} strokeWidth={6} />}
-                    {circulo(n, r, false)}
-                    {iconos(n)}
-                    {opEt > 0.02 && etiqueta(n, r + 11, opEt)}
-                  </g>
-                );
-              })}
-            </g>
-          )}
-        </svg>
+        <div>
+          <canvas ref={lienzoRef} className="grafo" data-vista={vista3d ? '3d' : 'plana'} role="img" aria-label={`Árbol de ${inv.titulo}${vista3d ? ' en tres dimensiones' : ''}: ${nodosVisibles.length} nodos y ${enlacesVisibles.length} enlaces visibles`} onPointerDown={empezarArrastre} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onPointerLeave={salir} onDoubleClick={dobleClic} />
+          {/* La misma información para el teclado y los lectores de pantalla: un botón por
+              nodo visible. Llevan las clases grafo-nodo y grafo-<tipo> que tenían las esferas
+              del SVG: son los nodos en el árbol de accesibilidad y así los localizan los tests. */}
+          <ul className="sr-only" role="list" aria-label="Nodos del árbol">
+            {nodosVisibles.map((n) => (
+              <li key={n.id}>
+                <button type="button" className={`grafo-nodo grafo-${n.tipo}`} data-id={n.id} aria-pressed={seleccion === n.id} onClick={() => pulsar(n, 1)} onDoubleClick={() => { if (n.href) window.location.hash = n.href; }} onFocus={() => ponerHover(n.id)} onBlur={() => ponerHover(null)}>
+                  {NOMBRE_TIPO[n.tipo]}: {n.etiqueta}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
         <aside className="grafo-panel">
           {nodoSel ? (
             <>
