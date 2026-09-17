@@ -14,9 +14,11 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
   if (puntos.length === 0) return null;
   const W = 640;
   const H = 190;
-  const ml = 34;
-  const mr = 12;
-  const mt = 12;
+  // Márgenes: a la izquierda caben "peldaños" y "fallos" enteros (con 34 se
+  // recortaban a "eldaños" y "fall"); arriba, el título del eje no pisa el número.
+  const ml = 62;
+  const mr = 26;
+  const mt = 24;
   const alturaBanda = 22;
   const mb = 30 + alturaBanda;
   const n = puntos.length;
@@ -29,6 +31,10 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
   const ultimo = puntos[n - 1]!;
   const terminadas = corridas.filter((c) => c.metrica).sort((a, b) => b.numero - a.numero);
   const yBanda = H - mb + 14;
+  // Las cruces de fallidos se centran en su punto pero sin salirse del marco ni
+  // pisar la etiqueta "fallos" (en el primer y el último punto quedaban cortadas).
+  const xBanda = (i: number) => Math.min(Math.max(x(i), ml + 14), W - mr - 14);
+  const marcaFallidos = (f: number) => (f <= 3 ? '×'.repeat(f) : `×${f}`);
   return (
     <Seccion
       titulo="Progreso de la investigación"
@@ -40,7 +46,7 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
         ))}
         <text className="gp-eje" x={ml - 4} y={yPeld(maxPeld) + 4} textAnchor="end">{maxPeld}</text>
         <text className="gp-eje" x={ml - 4} y={yPeld(0) + 4} textAnchor="end">0</text>
-        <text className="gp-eje gp-titulo-eje" x={ml - 4} y={mt - 2} textAnchor="end">peldaños</text>
+        <text className="gp-eje gp-titulo-eje" x={ml - 4} y={mt - 10} textAnchor="end">peldaños</text>
         {puntos.filter((p) => p.cambioDeArnes).map((p) => (
           <g key={`arnes-${p.indice}`}>
             <line className="gp-arnes" x1={x(p.indice)} x2={x(p.indice)} y1={mt} y2={H - mb + 4} />
@@ -55,8 +61,8 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
               <title>{`Corrida ${p.corrida}, iteración ${p.iteracion}: ${p.peldanosTotales} peldaños (${p.peldanosSubidos} subidos, ${p.peldanosBajados} bajados), certeza máxima ${PELDANO[p.maxPeldano] ?? '?'}, ${p.hipotesisVivas} hipótesis vivas, ${p.hechosAcumulados} hechos acumulados, ${p.usdAcumulado.toFixed(2)} USD acumulados`}</title>
             </circle>
             {p.fallidos > 0 && (
-              <text className="gp-fallido" x={x(p.indice)} y={yBanda} textAnchor="middle">
-                {'×'.repeat(Math.min(p.fallidos, 4))}
+              <text className="gp-fallido" x={xBanda(p.indice)} y={yBanda} textAnchor="middle">
+                {marcaFallidos(p.fallidos)}
                 <title>{`${p.fallidos} fallidos en la iteración ${p.iteracion} de la corrida ${p.corrida} (pasos, pistas, cierres del Killer y afirmaciones bloqueadas)`}</title>
               </text>
             )}
