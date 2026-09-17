@@ -204,7 +204,7 @@ class Supervisor:
                     cambiado = True
                 if c["estado"] == "esperando_plan" and c["autoAprobarPlanSegundos"] is not None:
                     it = A.iteracion_actual_de(e2, c)
-                    if it and not it["planAprobado"] and ahora - it["planPropuestoEn"] >= c["autoAprobarPlanSegundos"] * 1000:
+                    if it and not it["planAprobado"] and ahora - it["planPropuestoEn"] >= c["autoAprobarPlanSegundos"] * 1000 and c["estado"] not in ("detenida", "terminada"):
                         it["planAprobado"] = True
                         it["empezadaEn"] = ahora
                         c["estado"] = "en_marcha"
@@ -1224,8 +1224,14 @@ class Supervisor:
         it = P.nueva_iteracion(c["id"], numero, ahora, plan, max(sum(p["presupuesto"] or 0 for p in plan), 20))
 
         def fn(e2: dict[str, Any]) -> bool:
-            e2["iteraciones"].append(it)
             c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
+            if c2["estado"] in ("detenida", "terminada"):
+                # Una persona la detuvo mientras el modelo proponía el plan: la orden
+                # de detener manda y el plan se descarta. Antes esta escritura la
+                # resucitaba a "esperando_plan" y quedaban dos corridas vivas sobre
+                # la misma investigación (corridas 11 y 12, 17 de septiembre de 2026).
+                return False
+            e2["iteraciones"].append(it)
             c2["iteracionActual"] = numero
             c2["estado"] = "esperando_plan"
             A.con_evento(e2, inv["id"], "corrida_estado", f"Plan de la iteración {numero} propuesto: {len(plan)} pasos. Espera tu aprobación.", f"#/investigaciones/{inv['id']}/corrida", ahora)

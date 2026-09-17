@@ -800,3 +800,38 @@ def test_cerrar_una_iteracion_sin_pasos_ejecutados_no_llama_a_ningun_modelo(monk
     it2 = next(i for i in al.estado["iteraciones"] if i["id"] == ids["it"])
     assert it2["terminadaEn"] and it2["resumen"].startswith("Iteración cerrada sin ejecutar ningún paso")
     assert any(ev["tipo"] == "iteracion_terminada" and "sin ejecutar" in ev["texto"] for ev in al.estado["eventos"])
+
+
+def test_detener_la_corrida_mientras_se_propone_el_plan_no_la_resucita(monkeypatch):
+    """17 de septiembre de 2026: la orden de detener llegó mientras el modelo
+    proponía el plan y la escritura del plan devolvió la corrida a
+    "esperando_plan"; quedaron dos corridas vivas sobre la misma investigación."""
+    al, ids = _preparar()
+
+    def detener_durante_el_plan(kw):
+        al.mutar(lambda e: A.detener_corrida(e, ids["cor"], "La persona la detuvo", 5), "detener")
+        return SimpleNamespace(plan=[SimpleNamespace(tipo="literatura", titulo="Leer", detalle="d", valor_decision="", espera="", si_no_aparece="")])
+
+    sup, ctx, llamadas = _supervisor(al, ids, {"plan": detener_durante_el_plan}, monkeypatch)
+    sup.programas.plan = "plan"
+
+    async def sin_red(*a, **k):
+        return ""
+
+    monkeypatch.setattr(CO.T, "modelo_de_mundo_para", sin_red)
+    monkeypatch.setattr(CO.LEC, "para", sin_red)
+
+    def preparar(e):
+        next(i for i in e["investigaciones"] if i["id"] == ids["inv"])["_misionIntentada"] = True
+        c = next(x for x in e["corridas"] if x["id"] == ids["cor"])
+        c["_preguntaIntentada"] = True
+        c["pregunta"] = {"enunciado": "¿Qué distingue a un biomarcador?"}
+        return True
+
+    al.mutar(preparar, "preparar")
+    c = next(x for x in al.estado["corridas"] if x["id"] == ids["cor"])
+    n_antes = len(al.estado["iteraciones"])
+    asyncio.run(sup._proponer_plan(c, None))
+    c2 = next(x for x in al.estado["corridas"] if x["id"] == ids["cor"])
+    assert c2["estado"] == "detenida"
+    assert len(al.estado["iteraciones"]) == n_antes
