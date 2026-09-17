@@ -605,3 +605,7 @@ cosas déjalas en pendiente para mañana"). Ninguno se toca sin su visto bueno.
   pasos se omitieron.
 - La métrica de la corrida 8 dice `hipotesisNuevas: 5` cuando no nació ninguna
   hipótesis; revisar qué cuenta rosa/progreso.py en ese campo.
+- (17 de septiembre, árbol en canvas) Queda la repulsión O(n²) de `paso` en
+  frontend/src/lib/arbol.ts y de `paso3d` (rejilla espacial o Barnes-Hut) y
+  llevar la física a un Web Worker; hoy la vista plana asentándose va a 56 fps
+  con un presupuesto de 5 ms por paso.
