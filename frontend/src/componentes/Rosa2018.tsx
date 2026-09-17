@@ -677,7 +677,8 @@ export function DecisionesKiller({ h, decisiones, ahora, conjuntoDorado = [] }: 
       {h.decisionKiller && (
         <div className="acciones" style={{ marginBottom: 8 }}>
           <Chip tono={DECISION_KILLER[h.decisionKiller].tono}>{DECISION_KILLER[h.decisionKiller].etiqueta}</Chip>
-          <span className="meta">{DECISION_KILLER[h.decisionKiller].nota}</span>
+          {/* El motivo real de la última decisión (por ejemplo "suspender: riesgo de sesgo: las tres afirmaciones proceden de una única fuente") y no la nota genérica: con "no evaluable" fijo, una comprobación que había fallado se leía como "no es un fallo de la hipótesis". */}
+          <span className="meta">{[...(h.revisiones ?? [])].reverse().find((r) => r.accion === 'killer')?.nota || DECISION_KILLER[h.decisionKiller].nota}</span>
         </div>
       )}
       {!h.decisionKiller && <p className="meta">El Killer todavía no juzgo esta versión. Pasa por el en el paso de hipótesis de la siguiente iteración, o al pedir una revisión.</p>}

@@ -407,3 +407,25 @@ describe('ruta evaluada', () => {
     expect(componentesDe(estado, { ...base, ruta: 'texto' as unknown as Hipotesis['ruta'] }).ruta).toBeNull();
   });
 });
+
+describe('motivo del Killer y razones del juez', () => {
+  it('lee el motivo de la última revisión del Killer y cuenta las razones en contra de la conclusión', () => {
+    const estado = estadoDeMuestra();
+    const base = estado.hipotesis[0]!;
+    const h = {
+      ...base,
+      decisionKiller: 'suspender',
+      revisiones: [
+        { fecha: 1, quien: 'rosa', accion: 'killer', nota: 'suspender: primera', aCiegas: false },
+        { fecha: 2, quien: 'rosa', accion: 'suspendida', nota: 'otra cosa', aCiegas: false },
+        { fecha: 3, quien: 'rosa', accion: 'killer', nota: 'suspender: Hace falta más o mejor evidencia antes de seguir: sesgo_evidencia: una sola fuente', aCiegas: false },
+      ],
+      conclusion: { ...(base.conclusion ?? {}), enContra: ['No consta ningún par de ensayos comparables', 'Sin comparabilidad analítica', '', 7] },
+    } as unknown as Hipotesis;
+    const c = componentesDe(estado, h);
+    expect(c.killerMotivo).toBe('suspender: Hace falta más o mejor evidencia antes de seguir: sesgo_evidencia: una sola fuente');
+    expect(c.razonesEnContra).toBe(2);
+    expect(componentesDe(estado, { ...base, revisiones: [], conclusion: null } as unknown as Hipotesis).killerMotivo).toBeNull();
+    expect(componentesDe(estado, { ...base, revisiones: 'texto', conclusion: { enContra: 'no lista' } } as unknown as Hipotesis).razonesEnContra).toBe(0);
+  });
+});

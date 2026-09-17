@@ -139,3 +139,39 @@ def test_socava_marca_el_apoyo_atacado_y_sin_destino_se_descarta(monkeypatch):
         assert EV.apoyos_existentes(h) == []
     finally:
         al.cerrar()
+
+
+def test_evidencia_nueva_pide_revision_del_killer_si_cambia_lo_juzgado(monkeypatch):
+    """Regresión del 17 de septiembre de 2026: una hipótesis suspendida el día 15 por
+    "una sola fuente" seguía con esa decisión tras recibir catorce afirmaciones de
+    seis fuentes, porque la revisión automática enlazaba evidencia sin pedir que el
+    Killer volviera a juzgarla. Con una fuente nueva o dos o más afirmaciones se marca
+    `_revisionPedida`, que el paso de hipótesis consume para volver a pasar el Killer."""
+    al = _preparar()
+    try:
+        ctx = _ctx(al, [Rel(1, "apoya"), Rel(2, "contradice", "sentido contrario")], [], monkeypatch)
+        asyncio.run(EV.acumular(ctx, 2))
+        h = al.estado["hipotesis"][0]
+        assert h.get("_revisionPedida") is True  # fuente nueva (kim) y dos afirmaciones
+    finally:
+        al.cerrar()
+
+
+def test_una_sola_afirmacion_indirecta_de_una_fuente_ya_conocida_no_pide_revision(monkeypatch):
+    al = _preparar()
+    try:
+        # La hipótesis ya tiene a "xie" en su procedencia; la única candidata de xie es af-4, que ya tenía.
+        # Se fuerza una candidata de kim pero se hace que kim ya conste como fuente conocida.
+        def fn(e):
+            h = e["hipotesis"][0]
+            h["procedencia"]["fuentes"].append({"id": "kim", "referencia": "Kim et al., 2025", "titulo": "Plasma GFAP in ADNI", "cohorte": "ADNI"})
+            return True
+
+        al.mutar(fn, "test")
+        ctx = _ctx(al, [Rel(1, "apoya_indirecta")], [], monkeypatch)
+        asyncio.run(EV.acumular(ctx, 2))
+        h = al.estado["hipotesis"][0]
+        assert len([a for a in h["afirmaciones"] if a.get("relacion")]) == 1
+        assert not h.get("_revisionPedida")  # una afirmación indirecta de una fuente ya conocida no cambia lo juzgado
+    finally:
+        al.cerrar()

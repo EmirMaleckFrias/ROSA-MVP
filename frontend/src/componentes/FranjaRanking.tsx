@@ -169,8 +169,13 @@ export function FranjaRanking({ estado, h, explicar = false }: { estado: EstadoP
         <Chip tono={c.socavan > 0 ? 'aviso' : 'borde'} title={`${DEFINICIONES.socavan}${c.socavadas > 0 ? ` Hoy ${plural(c.socavadas, 'apoyo socavado no cuenta', 'apoyos socavados no cuentan')}.` : ''}`}>
           {c.socavan === 1 ? '1 socava' : `${formatearEntero(c.socavan)} socavan`}
         </Chip>
+        {c.razonesEnContra > 0 && (
+          <Chip tono="aviso" title="Razones en contra que el juez enumera en la conclusión: no son afirmaciones verificadas (esas son las de 'en contra' y 'socavan'), sino ataques al paso inferencial o cosas que faltan. Se cuentan aparte para que '0 en contra' no se lea como 'sin objeciones'.">
+            {c.razonesEnContra === 1 ? '1 razón en contra (juez)' : `${formatearEntero(c.razonesEnContra)} razones en contra (juez)`}
+          </Chip>
+        )}
         {c.killer ? (
-          <Chip tono={etiquetaKiller(c.killer).tono} title={`${DEFINICIONES.killer} ${etiquetaKiller(c.killer).nota}`}>
+          <Chip tono={etiquetaKiller(c.killer).tono} title={`${DEFINICIONES.killer} ${c.killerMotivo ? `Motivo: ${c.killerMotivo}` : etiquetaKiller(c.killer).nota}`}>
             Killer: {etiquetaKiller(c.killer).etiqueta}
           </Chip>
         ) : (

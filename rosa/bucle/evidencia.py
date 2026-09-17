@@ -223,6 +223,15 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
             y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas - socavan} a favor, {indirectas} indirectas, {en_contra} en contra, {socavan} que socavan un apoyo), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else ""))
             y["_evidenciaNueva"] = iteracion
             y.pop("_conclusionIntentada", None)
+            # Evidencia nueva que cambia lo que el Killer juzgó (una fuente nueva o
+            # dos o más afirmaciones) pide una revisión: el paso de hipótesis de la
+            # siguiente iteración la vuelve a pasar por el Killer, que actualiza la
+            # decisión, las comprobaciones, la ruta, el perfil de la diana y las
+            # alternativas. Antes una hipótesis suspendida el 15 con tres
+            # afirmaciones de una fuente seguía "suspendida por una sola fuente" con
+            # catorce afirmaciones de seis fuentes (Emir, 17 de septiembre de 2026).
+            if nuevas_fuentes > 0 or len(aceptadas) >= 2:
+                y["_revisionPedida"] = True
             A.recalcular_bloqueos(e2, y)
             texto = f"Evidencia nueva para «{y['titulo'][:60]}»: {len(aceptadas)} afirmaciones" + (f", {en_contra} en contra" if en_contra else "") + (f", {socavan} que socavan un apoyo" if socavan else "") + (f", {nuevas_fuentes} fuentes nuevas" if nuevas_fuentes else "") + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else "")
             A.con_evento(e2, y["investigacionId"], "revision_automatica", texto, f"#/investigaciones/{y['investigacionId']}/hipotesis/{y['id']}", ahora)

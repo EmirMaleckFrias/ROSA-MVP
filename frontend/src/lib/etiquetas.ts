@@ -346,7 +346,7 @@ export const RELACION_TORNEO: Record<'distintas' | 'equivalentes' | 'a_subsume_b
 export const DECISION_KILLER: Record<DecisionKiller, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string }> = {
   avanzar: { etiqueta: 'Avanza', tono: 'ok', nota: 'Pasa las comprobaciones críticas y tiene predicción falsable. Puede ser candidata al laboratorio.' },
   reformular: { etiqueta: 'Reformular', tono: 'aviso', nota: 'Falla algo arreglable (causalidad, falsabilidad, factibilidad o redundancia). Rosa escribe una versión nueva y la vuelve a juzgar.' },
-  suspender: { etiqueta: 'Suspendida (no evaluable)', tono: 'borde', nota: 'Una comprobación crítica no se pudo hacer: una fuente no respondió o falta el dato. No es un fallo de la hipótesis.' },
+  suspender: { etiqueta: 'Suspendida', tono: 'borde', nota: 'Hace falta más o mejor evidencia antes de seguir: o falló una comprobación que suspende (riesgo de sesgo serio en toda la evidencia, sin fuente primaria, la diana no resuelve en las bases) o una comprobación crítica no se pudo hacer porque una fuente no respondió o falta el dato. El motivo exacto está en el registro de decisiones del Killer.' },
   descartar_en_contexto: { etiqueta: 'Descartar en este contexto', tono: 'mal', nota: 'La evidencia no la sostiene: citas que no resuelven, afirmaciones no sostenidas o un supuesto invalidante.' },
 };
 

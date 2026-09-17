@@ -53,6 +53,13 @@ export interface ComponentesRanking {
   /** Apoyos que hoy no cuentan porque alguien los socava. */
   socavadas: number;
   killer: DecisionKiller | null;
+  /** El motivo de la última decisión del Killer tal como quedó en las revisiones
+   *  ("suspender: Hace falta más o mejor evidencia..."); null si no consta. */
+  killerMotivo: string | null;
+  /** Razones en contra que el juez enumera en la conclusión. No son afirmaciones
+   *  verificadas (esas van en enContra y socavan): atacan el paso inferencial o
+   *  dicen lo que falta, y por eso se cuentan aparte. */
+  razonesEnContra: number;
   bloqueos: Bloqueo[];
   bloqueosOrigen: OrigenBloqueos;
   candidata: boolean;
@@ -259,6 +266,10 @@ export function componentesDe(estado: EstadoParaRanking, hipotesis: Hipotesis): 
   const pendiente = h.pendienteRevision;
   const direccion = clave(h.conclusion?.direccion);
   const killer = clave(h.decisionKiller);
+  const revisionesKiller = lista<{ accion?: unknown; nota?: unknown }>(h.revisiones).filter((r) => r && (r as { accion?: unknown }).accion === 'killer');
+  const ultimaKiller = revisionesKiller[revisionesKiller.length - 1];
+  const killerMotivo = ultimaKiller ? texto((ultimaKiller as { nota?: unknown }).nota).trim() || null : null;
+  const razonesEnContra = lista(h.conclusion?.enContra).filter((x) => typeof x === 'string' && x.trim()).length;
   const pasoRuta = clave(h.tarjeta?.pasoRuta);
   const r = h.ruta;
   const ruta = r && typeof r === 'object' && Number.isFinite(Number(r.cubiertos)) ? { cubiertos: Math.max(0, Math.min(8, Math.round(Number(r.cubiertos)))), siguiente: typeof r.siguiente === 'string' && r.siguiente.trim() ? (r.siguiente as PasoRutaTerapeutica) : null, coherente: r.coherente !== false } : null;
@@ -271,6 +282,8 @@ export function componentesDe(estado: EstadoParaRanking, hipotesis: Hipotesis): 
     socavan: evidencia.socavan,
     socavadas: evidencia.socavadas,
     killer: killer ? (killer as DecisionKiller) : null,
+    killerMotivo,
+    razonesEnContra,
     bloqueos,
     bloqueosOrigen: origen,
     candidata: Boolean(h.candidata),

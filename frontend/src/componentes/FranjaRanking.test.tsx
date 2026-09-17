@@ -331,3 +331,23 @@ describe('chip de la ruta evaluada', () => {
     expect(chips2.some((c) => c.startsWith('Ruta 8/8'))).toBe(true);
   });
 });
+
+describe('razones en contra del juez y motivo del Killer', () => {
+  it('cuenta aparte las razones del juez para que "0 en contra" no se lea como sin objeciones, y el chip del Killer lleva el motivo real', async () => {
+    const e = estadoDeMuestra();
+    const base = e.hipotesis[0]!;
+    const h = {
+      ...base,
+      decisionKiller: 'suspender',
+      revisiones: [{ fecha: 3, quien: 'rosa', accion: 'killer', nota: 'suspender: Hace falta más o mejor evidencia: sesgo_evidencia: una sola fuente', aCiegas: false }],
+      conclusion: { ...(base.conclusion ?? {}), enContra: ['a', 'b', 'c', 'd', 'e', 'f'] },
+    } as unknown as typeof base;
+    await act(async () => root.render(<FranjaRanking estado={e} h={h} />));
+    const chips = [...nodo.querySelectorAll('.chip')];
+    const textos = chips.map((c) => c.textContent ?? '');
+    expect(textos).toContain('6 razones en contra (juez)');
+    const killer = chips.find((c) => (c.textContent ?? '').startsWith('Killer:'))!;
+    expect(killer.textContent).toBe('Killer: Suspendida');
+    expect(killer.getAttribute('title')).toContain('sesgo_evidencia: una sola fuente');
+  });
+});
