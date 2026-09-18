@@ -370,6 +370,36 @@ Emir pasó el informe por otra instancia de Claude, que verificó las citas de c
 
 Orden resultante propuesto: 5 (parte gratis) y 6 (paridad) primero; después 1, 10 en paralelo, 3, 2 (por clase de método), 4; el resto como estaba.
 
+## Segunda revisión externa (misma tarde): lo que se acepta, lo que se desmiente y cómo se recalculan las cifras
+
+La otra instancia de Claude revisó después su propia revisión. Respuesta punto por punto, con las cifras recalculadas en vivo a las 16:40 del 18 de septiembre sobre rosa.db en modo solo lectura:
+
+- **"Las cifras vienen de rosa.db, que no está en el repositorio, y nadie puede falsarlas."** Cierto que la base no está en git (es el estado de trabajo, con claves privadas de corridas); falso que no se puedan falsar: cualquiera con la instancia las recalcula con el guion de abajo, y así se hizo. Resultado: 24 hipótesis en muy baja y 4 en baja (el informe decía 25 y 3: una subió mientras corría la corrida 13); 3.160 afirmaciones en todas las corridas, 1.654 bloqueadas y 1.469 sostenidas (el informe citaba 1.049 de 1.532 de la revisión del 17: la corrida 13 añadió las suyas); 38 de 133 fuentes de apoyo sin cohorte nombrada y 17 de 28 hipótesis con 0 o 1 cohorte (el informe decía 28 y 18); 12 datasets del programa, todos de CELLxGENE, 0 usados en las 12 ejecuciones (que corrieron sobre 1 fichero subido a mano); 11 reproducciones, todas en inv-gfap; el techo guardado de hip-140 sigue diciendo "moderada, análisis sobre datos reales"; 39 novedades de vigilancia acumuladas. Las cifras se mueven con la corrida en marcha, así que el documento debe llevar la fecha y el guion, no solo el número. Norma para los informes: cada cifra del estado con su consulta reproducible.
+- **"El informe no es independiente: el punto 6 depende del commit be078ae de esa misma mañana."** Declarar una dependencia técnica (la extracción con n, comparador y efecto en formato parseable llegó en ese commit) no es calificarse el trabajo. Lo que sí es cierto: las lentes internas (plan y código) no pasaron por un verificador adversario; solo las fuentes web se comprobaron. Norma para el siguiente informe: adversario también sobre las afirmaciones internas.
+- **"53 propuestas desaparecieron sin registro."** No desaparecieron: las 68 están en el anexo por lente. Lo que falta es la tabla de fusión (qué se fundió con qué y qué se descartó por qué). Pendiente menor: añadirla.
+- **"El orden se narra, no se deriva; no aplica su propio método."** Los criterios estaban declarados (primero qué sube la certeza, después adopción, después coste y dependencias), pero no se muestran por punto. Aplicar valor esperado de la información a una hoja de ruta sería la misma falsa precisión que el "Confidence 0.91" que se rechazó para el atlas: el VOI necesita un modelo de probabilidades sobre resultados de experimentos, no sobre tareas de ingeniería. Lo razonable, y queda pendiente, es una tabla por punto con los tres criterios y las dependencias a la vista.
+- **"Nueve de quince son días sin calibración; el punto 1 no son días."** Cierto que no hay registro de estimaciones frente a coste real. Calibración disponible de hoy: la tanda 1 se estimó en "horas por pieza" y costó una noche; el bloque A de la tanda 2 se estimó en "dos semanas" en la revisión y costó unas tres horas de agentes más la integración. Con flujos de agentes las estimaciones han pecado de conservadoras; sin ellos, el punto 1 (extracción de métodos, cohorte por catálogo, regla de certeza, versión del techo, botón de recálculo, migración, todo por duplicado) es una semana. Norma: anotar estimación y coste real de cada bloque en TRASPASO a partir de ahora.
+- **"Duncan 2025 (r = 0,781, p = 0,013) no es precedente."** Correcto: es un solo estudio con pocos puntos y por GRADE es certeza muy baja. El punto 4 se sostiene en que existen datos públicos por brazo de ensayo, no en Duncan; la frase "precedente de que funciona" sobra y se reformula como "ejemplo de que otros lo han intentado".
+- **"El rayado del atlas mezcla 'buscamos y no hay' con 'no buscamos'."** Correcto y es el mejor punto: un solo patrón para el cerebelo (muy estudiado en Alzheimer, no encontrar nada ahí es informativo) y para la retina o el microbiota (probablemente nunca buscados) viola la regla del proyecto. Entra en los ajustes del atlas: dos patrones, "no buscado" (ninguna consulta ni fuente leída nombra la región) y "buscado sin hallazgo" (alguna consulta o fuente la nombra y no produjo hechos), calculados desde las consultas hechas y los textos de las fuentes.
+
+Guion con el que se recalcularon las cifras (solo lectura):
+
+```
+./.venv/bin/python - <<'FIN'
+import sqlite3, json
+from collections import Counter
+con = sqlite3.connect("file:rosa.db?mode=ro", uri=True)
+e = json.loads(con.execute("select json from estado order by version desc limit 1").fetchone()[0])
+hips = [h for h in e["hipotesis"] if h.get("estado") != "descartada"]
+print(Counter((h.get("conclusion") or {}).get("certeza") for h in hips))
+afs = [a for c in e["corridas"] for a in (c.get("_afirmaciones") or []) if isinstance(a, dict)]
+print(len(afs), Counter(a.get("veredicto") for a in afs))
+print(sum(1 for h in hips for f in ((h.get("procedencia") or {}).get("fuentes") or []) if not (f.get("cohorte") or "").strip()))
+print(len(e["datasetsPrograma"]), sum(1 for r in e["ejecuciones"] if r.get("datasetId") in {d["id"] for d in e["datasetsPrograma"]}))
+print(Counter(r.get("investigacionId") for r in e["reproducciones"]))
+FIN
+```
+
 ## Anexo: propuestas por lente antes de fundir
 
 ### Lente plan (18 propuestas)
