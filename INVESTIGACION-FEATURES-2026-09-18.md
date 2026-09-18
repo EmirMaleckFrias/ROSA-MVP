@@ -352,6 +352,24 @@ Las cinco lentes coinciden en el diagnóstico: la literatura sola deja a las hip
 - ¿Cuánto tiempo pueden poner la médica (Allegri y su equipo) y un segundo revisor a etiquetar comprobaciones y decidir hipótesis, y quién es ese segundo revisor? El código del punto 10 es de días, pero sin unas 100 etiquetas por comprobación no hay kappa, no se puede validar al juez ni optimizar con GEPA, y la doble revisión con conflictos necesita dos personas reales con cuenta.
 - ¿Se invierten semanas en los análisis grandes (SEA-AD, tabla de brazos de ensayos, aleatorización mendeliana) antes del hito del MVP del 31 de octubre, o se cierran primero los bloques de días (puntos 1, 2, 3, 5, 6, 8) y los análisis grandes van después? Y en la misma línea: ¿existe ya un laboratorio del INTEC con el que fijar el contrato de retorno de datos previsto para la semana del 6 de octubre, o esa semana se dedica a la medición sobre datos públicos?
 
+## Revisión externa (otra instancia de Claude, 18 de septiembre) y ajustes al orden
+
+Emir pasó el informe por otra instancia de Claude, que verificó las citas de código contra el árbol. Lo que dijo, comprobado aquí de nuevo, y lo que queda como pendiente (para otro día; hoy no se toca código de esto):
+
+1. **El punto 1 es real y es el mejor de la lista.** `rosa/certeza.py:868` devuelve "alta" si hay evidencia directa y `n >= 2`, y ese `n` sale de `cohortes()` (`certeza.py:668`), que solo lee `procedencia.fuentes`, es decir, literatura. Un análisis in silico abre "alta" acompañado de dos cohortes de literatura ajenas a él, y ese mismo análisis nunca aporta su propia cohorte. Bajo GRADE, "alta" pide réplica de la evidencia directa. Pendiente: que "alta" exija dos cohortes de evidencia directa (o directa más réplica independiente del mismo análisis), que la afirmación derivada de un análisis lleve la cohorte del dataset, y que el dataset entre como fuente.
+
+2. **El "fallo serio" de la hipótesis hip-140 era estado rancio, no regla viva.** `directa()` (`certeza.py:725`) ya excluye lo sintético y hay un respaldo por nombre de fichero para registros anteriores al 17 de septiembre (`certeza.py:345`). El techo "moderada por análisis sobre datos reales" se calculó con una regla anterior. El resumen en el chat lo presentó como fallo serio sin esa distinción; el documento lo clasificaba bien. El remedio es el mismo (recálculo por regla con la versión de la regla escrita en cada techo), y la tanda 2 ya recalcula techos al arrancar y al cerrar (M-14), así que al reiniciar el servidor debería corregirse solo; comprobarlo tras el reinicio.
+
+3. **Orden: el punto 5 va primero, hoy mismo, la mitad gratis.** 1.049 de 1.532 afirmaciones bloqueadas son evidencia ya pagada, y la parte determinista de la reverificación (volver a resolver la cita con el verificador arreglado) no cuesta ninguna llamada. Si recupera cohortes, cambia los conteos sobre los que se construyeron las prioridades 1 a 4. Pendiente: correr primero la reverificación determinista sobre las corridas 7 a 13 (script de solo lectura ya existe: `scripts/diagnostico_citas.py`; falta la versión que escribe), después presupuestar el juez.
+
+4. **El punto 10 (etiquetado a ciegas) sube justo detrás del 1.** Los puntos 6 a 9 construyen sobre un Killer cuya calibración nunca se ha medido; Calidad tiene el kappa y el conjunto dorado con cero datos. Etiquetar no necesita código nuevo y corre en paralelo. Matiz: el cuello de botella son las horas de la médica y de un segundo revisor (tercera duda del informe), no el código.
+
+5. **El punto 2 no se hace como estaba escrito.** Abrir la puerta de análisis por commit convierte una propiedad de seguridad científica en una comodidad de versionado: las once reproducciones superadas son todas de célula única (pseudobulk) y no dicen nada de una metarregresión de brazos de ensayo. Pendiente: puerta por versión del arnés y clase de método (una clase nueva pide su propia reproducción), como respalda la etapa G del plan ("cada extensión pasa sus propias comprobaciones de evidencia, método y operación").
+
+6. **Lo que falta en la lista: la paridad de los reducers.** Los puntos 1, 2, 5 y 8 tocan reglas de estado, y cada regla se escribe dos veces a mano (`rosa/estado/acciones.py` y `frontend/src/datos/acciones.ts`) sin ningún test de paridad sistemático: hay tests espejo sueltos, pero la deriva falla en silencio y en un solo lado. Es lo que convierte los "días" en "semanas". Pendiente, antes que los puntos que tocan estado: un arnés de paridad con fixtures doradas (Python genera estado inicial, acción, argumentos y estado final como JSON; vitest los reproduce con los reducers de TypeScript y compara), corrido en la suite y en la integración continua.
+
+Orden resultante propuesto: 5 (parte gratis) y 6 (paridad) primero; después 1, 10 en paralelo, 3, 2 (por clase de método), 4; el resto como estaba.
+
 ## Anexo: propuestas por lente antes de fundir
 
 ### Lente plan (18 propuestas)
