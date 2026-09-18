@@ -608,6 +608,24 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
   pendiente menor.
 - **Física del árbol** (rejilla espacial o Barnes-Hut en `paso` y `paso3d`, Web
   Worker): pendiente, tanda 3.
-- **El servidor vivo corre el código anterior a la tanda 1 hasta el próximo
-  reinicio.** No reiniciar el 18 por la mañana antes del consejo; después, con
-  `ROSA_ADMIN` en `.env` y sin corrida viva.
+- **Servidor reiniciado el 18 a las 06:30 con la tanda 1 completa** (sin corrida
+  viva, corrida 3 detenida antes por estar horas esperando un permiso). El
+  consejo del 18 fue bien, según Emir.
+- **Textos de la interfaz corregidos tras la revisión de la guía del consejo (18 sep):**
+  "Por qué esta certeza" y "no escribió" (EnLlano.tsx), "midió" (Calidad.tsx),
+  "corrigió" (etiquetas.ts), "lanzó" y "subió" (muestra.ts); el Killer tiene
+  quince comprobaciones (rosa/killer.py), no catorce, y así lo dicen ya
+  ArbolVivo, HiloDelProceso, Recorrido y glosario.ts; la cabecera del Ranking
+  ya no dice "más probable que sea correcta" (chocaba con GRADE).
+- **`frontend/scripts/acentuar.py` tiene dos defectos que lo hacen peligroso sin
+  `--comprobar`:** rompe el espaciado de un operador ternario (`a ? b : ''` pasa a
+  `a ? b: ''` en CifrasAprendizaje.tsx) y acentuaría identificadores dentro de
+  plantillas de cadena (`${cuenta(cifras.iteracion)}`). Hasta arreglarlo: correr
+  solo `--comprobar`, o correrlo sobre una copia en un directorio temporal y
+  aplicar a mano las palabras que señale. El diccionario ya incluye los
+  pretéritos en -ió que se le escapaban (escribió, subió, corrigió, midió).
+- **Guía del consejo** (`~/Downloads/Preparacion-consejo-ROSA2018.html` y `.pdf`,
+  fuera del repositorio): revisada con cuatro lentes de agentes; la lente de
+  hechos del backend no llegó a correr porque el portátil perdió la red. Las
+  afirmaciones sobre el backend (GRADE, Killer, ruta, sellos, coste) quedan sin
+  verificación independiente.

@@ -813,7 +813,7 @@ const HIPOTESIS_BASE: HipotesisParcial[] = [
         tipo: 'paso_sin_completar',
         resumen: 'El paso "comprobar novedad contra Agora" se dio por hecho antes de recibir la respuesta',
         razonamiento:
-          'En el registro, la consulta a Agora se lanzo a las 11:48:25 y la marca de "novedad comprobada" se escribio en el mismo segundo. La respuesta de Agora llegó después. El resultado final coincide, pero el orden de las marcas no.',
+          'En el registro, la consulta a Agora se lanzó a las 11:48:25 y la marca de "novedad comprobada" se escribió en el mismo segundo. La respuesta de Agora llegó después. El resultado final coincide, pero el orden de las marcas no.',
         estado: 'no_aplica',
         respuestaDeRosa: 'La respuesta de Agora estaba en cache de la iteración 9 (misma consulta); el registro lo indica en la línea siguiente. No hay paso sin completar.',
       },
@@ -1250,7 +1250,7 @@ export const EVENTOS: Evento[] = [
   { id: 'ev-5', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'incidencia', texto: 'La clave de Semantic Scholar caduco; ROSA2018 sigue sin el grafo de citas', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-6', investigacionId: 'inv-1', t: hace(1.5 * HORA), tipo: 'presupuesto', texto: 'La corrida paso del 50 % del presupuesto global (1.500 de 3.000 llamadas)', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-7', investigacionId: 'inv-1', t: hace(58 * MIN), tipo: 'hipotesis_nueva', texto: 'Hipotesis nueva en la cola: el cociente p-tau217/Abeta42 en autosomico dominante', ruta: '#/investigaciones/inv-1/hipotesis/hip-1' },
-  { id: 'ev-8', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'ranking_cambio', texto: 'NLRP3 subio al primer puesto del ranking (Elo 1701) tras ganar a la hipótesis del cociente', ruta: '#/investigaciones/inv-1/ranking' },
+  { id: 'ev-8', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'ranking_cambio', texto: 'NLRP3 subió al primer puesto del ranking (Elo 1701) tras ganar a la hipótesis del cociente', ruta: '#/investigaciones/inv-1/ranking' },
   { id: 'ev-9', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'hecho_nuevo', texto: 'Pregunta cerrada en el modelo de mundo: el cociente ya se usa como criterio de inclusión', ruta: '#/investigaciones/inv-1/mundo' },
   { id: 'ev-10', investigacionId: 'inv-1', t: hace(7 * MIN), tipo: 'iteracion_terminada', texto: 'Iteración 13 terminada: 201 afirmaciones (183 sostenidas), 1 hipótesis nueva, 2 hechos', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-11', investigacionId: 'inv-1', t: hace(3 * MIN), tipo: 'incidencia', texto: 'El extractor devolvió vacío por filtro de contenido en un artículo', ruta: '#/investigaciones/inv-1/corrida' },

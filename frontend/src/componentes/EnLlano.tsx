@@ -119,7 +119,7 @@ export function HipotesisEnLlano({ texto }: { texto: string | null | undefined }
   return (
     <div className="llano llano-hipotesis">
       <h4>En pocas palabras</h4>
-      {texto === null ? <p className="meta">ROSA2018 todavía no escribio el resumen de esta hipótesis.</p> : <p>{texto}</p>}
+      {texto === null ? <p className="meta">ROSA2018 todavía no escribió el resumen de esta hipótesis.</p> : <p>{texto}</p>}
     </div>
   );
 }
@@ -190,7 +190,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
         <p className="conclusion-texto">{conclusion.conclusion}</p>
         {conclusion.factores.length > 0 && (
           <div className="llano-bloque">
-            <h4>Por que esta certeza</h4>
+            <h4>Por qué esta certeza</h4>
             <ul className="factores">
               {conclusion.factores.map((f, i) => (
                 <li key={i}>

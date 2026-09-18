@@ -115,7 +115,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         <div>
           <h2>Ranking de hipótesis</h2>
           <p>
-            Puntuación Elo por torneo entre rivales, revisada en cada iteración. Elo inicial 1500; funciona como el ranking de ajedrez: mayor Elo, más probable que sea correcta y útil. Las descartadas van al final aunque puntuaran alto.
+            Puntuación Elo por torneo entre rivales, revisada en cada iteración. Elo inicial 1500; funciona como el ranking de ajedrez: mayor Elo, mejor ha salido de los debates; cuánto fiarse lo dice la certeza GRADE, que va aparte. Las descartadas van al final aunque puntuaran alto.
           </p>
         </div>
         <div className="acciones">

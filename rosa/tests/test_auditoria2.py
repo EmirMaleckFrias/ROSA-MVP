@@ -32,7 +32,7 @@ def _pasan(*nombres):
 BASE = ("citas_reales", "fidelidad_evidencia", "supuestos", "independencia_cohortes", "falsabilidad", "direccion_causal", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "identificadores_resuelven", "fuente_primaria", "novedad", "sesgo_evidencia")
 
 
-# C2: las catorce comprobaciones tienen consecuencia.
+# C2: las quince comprobaciones tienen consecuencia.
 def test_c2_ninguna_comprobacion_queda_sin_consecuencia():
     assert set(BASE) <= set(K.CONSECUENCIA), set(BASE) - set(K.CONSECUENCIA)
     # Ya publicada, sin primarias, con sesgo serio y una sola cohorte: antes avanzaba con aviso.

@@ -176,7 +176,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         })()}
       </Seccion>
 
-      <Seccion detalle titulo="Acierto por tipo de afirmación" nota="Kosmos midio 85 % en datos, 82 % en literatura y 58 % en interpretaciones. ROSA2018 lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
+      <Seccion detalle titulo="Acierto por tipo de afirmación" nota="Kosmos midió 85 % en datos, 82 % en literatura y 58 % en interpretaciones. ROSA2018 lo mide igual, con las afirmaciones verificadas por personas, y enseña la fiabilidad de cada tipo.">
         <div className="rejilla-3">
           {(['dato', 'literatura', 'interpretacion'] as const).map((t) => {
             const v = ultima?.aciertoPorTipo[t] ?? null;

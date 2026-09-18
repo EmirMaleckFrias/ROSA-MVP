@@ -14,7 +14,7 @@ const CLAVE = 'rosa.recorrido.v1';
 export const PASOS: { titulo: string; texto: string; pista: string; etapa: number | null }[] = [
   {
     titulo: 'ROSA2018 investiga; tú decides',
-    texto: 'ROSA2018 lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
+    texto: 'ROSA2018 lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de quince comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
     pista: 'El hilo de arriba muestra siempre en qué etapa está y qué te espera.',
     etapa: null,
   },

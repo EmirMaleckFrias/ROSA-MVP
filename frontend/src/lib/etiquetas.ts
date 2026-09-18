@@ -466,7 +466,7 @@ export const COMPROBACION_KILLER: Record<string, string> = {
   coincide_con_plan: 'El código hace lo que dice el plan',
   baseline_y_control: 'Hay baseline y control negativo',
   tamano_muestral: 'El n por grupo basta',
-  multiplicidad: 'La multiplicidad se corrigio',
+  multiplicidad: 'La multiplicidad se corrigió',
   relevancia_prueba: 'La prueba responde a la pregunta',
   confusores: 'Los confusores tratados son razonables',
   interpretacion_no_sobrepasa: 'La interpretación no sobrepasa las cifras',

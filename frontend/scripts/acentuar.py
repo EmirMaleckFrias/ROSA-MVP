@@ -18,6 +18,11 @@ PALABRAS = {
     "alcanzo": "alcanzó", "altero": "alteró", "devolvio": "devolvió", "reintento": "reintentó", "reparo": "reparó", "congelo": "congeló", "comprobo": "comprobó", "autorizo": "autorizó", "denego": "denegó",
     # Tercera tanda (14 de septiembre): verbos en pasado y futuro sin forma ambigua, adverbios, -sion, vocabulario biomedico
     "crecio": "creció", "perdio": "perdió", "gano": "ganó", "salio": "salió", "aprobo": "aprobó", "recargo": "recargó",
+    # Cuarta tanda (18 de septiembre): pretéritos en -ió sin forma ambigua que se habían escapado ("no escribio el resumen")
+    "escribio": "escribió", "recibio": "recibió", "decidio": "decidió", "subio": "subió", "pidio": "pidió", "aparecio": "apareció",
+    "cumplio": "cumplió", "respondio": "respondió", "corrigio": "corrigió", "encontro": "encontró", "empezo": "empezó", "resolvio": "resolvió",
+    "midio": "midió", "eligio": "eligió", "consiguio": "consiguió", "anadio": "añadió", "sugirio": "sugirió", "advirtio": "advirtió",
+    "ocurrio": "ocurrió", "surgio": "surgió",
     "actualizo": "actualizó", "detecto": "detectó", "verifico": "verificó", "abrio": "abrió", "leyo": "leyó", "agoto": "agotó",
     "ejecuto": "ejecutó", "estaran": "estarán", "tendran": "tendrán", "podran": "podrán", "haran": "harán", "veran": "verán",
     "daran": "darán", "aparecera": "aparecerá", "vendra": "vendrá", "saldra": "saldrá", "llegara": "llegará", "seguira": "seguirá",
