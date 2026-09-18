@@ -161,7 +161,6 @@ export function Acceso({ children }: { children: ReactNode }) {
       <section className="acceso-lado" aria-label="Acceso a Rosa">
         <motion.div className="acceso-tarjeta" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
           <div className="acceso-marca">
-            <span className="acceso-marca-punto" aria-hidden="true" />
             Rosa
           </div>
 

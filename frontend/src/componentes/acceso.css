@@ -99,7 +99,9 @@
 
 .arbol-vivo svg {
   width: 100%;
-  max-height: 46vh;
+  /* La leyenda de etapas es parte del árbol: reservarle siempre espacio evita
+     que se corte en pantallas bajas o con zoom del navegador. */
+  max-height: min(38vh, 400px);
   color: #5b2aa8;
   overflow: visible;
 }
@@ -296,15 +298,6 @@
   font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.03em;
-}
-
-.acceso-marca-punto {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  animation: acceso-latido 3.2s ease-in-out infinite;
 }
 
 .acceso-opciones {
@@ -787,16 +780,6 @@
   }
 }
 
-@keyframes acceso-latido {
-  0%,
-  100% {
-    box-shadow: 0 0 0 4px var(--accent-soft);
-  }
-  50% {
-    box-shadow: 0 0 0 7px var(--accent-soft-2);
-  }
-}
-
 .arbol-vivo-quieto .nodo,
 .arbol-vivo-quieto .halo {
   animation: none;
@@ -804,8 +787,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .arbol-vivo .nodo,
-  .arbol-vivo .halo,
-  .acceso-marca-punto {
+  .arbol-vivo .halo {
     animation: none;
   }
 }
