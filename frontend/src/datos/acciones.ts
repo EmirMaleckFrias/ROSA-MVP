@@ -120,9 +120,11 @@ export function pausarCorrida(estado: EstadoRosa, corridaId: string): EstadoRosa
 export function reanudarCorrida(estado: EstadoRosa, corridaId: string): EstadoRosa {
   return {
     ...estado,
-    // Una solicitud pendiente no impide reanudar: ROSA2018 sigue con lo demas y
-    // la tarjeta se queda esperando.
-    corridas: reemplazar(estado.corridas, corridaId, (c) => (c.estado === 'pausada' ? { ...c, estado: 'en_marcha' } : c)),
+    // Una solicitud pendiente no impide reanudar: ROSA2018 sigue con lo demás y
+    // la tarjeta se queda esperando. Desde `esperando_modelo` es el "Reintentar
+    // ahora" de la persona: la corrida vuelve a en marcha sin esperar al sondeo.
+    // Misma regla que `reanudar_corrida` en rosa/estado/acciones.py.
+    corridas: reemplazar(estado.corridas, corridaId, (c) => (c.estado === 'pausada' || c.estado === 'esperando_modelo' ? { ...c, estado: 'en_marcha', esperandoModelo: null } : c)),
   };
 }
 
@@ -132,7 +134,16 @@ export function detenerCorrida(estado: EstadoRosa, corridaId: string, motivo: st
   if (!corrida || corrida.estado === 'detenida' || corrida.estado === 'terminada') return estado;
   let siguiente: EstadoRosa = {
     ...estado,
-    corridas: reemplazar(estado.corridas, corridaId, (c) => ({ ...c, estado: 'detenida', terminadaEn: ahora, motivoCierre: texto })),
+    // Una corrida detenida ya no espera a ningún modelo (misma regla que
+    // `detener_corrida` en rosa/estado/acciones.py): la franja de modelos no
+    // debe seguir diciendo "esperando a GPT-6 Astra" sobre una corrida parada,
+    // ni su incidencia automática quedar "resolviéndose sola" para siempre.
+    corridas: reemplazar(estado.corridas, corridaId, (c) => ({ ...c, estado: 'detenida', terminadaEn: ahora, motivoCierre: texto, esperandoModelo: null })),
+    incidencias: estado.incidencias.map((i) =>
+      i.corridaId === corridaId && i.estado === 'pendiente' && i.tipo === 'modelo_sin_respuesta'
+        ? { ...i, estado: 'resuelta' as const, resueltaEn: ahora, resolucion: 'La corrida se detuvo; ROSA2018 ya no espera a ese modelo' }
+        : i,
+    ),
   };
   if (vigilarLiteraturaDias !== null && vigilarLiteraturaDias > 0) {
     siguiente = {
@@ -177,6 +188,9 @@ export function ampliarPresupuesto(estado: EstadoRosa, corridaId: string, nuevoL
         ...(c.estado === 'pausada_por_presupuesto' ? { motivoPausa: '' } : {}),
       },
       estado: c.estado === 'pausada_por_presupuesto' ? 'en_marcha' : c.estado,
+      // Al retomar, un registro de espera de modelo dejado durante la pausa ya no
+      // vale (misma regla que `ampliar_presupuesto` en el servidor).
+      ...(c.estado === 'pausada_por_presupuesto' ? { esperandoModelo: null } : {}),
     })),
     iteraciones:
       actual && limiteIteracion !== null

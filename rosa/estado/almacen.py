@@ -728,6 +728,37 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_siete_modulos(estado)
     _migrar_novedad_no_comprobada(estado)
     _migrar_progreso_por_ventana(estado)
+    _migrar_vigilante_modelos(estado)
+    _migrar_gasto_grande_automatico(estado)
+
+
+def _migrar_gasto_grande_automatico(estado: dict[str, Any]) -> None:
+    """Regla de Emir del 18 de septiembre de 2026: dentro de una corrida con tope,
+    el gasto grande de una iteración no se consulta; ROSA2018 sigue y deja un
+    aviso. La autonomía "gastar_grande" pasa de "preguntar" a "actuar" una sola
+    vez (la marca evita rehacerlo si la persona vuelve a poner "preguntar")."""
+    aut = estado.get("autonomia")
+    if not isinstance(aut, dict) or estado.get("_gastoGrandeMigrado"):
+        return
+    if aut.get("gastar_grande") == "preguntar":
+        aut["gastar_grande"] = "actuar"
+    estado["_gastoGrandeMigrado"] = True
+
+
+def _migrar_vigilante_modelos(estado: dict[str, Any]) -> None:
+    """Claves del vigilante de modelos (18 de septiembre de 2026) en estados
+    guardados antes: `saludModelos` en la raíz (vacío: nunca se midió) y
+    `esperandoModelo` en cada corrida (None: no espera a ningún modelo). Una
+    corrida que quedó en `esperando_modelo` sin el registro de qué esperaba no
+    puede sondear nada: vuelve a en marcha y el paso pendiente se reintenta.
+    Idempotente: la segunda pasada no cambia nada."""
+    salud = estado.get("saludModelos")
+    if not isinstance(salud, dict):
+        estado["saludModelos"] = {}
+    for c in estado.get("corridas", []):
+        c.setdefault("esperandoModelo", None)
+        if c.get("estado") == "esperando_modelo" and not isinstance(c.get("esperandoModelo"), dict):
+            c["estado"] = "en_marcha"
 
 
 PREFIJO_NOVEDAD_VACIA = "Sin precedente claro entre 0 obras"

@@ -38,6 +38,11 @@ const TIPOS_QUE_IMPORTAN: ReadonlySet<TipoEvento> = new Set<TipoEvento>([
   'retraccion',
   'vigilancia',
   'aprendizaje',
+  // Caídas de modelo y su recuperación (rosa/vigilante_modelos.py): la corrida
+  // 13 perdió una hora el 18 de septiembre de 2026 esperando a Opus y nadie lo
+  // vio; desde hoy se cuenta en una línea.
+  'modelo_sin_respuesta',
+  'modelo_recuperado',
 ]);
 
 const ORDEN_CERTEZA: Record<string, number> = { muy_baja: 0, baja: 1, moderada: 2, alta: 3 };
@@ -79,7 +84,8 @@ export function loQueEspera(estado: EstadoRosa, investigacionId: string, ahora: 
   const corridas = estado.corridas.filter((c) => c.investigacionId === investigacionId).map((c) => c.id);
   const fechas: number[] = [];
   for (const s of estado.solicitudes) if (corridas.includes(s.corridaId) && s.estado === 'pendiente') fechas.push(s.creadaEn);
-  for (const i of estado.incidencias) if (corridas.includes(i.corridaId) && i.estado === 'pendiente') fechas.push(i.creadaEn);
+  // Las `modelo_sin_respuesta` las abre y cierra ROSA2018 sola: no esperan a nadie.
+  for (const i of estado.incidencias) if (corridas.includes(i.corridaId) && i.estado === 'pendiente' && i.tipo !== 'modelo_sin_respuesta') fechas.push(i.creadaEn);
   for (const h of estado.hipotesis) {
     if (h.investigacionId === investigacionId && (h.estado === 'propuesta' || h.estado === 'en_revision' || h.estado === 'refinar')) fechas.push(h.creadaEn);
   }
@@ -88,6 +94,91 @@ export function loQueEspera(estado: EstadoRosa, investigacionId: string, ahora: 
   }
   const masAntigua = fechas.length > 0 ? Math.min(...fechas) : ahora;
   return { total: fechas.length, masAntiguaMs: fechas.length > 0 ? ahora - masAntigua : 0 };
+}
+
+/** Cuántas veces dejó de responder un modelo en la ventana, cuánto duró la
+ *  caída más larga y cuántas siguen abiertas. Se calcula de los eventos
+ *  `modelo_sin_respuesta` ("GPT-6 Astra no responde desde las 12:34; ROSA2018
+ *  reintenta sola") y `modelo_recuperado` ("GPT-6 Astra volvió tras 4 intentos
+ *  y 59 minutos"), emparejados por modelo y orden en el tiempo. Una
+ *  recuperación cuya caída empezó antes de la ventana cuenta como caída y su
+ *  duración se lee del texto del evento (frases por regla del backend). */
+export interface CaidasDeModelo {
+  total: number;
+  recuperadas: number;
+  abiertas: number;
+  masLargaMs: number;
+}
+
+const ORDEN_TIEMPO = (a: Evento, b: Evento) => a.t - b.t;
+
+/** El modelo que nombra el texto del evento ("Claude Opus 5 no responde
+ *  desde..." o "Claude Opus 5 volvió tras..."), en minúsculas; '' si el texto
+ *  no sigue las frases del backend. Se cierra con (?=\s|$) y no con \b: en
+ *  JavaScript \b solo conoce letras ASCII, así que detrás de la "ó" de
+ *  "volvió" nunca casaba y toda recuperación quedaba sin modelo (hallazgo del
+ *  adversario, 18 de septiembre de 2026). */
+export function modeloDelEvento(e: Evento): string {
+  const m = /^(.*?)\s+(?:no responde|volvió)(?=\s|$)/.exec(e.texto);
+  return (m?.[1] ?? '').trim().toLowerCase();
+}
+
+/** "1 hora y 5 minutos" -> ms; "menos de un minuto" -> 30 s; sin duración, 0. */
+export function duracionDelTexto(texto: string): number {
+  if (/menos de un minuto/.test(texto)) return 30_000;
+  const h = /(\d+)\s+horas?/.exec(texto);
+  const m = /(\d+)\s+minutos?/.exec(texto);
+  if (!h && !m) return 0;
+  return Number(h?.[1] ?? 0) * 3_600_000 + Number(m?.[1] ?? 0) * 60_000;
+}
+
+export function caidasDeModelo(eventos: Evento[], ahora: number): CaidasDeModelo {
+  const caidas = eventos.filter((e) => e.tipo === 'modelo_sin_respuesta').sort(ORDEN_TIEMPO);
+  const recuperaciones = eventos.filter((e) => e.tipo === 'modelo_recuperado').sort(ORDEN_TIEMPO);
+  const usadas = new Set<string>();
+  let recuperadas = 0;
+  let abiertas = 0;
+  let masLargaMs = 0;
+  for (const c of caidas) {
+    const modelo = modeloDelEvento(c);
+    const r = recuperaciones.find((x) => !usadas.has(x.id) && x.t >= c.t && (modelo === '' || modeloDelEvento(x) === '' || modeloDelEvento(x) === modelo));
+    if (r) {
+      usadas.add(r.id);
+      recuperadas += 1;
+      masLargaMs = Math.max(masLargaMs, r.t - c.t, duracionDelTexto(r.texto));
+    } else {
+      abiertas += 1;
+      masLargaMs = Math.max(masLargaMs, Math.max(0, ahora - c.t));
+    }
+  }
+  // Recuperaciones sin caída en la ventana: la caída empezó antes de la visita.
+  for (const r of recuperaciones) {
+    if (usadas.has(r.id)) continue;
+    recuperadas += 1;
+    masLargaMs = Math.max(masLargaMs, duracionDelTexto(r.texto));
+  }
+  return { total: recuperadas + abiertas, recuperadas, abiertas, masLargaMs };
+}
+
+/** "menos de un minuto", "1 minuto", "12 minutos", "1 hora y 5 minutos"; la
+ *  misma regla que duracion_texto en rosa/vigilante_modelos.py. */
+export function duracionEnLlano(ms: number): string {
+  const minutos = Math.floor(Math.max(0, Number.isFinite(ms) ? ms : 0) / 60_000);
+  if (minutos < 1) return 'menos de un minuto';
+  if (minutos < 60) return minutos === 1 ? '1 minuto' : `${minutos} minutos`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  const textoH = horas === 1 ? '1 hora' : `${horas} horas`;
+  return resto === 0 ? textoH : `${textoH} y ${resto === 1 ? '1 minuto' : `${resto} minutos`}`;
+}
+
+/** "Hubo 2 caídas de modelo, la más larga de 59 minutos; se recuperaron solas". */
+export function textoCaidas(c: CaidasDeModelo): string {
+  const cuantas = plural(c.total, 'caída de modelo', 'caídas de modelo');
+  const duracion = c.total === 1 ? `de ${duracionEnLlano(c.masLargaMs)}` : `la más larga de ${duracionEnLlano(c.masLargaMs)}`;
+  if (c.abiertas === 0) return `Hubo ${cuantas}, ${duracion}; ${c.total === 1 ? 'se recuperó sola' : 'se recuperaron solas'}`;
+  if (c.recuperadas === 0) return `Hubo ${cuantas}, ${c.total === 1 ? `desde hace ${duracionEnLlano(c.masLargaMs)}` : duracion}; ${c.total === 1 ? 'sigue sin respuesta' : 'siguen sin respuesta'} y ROSA2018 reintenta sola`;
+  return `Hubo ${cuantas}, ${duracion}; ${c.recuperadas === 1 ? '1 se recuperó sola' : `${c.recuperadas} se recuperaron solas`} y ${c.abiertas === 1 ? '1 sigue sin respuesta' : `${c.abiertas} siguen sin respuesta`} (ROSA2018 reintenta sola)`;
 }
 
 export function digest(estado: EstadoRosa, investigacionId: string, ahora: number): Digest {
@@ -155,11 +246,14 @@ export function digest(estado: EstadoRosa, investigacionId: string, ahora: numbe
   if (killer > 0) lineas.push(`El Killer emitió ${plural(killer, 'veredicto', 'veredictos')}`);
   const decisiones = cuenta(eventos, 'hipotesis_decidida');
   if (decisiones > 0) lineas.push(plural(decisiones, 'decisión registrada', 'decisiones registradas'));
+  // 7b. Caídas de modelo en la ventana y cuánto duró la más larga.
+  const caidas = caidasDeModelo(eventos, ahora);
+  if (caidas.total > 0) lineas.push(textoCaidas(caidas));
   // 8. Incidencias sin resolver, lo que espera y el gasto: solo si hubo actividad
   // en la ventana (lo pendiente se ve siempre en la tarjeta de la investigación).
   const iteraciones = cuenta(eventos, 'iteracion_terminada');
   const hayNovedades = eventos.length > 0 || its.length > 0 || conCambio.length > 0 || nuevas.length > 0;
-  const incidenciasPendientes = estado.incidencias.filter((i) => idsCorridas.has(i.corridaId) && i.estado === 'pendiente').length;
+  const incidenciasPendientes = estado.incidencias.filter((i) => idsCorridas.has(i.corridaId) && i.estado === 'pendiente' && i.tipo !== 'modelo_sin_respuesta').length;
   if (hayNovedades && incidenciasPendientes > 0) lineas.push(plural(incidenciasPendientes, 'incidencia sin resolver', 'incidencias sin resolver'));
   if (hayNovedades && esperan.total > 0) {
     const edad = esperan.masAntiguaMs > 60_000 ? ` (la más antigua lleva ${formatearDuracion(esperan.masAntiguaMs)})` : '';

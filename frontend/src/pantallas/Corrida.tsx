@@ -15,6 +15,7 @@ import { FormularioMision, PreguntaDeCampana, RevisionDeRegistro } from '../comp
 import { Presupuesto } from '../componentes/Presupuesto';
 import { TarjetaIncidencia } from '../componentes/TarjetaIncidencia';
 import { TarjetaPermiso } from '../componentes/TarjetaPermiso';
+import { VigilanteModelos } from '../componentes/VigilanteModelos';
 import { Trazabilidad } from '../componentes/Trazabilidad';
 import { ResumenEnLlano } from '../componentes/EnLlano';
 import { AvisoMuestra, Barra, Chip, Confirmar, Momento, Seccion, SoloDetalle, Vacio } from '../componentes/piezas';
@@ -163,7 +164,13 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
   const pendientes = solicitudes.filter((s) => s.estado === 'pendiente');
   const resueltas = solicitudes.filter((s) => s.estado !== 'pendiente');
   const incidencias = estado.incidencias.filter((i) => i.corridaId === corrida.id).sort((a, b) => b.creadaEn - a.creadaEn);
-  const incidenciasPendientes = incidencias.filter((i) => i.estado === 'pendiente');
+  // Las incidencias `modelo_sin_respuesta` las abre y resuelve ROSA2018 sola
+  // (rosa/vigilante_modelos.py): van en la franja de modelos como
+  // "resolviéndose solo", no en "Algo impide seguir", que es lo que necesita a
+  // una persona.
+  const incidenciasPendientes = incidencias.filter((i) => i.estado === 'pendiente' && i.tipo !== 'modelo_sin_respuesta');
+  const incidenciasAutomaticas = incidencias.filter((i) => i.estado === 'pendiente' && i.tipo === 'modelo_sin_respuesta');
+  const esperandoModelo = pausaDelProceso(corrida.estado);
   const tono = corrida.estado === 'en_marcha' ? 'acento' : corrida.estado === 'detenida' || corrida.estado === 'terminada' ? undefined : 'aviso';
   const alcancesComunes = useMemo(() => {
     const sel = pendientes.filter((s) => seleccion.has(s.id));
@@ -176,6 +183,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
   return (
     <div className="contenido">
       <AvisoMuestra conexion={estado.conexion} />
+      <VigilanteModelos salud={estado.saludModelos} incidencias={incidenciasAutomaticas} estadoCorrida={corrida.estado} espera={corrida.esperandoModelo ?? null} ahora={ahora} onReintentar={() => acciones.reanudarCorrida(corrida.id)} />
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Corrida {corrida.numero}</h2>
@@ -191,7 +199,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
               </span>
             )}
             <span className="meta" title="Tiempo de trabajo: el reloj de pared menos lo que la corrida pasó esperando a una persona (plan sin aprobar, permiso, pausa) y menos las pausas del proceso. Es lo que se compara con el tope en horas.">
-              {formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo{viva && enEspera ? ' · en espera de una persona: el reloj no corre' : ''}
+              {formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo{viva && enEspera ? ' · en espera de una persona: el reloj no corre' : viva && esperandoModelo ? ' · esperando al modelo: el reloj no corre' : ''}
             </span>
             {(corrida.gasto.usdReal !== undefined && corrida.gasto.usdReal !== null) || (corrida.gasto.usd ?? 0) > 0 ? (
               <span className="meta" title={textoCoste(corrida.gasto).title}>
@@ -321,11 +329,11 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
 
       <div className="rejilla-2" style={{ marginTop: 28, alignItems: 'start' }}>
         <div className="seccion" style={{ gridColumn: '1 / -1' }}>
-          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} artículos leídos, ${formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo${viva && enEspera ? ' (en espera de una persona)' : ''}${textoCoste(corrida.gasto).corto ? `, ${textoCoste(corrida.gasto).corto}` : ''}.`}>
+          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} artículos leídos, ${formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo${viva && enEspera ? ' (en espera de una persona)' : viva && esperandoModelo ? ' (esperando al modelo)' : ''}${textoCoste(corrida.gasto).corto ? `, ${textoCoste(corrida.gasto).corto}` : ''}.`}>
           <div className="gasto">
             <div className="gasto-item" title="Tiempo de trabajo: reloj de pared menos la espera a una persona y las pausas del proceso; es lo que se compara con el tope en horas.">
               <strong>{formatearDuracion(segundosDeCorrida * 1000) || '0 s'}</strong>
-              <span>{viva && enEspera ? 'de trabajo · en espera de una persona' : 'de trabajo'}</span>
+              <span>{viva && enEspera ? 'de trabajo · en espera de una persona' : viva && esperandoModelo ? 'de trabajo · esperando al modelo' : 'de trabajo'}</span>
             </div>
             {textoCoste(corrida.gasto).corto && (
               <div className="gasto-item" title={textoCoste(corrida.gasto).title}>
@@ -658,6 +666,17 @@ export function esperandoPersona(estado: EstadoCorrida): boolean {
   return ESTADOS_DE_ESPERA_HUMANA.has(estado);
 }
 
+/** Estados en que la corrida espera a ROSA2018 misma, no a una persona: un
+ *  modelo del gateway que no responde. Su tiempo va a `pausaMs`, como el
+ *  sueño del equipo: no es trabajo ni espera humana, y no cuenta para la
+ *  aprobación. Misma lista que ESTADOS_DE_PAUSA_DEL_PROCESO en
+ *  rosa/bucle/corrida.py. */
+export const ESTADOS_DE_PAUSA_DEL_PROCESO: ReadonlySet<EstadoCorrida> = new Set<EstadoCorrida>(['esperando_modelo']);
+
+export function pausaDelProceso(estado: EstadoCorrida): boolean {
+  return ESTADOS_DE_PAUSA_DEL_PROCESO.has(estado);
+}
+
 type CorridaConReloj = Pick<CorridaTipo, 'estado' | 'empezadaEn' | 'gasto'> & Partial<Pick<CorridaTipo, 'esperaHumanaMs' | 'pausaMs' | 'terminadaEn'>>;
 
 function ms(x: unknown): number {
@@ -669,13 +688,14 @@ function ms(x: unknown): number {
  *  servidor (`gasto.segundos`, que ya es tiempo de trabajo) y, solo mientras
  *  la corrida trabaja, el reloj de pared desde `empezadaEn` menos la espera a
  *  una persona (`esperaHumanaMs`) y las pausas del proceso (`pausaMs`), como
- *  hace rosa/bucle/corrida.py tiempo_trabajo_ms. Mientras espera a alguien o
- *  ya terminó, se enseña el valor guardado: el reloj no corre. Un registro
+ *  hace rosa/bucle/corrida.py tiempo_trabajo_ms. Mientras espera a alguien, a
+ *  un modelo que no responde o ya terminó, se enseña el valor guardado: el
+ *  reloj no corre. Un registro
  *  antiguo sin los contadores cae al reloj de pared, como antes. */
 export function segundosDeTrabajo(c: CorridaConReloj, ahora: number): number {
   const guardados = Math.max(0, Math.round(ms(c.gasto?.segundos)));
   const viva = c.estado !== 'detenida' && c.estado !== 'terminada';
-  if (!viva || esperandoPersona(c.estado)) return guardados;
+  if (!viva || esperandoPersona(c.estado) || pausaDelProceso(c.estado)) return guardados;
   // Sin fecha de arranque no hay reloj de pared que restar: enseñar
   // `ahora / 1000` sería medio siglo de trabajo.
   const empezada = ms(c.empezadaEn);

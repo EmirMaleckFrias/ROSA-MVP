@@ -5025,3 +5025,155 @@ details.versiones > :not(summary) {
   font-size: 12px;
   padding: 2px 0;
 }
+
+/* ---------------------------------------------------------------------- 10
+   Vigilante de modelos (18 de septiembre de 2026): la franja "Modelos" de la
+   corrida, con un punto por rol, el aviso de esperando_modelo y las
+   incidencias que ROSA2018 resuelve sola. Prefijo vigilante-.
+   ---------------------------------------------------------------------- */
+
+.vigilante {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vigilante-esperando {
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+.vigilante-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vigilante-cabecera h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vigilante-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+
+.vigilante-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vigilante-fila-mal {
+  color: var(--red);
+}
+
+.vigilante-fila-aviso {
+  color: var(--amber);
+}
+
+.vigilante-punto {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-3);
+  box-shadow: 0 0 0 3px transparent;
+  cursor: help;
+}
+
+.vigilante-punto-ok {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+
+.vigilante-punto-aviso {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-soft);
+  animation: vigilante-latido 1.6s ease-in-out infinite;
+}
+
+.vigilante-punto-mal {
+  background: var(--red);
+  box-shadow: 0 0 0 3px var(--red-soft);
+  animation: vigilante-latido 1.1s ease-in-out infinite;
+}
+
+@keyframes vigilante-latido {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.vigilante-vacio {
+  margin: 0;
+}
+
+.vigilante-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 119, 6, 0.45);
+  border-radius: var(--radio-s);
+  background: var(--amber-soft);
+}
+
+.vigilante-aviso-texto {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.vigilante-aviso-texto p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.vigilante-aviso-texto p + p {
+  margin-top: 2px;
+}
+
+.vigilante-incidencias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.vigilante-incidencias li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vigilante-punto-aviso,
+  .vigilante-punto-mal {
+    animation: none;
+  }
+}

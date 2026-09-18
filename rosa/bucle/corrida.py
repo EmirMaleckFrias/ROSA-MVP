@@ -14,7 +14,13 @@
   plan aprobado -> ejecutar pasos en orden (cada paso, sus pistas)
   sin pasos -> cerrar iteración (resumen, informe, evento, condición de parada)
 Se detiene cuando la corrida pasa a detenida o terminada. Pausada, pausada
-por presupuesto o esperando aprobación: espera sin gastar.
+por presupuesto o esperando aprobación: espera sin gastar. Esperando modelo
+(el cerebro o el juez no responden): la tarea termina limpia y el supervisor
+sondea el gateway desde el tic hasta que el modelo vuelve; entonces la relanza.
+Si la persona la pausó mientras el modelo caía, la pausa manda: el paso queda
+pendiente y se reintenta al reanudar. El tic nunca espera trabajo largo: las
+peticiones de la persona, la vigilancia de literatura y el índice corren como
+tareas de fondo con tope.
 """
 
 from __future__ import annotations
@@ -28,7 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 import traceback
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from rosa import argumentacion as ARG
 from rosa import cuestiones as CU
@@ -49,9 +55,48 @@ from rosa.estado import plantilla as P
 from rosa.estado.almacen import Almacen
 from rosa.fuentes import crossref
 from rosa.fuentes.base import FuenteNoDisponible
+from rosa import gateway as GW
 from rosa.gateway import Modelos
 from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, tope_agotado_en
 from rosa.modulos.firmas import Programas
+
+# Vigilante de modelos (18 de septiembre de 2026, TRASPASO.md 7.4). Cuando el
+# cerebro (GPT-6 Astra) o el juez (Claude Opus 5) no responden, la llamada
+# vigilada de rosa/vigilante_modelos.py reintenta con el MISMO modelo y, si tras
+# MAX_INTENTOS sigue sin responder, lanza `ModeloSinRespuesta(rol, modelo,
+# intentos, desde)`. La corrida no muere ni degrada el rol a Sonnet: pasa a
+# `esperando_modelo`, el supervisor sondea el gateway cada INTERVALO_SONDEO_S
+# segundos y, cuando el modelo vuelve, la relanza sola. La excepción, el
+# intervalo y los textos que lee la persona (nombre del modelo, duración,
+# intentos) son los del vigilante: una sola definición para las dos piezas, así
+# los eventos dicen lo mismo desde el paso y desde el supervisor. `VIG` se deja
+# como atributo del módulo, y los textos de respaldo de abajo lo toleran a None,
+# para que un test pueda comprobar esos respaldos por sí solos.
+from rosa import vigilante_modelos as VIG
+from rosa.vigilante_modelos import INTERVALO_SONDEO_S, ModeloSinRespuesta
+
+# Cada cuánto da una vuelta el supervisor (tic). Los tests lo acortan.
+INTERVALO_TIC_S = 2.0
+# Tope de una tarea de fondo (vigilancia de literatura, índice semántico): pasado
+# este tiempo se corta y vuelve cuando toque. Antes se esperaban dentro del bucle
+# y una pasada lenta congelaba los tics (la hora perdida de la corrida 13).
+TOPE_FONDO_S = 600
+# Tope de la tarea de fondo que atiende lo que la persona dejó marcado (aclarar,
+# responder comentarios, revisiones pedidas, meta-campaña, rellenos en llano).
+# Cada llamada al modelo que hay dentro ya la acota el vigilante (4 intentos de
+# 300 s más las esperas, unos 22 minutos) y una revisión del Killer encadena
+# varias: este tope es una red de seguridad contra un cuelgue ajeno al modelo
+# (una fuente sin tiempo límite), no un presupuesto; cortar al juez a mitad de
+# decisión cuesta más que esperar. Antes se esperaba dentro del bucle del tic,
+# por la misma puerta que congeló los tics con la vigilancia de literatura.
+TOPE_PETICIONES_S = 2 * 3600
+# Tope del sondeo del supervisor a una corrida en `esperando_modelo`: el doble
+# del tiempo del sondeo del gateway (rosa/gateway.py SEGUNDOS_SONDEO). Pasado,
+# es "no pude comprobar" y el siguiente sondeo queda a INTERVALO_SONDEO_S.
+TOPE_SONDEO_S = 2 * float(getattr(GW, "SEGUNDOS_SONDEO", 20.0))
+# Nombre con el que la persona conoce a cada modelo, por id del gateway y por rol.
+NOMBRES_MODELO = (("gpt-6-astra", "GPT-6 Astra"), ("claude-opus-5", "Claude Opus 5"), ("claude-sonnet-5", "Claude Sonnet 5"))
+NOMBRE_POR_ROL = {"cerebro": "GPT-6 Astra", "juez": "Claude Opus 5", "volumen": "Claude Sonnet 5", "replica": "Claude Opus 5"}
 
 # Lo que cuesta de verdad cada tipo de paso, en llamadas al modelo, medido en
 # la primera corrida real (10 de septiembre de 2026): el cribado de relevancia
@@ -84,6 +129,19 @@ class Supervisor:
         # Tareas de corrida que murieron con excepción: cuántas veces seguidas y
         # cuándo, para relanzarlas con retroceso y no cada 2 s (S-14).
         self._fallos: dict[str, dict[str, Any]] = {}
+        # Un sondeo al gateway en vuelo por corrida en `esperando_modelo`: el tic lo
+        # lanza cuando vence `proximoSondeo` y no espera a que termine.
+        self._sondeos: dict[str, asyncio.Task] = {}
+        # Cuándo se lanzó el sondeo en vuelo de cada corrida (reloj del tic): uno que
+        # lleve más de INTERVALO_SONDEO_S sin terminar está colgado y se sustituye.
+        self._sondeos_desde: dict[str, int] = {}
+        # Tareas de fondo (vigilancia de literatura, índice semántico), una a la vez
+        # cada una, para que el tic no las espere.
+        self._fondo: dict[str, asyncio.Task] = {}
+        # Tareas de corrida que murieron con excepción estando la corrida en
+        # `esperando_modelo`: se avisa una vez por tarea (no se relanzan con
+        # retroceso, las relanza el sondeo cuando el modelo vuelve).
+        self._muertas_avisadas: dict[str, asyncio.Task] = {}
 
     # -- arranque -------------------------------------------------------------
 
@@ -118,6 +176,19 @@ class Supervisor:
                     r["estado"] = "error_tecnico"
                     r["_error"] = "Interrumpida por un reinicio"
                     cambiado = True
+            # Una corrida que esperaba a un modelo sigue esperando (el tic sondeará);
+            # el primer sondeo se adelanta a ahora, porque el reinicio puede haber
+            # sido el arreglo. Sin registro de qué esperaba, no hay nada que sondear:
+            # vuelve a en marcha y el paso pendiente se reintenta.
+            for c in e["corridas"]:
+                if c.get("estado") != "esperando_modelo":
+                    continue
+                if isinstance(c.get("esperandoModelo"), dict):
+                    c["esperandoModelo"]["proximoSondeo"] = ahora
+                else:
+                    c["estado"] = "en_marcha"
+                    c["esperandoModelo"] = None
+                cambiado = True
             # Migración idempotente (S-16): la serie de progreso cuenta las hipótesis
             # nuevas por ventana de fecha, no por número de iteración. Volver a
             # pasarla no cambia nada, así que corre en cada arranque.
@@ -154,19 +225,33 @@ class Supervisor:
         while not self._parar.is_set():
             try:
                 self._tick()
-                await self._atender_peticiones()
+                # Las peticiones de la persona, la vigilancia y el índice solo se
+                # LANZAN aquí (tareas propias con tope, `_lanzar_fondo`); no se
+                # esperan. Entre las 12:34 y las 13:33 del 18 de septiembre de 2026
+                # los tics se congelaron porque la vigilancia corría dentro de este
+                # bucle; una revisión pedida al juez caído (hasta 22 minutos por
+                # llamada con el vigilante) los congelaba igual desde las peticiones.
+                self._lanzar_fondo("peticiones", self._atender_peticiones, tope=TOPE_PETICIONES_S)
                 await self._vigilar_si_toca()
                 await self._indexar_si_toca()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             with contextlib.suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self._parar.wait(), timeout=2.0)
-        for t in self.tareas.values():
+                await asyncio.wait_for(self._parar.wait(), timeout=INTERVALO_TIC_S)
+        # Al parar se cancelan las corridas, los sondeos y las tareas de fondo; la
+        # petición de la persona que va en vuelo (una revisión del Killer ya pagada)
+        # se deja terminar, como cuando se esperaba dentro del bucle. main.py corta
+        # todo pasado su TOPE_APAGADO_S.
+        peticiones = self._fondo.get("peticiones")
+        pendientes = [*self.tareas.values(), *self._sondeos.values(), *(t for nombre, t in self._fondo.items() if nombre != "peticiones")]
+        for t in pendientes:
             t.cancel()
+        if peticiones is not None:
+            pendientes.append(peticiones)
         # Esperar a que las tareas terminen sus finally (escriben en el almacen)
         # antes de que main cierre SQLite.
-        if self.tareas:
-            await asyncio.gather(*self.tareas.values(), return_exceptions=True)
+        if pendientes:
+            await asyncio.gather(*pendientes, return_exceptions=True)
         # El reloj que quedó en memoria se escribe antes de cerrar.
         with contextlib.suppress(Exception):
             self._volcar_reloj(P.ahora_ms(), todas=True)
@@ -179,39 +264,67 @@ class Supervisor:
     def _cerrando(self) -> bool:
         return self._parar.is_set()
 
+    def _lanzar_fondo(self, nombre: str, fabrica: Callable[[], Awaitable[Any]], tope: float | None = None) -> bool:
+        """Lanza `fabrica()` como tarea propia con tope (`tope` segundos, o
+        TOPE_FONDO_S si no se da), una a la vez por nombre. Devuelve True si la
+        lanzó (False si la anterior sigue en vuelo). Sus errores solo se
+        imprimen: nunca tumban el bucle ni lo esperan. Un modelo que no responde
+        dentro de ella se dice en una línea (el vigilante ya dejó la incidencia y
+        la espera en la corrida), no con un traceback por vuelta."""
+        t = self._fondo.get(nombre)
+        if t is not None and not t.done():
+            return False
+        tope_s = TOPE_FONDO_S if tope is None else tope
+
+        async def envuelta() -> None:
+            try:
+                await asyncio.wait_for(fabrica(), timeout=tope_s)
+            except asyncio.CancelledError:
+                raise
+            except asyncio.TimeoutError:
+                print(f"La tarea de fondo '{nombre}' superó los {tope_s} s y se cortó; volverá cuando toque", flush=True)
+            except ModeloSinRespuesta as ex:
+                print(f"La tarea de fondo '{nombre}' se cortó: {nombre_del_modelo(getattr(ex, 'modelo', None), getattr(ex, 'rol', None))} no responde; se reintenta cuando vuelva", flush=True)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+
+        self._fondo[nombre] = asyncio.create_task(envuelta(), name=f"fondo-{nombre}")
+        return True
+
     async def _indexar_si_toca(self) -> None:
         """Índice semántico del registro (rosa/indice_semantico.py): incrusta lo
-        nuevo o cambiado cada diez minutos. Céntimos; sin clave no hace nada."""
-        from rosa import indice_semantico
-
+        nuevo o cambiado cada diez minutos, como tarea de fondo. Céntimos; sin
+        clave no hace nada."""
         ahora = P.ahora_ms()
         if self._cerrando() or ahora - getattr(self, "_ultima_indexacion", 0) < 10 * 60 * 1000:
             return
-        self._ultima_indexacion = ahora
-        try:
-            n = await indice_semantico.indexar_estado(self.almacen)
-            if n:
-                print(f"Índice semántico: {n} textos nuevos o cambiados incrustados")
-        except Exception:  # noqa: BLE001
-            traceback.print_exc()
+        if self._lanzar_fondo("indice", self._indexar):
+            self._ultima_indexacion = ahora
+
+    async def _indexar(self) -> None:
+        from rosa import indice_semantico
+
+        n = await indice_semantico.indexar_estado(self.almacen)
+        if n:
+            print(f"Índice semántico: {n} textos nuevos o cambiados incrustados")
 
     async def _vigilar_si_toca(self) -> None:
-        """Vigilancia de literatura (rosa/vigilancia.py): una pasada por hora;
-        cada hipótesis viva se comprueba como mucho una vez al día. Sin Exa no
-        hace nada. Un fallo no tumba el bucle."""
-        from rosa import vigilancia
-
+        """Vigilancia de literatura (rosa/vigilancia.py): una pasada por hora,
+        como tarea de fondo; cada hipótesis viva se comprueba como mucho una vez
+        al día. Sin Exa no hace nada. Un fallo no tumba el bucle."""
         ahora = P.ahora_ms()
         ultima = getattr(self, "_ultima_vigilancia", 0)
         if self._cerrando() or ahora - ultima < 3600 * 1000:
             return
-        self._ultima_vigilancia = ahora
-        try:
-            resumen = await vigilancia.vigilar(self.almacen, ahora)
-            if resumen["comprobadas"] or resumen["errores"] or resumen.get("retiradas"):
-                print(f"Vigilancia de literatura: {resumen['comprobadas']} hipótesis comprobadas, {resumen['conNovedades']} con novedades ({resumen['nuevas']} publicaciones), {resumen['costeUsd']} USD, {resumen['errores']} sin respuesta, {resumen.get('retiradas', 0)} novedades retiradas por no nombrar la hipótesis")
-        except Exception:  # noqa: BLE001
-            traceback.print_exc()
+        if self._lanzar_fondo("vigilancia", lambda: self._vigilar(ahora)):
+            self._ultima_vigilancia = ahora
+
+    async def _vigilar(self, ahora: int) -> None:
+        from rosa import vigilancia
+
+        resumen = await vigilancia.vigilar(self.almacen, ahora)
+        if resumen["comprobadas"] or resumen["errores"] or resumen.get("retiradas"):
+            print(f"Vigilancia de literatura: {resumen['comprobadas']} hipótesis comprobadas, {resumen['conNovedades']} con novedades ({resumen['nuevas']} publicaciones), {resumen['costeUsd']} USD, {resumen['errores']} sin respuesta, {resumen.get('retiradas', 0)} novedades retiradas por no nombrar la hipótesis")
 
     # -- por tick --------------------------------------------------------------
 
@@ -221,11 +334,27 @@ class Supervisor:
         for c in e["corridas"]:
             if c["estado"] in ("detenida", "terminada"):
                 continue
+            if c["estado"] == "esperando_modelo":
+                t = self.tareas.get(c["id"])
+                if t is not None and not t.done():
+                    # La tarea vive: el vigilante (rosa/vigilante_modelos.py) sigue
+                    # reintentando dentro del paso y ya puso la corrida en espera. El
+                    # supervisor no sondea a la vez: dos manos sobre la misma espera
+                    # contarían caídas y recuperaciones de más.
+                    continue
+                if t is not None and not t.cancelled() and t.exception() is not None and self._muertas_avisadas.get(c["id"]) is not t:
+                    self._muertas_avisadas[c["id"]] = t
+                    traceback.print_exception(t.exception())
+                # La tarea terminó: aquí solo se sondea el gateway cuando toca. La
+                # relanza el sondeo que responde, o la persona con "Reintentar ahora"
+                # (reanudar_corrida), que la pone en marcha.
+                self._sondear_si_toca(c, ahora)
+                continue
             t = self.tareas.get(c["id"])
             if t is None or t.done():
                 if not self._puede_relanzar(c, t, ahora):
                     continue
-                self.tareas[c["id"]] = asyncio.create_task(self.correr_corrida(c["id"]), name=f"corrida-{c['id']}")
+                self._relanzar_corrida(c["id"])
         # El reloj se lleva en memoria; solo se escribe cuando toca volcarlo.
         volcar = self._reloj_en_memoria(e, ahora)
         # Autoaprobación de planes, reloj volcado y salida de "esperando aprobación".
@@ -253,10 +382,95 @@ class Supervisor:
                     pendientes = any(s["corridaId"] == c["id"] and s["estado"] == "pendiente" for s in e2["solicitudes"]) or any(i["corridaId"] == c["id"] and i["estado"] == "pendiente" and i["tipo"] not in INCIDENCIAS_QUE_NO_BLOQUEAN for i in e2["incidencias"])
                     if not pendientes:
                         c["estado"] = "en_marcha"
+                        # Un registro de espera que el vigilante dejó mientras la corrida
+                        # esperaba la aprobación ya no vale: el paso se reintenta y, si el
+                        # modelo sigue caído, el vigilante lo vuelve a anotar.
+                        c["esperandoModelo"] = None
                         cambiado = True
             return cambiado or False
 
         self.almacen.mutar(fn, "tick")
+
+    # -- esperando modelo: sondeos al gateway ----------------------------------
+
+    def _relanzar_corrida(self, corrida_id: str) -> None:
+        self.tareas[corrida_id] = asyncio.create_task(self.correr_corrida(corrida_id), name=f"corrida-{corrida_id}")
+
+    def _sondear_si_toca(self, c: dict[str, Any], ahora: int) -> None:
+        """Para una corrida en `esperando_modelo`: si venció `proximoSondeo` y no
+        hay un sondeo en vuelo, lanza UNO como tarea propia (el tic no lo espera).
+        Sin registro de qué espera (estado a medias o de otra versión), no hay
+        nada que sondear: la corrida vuelve a en marcha y el paso se reintenta."""
+        cid = c["id"]
+        t = self._sondeos.get(cid)
+        if t is not None and not t.done():
+            desde = self._sondeos_desde.get(cid)
+            if isinstance(desde, (int, float)) and ahora - int(desde) >= int(INTERVALO_SONDEO_S) * 1000:
+                # Un sondeo que lleva más de un intervalo en vuelo está colgado (una
+                # conexión que no cierra, un `sondear` sustituido): se corta, cuenta
+                # como "no pude comprobar" y el siguiente queda a INTERVALO_SONDEO_S.
+                # Sin esto la corrida esperaba para siempre sin señal alguna.
+                t.cancel()
+                self._sondeos_desde[cid] = ahora  # no se vuelve a cortar hasta otro intervalo
+                print(f"El sondeo de la corrida {c.get('numero', cid)} llevaba más de {int(INTERVALO_SONDEO_S)} s sin terminar; se corta y cuenta como sin respuesta", flush=True)
+                with contextlib.suppress(Exception):
+                    self.almacen.mutar(lambda e2: _sondeo_fallido(e2, cid, ahora), "sondeo")
+            return
+        espera = c.get("esperandoModelo")
+        if not isinstance(espera, dict):
+            self.almacen.mutar(lambda e2: _salir_de_esperando_modelo_sin_registro(e2, cid, ahora), "estado")
+            return
+        proximo = espera.get("proximoSondeo")
+        if isinstance(proximo, (int, float)) and ahora < int(proximo):
+            return
+        self._sondeos_desde[cid] = ahora
+        self._sondeos[cid] = asyncio.create_task(self._sondear_modelo(cid, str(espera.get("rol") or "cerebro")), name=f"sondeo-{cid}")
+
+    def _lm_del_rol(self, rol: str) -> Any:
+        m = self.modelos
+        if rol == "replica":
+            return getattr(m, "replica", None) or m.juez
+        return getattr(m, rol, None) or m.cerebro
+
+    async def _sondear(self, lm: Any) -> bool:
+        """Una petición mínima al gateway con ese modelo (rosa/gateway.py
+        `sondear`: max_tokens 1, 20 s, nunca lanza). Si el sondeo aún no existe
+        en este árbol, se da por respondido y el paso se reintenta directamente:
+        el vigilante volverá a traer la corrida aquí si el modelo sigue caído."""
+        from rosa import gateway
+
+        fn = getattr(gateway, "sondear", None)
+        if fn is None:
+            return True
+        return bool(await fn(lm))
+
+    async def _sondear_modelo(self, corrida_id: str, rol: str) -> None:
+        """El sondeo de una corrida: si el modelo responde, la corrida vuelve a en
+        marcha con su evento y se relanza por el mismo camino que reanudar; si no,
+        el siguiente sondeo queda a INTERVALO_SONDEO_S. Un error del sondeo cuenta
+        como "no pude comprobar", nunca como "el modelo volvió"."""
+        try:
+            responde = bool(await asyncio.wait_for(self._sondear(self._lm_del_rol(rol)), timeout=TOPE_SONDEO_S))
+        except asyncio.CancelledError:
+            raise
+        except asyncio.TimeoutError:
+            # El sondeo del gateway ya tiene su tope; este es la red por si algo lo
+            # retiene (una conexión que no cierra). Es "no pude comprobar", no "volvió".
+            print(f"El sondeo al {rol} no terminó en {TOPE_SONDEO_S:g} s; cuenta como sin respuesta", flush=True)
+            responde = False
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            responde = False
+        ahora = P.ahora_ms()
+        if not responde:
+            with contextlib.suppress(Exception):
+                self.almacen.mutar(lambda e2: _sondeo_fallido(e2, corrida_id, ahora), "sondeo")
+            return
+        if not self.almacen.mutar(lambda e2: _modelo_recuperado(e2, corrida_id, ahora), "modelo_recuperado"):
+            return  # ya no esperaba (la persona la reanudó o la detuvo mientras sondeábamos)
+        t = self.tareas.get(corrida_id)
+        if t is None or t.done():
+            self._relanzar_corrida(corrida_id)
 
     # -- reloj en memoria (S-17) ----------------------------------------------
 
@@ -362,6 +576,11 @@ class Supervisor:
             corrida = A.ultima_corrida_de(e, h["investigacionId"])
             if not corrida:
                 continue
+            if corrida["estado"] == "esperando_modelo":
+                # El modelo de la corrida no responde: lo que la persona dejó marcado
+                # espera a que vuelva (el tic sondea y la relanza) en vez de pedírselo
+                # otra vez al modelo caído desde aquí.
+                continue
             ctx = self._ctx(corrida)
             if h["estado"] == "aclarando":
                 await self._aclarar(ctx, h)
@@ -386,6 +605,7 @@ class Supervisor:
                 decisiones_antes = _n_decisiones_killer(e, h["id"])
                 intentos_antes = int(h.get("_killerIntentos") or 0)
                 sin_presupuesto = False
+                sin_modelo = False  # el juez no respondió: la petición sigue en pie y no cuenta intento
                 try:
                     await PASOS._revisar_hipotesis(ctx, h, texto_af[:8000], pista)
                     pista.cerrar("Revisión y Killer terminados")
@@ -393,13 +613,22 @@ class Supervisor:
                     sin_presupuesto = True
                     pista.fallar("Sin presupuesto en la corrida: la revisión pedida no se hizo")
                     self.almacen.mutar(lambda e2: _abandonar_peticion_sin_presupuesto(e2, h["id"], corrida), "revision")
+                except ModeloSinRespuesta as ex:
+                    # Opus no respondió tras los reintentos del vigilante: no es "la
+                    # revisión falló" ni un intento de MAX_INTENTOS_KILLER (con tres caídas
+                    # la petición quedaba abandonada con un motivo falso). La marca
+                    # `_revisionPedida` se conserva y la revisión se hace cuando vuelva
+                    # (TRASPASO.md 7.4: se espera el tiempo que haga falta).
+                    sin_modelo = True
+                    pista.fallar(f"Interrumpida: {nombre_del_modelo(getattr(ex, 'modelo', None), getattr(ex, 'rol', None))} no respondió; la revisión pedida sigue en pie y se hace cuando vuelva")
+                    raise
                 except Exception as ex:  # noqa: BLE001
                     traceback.print_exc()
                     pista.fallar(f"La revisión falló: {str(ex)[:160]}")
                 finally:
                     # La marca se quita solo si el Killer llegó a decidir; si falló, la
                     # petición sigue viva hasta MAX_INTENTOS_KILLER intentos (S-08).
-                    if not sin_presupuesto:
+                    if not sin_presupuesto and not sin_modelo:
                         self.almacen.mutar(lambda e2: _cerrar_peticion_de_revision(e2, h["id"], decisiones_antes, intentos_antes), "revision")
                 return
             if h.get("_analisisPedido") and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
@@ -410,10 +639,13 @@ class Supervisor:
                 pista = ctx.pista(None, "modelo", f"Análisis pedido: {h['titulo'][:60]}", "Sandbox")
                 try:
                     await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
+                except ModeloSinRespuesta as ex:
+                    # El modelo no respondió: la petición sigue en pie y se hace cuando vuelva.
+                    pista.fallar(f"Interrumpido: {ex.modelo if hasattr(ex, 'modelo') else 'el modelo'} no respondió; el análisis pedido sigue en pie y se hace cuando vuelva")
                 except Exception as ex:  # noqa: BLE001
                     traceback.print_exc()
                     self.almacen.mutar(lambda e2: (next(x for x in e2["hipotesis"] if x["id"] == h["id"]).pop("_analisisPedido", None), True)[1], "analisis")
-                    pista.fallar(f"El análisis fallo: {str(ex)[:160]}")
+                    pista.fallar(f"El análisis falló: {str(ex)[:160]}")
                 else:
                     pista.cerrar("Análisis terminado")
                 return
@@ -517,6 +749,7 @@ class Supervisor:
         nota = h.get("_reformularPedida") or "La persona pidió refinarla"
         texto_af, _ = T.afirmaciones_sostenidas(ctx.corrida().get("_afirmaciones", []))
         pista = ctx.pista(None, "modelo", f"Reformular a petición: {h['titulo'][:60]}", "GPT-6 Astra + Opus 5")
+        conservar = False  # la petición se conserva si un modelo no respondió: se reformula cuando vuelva
         try:
             if not politicas.puede_reformular(h.get("version", 1)):
                 # A petición de una persona no se descarta por agotar reformulaciones: se le dice.
@@ -529,11 +762,16 @@ class Supervisor:
                 if nueva:
                     await PASOS._killer(ctx, nueva, texto_af[:8000], pista, profundidad=1)
             pista.cerrar("Reformulada y revisada" if ok else "No se pudo reformular")
+        except ModeloSinRespuesta as ex:
+            conservar = True
+            pista.fallar(f"Interrumpida: {nombre_del_modelo(getattr(ex, 'modelo', None), getattr(ex, 'rol', None))} no respondió; la petición sigue en pie y se reformula cuando vuelva")
+            raise
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
             pista.fallar(f"Fallo al reformular: {str(ex)[:160]}")
         finally:
-            self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_reformularPedida", None), next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_revisionPedida", None), True)[2], "reformular")
+            if not conservar:
+                self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_reformularPedida", None), next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_revisionPedida", None), True)[2], "reformular")
 
     async def _evaluar_cambio(self, cambio: dict[str, Any]) -> None:
         """Evaluación de un criterio propuesto (nivel 2) sobre el conjunto
@@ -713,8 +951,8 @@ class Supervisor:
                 "alDia": {"fechaBusqueda": max((q["fecha"] for q in c["busqueda"]["consultas"]), default=None), "fuentesSinRespuesta": fallidas},
                 "terminos": [{"termino": t.termino, "explicacion": t.explicacion} for t in r.terminos],
             }
-        except PresupuestoAgotado:
-            raise  # el cierre pausa la corrida y retoma el llano al ampliar (S-14)
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            raise  # el cierre pausa la corrida (o espera al modelo) y retoma el llano después (S-14)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             return None
@@ -724,8 +962,8 @@ class Supervisor:
         try:
             pred = await ctx.llamar("volumen", self.programas.hipotesis_en_llano, titulo=h["titulo"], enunciado=h["enunciado"], mecanismo=h["mecanismo"], comprobacion=f"Biomarcador: {c['biomarcador']}. Cohorte: {c['cohorte']}. Diseño: {c['diseno']}", relevancia=h["relevancia"]["justificacion"])
             texto = pred.explicacion.strip()
-        except PresupuestoAgotado:
-            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto o el modelo vuelva
         except Exception as ex:  # noqa: BLE001
             texto = ""
             traceback.print_exc()
@@ -784,8 +1022,8 @@ class Supervisor:
             # y puente al beneficio. Una firma antigua sin esos campos deja los valores
             # vacíos y la lista de problemas lo dice; no rompe.
             _anadir_contrato(experimento, x)
-        except PresupuestoAgotado:
-            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto o el modelo vuelva
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             experimento = None
@@ -868,8 +1106,8 @@ class Supervisor:
                 "iteracion": ctx.numero,
                 "huella": huella,
             }
-        except PresupuestoAgotado:
-            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            raise  # sin marcar la bandera: se reintenta cuando haya presupuesto o el modelo vuelva
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             conclusion = None
@@ -944,8 +1182,14 @@ class Supervisor:
                     try:
                         pd = await ctx.llamar("cerebro", self.programas.derivar, hipotesis=T.hipotesis_texto(h), resultado=f"{r.resultado} Contexto corregido: {r.contexto_corregido}")
                         derivada_texto = pd.derivada
+                    except ModeloSinRespuesta:
+                        raise
                     except Exception:  # noqa: BLE001
                         traceback.print_exc()
+            except (PresupuestoAgotado, ModeloSinRespuesta):
+                # Sin presupuesto o sin modelo no hay veredicto que escribir: el fichero
+                # sigue registrado y la evaluación se reintenta después, sin marcar nada.
+                raise
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()
                 resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
@@ -1041,7 +1285,9 @@ class Supervisor:
         agota a mitad, se deja para cuando lo amplien (sin marcar nada)."""
         try:
             await self._completar_en_llano_paso()
-        except PresupuestoAgotado:
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            # Sin presupuesto, o el modelo no responde: el vigilante ya dejó la
+            # incidencia y la espera en la corrida; el relleno se retoma después.
             return
 
     async def _completar_en_llano_paso(self) -> None:
@@ -1049,14 +1295,17 @@ class Supervisor:
 
         def _puede_gastar(corrida: dict[str, Any] | None) -> bool:
             # Rellenar en segundo plano gasta llamadas: no se hace sobre corridas que
-            # una persona detuvo ni sobre corridas pausadas por presupuesto.
-            return bool(corrida) and corrida["estado"] not in ("detenida", "pausada_por_presupuesto", "pausada", "terminada")
+            # una persona detuvo o pausó, sin presupuesto, ni mientras la corrida
+            # espera a un modelo que no responde (ESTADOS_SIN_GASTO_DE_FONDO).
+            return bool(corrida) and corrida["estado"] not in ESTADOS_SIN_GASTO_DE_FONDO
 
         for h in e["hipotesis"]:
             x = h.get("experimento")
             if x and x.get("estado") == "datos_recibidos" and not h.get("_resultadoEvaluado"):
                 corrida = A.ultima_corrida_de(e, h["investigacionId"])
-                if corrida and corrida["estado"] != "pausada_por_presupuesto":
+                # Los datos del laboratorio se evalúan aunque la corrida esté detenida o
+                # pausada (la persona los subió), pero no sin presupuesto ni con el juez caído.
+                if corrida and corrida["estado"] not in ("pausada_por_presupuesto", "esperando_modelo"):
                     await self._evaluar_resultado(self._ctx(corrida), h)
                     return
             if h.get("enLlano") is None and not h.get("_enLlanoIntentado"):
@@ -1119,6 +1368,8 @@ class Supervisor:
             return
         try:
             pred = await ctx.llamar("cerebro", ctx.programas.aclarar, hipotesis=T.hipotesis_texto(h), nota=ultima["nota"], afirmaciones="\n".join(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]))
+        except ModeloSinRespuesta:
+            raise  # la hipótesis sigue "aclarando": se aclara cuando el cerebro vuelva
         except Exception as ex:  # noqa: BLE001
             self.almacen.mutar(lambda e: A.aclarar_hipotesis(e, h["id"], f"No pude aclararla ahora: el modelo no respondió ({str(ex)[:100]}). Vuelve a la cola tal cual.", P.ahora_ms()), "aclarar")
             return
@@ -1130,6 +1381,8 @@ class Supervisor:
         try:
             pred = await ctx.llamar("cerebro", ctx.programas.responder, hipotesis=T.hipotesis_texto(h), comentarios="\n\n".join(comentarios), afirmaciones="\n".join(f"- [{a['veredicto']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]))
             respuesta, enunciado = pred.respuesta, pred.enunciado_revisado.strip()
+        except ModeloSinRespuesta:
+            raise  # los comentarios siguen marcados como nuevos: se responden cuando el cerebro vuelva
         except Exception as ex:  # noqa: BLE001
             respuesta, enunciado = f"No pude responder ahora: el modelo no respondió ({str(ex)[:100]}).", h["enunciado"]
 
@@ -1184,6 +1437,12 @@ class Supervisor:
             # fragmentos de toda la investigación más los pasajes guardados.
             if comprobables:
                 await PASOS.verificar_afirmaciones(_CtxReplica(ctx, frags + guardados), comprobables, None, h["enunciado"], rol="replica", rollout_id=trayectoria)
+        except ModeloSinRespuesta:
+            # El juez de réplica no respondió tras los reintentos del vigilante: la
+            # trayectoria no se consume (antes caía aquí abajo y se apuntaba como "no
+            # comprobable" con `hechas += 1`, gastando una de las tres sin haber
+            # juzgado nada). Se vuelve a intentar entera cuando el modelo responda.
+            raise
         except Exception:  # noqa: BLE001
             traceback.print_exc()
         negativas_sin_releer = 0
@@ -1338,12 +1597,21 @@ class Supervisor:
             c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
             if not c or c["estado"] in ("detenida", "terminada"):
                 return
+            if c["estado"] == "esperando_modelo":
+                # Un modelo no responde: la tarea termina limpia. El supervisor sondea el
+                # gateway desde el tic y relanza la corrida cuando vuelve (o antes, si la
+                # persona pulsa "Reintentar ahora").
+                return
             if c["estado"] in ("pausada", "pausada_por_presupuesto", "esperando_aprobacion"):
                 await asyncio.sleep(1.0)
                 continue
             it = A.iteracion_actual_de(e, c)
             if it is None or it["terminadaEn"] is not None:
-                await self._proponer_plan(c, it)
+                try:
+                    await self._proponer_plan(c, it)
+                except ModeloSinRespuesta as ex:
+                    self.almacen.mutar(lambda e2: _entrar_en_esperando_modelo(e2, corrida_id, ex, None, P.ahora_ms()), "modelo_sin_respuesta")
+                    return  # la tarea termina limpia: la relanza el sondeo, la persona o el tic (ver _ejecutar_paso)
                 continue
             if not it["planAprobado"]:
                 if c["estado"] != "esperando_plan":
@@ -1361,11 +1629,22 @@ class Supervisor:
             if motivo and paso is not None:
                 self.almacen.mutar(lambda e2: _omitir_pendientes(e2, it["id"], motivo), "parada")
             if paso is None or motivo:
-                await self._cerrar_con_presupuesto(c, it)
+                try:
+                    await self._cerrar_con_presupuesto(c, it)
+                except ModeloSinRespuesta as ex:
+                    # El cierre guarda lo ya calculado en `it._cierre`: se retoma sin repagar.
+                    self.almacen.mutar(lambda e2: _entrar_en_esperando_modelo(e2, corrida_id, ex, None, P.ahora_ms()), "modelo_sin_respuesta")
+                    return
                 continue
             if not await self._permiso_presupuesto(c, it):
                 continue
-            await self._ejecutar_paso(c, it, paso)
+            if await self._ejecutar_paso(c, it, paso):
+                # Un modelo dejó de responder a mitad del paso: la tarea termina limpia.
+                # Si la corrida quedó en `esperando_modelo`, la relanza el sondeo que
+                # responda (o la persona con "Reintentar ahora"); si la persona la había
+                # pausado mientras el paso corría, la pausa manda: el tic le da una tarea
+                # nueva que duerme en la pausa y el paso pendiente se reintenta al reanudar.
+                return
 
     async def _cerrar_con_presupuesto(self, c: dict[str, Any], it: dict[str, Any]) -> None:
         """`_cerrar_iteracion` con la misma puerta de presupuesto que los pasos y
@@ -1417,8 +1696,12 @@ class Supervisor:
                 mision["areas"] = [P.nueva_area(titulo=a.titulo.strip(), familiaMecanismo=a.familia_mecanismo.strip(), relevancia=a.relevancia.strip(), valorIntervencion=a.valor_intervencion.strip(), incertidumbre=a.incertidumbre.strip(), comprobabilidad=a.comprobabilidad.strip(), coste=a.coste.strip(), demora=a.demora.strip(), dependeDe=a.depende_de.strip(), estado="elegida" if a.elegir else ("sin_explorar" if "sin ruta" in a.comprobabilidad.lower() else "propuesta")) for a in list(pa.areas)[:6]]
                 if not any(a["estado"] == "elegida" for a in mision["areas"]) and mision["areas"]:
                     mision["areas"][0]["estado"] = "elegida"
+            except ModeloSinRespuesta:
+                raise
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
+        except ModeloSinRespuesta:
+            raise  # la misión no se marca como intentada: se propone cuando el cerebro vuelva
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
             mision, justificacion = None, str(ex)[:200]
@@ -1448,6 +1731,8 @@ class Supervisor:
             pred = await ctx.llamar("cerebro", self.programas.pregunta, meta_amplia=m.get("metaAmplia") or inv["objetivo"], mision=PASOS._texto_mision(inv), area=area, modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30))
             q = pred.pregunta
             pregunta = {**P.pregunta_vacia(), "contexto": q.contexto.strip(), "etapa": q.etapa.strip(), "intervencion": q.intervencion.strip(), "comparador": q.comparador.strip(), "desenlace": q.desenlace.strip(), "ventana": q.ventana.strip(), "unidadBiologica": q.unidad_biologica.strip(), "mecanismos": q.mecanismos.strip(), "decision": q.decision.strip(), "umbralEfecto": q.umbral_efecto.strip(), "umbralResuelto": bool(q.umbral_resuelto) and "sin resolver" not in q.umbral_efecto.lower(), "pasoRuta": q.paso_ruta, "enunciado": q.enunciado.strip(), "propuestaPorRosa": True}
+        except ModeloSinRespuesta:
+            raise  # la pregunta no se marca como intentada: se formula cuando el cerebro vuelva
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             pregunta = None
@@ -1530,6 +1815,8 @@ class Supervisor:
         except PresupuestoAgotado:
             self.almacen.mutar(lambda e2: _pausar_por_presupuesto(e2, c["id"]), "presupuesto")
             return
+        except ModeloSinRespuesta:
+            raise  # el cerebro no responde: la corrida espera a Astra, no se le da un plan por defecto
         except Exception as ex:  # noqa: BLE001
             ctx.incidencia("modelo_bloqueado", "No se pudo proponer el plan con el modelo", str(ex)[:400], self.modelos.cerebro.model, "Se usa el plan por defecto de ROSA2018; se puede editar antes de aprobarlo.")
         if not plan:
@@ -1586,11 +1873,28 @@ class Supervisor:
         """Si la iteración pide más de la mitad de lo que queda en la corrida y
         la autonomía dice 'preguntar', se pide permiso una vez por iteración."""
         e = self.almacen.estado
-        if it.get("_presupuestoAutorizado") or e["autonomia"].get("gastar_grande") == "actuar":
+        if it.get("_presupuestoAutorizado"):
             return True
         restante = c["presupuesto"]["limiteLlamadas"] - c["gasto"]["llamadas"]
         pedido = it["presupuesto"]["limite"]
         if pedido <= restante * 0.5:
+            return True
+        if e["autonomia"].get("gastar_grande") == "actuar":
+            # Regla de Emir (18 sep 2026): con el tope de la corrida como freno, el
+            # gasto grande no se consulta; se avisa una vez por iteración y se sigue.
+            if not it.get("_avisoGastoGrande"):
+                ahora = P.ahora_ms()
+                texto = f"La iteración {it['numero']} gastará hasta {pedido} llamadas de las {restante} que quedan (más de la mitad); ROSA2018 sigue sin preguntar porque la autonomía de gasto está en «actuar»"
+
+                def avisar(e2: dict[str, Any]) -> bool:
+                    it2 = next((x for x in e2["iteraciones"] if x["id"] == it["id"]), None)
+                    if it2 is None or it2.get("_avisoGastoGrande"):
+                        return False
+                    it2["_avisoGastoGrande"] = True
+                    A.con_evento(e2, c["investigacionId"], "presupuesto", texto, f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
+                    return True
+
+                self.almacen.mutar(avisar, "presupuesto")
             return True
         ya = next((s for s in e["solicitudes"] if s["corridaId"] == c["id"] and s["tipo"] == "presupuesto_grande" and s.get("_iteracionId") == it["id"]), None)
         if ya is None:
@@ -1633,18 +1937,21 @@ class Supervisor:
         self.almacen.mutar(resolver, "presupuesto_autorizado")
         return ya["estado"] == "concedida"
 
-    async def _ejecutar_paso(self, c: dict[str, Any], it: dict[str, Any], paso: dict[str, Any]) -> None:
+    async def _ejecutar_paso(self, c: dict[str, Any], it: dict[str, Any], paso: dict[str, Any]) -> bool:
+        """Ejecuta un paso del plan. Devuelve True solo si un modelo dejó de
+        responder a mitad (`ModeloSinRespuesta`): el paso volvió a pendiente y la
+        tarea de la corrida debe terminar limpia."""
         tipo = T.inferir_tipo_paso(paso)
         ctx = Ctx(self.almacen, self.programas, self.modelos, c["id"], c["investigacionId"], it["id"], it["numero"])
         self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "en_curso"), "paso")
         if tipo == "indicacion":
             # La indicacion humana entra como contexto de los pasos que siguen.
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "hecho", detalle=paso["detalle"]), "paso")
-            return
+            return False
         ejecutor = PASOS.EJECUTORES.get(tipo)
         if ejecutor is None:
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "omitido", motivo=f"ROSA2018 no tiene herramienta para '{tipo}'"), "paso")
-            return
+            return False
         sin_trabajo_cls = getattr(PASOS, "SinTrabajo", None)
         try:
             gepa = getattr(self.almacen, "gepa_servicio", None)
@@ -1663,13 +1970,33 @@ class Supervisor:
         except PresupuestoAgotado:
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "pendiente"), "paso")
             self.almacen.mutar(lambda e: _pausar_por_presupuesto(e, c["id"]), "presupuesto")
+        except ModeloSinRespuesta as ex:
+            # El cerebro o el juez no responden tras los reintentos del vigilante: el
+            # paso vuelve a pendiente (se retoma entero cuando el modelo vuelva), sus
+            # pistas en curso se cierran con el motivo y la corrida pasa a
+            # `esperando_modelo`. Nunca se degrada el rol a otro modelo (TRASPASO.md 7.4).
+            ahora = P.ahora_ms()
+            nombre = nombre_del_modelo(getattr(ex, "modelo", None), getattr(ex, "rol", None))
+
+            def esperar(e: dict[str, Any]) -> bool:
+                _estado_paso(e, it["id"], paso["id"], "pendiente")
+                it2 = next((x for x in e["iteraciones"] if x["id"] == it["id"]), None)
+                for p_ in (it2 or {}).get("pistas", []):
+                    if p_.get("pasoId") == paso["id"] and p_.get("estado") == "en_curso":
+                        p_["estado"] = "fallida"
+                        p_["resumen"] = f"Interrumpida: {nombre} no respondió; el paso se retoma cuando vuelva"
+                _entrar_en_esperando_modelo(e, c["id"], ex, paso["id"], ahora)
+                return True
+
+            self.almacen.mutar(esperar, "modelo_sin_respuesta")
+            return True
         except asyncio.CancelledError:
             raise
         except Exception as ex:  # noqa: BLE001
             if sin_trabajo_cls is not None and isinstance(ex, sin_trabajo_cls):
                 motivo_sin = str(ex)[:300] or "El paso no encontró nada sobre lo que trabajar"
                 self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "sin_trabajo", detalle=motivo_sin, motivo=motivo_sin), "paso")
-                return
+                return False
             traceback.print_exc()
 
             def fallar_paso(e: dict[str, Any]) -> bool:
@@ -1683,6 +2010,7 @@ class Supervisor:
                 return True
 
             self.almacen.mutar(fallar_paso, "paso")
+        return False
 
     async def _revisar_registro(self, ctx: Ctx, inv: dict[str, Any], it: dict[str, Any], c: dict[str, Any], resumen: str, llano: dict[str, Any] | None) -> dict[str, Any]:
         e = self.almacen.estado
@@ -1699,8 +2027,11 @@ class Supervisor:
             for hz in pred.revision.hallazgos:
                 hallazgos.append({"clase": hz.clase, "gravedad": hz.gravedad, "detalle": hz.detalle.strip()[:400], "origen": "juez"})
             resumen_j = pred.revision.resumen.strip()
-        except PresupuestoAgotado:
-            raise  # el cierre pausa la corrida; una iteración no se cierra sin revisor por falta de presupuesto
+        except (PresupuestoAgotado, ModeloSinRespuesta):
+            # El cierre pausa la corrida (o espera al juez): una iteración no se cierra
+            # sin revisor por falta de presupuesto ni porque Opus no responda (se
+            # espera el tiempo que haga falta, TRASPASO.md 7.4).
+            raise
         except Exception as ex:  # noqa: BLE001
             resumen_j = f"El juez no respondió: {str(ex)[:120]}; solo comprobaciones por regla"
         for i, hz in enumerate(hallazgos):
@@ -1745,8 +2076,8 @@ class Supervisor:
             try:
                 pred = await ctx.llamar("cerebro", self.programas.resumir, plan_ejecutado=T.plan_ejecutado(it), cambios_modelo_de_mundo="\n".join(f"- {h['enunciado']}" for h in hechos_nuevos) or "Ninguno", hipotesis_nuevas="\n".join(f"- {h['titulo']}" for h in hip_nuevas) or "Ninguna", cola=cola, sin_comprobar="\n".join(f"- {x.get('texto') or x.get('titulo')}" for x in sin_comprobar) or "Nada")
                 resumen = pred.resumen.strip()
-            except PresupuestoAgotado:
-                raise
+            except (PresupuestoAgotado, ModeloSinRespuesta):
+                raise  # sin resumen por regla: el cierre se retoma cuando haya presupuesto o Astra vuelva
             except Exception:  # noqa: BLE001
                 hechas = sum(1 for p in it["pistas"] if p["estado"] == "hecha")
                 resumen = f"{len(it['plan'])} pasos, {hechas} pistas completadas, {len(hechos_nuevos)} hechos y {len(hip_nuevas)} hipótesis nuevas"
@@ -1757,8 +2088,8 @@ class Supervisor:
         if len(propias) >= 2 and not parcial.get("metaHecha") and not any(T.inferir_tipo_paso(p) == "meta" and p["estado"] == "hecho" for p in it["plan"]):
             try:
                 await PASOS.paso_meta(ctx, {"id": None, "titulo": "Meta-revisión al cierre", "detalle": ""})
-            except PresupuestoAgotado:
-                raise
+            except (PresupuestoAgotado, ModeloSinRespuesta):
+                raise  # la meta-revisión no se salta: se hace al retomar el cierre
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()
             self.almacen.mutar(lambda e2: _guardar_cierre_parcial(e2, it["id"], metaHecha=True), "cierre_parcial")
@@ -1779,6 +2110,9 @@ class Supervisor:
             con_evidencia |= set(vivero_res.get("nacidas", []))
         except PresupuestoAgotado:
             pista_ev.fallar("Sin presupuesto: la evidencia nueva se enlaza al retomar el cierre")
+            raise
+        except ModeloSinRespuesta as ex:
+            pista_ev.fallar(f"{nombre_del_modelo(getattr(ex, 'modelo', None), getattr(ex, 'rol', None))} no respondió: la evidencia nueva se enlaza al retomar el cierre")
             raise
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
@@ -1805,8 +2139,8 @@ class Supervisor:
 
             resultados = await asyncio.gather(*(concluir_una(h) for h in a_concluir), return_exceptions=True)
             for r in resultados:
-                if isinstance(r, (PresupuestoAgotado, asyncio.CancelledError)):
-                    raise r
+                if isinstance(r, (PresupuestoAgotado, ModeloSinRespuesta, asyncio.CancelledError)):
+                    raise r  # las conclusiones ya escritas se conservan (huella): no se repagan al retomar
                 if isinstance(r, BaseException):
                     traceback.print_exception(r)
         ahora = P.ahora_ms()
@@ -1903,6 +2237,8 @@ class Supervisor:
                 c2["estado"] = "terminada"
                 c2["terminadaEn"] = ahora
                 c2["motivoCierre"] = terminar
+                c2["esperandoModelo"] = None
+                _resolver_incidencias_de_modelo_al_cerrar(e2, c2["id"], ahora)
                 c2["metrica"] = PROG.metrica_de_corrida(e2, c2["id"])
                 c2["_revisarArnes"] = True  # meta-campaña: el supervisor la recoge
                 resumen_m = PROG.resumen_metrica(c2["metrica"])
@@ -1935,7 +2271,7 @@ def retroceso_ms(n: int) -> int:
         return RETROCESO_MS[n - 1]
     return min(RETROCESO_MS[-1] * 2 ** (n - len(RETROCESO_MS)), RETROCESO_MAX_MS)
 # Incidencias que no retienen a la corrida en "esperando aprobación".
-INCIDENCIAS_QUE_NO_BLOQUEAN = ("modelo_bloqueado", "bucle_reventado")
+INCIDENCIAS_QUE_NO_BLOQUEAN = ("modelo_bloqueado", "bucle_reventado", "modelo_sin_respuesta")
 # Veces que se intenta una revisión pedida cuando el Killer no llega a decidir.
 MAX_INTENTOS_KILLER = 3
 _SINTETICO = re.compile(r"sint[eé]tic", re.IGNORECASE)
@@ -2911,6 +3247,27 @@ def _omitir_pendientes(e: dict[str, Any], iteracion_id: str, motivo: str) -> boo
     return True
 
 
+RESOLUCION_CERRADA_SIN_MODELO = "La corrida se cerró mientras el modelo no respondía"
+
+
+def _resolver_incidencias_de_modelo_al_cerrar(e: dict[str, Any], corrida_id: str, ahora: int) -> int:
+    """Al pasar una corrida a terminada: sus incidencias `modelo_sin_respuesta`
+    pendientes (las que ROSA2018 abre y resuelve sola) quedan resueltas con "la
+    corrida se cerró mientras el modelo no respondía". Sin esto, la que quedara
+    abierta al cerrar no la resolvía nadie (el vigilante ya no corre para esa
+    corrida y el supervisor solo resuelve en `esperando_modelo`) y la franja de
+    modelos la enseñaba "quedó abierta al cerrar la corrida" para siempre. Misma
+    regla que `detener_corrida` en rosa/estado/acciones.py. Devuelve cuántas."""
+    n = 0
+    for inc in e.get("incidencias", []) or []:
+        if inc.get("corridaId") == corrida_id and inc.get("estado") == "pendiente" and inc.get("tipo") == "modelo_sin_respuesta":
+            inc["estado"] = "resuelta"
+            inc["resueltaEn"] = ahora
+            inc["resolucion"] = RESOLUCION_CERRADA_SIN_MODELO
+            n += 1
+    return n
+
+
 def _terminar_corrida(e: dict[str, Any], corrida_id: str, motivo: str) -> bool:
     c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
     if not c or c["estado"] in ("detenida", "terminada"):
@@ -2919,6 +3276,8 @@ def _terminar_corrida(e: dict[str, Any], corrida_id: str, motivo: str) -> bool:
     c["estado"] = "terminada"
     c["terminadaEn"] = ahora
     c["motivoCierre"] = motivo
+    c["esperandoModelo"] = None  # una corrida terminada no espera a ningún modelo
+    _resolver_incidencias_de_modelo_al_cerrar(e, corrida_id, ahora)
     c["metrica"] = PROG.metrica_de_corrida(e, c["id"])
     c["_revisarArnes"] = True  # meta-campaña: el supervisor la recoge
     resumen_m = PROG.resumen_metrica(c["metrica"])
@@ -3007,6 +3366,192 @@ def _pausar_por_presupuesto(e: dict[str, Any], corrida_id: str, tope: str | None
     return True
 
 
+# -- esperando modelo (vigilante de modelos, 18 de septiembre de 2026) ---------
+
+
+def nombre_del_modelo(modelo: str | None, rol: str | None = None) -> str:
+    """El nombre con el que la persona conoce al modelo ("GPT-6 Astra"): el del
+    vigilante si está, por el id del gateway y, sin id, por el rol."""
+    if modelo and VIG is not None:
+        return VIG.nombre_de_modelo(modelo)
+    m = (modelo or "").lower()
+    for clave, nombre in NOMBRES_MODELO:
+        if clave in m:
+            return nombre
+    return NOMBRE_POR_ROL.get(rol or "", modelo or "el modelo")
+
+
+def _texto_duracion(ms: int) -> str:
+    if VIG is not None:
+        return VIG.duracion_texto(ms)
+    minutos = max(0, int(ms)) // 60_000
+    if minutos < 1:
+        return "menos de un minuto"
+    if minutos == 1:
+        return "1 minuto"
+    if minutos < 120:
+        return f"{minutos} minutos"
+    return f"{minutos // 60} h {minutos % 60} min"
+
+
+def _texto_intentos(n: int) -> str:
+    if VIG is not None:
+        return VIG.intentos_texto(int(n))
+    return "1 intento" if int(n) == 1 else f"{int(n)} intentos"
+
+
+def _texto_cada_sondeo() -> str:
+    s = int(INTERVALO_SONDEO_S)
+    if s == 60:
+        return "cada minuto"
+    if s % 60 == 0:
+        return f"cada {s // 60} minutos"
+    return f"cada {s} segundos"
+
+
+def _ruta_corrida(c: dict[str, Any]) -> str:
+    return f"#/investigaciones/{c['investigacionId']}/corrida"
+
+
+def _actualizar_salud(e: dict[str, Any], rol: str | None, modelo: str | None, *, ahora: int | None = None, **campos: Any) -> dict[str, Any]:
+    """Escribe en `saludModelos[rol]` (la clave raíz del estado, misma forma que
+    SaludModelo en frontend/src/datos/tipos.ts). Tolera estados antiguos sin la
+    clave y crea el registro del rol si no existe. Una entrada en
+    `sin_respuesta` desde otro estado cuenta una caída, salvo que el modelo
+    respondiera hace menos de INTERVALO_SONDEO_S (`ahora` contra
+    `ultimaRespuestaEn` y `recuperadoEn`): un modelo que contesta a un sondeo y
+    no al siguiente está en la misma caída, no en otra."""
+    salud = e.get("saludModelos")
+    if not isinstance(salud, dict):
+        salud = e["saludModelos"] = {}
+    rol = str(rol or "cerebro")
+    reg = salud.get(rol)
+    if not isinstance(reg, dict):
+        reg = salud[rol] = {"modelo": modelo or "", "estado": "ok", "desde": None, "intentos": 0, "proximoIntentoEn": None, "ultimaRespuestaEn": None, "ultimaLatenciaMs": None, "caidas": 0, "recuperadoEn": None}
+    if modelo:
+        reg["modelo"] = modelo
+    if campos.get("estado") == "sin_respuesta" and reg.get("estado") not in ("lento", "sin_respuesta"):
+        # Misma regla que registrar_salud del vigilante: "lento" ya es caído.
+        marcas = [m for m in (reg.get("ultimaRespuestaEn"), reg.get("recuperadoEn")) if isinstance(m, (int, float)) and not isinstance(m, bool)]
+        recaida = isinstance(ahora, (int, float)) and bool(marcas) and ahora - max(marcas) < int(INTERVALO_SONDEO_S) * 1000
+        if not recaida:
+            reg["caidas"] = int(reg.get("caidas") or 0) + 1
+    reg.update(campos)
+    return reg
+
+
+def _entrar_en_esperando_modelo(e: dict[str, Any], corrida_id: str, ex: BaseException, paso_id: str | None, ahora: int) -> bool:
+    """La corrida pasa a `esperando_modelo` con `esperandoModelo` relleno desde la
+    excepción del vigilante (rol, modelo, intentos, desde) y deja el evento en
+    castellano. El primer sondeo queda a INTERVALO_SONDEO_S. Una corrida detenida
+    o terminada no se toca.
+
+    La orden de la persona manda: si mientras el paso corría la corrida pasó a
+    pausada (o a pausada por presupuesto, o a esperando una aprobación), el
+    estado no se pisa ni se sondea. El paso queda pendiente y se reintenta
+    cuando ella la reanude; no se deja registro de espera que la interfaz
+    pudiera leer como "resolviéndose solo". Misma regla que `fijar_espera_modelo`
+    en rosa/vigilante_modelos.py. Antes el primer sondeo que respondía la ponía
+    en marcha y deshacía la pausa sin que nadie la reanudara."""
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c or c["estado"] in ("detenida", "terminada"):
+        return False
+    rol = str(getattr(ex, "rol", None) or "cerebro")
+    modelo = str(getattr(ex, "modelo", None) or "")
+    intentos = int(getattr(ex, "intentos", 0) or 0)
+    desde = getattr(ex, "desde", None)
+    desde = int(desde) if isinstance(desde, (int, float)) and desde > 0 else ahora
+    proximo = ahora + int(INTERVALO_SONDEO_S) * 1000
+    if c["estado"] not in ESTADOS_QUE_PASAN_A_ESPERANDO_MODELO:
+        _actualizar_salud(e, rol, modelo, ahora=ahora, estado="sin_respuesta", desde=desde, intentos=intentos)
+        nombre = nombre_del_modelo(modelo, rol)
+        situacion = ESTADO_DE_ESPERA_EN_LLANO.get(str(c["estado"]), "en espera de una persona")
+        A.con_evento(e, c["investigacionId"], "corrida_estado", f"{nombre} no respondió tras {_texto_intentos(intentos)}; la corrida sigue {situacion} y el paso pendiente se reintentará al retomarla", _ruta_corrida(c), ahora)
+        return True
+    # El vigilante ya pudo anotar la espera entre sus reintentos: del mismo modelo
+    # se conservan el último sondeo y la marca más antigua de "desde".
+    previa = c.get("esperandoModelo") if isinstance(c.get("esperandoModelo"), dict) else None
+    ultimo_sondeo = None
+    if previa and previa.get("modelo") == modelo:
+        ultimo_sondeo = previa.get("ultimoSondeo")
+        if isinstance(previa.get("desde"), (int, float)) and 0 < previa["desde"] < desde:
+            desde = int(previa["desde"])
+        intentos = max(intentos, int(previa.get("intentos") or 0))
+    c["estado"] = "esperando_modelo"
+    c["esperandoModelo"] = {"rol": rol, "modelo": modelo, "desde": desde, "ultimoSondeo": ultimo_sondeo, "proximoSondeo": proximo, "pasoId": paso_id, "intentos": intentos}
+    _actualizar_salud(e, rol, modelo, ahora=ahora, estado="sin_respuesta", desde=desde, intentos=intentos, proximoIntentoEn=proximo)
+    nombre = nombre_del_modelo(modelo, rol)
+    A.con_evento(e, c["investigacionId"], "corrida_estado", f"ROSA2018 espera a que {nombre} vuelva a responder: sondea {_texto_cada_sondeo()} y retomará sola", _ruta_corrida(c), ahora)
+    return True
+
+
+def _sondeo_fallido(e: dict[str, Any], corrida_id: str, ahora: int) -> bool:
+    """El sondeo no obtuvo respuesta: el siguiente queda a INTERVALO_SONDEO_S y se
+    cuenta el intento. La corrida sigue esperando."""
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c or c["estado"] != "esperando_modelo":
+        return False
+    espera = c.get("esperandoModelo")
+    if not isinstance(espera, dict):
+        return False
+    espera["ultimoSondeo"] = ahora
+    espera["proximoSondeo"] = ahora + int(INTERVALO_SONDEO_S) * 1000
+    espera["intentos"] = int(espera.get("intentos") or 0) + 1
+    _actualizar_salud(e, espera.get("rol"), espera.get("modelo"), ahora=ahora, estado="sin_respuesta", intentos=espera["intentos"], proximoIntentoEn=espera["proximoSondeo"])
+    return True
+
+
+def _modelo_recuperado(e: dict[str, Any], corrida_id: str, ahora: int) -> bool:
+    """El modelo volvió: la corrida pasa a en marcha, se borra `esperandoModelo`,
+    se emite `modelo_recuperado` ("GPT-6 Astra volvió tras N intentos y M
+    minutos"), se resuelven las incidencias `modelo_sin_respuesta` pendientes de
+    la corrida y la salud del rol queda en ok. Devuelve False si la corrida ya no
+    esperaba (la persona la reanudó o la detuvo mientras se sondeaba)."""
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c or c["estado"] != "esperando_modelo":
+        return False
+    espera = c.get("esperandoModelo") if isinstance(c.get("esperandoModelo"), dict) else {}
+    rol = str(espera.get("rol") or "cerebro")
+    modelo = str(espera.get("modelo") or "")
+    intentos = int(espera.get("intentos") or 0)
+    desde = espera.get("desde")
+    duracion = _texto_duracion(ahora - int(desde)) if isinstance(desde, (int, float)) else "un tiempo sin medir"
+    nombre = nombre_del_modelo(modelo, rol)
+    texto = f"{nombre} volvió tras {_texto_intentos(intentos)} y {duracion}"
+    c["estado"] = "en_marcha"
+    c["esperandoModelo"] = None
+    for inc in e["incidencias"]:
+        if inc["corridaId"] == corrida_id and inc["estado"] == "pendiente" and inc["tipo"] == "modelo_sin_respuesta":
+            inc["estado"] = "resuelta"
+            inc["resueltaEn"] = ahora
+            inc["resolucion"] = "ROSA2018 lo resolvió sola"
+            inc["detalle"] = f"{texto}."
+    # La salud del rol vuelve a ok solo si ninguna otra corrida sigue esperando a
+    # este mismo modelo: con dos sondeos a un segundo de diferencia (uno responde
+    # y el otro no) se contaba la misma caída dos veces y la franja decía "ok"
+    # mientras una corrida seguía esperando. Si otra espera, queda anotada la
+    # respuesta y la salud sigue en sin_respuesta hasta que su sondeo la confirme.
+    otras_esperan = any(x is not c and x.get("estado") == "esperando_modelo" and isinstance(x.get("esperandoModelo"), dict) and x["esperandoModelo"].get("modelo") == modelo for x in e["corridas"])
+    if otras_esperan:
+        _actualizar_salud(e, rol, modelo, ahora=ahora, ultimaRespuestaEn=ahora)
+    else:
+        _actualizar_salud(e, rol, modelo, ahora=ahora, estado="ok", desde=ahora, intentos=0, proximoIntentoEn=None, ultimaRespuestaEn=ahora, recuperadoEn=ahora)
+    A.con_evento(e, c["investigacionId"], "modelo_recuperado", texto, _ruta_corrida(c), ahora)
+    return True
+
+
+def _salir_de_esperando_modelo_sin_registro(e: dict[str, Any], corrida_id: str, ahora: int) -> bool:
+    """Una corrida en `esperando_modelo` sin `esperandoModelo` (estado a medias o
+    de otra versión) no puede sondear nada: vuelve a en marcha y se dice."""
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c or c["estado"] != "esperando_modelo" or isinstance(c.get("esperandoModelo"), dict):
+        return False
+    c["estado"] = "en_marcha"
+    c["esperandoModelo"] = None
+    A.con_evento(e, c["investigacionId"], "corrida_estado", f"La corrida {c['numero']} esperaba a un modelo sin registro de cuál: retoma y reintenta el paso pendiente", _ruta_corrida(c), ahora)
+    return True
+
+
 def _estado_paso(e: dict[str, Any], iteracion_id: str, paso_id: str, estado: str, detalle: str | None = None, motivo: str | None = None) -> bool:
     it = next((x for x in e["iteraciones"] if x["id"] == iteracion_id), None)
     if not it:
@@ -3029,6 +3574,24 @@ UMBRAL_SUSPENSION_MS = 120_000
 # permiso pendiente, la pausa a mano y la pausa por presupuesto (alguien tiene
 # que ampliarlo). Ese tiempo no cuenta contra el tope en horas.
 ESTADOS_DE_ESPERA_HUMANA = ("esperando_plan", "esperando_aprobacion", "pausada", "pausada_por_presupuesto")
+# Estados en los que la corrida espera a ROSA2018 misma, no a una persona: un
+# modelo del gateway que no responde. Ese tiempo va a `pausaMs`, como el sueño
+# del equipo: no es trabajo ni espera humana.
+ESTADOS_DE_PAUSA_DEL_PROCESO = ("esperando_modelo",)
+# Estados desde los que un modelo caído lleva la corrida a `esperando_modelo`:
+# en marcha, o ya en espera (el vigilante la puso entre sus reintentos). Desde
+# cualquier otro (pausada, pausada por presupuesto, esperando una aprobación o el
+# plan) la orden de la persona manda y el estado no se pisa.
+ESTADOS_QUE_PASAN_A_ESPERANDO_MODELO = ("en_marcha", "esperando_modelo")
+# Cómo se le dice a la persona en qué quedó la corrida cuando el modelo cayó y su
+# estado no se tocó (evento de `_entrar_en_esperando_modelo`).
+ESTADO_DE_ESPERA_EN_LLANO = {"pausada": "pausada por la persona", "pausada_por_presupuesto": "pausada por presupuesto", "esperando_aprobacion": "a la espera de una aprobación", "esperando_plan": "a la espera del plan"}
+# Estados en los que los rellenos de fondo (versión en llano, conclusión,
+# experimento, tarjeta, misión) no gastan llamadas: la persona detuvo o pausó la
+# corrida, no hay presupuesto, o el modelo al que se le pediría no responde
+# (`esperando_modelo`: pedirle rellenos a un modelo caído es pagar generaciones
+# que el vigilante corta a los 240 s y reabrir su incidencia desde otra tarea).
+ESTADOS_SIN_GASTO_DE_FONDO = ("detenida", "terminada", "pausada", "pausada_por_presupuesto", "esperando_modelo")
 
 
 def tiempo_trabajo_ms(c: dict[str, Any], ahora: int) -> int:
@@ -3043,8 +3606,9 @@ def tiempo_trabajo_ms(c: dict[str, Any], ahora: int) -> int:
 
 def contabilizar_tiempo(c: dict[str, Any], ahora: int) -> bool:
     """En cada tic: si la corrida espera a una persona, el tiempo desde el tic
-    anterior va a `esperaHumanaMs`; si entre tics pasó más de UMBRAL_SUSPENSION_MS,
-    el hueco va a `pausaMs`. Devuelve True si cambió algo público."""
+    anterior va a `esperaHumanaMs`; si espera a un modelo que no responde
+    (`esperando_modelo`), o si entre tics pasó más de UMBRAL_SUSPENSION_MS, el
+    hueco va a `pausaMs`. Devuelve True si cambió algo público."""
     ultimo = c.get("_ultimoTic")
     c["_ultimoTic"] = ahora
     if not isinstance(ultimo, (int, float)) or ahora <= ultimo:
@@ -3052,6 +3616,9 @@ def contabilizar_tiempo(c: dict[str, Any], ahora: int) -> bool:
     delta = int(ahora - ultimo)
     if c.get("estado") in ESTADOS_DE_ESPERA_HUMANA:
         c["esperaHumanaMs"] = int(c.get("esperaHumanaMs") or 0) + delta
+        return True
+    if c.get("estado") in ESTADOS_DE_PAUSA_DEL_PROCESO:
+        c["pausaMs"] = int(c.get("pausaMs") or 0) + delta
         return True
     if delta > UMBRAL_SUSPENSION_MS:
         c["pausaMs"] = int(c.get("pausaMs") or 0) + delta

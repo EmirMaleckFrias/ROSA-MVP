@@ -92,10 +92,15 @@ def pausar_corrida(e: Estado, corrida_id: str) -> bool:
 
 
 def reanudar_corrida(e: Estado, corrida_id: str) -> bool:
+    """Saca a la corrida de la pausa a mano y también de `esperando_modelo`
+    (el "Reintentar ahora" de la persona cuando un modelo no responde: no
+    espera al siguiente sondeo). Misma regla que `reanudarCorrida` en
+    frontend/src/datos/acciones.ts."""
     c = corrida_de(e, corrida_id)
-    if not c or c["estado"] != "pausada":
+    if not c or c["estado"] not in ("pausada", "esperando_modelo"):
         return False
     c["estado"] = "en_marcha"
+    c["esperandoModelo"] = None
     return True
 
 
@@ -107,6 +112,17 @@ def detener_corrida(e: Estado, corrida_id: str, motivo: str, ahora: int, vigilar
     c["estado"] = "detenida"
     c["terminadaEn"] = ahora
     c["motivoCierre"] = texto
+    # Una corrida detenida ya no espera a ningún modelo: sin esto la franja de
+    # modelos seguía diciendo "esperando a GPT-6 Astra" sobre una corrida parada,
+    # y su incidencia automática `modelo_sin_respuesta` quedaba "resolviéndose
+    # sola" para siempre (el vigilante ya no corre y el supervisor solo resuelve
+    # en `esperando_modelo`). Misma regla que `detenerCorrida` en el frontend.
+    c["esperandoModelo"] = None
+    for inc in e.get("incidencias", []) or []:
+        if inc.get("corridaId") == corrida_id and inc.get("estado") == "pendiente" and inc.get("tipo") == "modelo_sin_respuesta":
+            inc["estado"] = "resuelta"
+            inc["resueltaEn"] = ahora
+            inc["resolucion"] = "La corrida se detuvo; ROSA2018 ya no espera a ese modelo"
     if vigilar_literatura_dias and vigilar_literatura_dias > 0:
         inv = _buscar(e["investigaciones"], c["investigacionId"])
         if inv:
@@ -152,6 +168,10 @@ def ampliar_presupuesto(e: Estado, corrida_id: str, nuevo_limite: float, ahora: 
         pres["limite"] = limite_nuevo_it = max(limite_it, usado + margen)
     if c["estado"] == "pausada_por_presupuesto":
         c["estado"] = "en_marcha"
+        # Un registro de espera de modelo que el vigilante dejó durante la pausa ya
+        # no vale al retomar: el paso se reintenta y, si el modelo sigue caído, se
+        # vuelve a anotar. Misma regla que `ampliarPresupuesto` en el frontend.
+        c["esperandoModelo"] = None
         if isinstance(c["presupuesto"], dict):
             c["presupuesto"]["motivoPausa"] = ""
     texto = f"Presupuesto ampliado a {limite} llamadas"

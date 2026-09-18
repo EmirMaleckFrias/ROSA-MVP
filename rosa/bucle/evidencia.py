@@ -37,6 +37,7 @@ from rosa import indice_semantico
 from rosa import politicas
 from rosa import killer as K
 from rosa import vigilancia
+from rosa.vigilante_modelos import ModeloSinRespuesta
 from rosa.bucle import contexto as T
 from rosa.estado import acciones as A
 from rosa.estado import plantilla as P
@@ -311,6 +312,10 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
             pred = await ctx.llamar("volumen", ctx.programas.asignar_evidencia, hipotesis=T.hipotesis_texto(h), afirmaciones=K.como_dato(lista), afirmaciones_existentes=K.como_dato(lista_existentes))
         except PresupuestoAgotado:
             raise
+        except ModeloSinRespuesta:
+            # Sonnet no responde tras los reintentos del vigilante: la evidencia nueva
+            # se enlaza al retomar el cierre, no se pierde en silencio por hipótesis.
+            raise
         except Exception:  # noqa: BLE001  una hipótesis que falla no tumba las demás
             traceback.print_exc()
             continue
@@ -429,6 +434,8 @@ async def acumular_vivero(ctx: Any, iteracion: int, pista: Any = None) -> dict[s
                         aceptadas.append((cands[int(indice) - 1][0], relacion, motivo))
             except PresupuestoAgotado:
                 raise
+            except ModeloSinRespuesta:
+                raise  # el vivero también espera a que el modelo de volumen vuelva
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
         ahora = P.ahora_ms()

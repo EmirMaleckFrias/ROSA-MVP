@@ -35,6 +35,7 @@ from typing import Any
 from rosa import config, ejecucion as X, politicas
 from rosa import datos as D
 from rosa import skills as SK
+from rosa import vigilante_modelos as VIG
 from rosa.bucle import contexto as T
 from rosa.bucle.pista import Pista
 from rosa.estado import acciones as A
@@ -150,6 +151,8 @@ async def _ensayo_en_seco(ctx, plan: dict[str, Any], codigo: str, ruta: Path, es
                 codigo = _limpiar_codigo(p2.codigo_corregido)
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise  # el cerebro no responde: el paso de análisis se retoma cuando vuelva
             except Exception as ex:  # noqa: BLE001
                 pista.error(f"No se pudo reparar en seco: {str(ex)[:120]}")
                 break
@@ -217,6 +220,8 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
                 codigo = _limpiar_codigo(p2.codigo_corregido)
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise  # el cerebro no responde: el paso de análisis se retoma cuando vuelva
             except Exception as ex:  # noqa: BLE001
                 pista.error(f"No se pudo reparar: {str(ex)[:120]}")
                 break
@@ -259,6 +264,8 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
                         interpretacion["resumen"] = f"[Por regla: {regla['detalle']}] " + interpretacion["resumen"]
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise  # el juez no responde: no se escribe "no evaluable"; el análisis se retoma cuando vuelva
             except Exception as ex:  # noqa: BLE001
                 interpretacion = {"estado": "no_evaluable", "resumen": f"El juez no pudo interpretar las cifras: {str(ex)[:120]}"}
     auditoria = None
@@ -284,6 +291,8 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
             run_plausible = bool(au.plausibilidad_verificada)
         except PresupuestoAgotado:
             raise
+        except VIG.ModeloSinRespuesta:
+            raise  # el auditor (juez) no responde: la auditoría se hace cuando vuelva, no queda "no evaluable"
         except Exception as ex:  # noqa: BLE001
             auditoria = {"veredicto": "no_evaluable_computacionalmente", "comprobaciones": deterministas, "motivo": f"El auditor no respondió: {str(ex)[:120]}", "quien": ctx.modelos.juez.model, "fecha": P.ahora_ms()}
             run_plausible = None

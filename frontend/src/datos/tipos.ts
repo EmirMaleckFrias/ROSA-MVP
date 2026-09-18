@@ -369,8 +369,45 @@ export type EstadoCorrida =
   | 'pausada_por_presupuesto'
   | 'esperando_aprobacion'
   | 'esperando_plan'
+  /** Un modelo del gateway (el cerebro, el juez) no responde: ROSA2018 sondea cada
+   *  minuto y retoma sola. No es espera humana: su tiempo va a `pausaMs`. */
+  | 'esperando_modelo'
   | 'detenida'
   | 'terminada';
+
+/** Los roles que ocupan los modelos del gateway dentro de ROSA2018. El cerebro es
+ *  GPT-6 Astra y solo Astra; el juez es Claude Opus 5 y solo Opus; Sonnet queda
+ *  para el volumen (regla de Emir, TRASPASO.md 7.4). */
+export type RolModelo = 'cerebro' | 'juez' | 'volumen' | 'replica';
+
+/** Lo que espera una corrida en `esperando_modelo`: qué rol y qué modelo no
+ *  responden, desde cuándo, el último y el próximo sondeo al gateway, el paso
+ *  que se retomará y cuántos intentos van. */
+export interface EsperaModelo {
+  rol: RolModelo;
+  modelo: string;
+  desde: number;
+  ultimoSondeo: number | null;
+  proximoSondeo: number | null;
+  pasoId: string | null;
+  intentos: number;
+}
+
+/** Salud de un modelo por rol, escrita por el vigilante de modelos
+ *  (rosa/vigilante_modelos.py) y por los sondeos del supervisor. */
+export interface SaludModelo {
+  modelo: string;
+  estado: 'ok' | 'lento' | 'sin_respuesta';
+  /** Desde cuándo está en el estado actual (null si nunca se midió). */
+  desde: number | null;
+  intentos: number;
+  proximoIntentoEn: number | null;
+  ultimaRespuestaEn: number | null;
+  ultimaLatenciaMs: number | null;
+  /** Veces que el modelo dejó de responder desde que arrancó el registro. */
+  caidas: number;
+  recuperadoEn: number | null;
+}
 
 export interface Gasto {
   /** Dólares gastados en Exa (búsqueda semántica) en esta corrida; solo si se usó. */
@@ -414,7 +451,7 @@ export interface Contexto {
   ultimaCompactacion: number | null;
 }
 
-export type TipoIncidencia = 'modelo_bloqueado' | 'conector_caducado' | 'fuente_sin_respuesta';
+export type TipoIncidencia = 'modelo_bloqueado' | 'conector_caducado' | 'fuente_sin_respuesta' | 'modelo_sin_respuesta';
 
 /** Algo que impide seguir y necesita a una persona: un modelo que devolvio
  *  vacio con content-filter, una clave de conector caducada. Se ensena como
@@ -567,8 +604,12 @@ export interface Corrida {
   autoAprobarPlanSegundos: number | null;
   /** Milisegundos que la corrida pasó esperando a una persona (plan sin aprobar, permiso de gasto, pausa); no cuentan frente al tope en horas. */
   esperaHumanaMs?: number;
-  /** Milisegundos en que el proceso estuvo suspendido (equipo dormido); tampoco cuentan. */
+  /** Milisegundos en que el proceso estuvo suspendido (equipo dormido) o la corrida
+   *  esperó a un modelo que no respondía (`esperando_modelo`); tampoco cuentan. */
   pausaMs?: number;
+  /** Qué modelo espera la corrida cuando está en `esperando_modelo`; null (o
+   *  ausente en corridas anteriores) el resto del tiempo. */
+  esperandoModelo?: EsperaModelo | null;
   /** Que ROSA2018 exacta corrio: commit del codigo, hash de las firmas DSPy y
    *  programas optimizados cargados. Para auditar cada hipotesis. */
   arnes?: { commit: string; firmas: string; optimizados: string };
@@ -1984,7 +2025,9 @@ export type TipoEvento =
   | 'vigilancia'
   | 'vivero'
   | 'revision_registro'
-  | 'dependencias';
+  | 'dependencias'
+  | 'modelo_sin_respuesta'
+  | 'modelo_recuperado';
 
 export interface Evento {
   id: Id;
@@ -2057,6 +2100,9 @@ export interface EstadoRosa {
    *  público que ROSA2018 vio en GEO, CELLxGENE, Synapse, ArrayExpress, Expression
    *  Atlas o que subió una persona. Falta en estados anteriores: lista vacía. */
   datasetsPrograma?: DatasetPrograma[];
+  /** Salud de los modelos del gateway por rol (cerebro, juez, volumen y, si lo
+   *  hay, réplica). Falta en estados anteriores: vale `{}`. */
+  saludModelos?: Partial<Record<RolModelo, SaludModelo>>;
 }
 
 /** Motor causal minimo. Una arista "de causa a" lleva el tipo que dice de

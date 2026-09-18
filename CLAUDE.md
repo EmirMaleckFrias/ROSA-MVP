@@ -112,3 +112,5 @@ sin aprobar por un humano.
   factores que bajan o suben la certeza a la vista, frases plantilla por nivel
   generadas por regla, sin porcentajes de confianza inventados, sin
   "demostrado" ni "confirmado", sin recomendaciones clinicas.
+- Sonnet nunca es el cerebro ni el juez: cuando Astra u Opus no responden se
+  reintenta con el mismo modelo (rosa/vigilante_modelos.py); ver TRASPASO 7.4.

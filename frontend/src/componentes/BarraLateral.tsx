@@ -51,7 +51,8 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
     const hip = estado.hipotesis.filter((h) => h.investigacionId === inv.id);
     const corridas = estado.corridas.filter((c) => c.investigacionId === inv.id).map((c) => c.id);
     const permisos = estado.solicitudes.filter((s) => corridas.includes(s.corridaId) && s.estado === 'pendiente').length;
-    const incidencias = estado.incidencias.filter((i) => corridas.includes(i.corridaId) && i.estado === 'pendiente').length;
+    // Las incidencias que ROSA2018 resuelve sola (modelo sin respuesta) no piden nada a la persona: no suman.
+    const incidencias = estado.incidencias.filter((i) => corridas.includes(i.corridaId) && i.estado === 'pendiente' && i.tipo !== 'modelo_sin_respuesta').length;
     const planes = estado.iteraciones.filter((i) => corridas.includes(i.corridaId) && !i.planAprobado && i.terminadaEn === null).length;
     const datos = inv.datasets.filter((d) => d.estado === 'pendiente').length;
     return { hipotesis: pendientesDeRevision(hip), corrida: permisos + incidencias + planes, investigacion: datos };

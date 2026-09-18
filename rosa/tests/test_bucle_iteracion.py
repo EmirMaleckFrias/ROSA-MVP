@@ -777,7 +777,9 @@ def test_el_presupuesto_agotado_pausa_la_corrida_sin_bucle_ni_llamadas(monkeypat
         c, it = _corrida(r), _it(r)
         assert c["gasto"]["llamadas"] == 4 and len(sim.vistas) == 4 and sim.cortes >= 1  # la quinta la paró el corte antes de salir
         assert c["presupuesto"]["motivoPausa"] == "La corrida agotó su tope de 4 llamadas (4 gastadas): se pausó. Amplía el tope para seguir."
-        eventos = [ev for ev in al.estado["eventos"] if ev["tipo"] == "presupuesto"]
+        # El aviso de gasto grande (autonomía en «actuar», regla del 18 de septiembre) es otro
+        # evento «presupuesto» legítimo: aquí solo se cuenta el de la pausa.
+        eventos = [ev for ev in al.estado["eventos"] if ev["tipo"] == "presupuesto" and "sigue sin preguntar" not in ev["texto"]]
         assert len(eventos) == 1 and eventos[0]["texto"] == c["presupuesto"]["motivoPausa"]
         assert [p["estado"] for p in it["plan"]] == ["pendiente"] * len(PLAN_SIETE), [(p["titulo"], p["estado"], p.get("motivoFallo")) for p in it["plan"]]
         assert it["terminadaEn"] is None

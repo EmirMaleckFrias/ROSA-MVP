@@ -12,8 +12,10 @@ compatible con OpenAI"; el resto es el id del modelo en el gateway.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import dspy
 from dotenv import load_dotenv
@@ -61,7 +63,64 @@ def lm(modelo: str, **kwargs) -> dspy.LM:
     `lm.copy(rollout_id=n)`; solo tiene efecto con temperatura distinta de 0
     (DSPy avisa si no)."""
     kwargs.setdefault("timeout", 300)  # segundos por petición HTTP al gateway; sin esto LiteLLM espera 6000
+    # El único que reintenta es el vigilante de modelos (rosa/vigilante_modelos.py),
+    # con sus esperas y sus sondeos a la vista. dspy.LM deja num_retries=3 y LiteLLM
+    # repetía por dentro cada intento con su propio retroceso: ante un 5xx o un 429
+    # eran 4 peticiones por intento (16 por ciclo), y contra un gateway que limita
+    # por ritmo eso agrava el 429 que se quiere esperar (la corrida 13, 18 de
+    # septiembre de 2026: "se reintentó 4 veces en serie").
+    kwargs.setdefault("num_retries", 0)
     return dspy.LM(f"openai/{modelo}", api_base=URL_GATEWAY, api_key=clave(), **kwargs)
+
+
+SEGUNDOS_SONDEO = 20.0
+
+
+def _id_en_gateway(lm: dspy.LM | str) -> str:
+    """El id del modelo tal como lo conoce el gateway: `lm.model` sin el prefijo
+    `openai/` que añade `lm()` para LiteLLM ("openai/anthropic/claude-opus-5"
+    es "anthropic/claude-opus-5"; "openai/openai/gpt-6-astra" es
+    "openai/gpt-6-astra"). Un id sin ese doble prefijo se deja tal cual."""
+    modelo = str(getattr(lm, "model", None) or lm or "")
+    return modelo[len("openai/"):] if modelo.startswith("openai/") and modelo.count("/") >= 2 else modelo
+
+
+async def sondear(lm: dspy.LM | str, *, cliente: Any | None = None, tiempo_s: float = SEGUNDOS_SONDEO) -> bool:
+    """¿Contesta este modelo ahora mismo? Una petición mínima al gateway
+    (`chat/completions`, un mensaje, `max_tokens` 1, `tiempo_s` de tope) con
+    httpx directo, sin DSPy ni LiteLLM: si el modelo está caído no queremos
+    sus reintentos internos ni su caché. Devuelve True solo con un 200 y una
+    respuesta con `choices`; cualquier otra cosa (4xx, 5xx, tiempo agotado,
+    sin red, sin clave) es False. Nunca lanza y no escribe nada en el estado:
+    lo llama el vigilante de modelos (rosa/vigilante_modelos.py) entre
+    intentos y el supervisor mientras una corrida está en `esperando_modelo`.
+    `cliente` permite pasar un `httpx.AsyncClient` propio (los tests le dan
+    uno con transporte falso)."""
+    try:
+        import httpx
+
+        kw = getattr(lm, "kwargs", None)
+        kw = kw if isinstance(kw, dict) else {}
+        base = str(kw.get("api_base") or URL_GATEWAY).rstrip("/")
+        clave_api = kw.get("api_key") or clave()
+        cuerpo = {"model": _id_en_gateway(lm), "messages": [{"role": "user", "content": "ok"}], "max_tokens": 1}
+        cabeceras = {"Authorization": f"Bearer {clave_api}", "Content-Type": "application/json"}
+
+        async def pedir(c: Any) -> bool:
+            r = await c.post(f"{base}/chat/completions", json=cuerpo, headers=cabeceras, timeout=tiempo_s)
+            if r.status_code != 200:
+                return False
+            datos = r.json()
+            return bool(isinstance(datos, dict) and datos.get("choices"))
+
+        if cliente is not None:
+            return await pedir(cliente)
+        async with httpx.AsyncClient(timeout=tiempo_s) as c:
+            return await pedir(c)
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001  (un sondeo que falla es "no respondió", y no debe romper a quien espera)
+        return False
 
 
 @dataclass(frozen=True)

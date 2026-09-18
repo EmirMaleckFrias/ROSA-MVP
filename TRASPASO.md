@@ -535,7 +535,17 @@ vacío o lo bloquea un filtro, reintenta una vez con el modelo de volumen"):
 para el cerebro, un filtro o una respuesta vacía se reintenta con Astra
 variando `rollout_id` y, si persiste, el paso falla con incidencia clara. El
 juez (Opus 5) tampoco se sustituye por Sonnet por defecto. Sonnet queda para el
-rol de volumen. Pendiente de aplicar en el bloque del vigilante de modelos.
+rol de volumen. Aplicado el 18 de septiembre de 2026 en el bloque del
+vigilante de modelos: `rosa/vigilante_modelos.py` (reintentos con el mismo
+modelo, sondeos al gateway, incidencia `modelo_sin_respuesta` que ROSA2018 abre
+y resuelve sola), `Ctx.llamar` en rosa/bucle/pasos.py sin respaldo al modelo de
+volumen (un filtro o un vacío se reintenta con el mismo modelo variando
+`rollout_id` y, si persiste, el paso falla con `modelo_bloqueado`), los
+ejecutores de pasos.py, analisis.py y evidencia.py relanzan
+`ModeloSinRespuesta` para que el paso se retome cuando el modelo vuelva, un
+corte por tiempo con el sondeo vivo cuenta como "lento" y no como caída, y
+`gateway.lm` deja `num_retries` a 0 para que el único que reintente sea el
+vigilante. La guardia está en rosa/tests/test_vigilante_regla_sonnet.py.
 
 ## 8. Skills instaladas para ROSA2018 (9 sep 2026)
 
@@ -685,3 +695,63 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
   `MAX_PARTES_POR_FRAGMENTO = 3` (hasta 18 llamadas al extractor por fuente en
   vez de 6). Los límites viven en el código, no en el estado: cambiarlos es un
   commit.
+- **Vigilante de modelos (18 sep):** cuando GPT-6 Astra (cerebro) o Claude
+  Opus 5 (juez) no responden, ROSA2018 reintenta con el MISMO modelo y nunca
+  degrada el rol a Sonnet (regla de Emir, sección 7.4). `rosa/vigilante_modelos.py`
+  acota cada intento (`TIEMPO_AVISO_S`: cerebro 240 s, juez 300 s, volumen
+  120 s, réplica 300 s), reintenta hasta `MAX_INTENTOS = 4` con esperas
+  `ESPERAS_S = (15, 30, 60, 60)` sondeando el gateway (`gateway.sondear`:
+  `chat/completions` con `max_tokens` 1 y 20 s, nunca lanza) cada
+  `INTERVALO_SONDEO_S = 60`; un vacío o un filtro en el cerebro, el juez o la
+  réplica se reintenta hasta `MAX_REINTENTOS_CONTENIDO = 2` veces con
+  `lm.copy(rollout_id=n)` y, si persiste, `ModeloBloqueado` con incidencia
+  `modelo_bloqueado`; un corte por tiempo con el sondeo respondiendo es "lento
+  con esta petición" (tope ampliado una vez hasta `TOPE_LENTO_S = 600`), no una
+  caída. Lo escribe donde se ve: incidencia `modelo_sin_respuesta` (la abre y
+  la resuelve ROSA2018; no retiene la aprobación ni sale en "Algo impide
+  seguir"), eventos `modelo_sin_respuesta` y `modelo_recuperado`, `saludModelos`
+  en la raíz del estado (por rol: modelo, estado ok/lento/sin_respuesta, desde,
+  intentos, próximo intento, última respuesta y latencia, caídas, recuperado) y
+  `esperandoModelo` en la corrida. Tras agotar los intentos la corrida pasa a
+  `esperando_modelo` (su tiempo va a `pausaMs`, no es espera humana), la tarea
+  termina limpia y el supervisor (rosa/bucle/corrida.py) sondea desde el tic
+  (`TOPE_SONDEO_S`, un sondeo en vuelo por corrida) y relanza el paso pendiente
+  cuando el modelo vuelve; "Reintentar ahora" (reanudar) no espera al sondeo;
+  detener o terminar la corrida borra la espera y resuelve la incidencia. Las
+  peticiones de la persona, la vigilancia de literatura y el índice corren como
+  tareas de fondo con tope (`_lanzar_fondo`, `TOPE_FONDO_S = 600`,
+  `TOPE_PETICIONES_S = 7200`): el tic ya no las espera (la hora perdida de la
+  corrida 13, 12:34 a 13:33). `gateway.lm` deja `num_retries = 0` y el contador
+  registra las llamadas fallidas con `ok = 0`. Interfaz: estado
+  `esperando_modelo`, tipos `EsperaModelo` y `SaludModelo`, franja de modelos
+  (`VigilanteModelos.tsx`) en la corrida con el botón "Reintentar ahora", caídas
+  contadas en el resumen (`digest.ts`), reloj de trabajo parado en la espera.
+  Migración: `saludModelos = {}` y `esperandoModelo = None` en registros
+  antiguos. Ficheros: rosa/vigilante_modelos.py, rosa/gateway.py,
+  rosa/bucle/pasos.py, corrida.py, analisis.py y evidencia.py,
+  rosa/modulos/contador.py, rosa/estado/acciones.py, plantilla.py y almacen.py,
+  frontend/src/datos/tipos.ts y acciones.ts, componentes/VigilanteModelos.tsx,
+  Resumen.tsx y HiloDelProceso.tsx, pantallas/Corrida.tsx e Inicio.tsx,
+  lib/digest.ts y etiquetas.ts, styles.css; tests rosa/tests/test_vigilante_*.py
+  y frontend/src/**/vigilante_*.test.ts(x). Pendientes: (1)
+  `test_vigilante_llamadas_adversario.py::test_atender_peticiones_no_espera_al_vigilante_dentro_del_bucle_de_tics`
+  exige que `_atender_peticiones` vuelva en menos de 0,2 s mientras
+  test_tanda1_cierre.py y test_tanda1_corrida.py exigen que la misma llamada
+  deje el trabajo hecho en línea: contratos incompatibles sobre el mismo
+  método; el hueco real está cerrado (`correr()` la lanza con `_lanzar_fondo`)
+  y el test debería medir los tics de `correr()`. (2) BarraLateral.tsx línea 70
+  (fichero del bloque del atlas): excluir `modelo_sin_respuesta` de la cuenta de
+  "Corrida en vivo", como hace `loQueEspera`. (3)
+  vigilante_frontend_adversario.test.tsx línea 84: aserción por subcadena
+  falsa ("4 intentos" dentro de "34 intentos"); cambiar a
+  `not.toMatch(/(^|[^\d])4 intentos sin respuesta/)`. (4) `fijar_espera_modelo`
+  anota la espera con la corrida pausada (lo exige test_vigilante_llamadas.py
+  línea 395) mientras `_entrar_en_esperando_modelo` no la escribe en esos
+  estados: decidir una sola regla. (5) `_atender_peticiones` reintenta en cada
+  tic una petición cuyo modelo está caído (cuatro intentos por vuelta); valorar
+  saltarla mientras `saludModelos[rol].proximoIntentoEn` no venza. (6)
+  VigilanteModelos.tsx: enseñar la incidencia `modelo_bloqueado` con motivo
+  "lento" como "lento con una petición", no como caída. (7)
+  `acentuar.py --comprobar` marca `reintento` (sustantivo) en
+  VigilanteModelos.tsx: falso positivo. (8) Commit y push del bloque con la
+  suite pasando y el escaneo de secretos limpio.

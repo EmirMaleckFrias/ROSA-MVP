@@ -568,7 +568,7 @@ export const PERMISOS: PermisoConcedido[] = [
 export const AUTONOMIA: Record<ClaseAccion, NivelAutonomia> = {
   buscar_literatura: 'actuar',
   correr_analisis: 'preguntar',
-  gastar_grande: 'preguntar',
+  gastar_grande: 'actuar',
   escribir_modelo_mundo: 'preguntar',
   descartar_hipotesis: 'sugerir',
   contactar_laboratorio: 'sugerir',

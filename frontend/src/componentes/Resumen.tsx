@@ -51,7 +51,7 @@ export function Resumen({ d, titulo, ahora, onVisto }: { d: Digest; titulo: stri
         <ol className="resumen-eventos">
           {visibles.map((e) => (
             <li key={e.id}>
-              <Chip tono={e.tipo === 'incidencia' ? 'mal' : e.tipo === 'permiso_pendiente' || e.tipo === 'presupuesto' ? 'aviso' : undefined}>{TIPO_EVENTO[e.tipo]}</Chip>
+              <Chip tono={e.tipo === 'incidencia' ? 'mal' : e.tipo === 'permiso_pendiente' || e.tipo === 'presupuesto' || e.tipo === 'modelo_sin_respuesta' ? 'aviso' : e.tipo === 'modelo_recuperado' ? 'ok' : undefined}>{TIPO_EVENTO[e.tipo]}</Chip>
               {e.ruta ? (
                 <a className="enlace" href={e.ruta}>
                   {mostrarTexto(e.texto)}

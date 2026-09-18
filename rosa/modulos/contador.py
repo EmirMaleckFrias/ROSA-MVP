@@ -140,6 +140,20 @@ class Contador(BaseCallback):
         # estimarse (así la interfaz sabe que las dos cifras no son comparables).
         usd_llamada, es_real = config.coste_desde_uso(uso, str(modelo))
 
+        if exception is not None:
+            # Una llamada que falló (tiempo agotado y cancelada por el vigilante,
+            # conexión, 5xx, filtro) queda en la tabla `llamadas` con ok=0, el tipo y
+            # el mensaje del error y lo que tardó, para poder auditar después qué
+            # pasó (la hora perdida de la corrida 13 se reconstruyó desde aquí). No
+            # suma tokens ni coste: DSPy no deja `usage` de una llamada fallida, y
+            # tampoco cuenta contra el presupuesto de llamadas: cuatro intentos a un
+            # modelo caído no son cuatro llamadas de la investigadora. `str(ex)` de
+            # una cancelación es vacío, por eso va el tipo delante.
+            texto = str(exception).strip().replace("\n", " ")
+            error = f"{type(exception).__name__}: {texto}"[:200] if texto else type(exception).__name__[:200]
+            self.almacen.registrar_llamada(str(modelo), ctx.rol if ctx else None, ctx.corrida_id if ctx else None, ctx.iteracion if ctx else None, 0, 0, ms, False, error)
+            return
+
         def sumar(e: dict[str, Any]) -> bool:
             if not ctx:
                 return False

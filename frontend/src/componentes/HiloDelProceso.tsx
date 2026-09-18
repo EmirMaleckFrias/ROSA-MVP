@@ -105,7 +105,7 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
 
 export function HiloDelProceso({ estado, inv, pantalla, detalleId = null, compacto = false }: { estado: EstadoRosa; inv: Investigacion; pantalla: Pantalla | null; detalleId?: string | null; compacto?: boolean }) {
   const reducido = useMovimientoReducido();
-  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id && ['en_marcha', 'esperando_plan', 'esperando_aprobacion'].includes(c.estado)).sort((a, b) => b.numero - a.numero)[0] ?? null;
+  const corrida = estado.corridas.filter((c) => c.investigacionId === inv.id && ['en_marcha', 'esperando_plan', 'esperando_aprobacion', 'esperando_modelo'].includes(c.estado)).sort((a, b) => b.numero - a.numero)[0] ?? null;
   if (!corrida) return null;
   const hilo = estadoDelHilo(estado, inv, corrida);
   return (

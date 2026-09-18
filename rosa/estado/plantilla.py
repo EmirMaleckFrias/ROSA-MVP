@@ -83,7 +83,7 @@ def estado_inicial() -> dict[str, Any]:
         "solicitudes": [],
         "incidencias": [],
         "permisos": [],
-        "autonomia": {c: ("preguntar" if c in ("gastar_grande", "contactar_laboratorio", "descartar_hipotesis") else "actuar") for c in CLASES_ACCION},
+        "autonomia": {c: ("preguntar" if c in ("contactar_laboratorio", "descartar_hipotesis") else "actuar") for c in CLASES_ACCION},
         "hipotesis": [],
         "comentarios": [],
         "hechos": [],
@@ -127,6 +127,9 @@ def estado_inicial() -> dict[str, Any]:
         # Registro de datasets del programa (rosa/datasets_programa.py): cada conjunto
         # público o subido que ROSA2018 vio, con su acceso y en qué investigaciones se usó.
         "datasetsPrograma": [],
+        # Salud de los modelos del gateway por rol (cerebro, juez, volumen, réplica),
+        # escrita por rosa/vigilante_modelos.py y por los sondeos del supervisor.
+        "saludModelos": {},
     }
 
 
@@ -171,6 +174,9 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         # tiempo de trabajo frente al tope en horas (rosa/bucle/corrida.py).
         "esperaHumanaMs": 0,
         "pausaMs": 0,
+        # Qué modelo espera la corrida cuando está en `esperando_modelo` (rol, modelo,
+        # desde, sondeos, paso, intentos); None el resto del tiempo.
+        "esperandoModelo": None,
         "arnes": _arnes(),
         "pregunta": None,
         # Parada propia de la corrida (horas, iteraciones, llamadas, texto); lo que

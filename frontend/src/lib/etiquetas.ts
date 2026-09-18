@@ -67,6 +67,7 @@ export const ESTADO_CORRIDA: Record<EstadoCorrida, string> = {
   pausada_por_presupuesto: 'Pausada: presupuesto agotado',
   esperando_aprobacion: 'Esperando tu aprobación',
   esperando_plan: 'Esperando que apruebes el plan',
+  esperando_modelo: 'Esperando al modelo',
   detenida: 'Detenida',
   terminada: 'Terminada',
 };
@@ -157,6 +158,7 @@ export const TIPO_INCIDENCIA: Record<TipoIncidencia, string> = {
   modelo_bloqueado: 'El modelo se nego a responder',
   conector_caducado: 'Un conector caduco',
   fuente_sin_respuesta: 'Una fuente no responde',
+  modelo_sin_respuesta: 'Un modelo no responde; ROSA2018 reintenta sola',
 };
 
 export const CLASE_ACCION: Record<ClaseAccion, string> = {
@@ -622,6 +624,8 @@ export const TIPO_EVENTO: Record<TipoEvento, string> = {
   aprendizaje: 'Aprendizaje',
   mision: 'Misión',
   dependencias: 'Recálculo por cambio de fuente',
+  modelo_sin_respuesta: 'Modelo sin respuesta',
+  modelo_recuperado: 'Modelo recuperado',
 };
 
 export const PASO_RUTA: Record<PasoRutaTerapeutica, { etiqueta: string; orden: number }> = {

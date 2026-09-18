@@ -25,7 +25,7 @@ import math
 import re
 import traceback
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Awaitable
 
 import dspy
 
@@ -46,6 +46,7 @@ from rosa import hechos as H
 from rosa import metodos as METODOS
 from rosa import verificador as V
 from rosa import torneo
+from rosa import vigilante_modelos as VIG
 from rosa.bucle import contexto as T
 from rosa.bucle.pista import Pista
 from rosa.estado import acciones as A
@@ -98,11 +99,62 @@ RELEVANCIA_MINIMA = politicas.RELEVANCIA_MINIMA
 TAU_COBERTURA = 20.0
 
 
-class ModeloBloqueado(RuntimeError):
-    pass
+# La excepción del paso que falla sin cambiar de modelo es la del vigilante
+# (filtro o vacío persistente; modelo vivo pero lento con la petición).
+ModeloBloqueado = VIG.ModeloBloqueado
 
 
-SEGUNDOS_MAX_LLAMADA = 600  # una llamada al gateway que tarda mas de esto es un fallo, no una espera
+# El tiempo por intento vive en rosa/vigilante_modelos.py (TIEMPO_AVISO_S, por rol:
+# 240 s el cerebro, 300 s el juez, 120 s el volumen). Esta constante queda como el
+# mayor de ellos para quien la lea como "tope de una llamada"; antes eran 600 s
+# fijos y LiteLLM reintentaba por dentro cuatro veces cinco minutos (la hora
+# perdida de la corrida 13, 18 de septiembre de 2026).
+SEGUNDOS_MAX_LLAMADA = max(VIG.TIEMPO_AVISO_S.values())
+
+# Excepciones que cortan un paso entero aunque salgan de un solo elemento (una
+# afirmación, un artículo): sin presupuesto no se sigue gastando, y con el
+# cerebro o el juez caídos el paso se retoma cuando vuelvan (TRASPASO.md 7.4), no
+# se pasa al siguiente elemento para que haga otros cuatro intentos.
+EXCEPCIONES_QUE_CORTAN_EL_PASO: tuple[type[BaseException], ...] = (PresupuestoAgotado, VIG.ModeloSinRespuesta)
+
+
+async def _en_paralelo(*coros: Awaitable[Any], return_exceptions: bool = False) -> list[Any]:
+    """`asyncio.gather` que, si una tarea lanza, cancela a las hermanas antes de
+    propagar. `gather` a secas propaga la primera excepción y deja a las demás
+    corriendo: con Opus caído, cada afirmación pendiente seguía haciendo sus
+    cuatro intentos en segundo plano (22 minutos cada una con los tiempos
+    reales) después de que el paso ya hubiera fallado con `ModeloSinRespuesta`.
+    Con `return_exceptions=True` se comporta como `gather(return_exceptions=True)`
+    (cada fallo vuelve en su sitio como excepción) salvo para
+    EXCEPCIONES_QUE_CORTAN_EL_PASO, que cancelan y se propagan igual."""
+    tareas = [asyncio.ensure_future(c) for c in coros]
+    pendientes = set(tareas)
+    try:
+        while pendientes:
+            hechas, pendientes = await asyncio.wait(pendientes, return_when=asyncio.FIRST_EXCEPTION)
+            for t in hechas:
+                if t.cancelled():
+                    continue
+                ex = t.exception()
+                if ex is None:
+                    continue
+                if not return_exceptions or isinstance(ex, EXCEPCIONES_QUE_CORTAN_EL_PASO):
+                    raise ex
+        salida: list[Any] = []
+        for t in tareas:
+            if t.cancelled():
+                salida.append(asyncio.CancelledError())
+            elif t.exception() is not None:
+                salida.append(t.exception())
+            else:
+                salida.append(t.result())
+        return salida
+    except BaseException:
+        for t in tareas:
+            if not t.done():
+                t.cancel()
+        await asyncio.gather(*tareas, return_exceptions=True)
+        raise
 
 
 def _pregunta_de(ctx: "Ctx") -> str | None:
@@ -329,12 +381,22 @@ class Ctx:
     # -- modelos -----------------------------------------------------------
 
     async def llamar(self, rol: str, programa, rollout_id: int | None = None, **kwargs) -> Any:
-        """Una llamada a un modelo por rol, con el contexto para el contador.
-        Si el modelo devuelve vacío o lo bloquea un filtro, reintenta una vez
-        con el modelo de volumen y deja una incidencia. `rollout_id` (S-20)
-        entra en la clave de la caché de DSPy sin cambiar el prompt: dos
-        llamadas iguales con ids distintos son dos lecturas reales (lo usan las
-        trayectorias de réplica); sin él, una llamada repetida vuelve de la caché."""
+        """Una llamada a un modelo por rol, con el contexto para el contador y
+        vigilada por rosa/vigilante_modelos.py: si el modelo no responde
+        (tiempo agotado, conexión, 429, 5xx) se reintenta con el MISMO modelo
+        hasta `MAX_INTENTOS` veces, sondeando el gateway entre intentos, y la
+        persona lo ve en la incidencia `modelo_sin_respuesta`, en
+        `saludModelos` y en `esperandoModelo`; si devuelve vacío o lo bloquea
+        un filtro (cerebro, juez, réplica) se reintenta con el mismo modelo
+        variando el `rollout_id` y, si persiste, el paso falla con
+        `ModeloBloqueado` e incidencia `modelo_bloqueado`. Nunca se cambia de
+        modelo: el cerebro es GPT-6 Astra y solo Astra, el juez Opus 5 y solo
+        Opus (regla de Emir, TRASPASO.md 7.4); Sonnet queda para el volumen.
+
+        `rollout_id` (S-20) entra en la clave de la caché de DSPy sin cambiar
+        el prompt: dos llamadas iguales con ids distintos son dos lecturas
+        reales (lo usan las trayectorias de réplica); sin él, una llamada
+        repetida vuelve de la caché."""
         lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen, "replica": getattr(self.modelos, "replica", None) or self.modelos.juez}[rol]
         if rollout_id is not None and hasattr(lm, "copy"):
             lm = lm.copy(rollout_id=int(rollout_id))
@@ -343,36 +405,19 @@ class Ctx:
         if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
             raise PresupuestoAgotado(f"Presupuesto de la corrida {self.corrida_id} (o de su iteración {self.numero}) agotado")
         kwargs = self._acotar_contexto(rol, kwargs)
+
         async def ejecutar(modelo):
+            # `modelo` es el lm del rol o, en un reintento por contenido, su copia con
+            # otro rollout_id: siempre el mismo modelo del gateway.
             servicio = getattr(self.almacen, "gepa_servicio", None)
             if servicio is not None:
                 return await servicio.llamar(self, programa, modelo, kwargs)
             with dspy.context(lm=modelo):
                 return await programa.acall(**kwargs)
+
         token = contexto_actual.set(ContextoLlamada(self.corrida_id, self.numero, rol))
         try:
-            try:
-                with dspy.context(lm=lm):
-                    return await asyncio.wait_for(ejecutar(lm), timeout=SEGUNDOS_MAX_LLAMADA)
-            except PresupuestoAgotado:
-                raise
-            except asyncio.TimeoutError:
-                self.incidencia("modelo_sin_respuesta", f"El modelo {lm.model} no respondió en {SEGUNDOS_MAX_LLAMADA} s", "Tiempo agotado esperando al gateway", lm.model, "Se reintenta en el siguiente paso; si se repite, revisar el gateway.")
-                raise RuntimeError(f"El modelo {lm.model} no respondió en {SEGUNDOS_MAX_LLAMADA} s")
-            except Exception as ex:  # noqa: BLE001
-                texto = str(ex)
-                bloqueado = any(s in texto.lower() for s in ("content", "filter", "policy", "refus", "empty", "no output", "parse"))
-                if not bloqueado or rol == "volumen":
-                    raise
-                if rol == "juez":
-                    # El juez no cae a otro modelo sin decirlo: se reintenta una vez con el
-                    # mismo y, si vuelve a fallar, la decision queda "no respondió".
-                    self.incidencia("modelo_bloqueado", f"El juez {lm.model} no respondió a una petición", texto[:400], lm.model, "Se reintentó una vez con el mismo modelo; el juez nunca se sustituye por otro sin registrarlo.")
-                    with dspy.context(lm=lm):
-                        return await asyncio.wait_for(ejecutar(lm), timeout=SEGUNDOS_MAX_LLAMADA)
-                self.incidencia("modelo_bloqueado", f"El modelo {lm.model} no respondió a una petición", texto[:400], lm.model, "Se reintentó con Sonnet 5 automáticamente; si vuelve a pasar, revisar el prompt o cambiar el modelo del rol.")
-                with dspy.context(lm=self.modelos.volumen):
-                    return await asyncio.wait_for(ejecutar(self.modelos.volumen), timeout=SEGUNDOS_MAX_LLAMADA)
+            return await VIG.llamar_vigilado(ejecutar, rol, lm, ganchos=VIG.ganchos_de_contexto(self))
         finally:
             contexto_actual.reset(token)
 
@@ -882,6 +927,8 @@ async def _consultas_amplitud(ctx: "Ctx", inv: dict[str, Any], cuantas: int, pre
         )
     except PresupuestoAgotado:
         raise
+    except VIG.ModeloSinRespuesta:
+        raise
     except Exception as ex:  # noqa: BLE001  sin exploración este paso; el foco sigue
         if pista:
             pista.nota(f"No se pudieron escribir las consultas de amplitud ({type(ex).__name__}); este paso solo busca en foco")
@@ -1316,11 +1363,13 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
                         puntuados.append((int(pred.puntuacion), a, pred.motivo))
                 except PresupuestoAgotado:
                     raise
+                except VIG.ModeloSinRespuesta:
+                    raise
                 except Exception as ex:  # noqa: BLE001
                     # Un fallo del modelo no vuelve irrelevante al articulo: se conserva con nota.
                     puntuados.append((minimo, a, f"sin puntuar (el modelo no respondió: {str(ex)[:60]}); se conserva para no perderlo"))
 
-        await asyncio.gather(*(puntuar(a) for a in al_modelo))
+        await _en_paralelo(*(puntuar(a) for a in al_modelo))
         puntuados.sort(key=lambda x: -x[0])
         relevantes = [x for x in puntuados if x[0] >= minimo]
         descartados = [x for x in puntuados if x[0] < minimo]
@@ -1461,6 +1510,8 @@ async def _novedad_exa_dominios(ctx: Ctx, h: dict[str, Any], pista: Pista, noved
                     mejor, mejor_ref, mejor_url = int(p.puntuacion), f"{d['titulo'][:90]} ({d.get('fecha') or 'sin fecha'})", d.get("url")
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise
             except Exception as ex:  # noqa: BLE001
                 fallos += 1
                 pista.nota(f"Relevancia ({etiqueta}) falló para «{str(d.get('titulo', ''))[:60]}»: {type(ex).__name__}: {str(ex)[:80]}")
@@ -1546,9 +1597,9 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
         consultas += de_amplitud
     if not consultas:
         return "El modelo no propuso consultas"
-    crudos = await asyncio.gather(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)
+    crudos = await _en_paralelo(*(_consulta_literatura(ctx, paso, c, preguntas) for c in consultas), return_exceptions=True)
     for c, r in zip(consultas, crudos):
-        if isinstance(r, PresupuestoAgotado):
+        if isinstance(r, (PresupuestoAgotado, VIG.ModeloSinRespuesta)):
             raise r
         if isinstance(r, BaseException):
             # Una consulta que reventó no tumba las otras cuatro.
@@ -1864,6 +1915,8 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
                         pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=_criterio_para_fuente(preguntas, f), referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
                     except PresupuestoAgotado:
                         raise
+                    except VIG.ModeloSinRespuesta:
+                        raise
                     except Exception as ex:  # noqa: BLE001
                         pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor falló: {str(ex)[:120]}")
                         fallos_fragmentos += 1
@@ -1938,7 +1991,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
         pista.resultado(f"Fuente {hechas} de {len(pendientes)}: {f['referencia']}, {len(nuevas)} afirmaciones ({total} acumuladas)")
 
     try:
-        await asyncio.gather(*(extraer(f) for f in pendientes))
+        await _en_paralelo(*(extraer(f) for f in pendientes))
         pista.cerrar(f"{len(pendientes)} fuentes, {total} afirmaciones con cita")
     except PresupuestoAgotado:
         pista.cerrar("Presupuesto agotado a mitad de la extracción", "detenida")
@@ -1995,6 +2048,8 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
                 a["entidadDistinta"] = bool(v.entidad_distinta) and v.veredicto == "no_sostenida"
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise
             except Exception as ex:  # noqa: BLE001
                 a["veredicto"] = "sin_verificar"
                 a["motivo"] = f"El juez no dictaminó: {str(ex)[:120]}"
@@ -2003,7 +2058,7 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
         if pista and juzgadas % 10 == 0:
             pista.resultado(f"Juez: {juzgadas} de {len(al_juez)}")
 
-    await asyncio.gather(*(juzgar(a, r) for a, r in al_juez))
+    await _en_paralelo(*(juzgar(a, r) for a, r in al_juez))
     ctx.mutar(lambda e: True, "veredictos")
     return recuento
 
@@ -2337,6 +2392,8 @@ async def _completar_tarjeta(ctx: Ctx, h: dict[str, Any], pista: Pista | None) -
         t = pred.tarjeta
         tarjeta = {"diana": t.diana.strip(), "celula": t.celula.strip(), "etapa": t.etapa.strip(), "intervencion": t.intervencion.strip(), "direccion": t.direccion, "prediccionFalsable": t.prediccion_falsable.strip(), "riesgos": [r.strip() for r in t.riesgos if r.strip()][:6], "pasoRuta": getattr(t, "paso_ruta", "mecanismo") or "mecanismo"}
     except PresupuestoAgotado:
+        raise
+    except VIG.ModeloSinRespuesta:
         raise
     except Exception as ex:  # noqa: BLE001
         if pista:
@@ -2854,6 +2911,8 @@ async def _evaluar_sesgo_fuentes(ctx: Ctx, h: dict[str, Any], pista: Pista | Non
             respuestas = [{"id": r.id, "respuesta": r.respuesta, "cita": r.cita} for r in pred.respuestas]
         except PresupuestoAgotado:
             raise
+        except VIG.ModeloSinRespuesta:
+            raise
         except Exception as ex:  # noqa: BLE001
             if pista:
                 pista.error(f"Riesgo de sesgo de {f.get('referencia', '')[:40]} sin evaluar: {str(ex)[:100]}")
@@ -3078,6 +3137,8 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         contradice_a = [c.strip() for c in (getattr(rev, "contradice_a", None) or []) if isinstance(c, str) and c.strip()][:6]
     except PresupuestoAgotado:
         raise
+    except VIG.ModeloSinRespuesta:
+        raise
     except Exception as ex:  # noqa: BLE001
         juez_fallo = f"{type(ex).__name__}: {str(ex)[:200]}"
         del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondió: {str(ex)[:120]}", "", "Repetir la revisión cuando el modelo responda", [], ""
@@ -3257,6 +3318,8 @@ async def _auditar_descarte(ctx: Ctx, h: dict[str, Any], decision: dict[str, Any
         auditoria = {"quien": quien, "acuerdo": acuerdo, "estado": "respondio", "motivo": (str(au.motivo or "").strip() + (f" Mejor argumento a favor: {argumento}" if not acuerdo else ""))[:600], "argumentoAFavor": argumento[:600], "fecha": P.ahora_ms(), "comprobacionDiscutida": normalizar_comprobacion_discutida(getattr(au, "comprobacion_discutida", ""), nombres) or str(getattr(au, "comprobacion_discutida", "") or "").strip()[:80]}
     except PresupuestoAgotado:
         raise
+    except VIG.ModeloSinRespuesta:
+        raise
     except Exception as ex:  # noqa: BLE001
         auditoria = {"quien": quien, "acuerdo": None, "estado": "no_respondio", "motivo": f"El auditor no respondió: {str(ex)[:120]}", "argumentoAFavor": "", "fecha": P.ahora_ms(), "comprobacionDiscutida": ""}
         ctx.incidencia("auditoria_sin_respuesta", f"La auditoría del Killer sobre «{h['titulo'][:60]}» quedó sin respuesta", str(ex)[:400], decision["id"], "La decisión queda sin auditar (no cuenta como acuerdo); se vuelve a muestrear en la siguiente decisión.")
@@ -3359,6 +3422,8 @@ async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pist
         return bool(ok)
     except PresupuestoAgotado:
         raise
+    except VIG.ModeloSinRespuesta:
+        raise
     except Exception as ex:  # noqa: BLE001
         if pista:
             pista.error(f"La reformulación falló: {str(ex)[:120]}")
@@ -3390,6 +3455,8 @@ async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: st
             rev = pred.revision
         except PresupuestoAgotado:
             raise
+        except VIG.ModeloSinRespuesta:
+            raise
         except Exception as ex:  # noqa: BLE001
             inicial_fallo = f"{type(ex).__name__}: {str(ex)[:100]}"
             if pista:
@@ -3408,10 +3475,12 @@ async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: st
                 evaluados[i] = {**s, "estado": estado, "evidencia": evidencia, "niegaAfirmaciones": ids}
             except PresupuestoAgotado:
                 raise
+            except VIG.ModeloSinRespuesta:
+                raise
             except Exception as ex:  # noqa: BLE001
                 evaluados[i] = {**s, "estado": "sin_evidencia", "evidencia": f"No se pudo evaluar: el modelo no respondió ({type(ex).__name__})", "niegaAfirmaciones": []}
 
-    await asyncio.gather(*(evaluar(i, s) for i, s in enumerate(supuestos)))
+    await _en_paralelo(*(evaluar(i, s) for i, s in enumerate(supuestos)))
     finales = [s for s in evaluados if s is not None]
     contradichos = [s for s in finales if s["estado"] == "contradicho"]
 
@@ -3536,6 +3605,8 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
             p1 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=hipotesis_para_torneo(a), hipotesis_b=hipotesis_para_torneo(b), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(a)}\nSobre B: {T.revisiones_humanas(b)}")
             p2 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=hipotesis_para_torneo(b), hipotesis_b=hipotesis_para_torneo(a), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(b)}\nSobre B: {T.revisiones_humanas(a)}")
         except PresupuestoAgotado:
+            raise
+        except VIG.ModeloSinRespuesta:
             raise
         except Exception as ex:  # noqa: BLE001
             pista.error(f"Partido {a['titulo'][:40]} vs {b['titulo'][:40]}: el juez falló ({str(ex)[:80]})")
@@ -4116,6 +4187,8 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                             mejor, mejor_ref = int(p.puntuacion), f"{o.get('referencia') or o['titulo'][:60]} ({o.get('doi') or 'sin DOI'})"
                     except PresupuestoAgotado:
                         raise
+                    except VIG.ModeloSinRespuesta:
+                        raise
                     except Exception as ex:  # noqa: BLE001
                         fallos += 1
                         pista.nota(f"Relevancia falló para «{str(o.get('referencia') or o.get('titulo') or '?')[:60]}»: {type(ex).__name__}: {str(ex)[:80]}")
@@ -4240,6 +4313,8 @@ async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
             await AN.reproducir(ctx, rep, pista)
         except PresupuestoAgotado:
             raise
+        except VIG.ModeloSinRespuesta:
+            raise
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
             pista.error(f"La reproducción {rep['referencia'][:40]} fallo: {str(ex)[:120]}")
@@ -4255,6 +4330,8 @@ async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
             await AN.analizar_hipotesis(ctx, h, p["datasetId"], p.get("pregunta", ""), pista)
         except PresupuestoAgotado:
             raise
+        except VIG.ModeloSinRespuesta:
+            raise
         except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
             pista.error(f"El análisis pedido de {h['titulo'][:40]} fallo: {str(ex)[:120]}")
@@ -4268,6 +4345,8 @@ async def paso_analisis(ctx: Ctx, paso: dict[str, Any]) -> str:
             try:
                 await AN.analizar_hipotesis(ctx, h, datasets_ok[0]["id"], "", pista)
             except PresupuestoAgotado:
+                raise
+            except VIG.ModeloSinRespuesta:
                 raise
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()

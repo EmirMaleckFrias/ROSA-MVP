@@ -59,7 +59,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                 <h3>{inv.titulo}</h3>
                 {corrida ? (
                   <div className="ahora">
-                    <Chip tono={corrida.estado === 'en_marcha' ? 'acento' : corrida.estado === 'esperando_plan' || corrida.estado === 'esperando_aprobacion' || corrida.estado === 'pausada_por_presupuesto' ? 'aviso' : undefined}>
+                    <Chip tono={corrida.estado === 'en_marcha' ? 'acento' : corrida.estado === 'esperando_plan' || corrida.estado === 'esperando_aprobacion' || corrida.estado === 'pausada_por_presupuesto' || corrida.estado === 'esperando_modelo' ? 'aviso' : undefined}>
                       Corrida {corrida.numero} · {etiquetaCorrida(corrida, it)}
                     </Chip>
                     <p>
