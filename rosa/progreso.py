@@ -26,6 +26,80 @@ def peldano(nivel: str | None) -> int:
     return CERTEZA.NIVELES.index(nivel) if nivel in CERTEZA.NIVELES else 0
 
 
+def _ms(v: Any) -> int | None:
+    """Un instante en milisegundos, o None si el registro trae otra cosa."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return int(v)
+
+
+def hipotesis_nacidas_en(e: dict[str, Any], investigacion_id: Any, it: dict[str, Any] | None, ahora: int | None = None, origen: str | None = None) -> list[dict[str, Any]]:
+    """Las hipótesis de la investigación que nacieron dentro de la ventana de la
+    iteración `it`: `it.empezadaEn <= creadaEn <= it.terminadaEn` (o `ahora`
+    si la iteración sigue abierta). Es la única definición de "hipótesis nueva
+    de esta iteración" del cierre, el informe, el progreso y el revisor.
+
+    Antes se comparaba `h.iteracion == it.numero`, y como el número de
+    iteración vuelve a 1 en cada corrida, una hipótesis del 15 de septiembre
+    contaba como nueva en la iteración 1 de todas las corridas siguientes
+    (corridas 4 a 12: "5 hipótesis nuevas" con 0 nacimientos reales). La
+    ventana por fecha funciona también hacia atrás, para recalcular la serie
+    de progreso de las corridas viejas sin claves privadas.
+
+    `origen`: "rosa" para contar solo las de Rosa (resumen y llano), None para
+    todas (el revisor, que también mira las humanas). Una hipótesis sin
+    `creadaEn` legible o una iteración sin `empezadaEn` no cuentan: mejor
+    "ninguna" que un recuento inventado."""
+    if not isinstance(it, dict):
+        return []
+    desde = _ms(it.get("empezadaEn"))
+    if desde is None:
+        return []
+    hasta = _ms(it.get("terminadaEn"))
+    if hasta is None:
+        hasta = _ms(ahora) if ahora is not None else None
+    salida = []
+    for h in e.get("hipotesis", []) or []:
+        if not isinstance(h, dict) or h.get("investigacionId") != investigacion_id:
+            continue
+        if origen is not None and h.get("origen") != origen:
+            continue
+        creada = _ms(h.get("creadaEn"))
+        if creada is None or creada < desde or (hasta is not None and creada > hasta):
+            continue
+        salida.append(h)
+    return salida
+
+
+def recalcular_progreso(e: dict[str, Any]) -> int:
+    """Recalcula `hipotesisNuevas` de cada instantánea de progreso con
+    `hipotesis_nacidas_en` (nacidas de Rosa en la ventana de su iteración) y
+    vuelve a calcular la métrica de las corridas que ya la tenían. Devuelve
+    cuántas instantáneas cambiaron. Es idempotente: pasarla dos veces da lo
+    mismo, así que puede engancharse a la migración del almacén o correr al
+    arrancar el supervisor. Una instantánea cuya iteración no aparece en el
+    estado se deja como está (no se inventa un cero)."""
+    cambiadas = 0
+    for c in e.get("corridas", []) or []:
+        if not isinstance(c, dict) or not isinstance(c.get("progreso"), list):
+            continue
+        tocada = False
+        for p in c["progreso"]:
+            if not isinstance(p, dict):
+                continue
+            it = next((x for x in e.get("iteraciones", []) if isinstance(x, dict) and x.get("corridaId") == c.get("id") and x.get("numero") == p.get("iteracion")), None)
+            if it is None or _ms(it.get("empezadaEn")) is None:
+                continue
+            n = len(hipotesis_nacidas_en(e, c.get("investigacionId"), it, ahora=_ms(p.get("fecha")), origen="rosa"))
+            if p.get("hipotesisNuevas") != n:
+                p["hipotesisNuevas"] = n
+                cambiadas += 1
+                tocada = True
+        if tocada and c.get("metrica") is not None:
+            c["metrica"] = metrica_de_corrida(e, c["id"])
+    return cambiadas
+
+
 def instantanea(e: dict[str, Any], c: dict[str, Any], it: dict[str, Any], hechos_nuevos: int, hipotesis_nuevas: int, afirmaciones_bloqueadas: int, ahora: int) -> dict[str, Any]:
     """La instantánea de progreso al cerrar la iteración `it` de la corrida `c`."""
     anterior = (c.get("progreso") or [{}])[-1] if c.get("progreso") else {}
@@ -51,6 +125,9 @@ def instantanea(e: dict[str, Any], c: dict[str, Any], it: dict[str, Any], hechos
         "pistas": sum(1 for p_ in it.get("pistas", []) if p_.get("estado") in ("fallida", "detenida")),
         "killer": len(cierres),
         "afirmacionesBloqueadas": int(afirmaciones_bloqueadas),
+        # Pasos que corrieron y no tenían nada que hacer (sin fuentes nuevas, nada
+        # que verificar): no son fallos, pero tampoco trabajo; se cuentan aparte.
+        "sinTrabajo": sum(1 for p_ in it.get("plan", []) if p_.get("estado") == "sin_trabajo"),
     }
     return {
         "iteracion": it["numero"],
@@ -90,7 +167,7 @@ def metrica_de_corrida(e: dict[str, Any], corrida_id: str) -> dict[str, Any] | N
         "hipotesisEnBajaOMas": sum(1 for x in ultima.get("certezas", []) if int(x.get("peldano") or 0) >= 1),
         "hechosNuevos": sum(int(p.get("hechosNuevos") or 0) for p in serie),
         "hipotesisNuevas": sum(int(p.get("hipotesisNuevas") or 0) for p in serie),
-        "fallidos": {k: sum(int((p.get("fallidos") or {}).get(k) or 0) for p in serie) for k in ("pasos", "pistas", "killer", "afirmacionesBloqueadas")},
+        "fallidos": {k: sum(int((p.get("fallidos") or {}).get(k) or 0) for p in serie) for k in ("pasos", "pistas", "killer", "afirmacionesBloqueadas", "sinTrabajo")},
         "banco": None,
         # Las tres cifras de aprendizaje (rosa/cifras_aprendizaje.py) tal como las
         # dejó el bucle en la investigación al cerrar la iteración; aquí solo se

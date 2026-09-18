@@ -25,6 +25,7 @@ import type {
   EstadoHallazgo,
   EstadoHecho,
   EstadoHipotesis,
+  Hipotesis,
   EstadoInvestigacion,
   EstadoPaso,
   EstadoPista,
@@ -189,22 +190,77 @@ export const ESTADO_HIPOTESIS: Record<EstadoHipotesis, string> = {
   aclarando: 'Rosa la está aclarando',
 };
 
-export const VEREDICTO: Record<Veredicto, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal'; bloquea: boolean }> = {
-  sostenida: { etiqueta: 'Sostenida', tono: 'ok', bloquea: false },
-  parcial: { etiqueta: 'Parcial', tono: 'aviso', bloquea: false },
-  no_sostenida: { etiqueta: 'No sostenida', tono: 'mal', bloquea: true },
-  cita_no_resuelve: { etiqueta: 'Cita sin fuente', tono: 'mal', bloquea: true },
-  sin_cita: { etiqueta: 'Sin ninguna cita', tono: 'mal', bloquea: true },
-  ausencia_refutada: { etiqueta: 'Dice que no esta, y si esta', tono: 'mal', bloquea: true },
-  sin_verificar: { etiqueta: 'Sin comprobar', tono: 'aviso', bloquea: false },
-};
+/** Una tabla de etiquetas que responde también a una clave que no conoce:
+ *  `tabla[claveRara]` devuelve el respaldo en vez de `undefined`, así un valor
+ *  nuevo del servidor (un veredicto o un nivel de certeza que esta versión de
+ *  la interfaz no tiene) no tumba la pantalla al leer `.bloquea` o `.tono`.
+ *  Las claves conocidas, `Object.keys`, `in` y `Object.hasOwn` siguen igual;
+ *  lo que viene del prototipo (constructor, toString) tampoco cambia. */
+function conRespaldo<K extends string, V>(tabla: Record<K, V>, respaldo: (clave: string) => V): Record<K, V> {
+  return new Proxy(tabla, {
+    get(destino, propiedad, receptor) {
+      if (typeof propiedad === 'string' && !Object.hasOwn(destino, propiedad) && !(propiedad in Object.prototype)) return respaldo(propiedad);
+      return Reflect.get(destino, propiedad, receptor) as V;
+    },
+  });
+}
 
-export const CERTEZA_EVIDENCIA: Record<CertezaEvidencia, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string; verbo: string }> = {
+function legible(clave: string): string {
+  return String(clave).replace(/_/g, ' ').trim() || 'sin nombre';
+}
+
+export type EtiquetaVeredicto = { etiqueta: string; tono: 'ok' | 'aviso' | 'mal'; bloquea: boolean };
+
+/** Un veredicto que esta versión no conoce se trata como bloqueante y "no
+ *  comprobado": Rosa no da por buena una afirmación sin saber qué dice su
+ *  veredicto (regla "no pude comprobar" no es "no hay"). */
+export function respaldoVeredicto(clave: string): EtiquetaVeredicto {
+  return { etiqueta: `Veredicto que esta versión no conoce (${legible(clave)})`, tono: 'aviso', bloquea: true };
+}
+
+export const VEREDICTO: Record<Veredicto, EtiquetaVeredicto> = conRespaldo(
+  {
+    sostenida: { etiqueta: 'Sostenida', tono: 'ok', bloquea: false },
+    parcial: { etiqueta: 'Parcial', tono: 'aviso', bloquea: false },
+    no_sostenida: { etiqueta: 'No sostenida', tono: 'mal', bloquea: true },
+    cita_no_resuelve: { etiqueta: 'Cita sin fuente', tono: 'mal', bloquea: true },
+    sin_cita: { etiqueta: 'Sin ninguna cita', tono: 'mal', bloquea: true },
+    ausencia_refutada: { etiqueta: 'Dice que no está, y sí está', tono: 'mal', bloquea: true },
+    sin_verificar: { etiqueta: 'Sin comprobar', tono: 'aviso', bloquea: false },
+  },
+  respaldoVeredicto,
+);
+
+/** La entrada de VEREDICTO para cualquier valor, también uno raro (null, un
+ *  número, una clave nueva): nunca lanza. */
+export function veredictoDe(v: unknown): EtiquetaVeredicto {
+  return typeof v === 'string' && Object.hasOwn(VEREDICTO, v) ? VEREDICTO[v as Veredicto] : respaldoVeredicto(typeof v === 'string' ? v : v === null || v === undefined ? 'sin veredicto' : String(v));
+}
+
+export type EtiquetaCerteza = { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string; verbo: string };
+
+/** Un nivel de certeza que esta versión no conoce se enseña con su clave
+ *  legible y tono neutro, sin inventar nivel ni frase calibrada. */
+export function respaldoCerteza(clave: string): EtiquetaCerteza {
+  const k = legible(clave);
+  return { etiqueta: `Certeza sin clasificar (${k})`, tono: 'borde', nota: `El servidor guardó un nivel de certeza (${k}) que esta versión de la interfaz no conoce. No se puede interpretar hasta actualizarla.`, verbo: 'no se puede decir si' };
+}
+
+/** Sin respaldo automático (a diferencia de VEREDICTO): varias pantallas
+ *  comprueban `CERTEZA_EVIDENCIA[x]` para decidir si pintan o no un chip, y un
+ *  nivel desconocido debe seguir siendo "nada que pintar" ahí. Quien necesite
+ *  leer `.etiqueta` o `.tono` sin riesgo usa `certezaDe`. */
+export const CERTEZA_EVIDENCIA: Record<CertezaEvidencia, EtiquetaCerteza> = {
   alta: { etiqueta: 'Certeza alta', tono: 'ok', nota: 'Varios estudios independientes y directos coinciden. Es muy poco probable que más investigación cambie la conclusión.', verbo: 'la evidencia indica que' },
   moderada: { etiqueta: 'Certeza moderada', tono: 'aviso', nota: 'Evidencia consistente pero de una sola cohorte, indirecta o imprecisa. Más investigación podría cambiarla.', verbo: 'probablemente' },
   baja: { etiqueta: 'Certeza baja', tono: 'aviso', nota: 'Solo indicios, inferencias o estudios con limitaciones serias. Es probable que más investigación la cambie.', verbo: 'puede que' },
   muy_baja: { etiqueta: 'Certeza muy baja', tono: 'borde', nota: 'El punto de partida de toda hipótesis nueva: solo literatura indirecta, de una cohorte, sin réplica ni datos propios. No es un fallo; es lo que hay que subir, y abajo dice cómo.', verbo: 'no está claro si' },
 };
+
+/** La entrada de CERTEZA_EVIDENCIA para cualquier valor, también uno raro: nunca lanza. */
+export function certezaDe(c: unknown): EtiquetaCerteza {
+  return typeof c === 'string' && Object.hasOwn(CERTEZA_EVIDENCIA, c) ? CERTEZA_EVIDENCIA[c as CertezaEvidencia] : respaldoCerteza(typeof c === 'string' ? c : c === null || c === undefined ? 'sin nivel' : String(c));
+}
 
 export const DIRECCION_EVIDENCIA: Record<DireccionEvidencia, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde' }> = {
   apoya: { etiqueta: 'La evidencia apoya la hipótesis', tono: 'ok' },
@@ -349,6 +405,38 @@ export const DECISION_KILLER: Record<DecisionKiller, { etiqueta: string; tono: '
   suspender: { etiqueta: 'Suspendida', tono: 'borde', nota: 'Hace falta más o mejor evidencia antes de seguir: o falló una comprobación que suspende (riesgo de sesgo serio en toda la evidencia, sin fuente primaria, la diana no resuelve en las bases) o una comprobación crítica no se pudo hacer porque una fuente no respondió o falta el dato. El motivo exacto está en el registro de decisiones del Killer.' },
   descartar_en_contexto: { etiqueta: 'Descartar en este contexto', tono: 'mal', nota: 'La evidencia no la sostiene: citas que no resuelven, afirmaciones no sostenidas o un supuesto invalidante.' },
 };
+
+/** Texto de "pendiente de juicio" cuando la última pasada del Killer no fue un
+ *  juicio sino una avería técnica (el modelo no respondió, la respuesta no se
+ *  pudo leer). Señales, en este orden: la clave pública `killerPendiente` que
+ *  escribe el servidor, o la nota de la última revisión del Killer diciendo que
+ *  el juez no respondió mientras la decisión vigente sea "suspender". Null si
+ *  la decisión que se ve es un juicio de verdad. Una avería no es un juicio
+ *  científico: "no pude comprobar" nunca se enseña como "suspendida por la evidencia". */
+export function killerPendienteDe(h: Pick<Hipotesis, 'decisionKiller'> & { killerPendiente?: unknown; revisiones?: unknown; procedencia?: unknown }): string | null {
+  const marca = (h as { killerPendiente?: unknown }).killerPendiente;
+  if (marca === true || (marca && typeof marca === 'object')) {
+    const detalle = marca && typeof marca === 'object' ? String((marca as { motivo?: unknown }).motivo ?? '').trim() : '';
+    return detalle ? `Pendiente de juicio: ${detalle}` : 'Pendiente de juicio: el modelo no respondió';
+  }
+  const revisiones = Array.isArray(h.revisiones) ? (h.revisiones as { accion?: unknown; nota?: unknown; fecha?: unknown }[]) : [];
+  const ultima = [...revisiones].reverse().find((r) => r && typeof r === 'object' && r.accion === 'killer');
+  // Fase de reintentos de S-09 (rosa/bucle/pasos.py _registrar_juez_sin_respuesta):
+  // el servidor no registra decisión, conserva la anterior y deja un mensaje del
+  // revisor "El juez del Killer no respondió (motivo técnico, intento N de M)".
+  // Si ese mensaje es posterior a la última revisión del Killer, la decisión
+  // que se ve (o la ausencia de decisión) no es un juicio nuevo.
+  const procedencia = h.procedencia && typeof h.procedencia === 'object' ? (h.procedencia as { mensajes?: unknown }) : null;
+  const mensajes = procedencia && Array.isArray(procedencia.mensajes) ? (procedencia.mensajes as { de?: unknown; texto?: unknown; creadoEn?: unknown }[]) : [];
+  const aviso = [...mensajes].reverse().find((m) => m && typeof m === 'object' && m.de === 'revisor' && typeof m.texto === 'string' && /juez del Killer no respondi/i.test(m.texto));
+  if (aviso && typeof aviso.creadoEn === 'number') {
+    const fechaUltima = ultima && typeof ultima.fecha === 'number' ? ultima.fecha : Number.NEGATIVE_INFINITY;
+    if (aviso.creadoEn > fechaUltima) return 'Pendiente de juicio: el modelo no respondió';
+  }
+  if (h.decisionKiller !== 'suspender') return null;
+  const nota = ultima && typeof ultima.nota === 'string' ? ultima.nota : '';
+  return /juez no respondi|modelo no respondi|no se puede dar por revisada/i.test(nota) ? 'Pendiente de juicio: el modelo no respondió' : null;
+}
 
 export const ETAPA_DECISION: Record<EtapaDecision, string> = {
   killer_1: 'Hypothesis Killer',

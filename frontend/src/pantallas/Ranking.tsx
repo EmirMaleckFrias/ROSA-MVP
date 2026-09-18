@@ -11,7 +11,7 @@ import { AvisoMuestra, Chip } from '../componentes/piezas';
 import { Candidatas } from '../componentes/Rosa2018';
 import { FranjaRanking } from '../componentes/FranjaRanking';
 import { calibracion } from '../lib/calidad';
-import { DECISION_KILLER, ESTADO_HIPOTESIS } from '../lib/etiquetas';
+import { DECISION_KILLER, ESTADO_HIPOTESIS, killerPendienteDe } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
 import { ranking, variacionElo } from '../lib/hipotesis';
 import { bloqueosDe, candidatos } from '../lib/priorizacion';
@@ -50,6 +50,11 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
           <Chip>{ESTADO_HIPOTESIS[h.estado]}</Chip>
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <Chip tono="borde">{h.cluster}</Chip>
+          {killerPendienteDe(h) && (
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas.">
+              {killerPendienteDe(h)}
+            </Chip>
+          )}
           {(h.conflictoCon?.length ?? 0) > 0 && (
             <Chip tono="aviso" title={`No puede ser cierta a la vez que: ${h.conflictoCon!.map((id) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id).join('; ')}. Rosa lo marca; decide la persona.`}>
               Se contradice con {h.conflictoCon!.length === 1 ? 'otra' : h.conflictoCon!.length}
@@ -96,7 +101,8 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         .filter((h) => h.estado !== 'descartada' && !cands.some((c) => c.id === h.id))
         .map((h) => {
           const b = bloqueosDe(estado, h);
-          const motivo = b.length > 0 ? '' : h.decisionKiller !== 'avanzar' ? (h.decisionKiller ? `El Killer decidió: ${DECISION_KILLER[h.decisionKiller].etiqueta.toLowerCase()}` : 'El Killer todavia no la juzgo') : 'Sin bloqueos, pero otras puntuan más o repiten su cluster';
+          const pendiente = killerPendienteDe(h);
+          const motivo = b.length > 0 ? '' : pendiente ? `${pendiente}: la decisión que consta no es un juicio nuevo` : h.decisionKiller !== 'avanzar' ? (h.decisionKiller ? `El Killer decidió: ${(DECISION_KILLER[h.decisionKiller]?.etiqueta ?? String(h.decisionKiller)).toLowerCase()}` : 'El Killer todavía no la juzgó') : 'Sin bloqueos, pero otras puntúan más o repiten su cluster';
           return { h, bloqueos: b, motivo };
         }),
     [propias, cands, estado],
@@ -109,7 +115,7 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         <div>
           <h2>Ranking de hipótesis</h2>
           <p>
-            Puntuacion Elo por torneo entre rivales, revisada en cada iteracion. Elo inicial 1500; funciona como el ranking de ajedrez: mayor Elo, mas probable que sea correcta y util. Las descartadas van al final aunque puntuaran alto.
+            Puntuación Elo por torneo entre rivales, revisada en cada iteración. Elo inicial 1500; funciona como el ranking de ajedrez: mayor Elo, más probable que sea correcta y útil. Las descartadas van al final aunque puntuaran alto.
           </p>
         </div>
         <div className="acciones">
@@ -127,8 +133,8 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
       <Candidatas inv={inv} estado={estado} candidatas={cands} noCandidatas={noCands} />
 
       <div className="acciones" style={{ marginBottom: 14 }}>
-        <Chip tono={cal.acuerdo === null ? undefined : cal.acuerdo >= 0.7 ? 'ok' : 'aviso'} title="Cuantas veces la recomendación del revisor coincidio con lo que decidió una persona">
-          Acuerdo revisor y personas: {cal.acuerdo === null ? 'sin decisiones todavia' : formatearPorcentaje(cal.acuerdo)}
+        <Chip tono={cal.acuerdo === null ? undefined : cal.acuerdo >= 0.7 ? 'ok' : 'aviso'} title="Cuántas veces la recomendación del revisor coincidió con lo que decidió una persona">
+          Acuerdo revisor y personas: {cal.acuerdo === null ? 'sin decisiones todavía' : formatearPorcentaje(cal.acuerdo)}
         </Chip>
         <span className="meta">Las decisiones humanas de aceptar y descartar son la señal que calibra al juez del torneo.</span>
       </div>
@@ -145,14 +151,14 @@ export function Ranking({ inv, estado }: { inv: Investigacion; estado: EstadoRos
         <div className="seccion">
           <label className="interruptor">
             <input type="checkbox" checked={soloMejor} onChange={(e) => setSoloMejor(e.target.checked)} />
-            Mostrar solo la mejor de cada cluster (para ver la diversidad, no la repeticion)
+            Mostrar solo la mejor de cada cluster (para ver la diversidad, no la repetición)
           </label>
           {clusters.map(([nombre, hs]) => (
             <div key={nombre} className="cluster">
               <div className="acciones" style={{ justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600 }}>{nombre}</h3>
                 <span className="meta">
-                  {hs.length} {hs.length === 1 ? 'hipotesis' : 'hipotesis'} · mejor Elo {hs[0]?.elo}
+                  {hs.length} {hs.length === 1 ? 'hipótesis' : 'hipótesis'} · mejor Elo {hs[0]?.elo}
                 </span>
               </div>
               <div className="cola">

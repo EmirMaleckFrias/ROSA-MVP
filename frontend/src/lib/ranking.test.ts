@@ -429,3 +429,28 @@ describe('motivo del Killer y razones del juez', () => {
     expect(componentesDe(estado, { ...base, revisiones: 'texto', conclusion: { enContra: 'no lista' } } as unknown as Hipotesis).razonesEnContra).toBe(0);
   });
 });
+
+// M-04 (17 de septiembre de 2026): la cuenta de cohortes que guarda el
+// servidor (la misma que usó el techo GRADE) manda; la regla espejada solo
+// entra si el registro no la trae.
+describe('cohortes del servidor frente a la regla espejada', () => {
+  it('lee hipotesis.cohortesDistintas, si no conclusion.cohortesDistintas, y solo recalcula si faltan', () => {
+    const estado = estadoDeMuestra();
+    const base = estado.hipotesis.find((h) => h.procedencia.fuentes.length > 0)!;
+    const fuentes = base.procedencia.fuentes.map((f, i) => ({ ...f, cohorte: i % 2 === 0 ? 'ADNI' : 'BioFINDER' }));
+    const h = { ...base, procedencia: { ...base.procedencia, fuentes }, afirmaciones: [] } as Hipotesis;
+    const porRegla = componentesDe(estado, h);
+    expect(porRegla.cohortesOrigen).toBe('regla');
+    expect(porRegla.cohortesDistintas).toEqual(fuentes.length > 1 ? ['ADNI', 'BioFINDER'] : ['ADNI']);
+    const enConclusion = componentesDe(estado, { ...h, conclusion: { ...(h.conclusion ?? ({} as NonNullable<Hipotesis['conclusion']>)), cohortesDistintas: ['Study 201', 'TRAILBLAZER-ALZ 2', 'TRAILBLAZER-ALZ 2'] } } as Hipotesis);
+    expect(enConclusion.cohortesOrigen).toBe('servidor');
+    expect(enConclusion.cohortesDistintas).toEqual(['Study 201', 'TRAILBLAZER-ALZ 2']);
+    const enHipotesis = componentesDe(estado, { ...h, cohortesDistintas: ['ADAD'], conclusion: { ...(h.conclusion ?? ({} as NonNullable<Hipotesis['conclusion']>)), cohortesDistintas: ['otra'] } } as Hipotesis);
+    expect(enHipotesis.cohortesDistintas).toEqual(['ADAD']);
+    // Una lista vacía del servidor es una respuesta ("ninguna cohorte que cuente"), no un hueco.
+    expect(componentesDe(estado, { ...h, cohortesDistintas: [] } as Hipotesis)).toMatchObject({ cohortesDistintas: [], cohortesOrigen: 'servidor' });
+    // Basura en la lista se limpia; una lista que no es lista se ignora y se recalcula.
+    expect(componentesDe(estado, { ...h, cohortesDistintas: ['ADNI', 3, null, '  ', 'ADNI'] as never } as Hipotesis).cohortesDistintas).toEqual(['ADNI']);
+    expect(componentesDe(estado, { ...h, cohortesDistintas: 'ADNI' as never } as Hipotesis).cohortesOrigen).toBe('regla');
+  });
+});

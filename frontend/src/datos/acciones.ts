@@ -37,6 +37,7 @@ import type {
   Corrida,
   Dataset,
   EnmiendaPrerregistro,
+  Experimento,
   EstadoArea,
   EstadoRosa,
   Evento,
@@ -141,20 +142,48 @@ export function detenerCorrida(estado: EstadoRosa, corridaId: string, motivo: st
   return conEvento(siguiente, corrida.investigacionId, 'corrida_estado', `Corrida ${corrida.numero} detenida: ${texto}`, null, ahora);
 }
 
-/** Ampliar el tope de llamadas de la corrida; si estaba pausada por
- *  presupuesto, vuelve a marchar. */
+/** Ampliar el tope de llamadas de la corrida y, con el mismo margen que la
+ *  persona concede, el de la iteración en curso; si estaba pausada por
+ *  presupuesto, vuelve a marchar. Misma regla que `ampliar_presupuesto` en
+ *  rosa/estado/acciones.py (17 de septiembre de 2026, S-15):
+ *  - el tope nuevo tiene que ser mayor que lo gastado y que cero;
+ *  - margen = max(topeNuevo - topeAnterior, 0);
+ *  - la iteración en curso (la de número más alto de la corrida) pasa a
+ *    limite = max(limite, usado + margen). Antes solo se tocaba el tope de la
+ *    corrida y, cuando lo que había cortado era el tope de la iteración,
+ *    ampliar la ponía en marcha y la primera llamada la volvía a pausar. */
 export function ampliarPresupuesto(estado: EstadoRosa, corridaId: string, nuevoLimite: number, ahora: number): EstadoRosa {
   const corrida = corridaDe(estado, corridaId);
-  if (!corrida || !Number.isFinite(nuevoLimite) || nuevoLimite <= corrida.gasto.llamadas) return estado;
+  if (!corrida || !Number.isFinite(nuevoLimite)) return estado;
+  const limite = Math.round(nuevoLimite);
+  if (limite <= corrida.gasto.llamadas || limite <= 0) return estado;
+  const margen = Math.max(limite - (corrida.presupuesto.limiteLlamadas ?? 0), 0);
+  const propias = estado.iteraciones.filter((i) => i.corridaId === corridaId);
+  const actual = propias.length ? propias.reduce((a, b) => (b.numero > a.numero ? b : a)) : null;
+  // Un registro antiguo puede no traer `presupuesto` en la iteración: igual que el
+  // servidor (`isinstance(it.get("presupuesto"), dict)`), entonces no se toca.
+  const presupuestoIt = actual && actual.presupuesto && typeof actual.presupuesto === 'object' ? actual.presupuesto : null;
+  const limiteIteracion = presupuestoIt ? Math.max(presupuestoIt.limite ?? 0, (presupuestoIt.usado ?? 0) + margen) : null;
   const siguiente: EstadoRosa = {
     ...estado,
     corridas: reemplazar(estado.corridas, corridaId, (c) => ({
       ...c,
-      presupuesto: { ...c.presupuesto, limiteLlamadas: Math.round(nuevoLimite), avisadas: c.presupuesto.avisadas.filter((a) => c.gasto.llamadas / nuevoLimite >= a) },
+      presupuesto: {
+        ...c.presupuesto,
+        limiteLlamadas: limite,
+        avisadas: c.presupuesto.avisadas.filter((a) => c.gasto.llamadas / limite >= a),
+        // Al reanudar, el motivo de la pausa deja de valer (misma regla que el servidor).
+        ...(c.estado === 'pausada_por_presupuesto' ? { motivoPausa: '' } : {}),
+      },
       estado: c.estado === 'pausada_por_presupuesto' ? 'en_marcha' : c.estado,
     })),
+    iteraciones:
+      actual && limiteIteracion !== null
+        ? reemplazar(estado.iteraciones, actual.id, (it) => ({ ...it, presupuesto: { ...it.presupuesto, limite: limiteIteracion } }))
+        : estado.iteraciones,
   };
-  return conEvento(siguiente, corrida.investigacionId, 'presupuesto', `Presupuesto ampliado a ${Math.round(nuevoLimite)} llamadas`, null, ahora);
+  const texto = `Presupuesto ampliado a ${limite} llamadas` + (actual && margen && limiteIteracion !== null ? `; la iteración ${actual.numero} puede gastar hasta ${limiteIteracion}` : '');
+  return conEvento(siguiente, corrida.investigacionId, 'presupuesto', texto, null, ahora);
 }
 
 /** Una indicacion de la investigadora entra al plan de la iteracion en
@@ -193,7 +222,7 @@ export function aprobarPlan(estado: EstadoRosa, iteracionId: string, ahora: numb
     iteraciones: reemplazar(estado.iteraciones, iteracionId, (i) => ({ ...i, planAprobado: true, empezadaEn: ahora })),
     corridas: reemplazar(estado.corridas, it.corridaId, (c) => (c.estado === 'esperando_plan' ? { ...c, estado: 'en_marcha' } : c)),
   };
-  return corrida ? conEvento(siguiente, corrida.investigacionId, 'corrida_estado', `Plan de la iteracion ${it.numero} aprobado`, null, ahora) : siguiente;
+  return corrida ? conEvento(siguiente, corrida.investigacionId, 'corrida_estado', `Plan de la iteración ${it.numero} aprobado`, null, ahora) : siguiente;
 }
 
 export function fijarAutoaprobacionPlan(estado: EstadoRosa, corridaId: string, segundos: number | null): EstadoRosa {
@@ -259,7 +288,7 @@ export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: '
     resumen: '',
   };
   const iteraciones = [
-    ...estado.iteraciones.map((i) => (i.id === actual?.id && i.terminadaEn === null ? { ...i, terminadaEn: ahora, resumen: i.resumen || `Cerrada al volver a la iteracion ${origen.numero}` } : i)),
+    ...estado.iteraciones.map((i) => (i.id === actual?.id && i.terminadaEn === null ? { ...i, terminadaEn: ahora, resumen: i.resumen || `Cerrada al volver a la iteración ${origen.numero}` } : i)),
     nueva,
   ];
   let hechos = estado.hechos;
@@ -277,7 +306,7 @@ export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: '
     hechos,
     corridas: reemplazar(estado.corridas, corrida.id, (c) => ({ ...c, iteracionActual: numero, estado: c.estado === 'en_marcha' || c.estado === 'esperando_plan' ? 'esperando_plan' : c.estado })),
   };
-  return conEvento(siguiente, corrida.investigacionId, 'corrida_estado', `Se volvio a la iteracion ${origen.numero} (${que}); la ${numero} espera tu aprobacion del plan`, null, ahora);
+  return conEvento(siguiente, corrida.investigacionId, 'corrida_estado', `Se volvió a la iteración ${origen.numero} (${que}); la ${numero} espera tu aprobación del plan`, null, ahora);
 }
 
 /* ---------------------------------------------------------------------
@@ -412,8 +441,14 @@ export function revisarHipotesis(
 ): EstadoRosa {
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
   if (!h) return estado;
-  // La decision se tomo mirando una version; si la hipotesis cambio, no se aplica.
+  // La decisión se tomó mirando una versión; si la hipótesis cambió, no se aplica.
   if (versionEsperada !== null && versionEsperada !== (h.version ?? 1)) return estado;
+  // Idempotencia: una decisión que ya está aplicada (aceptar sobre una aceptada,
+  // descartar sobre una descartada) no se registra dos veces. Pasa cuando la
+  // persona pulsa dos veces, o cuando la interfaz reaplica una decisión
+  // pendiente sobre un estado del servidor que ya la trae. Misma regla que
+  // `revisar_hipotesis` en rosa/estado/acciones.py.
+  if (h.estado === ESTADO_TRAS_ACCION[accion]) return estado;
   const notaLimpia = nota.trim();
   // Descartar y "no puedo juzgar" exigen motivo: es lo que queda para que
   // nadie vuelva a proponer lo mismo, o lo que Rosa tiene que aclarar.
@@ -440,7 +475,7 @@ export function revisarHipotesis(
       investigacionId: h.investigacionId,
       tipo: 'hipotesis',
       tema: 'Revisión humana',
-      enunciado: accion === 'aceptar' ? `Hipotesis aceptada para perseguir: ${h.titulo}` : h.titulo,
+      enunciado: accion === 'aceptar' ? `Hipótesis aceptada para perseguir: ${h.titulo}` : h.titulo,
       estado: accion === 'aceptar' ? 'abierto' : 'descartado',
       origen: 'inferencia',
       procedencia: h.procedencia.fuentes.map((f) => ({ fuenteId: f.id, referencia: f.referencia, pagina: f.pagina })),
@@ -456,7 +491,7 @@ export function revisarHipotesis(
   const textos: Record<AccionRevision, string> = {
     aceptar: `Aceptada: ${h.titulo}`,
     descartar: `Descartada: ${h.titulo}`,
-    refinar: `Pedida refinacion: ${h.titulo}`,
+    refinar: `Pedida refinación: ${h.titulo}`,
     reabrir: `Reabierta: ${h.titulo}`,
     no_puedo_juzgar: `Marcada como "no puedo juzgar": ${h.titulo}`,
   };
@@ -497,7 +532,7 @@ export function solicitarRevision(estado: EstadoRosa, hipotesisId: string, ahora
       procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, { id: nuevoId('m'), de: 'revisor' as const, texto: 'Revisión pedida por la investigadora: releidas las afirmaciones, el plan y el registro. Sin hallazgos nuevos.', creadoEn: ahora }] },
     })),
   };
-  return conEvento(siguiente, h.investigacionId, 'revision_automatica', `Revision pedida sobre: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+  return conEvento(siguiente, h.investigacionId, 'revision_automatica', `Revisión pedida sobre: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
 /** Replicar la hipotesis con N trayectorias independientes. Gasta presupuesto;
@@ -514,7 +549,7 @@ export function replicarHipotesis(estado: EstadoRosa, hipotesisId: string, total
       coste: { ...x.coste, analisis: x.coste.analisis + total * 1.2 },
     })),
   };
-  return conEvento(siguiente, h.investigacionId, 'revision_automatica', `Replicacion x${total} lanzada sobre: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+  return conEvento(siguiente, h.investigacionId, 'revision_automatica', `Replicación x${total} lanzada sobre: ${h.titulo}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
 export interface DatosHipotesisHumana {
@@ -553,9 +588,9 @@ export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, d
     },
     afirmaciones: [],
     procedencia: {
-      mensajes: [{ id: nuevoId('m'), de: 'investigadora', texto: `Hipotesis propuesta por ${quien}. Rosa la revisara y la metera al torneo en la siguiente iteracion.`, creadoEn: ahora }],
+      mensajes: [{ id: nuevoId('m'), de: 'investigadora', texto: `Hipótesis propuesta por ${quien}. Rosa la revisará y la meterá al torneo en la siguiente iteración.`, creadoEn: ahora }],
       codigo: '',
-      registro: [`${new Date(ahora).toISOString()} hipotesis humana anadida por ${quien}`],
+      registro: [`${new Date(ahora).toISOString()} hipótesis humana añadida por ${quien}`],
       entorno: { lenguaje: 'Python', version: '3.12.14', paquetes: [], modelos: [] },
       fuentes: [],
     },
@@ -578,7 +613,7 @@ export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, d
     experimento: null,
     prerregistradaEn: ahora,
   };
-  const siguiente = conEvento({ ...estado, hipotesis: [...estado.hipotesis, h] }, investigacionId, 'hipotesis_nueva', `Hipotesis propuesta por ${quien}: ${h.titulo}`, `#/investigaciones/${investigacionId}/hipotesis/${id}`, ahora);
+  const siguiente = conEvento({ ...estado, hipotesis: [...estado.hipotesis, h] }, investigacionId, 'hipotesis_nueva', `Hipótesis propuesta por ${quien}: ${h.titulo}`, `#/investigaciones/${investigacionId}/hipotesis/${id}`, ahora);
   return { estado: siguiente, id };
 }
 
@@ -681,14 +716,14 @@ export function cambiarEstadoArea(estado: EstadoRosa, investigacionId: string, a
     campana = corridaId ? estado.corridas.find((c) => c.id === corridaId) : undefined;
     if (corridaId && (!campana || campana.investigacionId !== investigacionId)) return estado;
     if ((corridaId || null) !== (a.corridaId ?? null)) {
-      a.historial!.push({ fecha: ahora, de: a.estado, a: a.estado, quien: quien.trim() || 'persona', motivo: campana ? `asignada a la campana ${campana.numero}` : 'desasignada de su campaña' });
+      a.historial!.push({ fecha: ahora, de: a.estado, a: a.estado, quien: quien.trim() || 'persona', motivo: campana ? `asignada a la campaña ${campana.numero}` : 'desasignada de su campaña' });
       a = { ...a, corridaId: corridaId || null };
       cambio = true;
     }
   }
   if (!cambio) return estado;
   const siguiente: EstadoRosa = { ...estado, investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, mision: { ...i.mision!, areas: (i.mision!.areas ?? []).map((x) => (x.id === areaId ? a : x)) } } : i)) };
-  return conEvento(siguiente, investigacionId, 'mision', `Area '${a.titulo.slice(0, 60)}': ${a.estado.replace('_', ' ')}${corridaId && campana ? ` (campana ${campana.numero})` : ''}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+  return conEvento(siguiente, investigacionId, 'mision', `Área '${a.titulo.slice(0, 60)}': ${a.estado.replace('_', ' ')}${corridaId && campana ? ` (campaña ${campana.numero})` : ''}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
 }
 
 export const CAMPOS_ENMENDABLES: CampoEnmendable[] = ['protocolo', 'ensayo', 'controles', 'tamanoMuestral', 'confirma', 'refuta', 'analisisPedido'];
@@ -703,10 +738,25 @@ export function enmendarExperimento(estado: EstadoRosa, hipotesisId: string, cam
   const nuevo = despues.trim();
   const razon = motivo.trim();
   if (nuevo === '' || razon === '' || nuevo === (x[campo] ?? '')) return estado;
-  const enmiendas = [...(x.enmiendas ?? []), { fecha: ahora, quien: quien.trim() || 'persona', campo, antes: x[campo] ?? '', despues: nuevo, motivo: razon }];
+  const enmienda: EnmiendaPrerregistro = { fecha: ahora, quien: quien.trim() || 'persona', campo, antes: x[campo] ?? '', despues: nuevo, motivo: razon };
+  const experimento: Experimento = { ...x, [campo]: nuevo };
+  // Un registro antiguo (sin lecturas separadas) congela una lectura derivada del
+  // ensayo y del par confirma/refuta: enmendar esos campos cambia esa lectura y
+  // el hash congelado dejaría de ser cierto en silencio. Misma regla que el
+  // servidor (rosa/estado/acciones.py enmendar_experimento): se recalcula y la
+  // enmienda guarda el anterior y el nuevo. Sin hash previo no se inventa.
+  if (x.hashLecturas) {
+    const hashDespues = hashLecturas(experimento);
+    if (hashDespues !== x.hashLecturas) {
+      enmienda.hashAntes = x.hashLecturas;
+      enmienda.hashDespues = hashDespues;
+      experimento.hashLecturas = hashDespues;
+    }
+  }
+  const enmiendas = [...(x.enmiendas ?? []), enmienda];
   const siguiente = {
     ...estado,
-    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({ ...y, experimento: { ...y.experimento!, [campo]: nuevo, enmiendas }, procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} enmienda ${enmiendas.length} del prerregistro por ${quien}: ${campo} (${razon.slice(0, 80)})`] } })),
+    hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({ ...y, experimento: { ...experimento, enmiendas }, procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} enmienda ${enmiendas.length} del prerregistro por ${quien}: ${campo} (${razon.slice(0, 80)})`] } })),
   };
   return conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', `Enmienda ${enmiendas.length} del prerregistro (${campo}): ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
@@ -1010,13 +1060,15 @@ export function bloquePrerregistro(experimento: unknown): string[] {
 export const CAMPOS_LECTURA_ENMENDABLES: CampoLecturaEnmendable[] = ['queConfirma', 'queRefuta', 'control', 'unidad'];
 
 /** Enmienda fechada de una lectura del contrato (espejo de `enmendar_lectura`
- *  en el servidor): misma regla que enmendarExperimento (solo después de
+ *  en rosa/estado/acciones.py, misma regla y misma forma): solo después de
  *  prerregistrar y antes de evaluar datos, con motivo, y solo si el texto
- *  cambia), sobre una lectura declarada en `experimento.lecturas` (índice) y
- *  uno de sus cuatro campos enmendables. La enmienda lleva `campo: 'ensayo'`
- *  (las lecturas son los criterios del ensayo) y en `lectura` el índice, el
- *  nombre y el campo real. `hashLecturas` no se toca: es el hash congelado, y
- *  que ya no coincida con el actual es lo que delata la enmienda. */
+ *  cambia, sobre una lectura declarada en `experimento.lecturas` (índice) y
+ *  uno de sus cuatro campos enmendables. La enmienda lleva
+ *  `campo: "lecturas[i].campo"` y en `lectura` el nombre de la lectura. Como
+ *  las lecturas cambian, `hashLecturas` se recalcula (pasa a ser el vigente) y
+ *  la enmienda guarda `hashAntes` (el congelado, si es la primera) y
+ *  `hashDespues`; que difieran es lo que delata que el contrato cambió después
+ *  de congelarse. La pantalla enseña como congelado `enmiendas[0].hashAntes`. */
 export function enmendarLectura(estado: EstadoRosa, hipotesisId: string, indice: number, campo: CampoLecturaEnmendable, despues: string, motivo: string, quien: string, ahora: number): EstadoRosa {
   const h = estado.hipotesis.find((y) => y.id === hipotesisId);
   const x = h?.experimento;
@@ -1027,17 +1079,21 @@ export function enmendarLectura(estado: EstadoRosa, hipotesisId: string, indice:
   if (!l || typeof l !== 'object') return estado;
   const nuevo = despues.trim();
   const razon = motivo.trim();
-  const antes = String(l[campo] ?? '');
+  // Recortado como en el servidor (`str(lectura.get(campo) or "").strip()`):
+  // un texto guardado con espacios de más no debe pasar por "cambio".
+  const antes = String(l[campo] ?? '').trim();
   if (nuevo === '' || razon === '' || nuevo === antes) return estado;
   const nombre = textoLimpio(l.nombre) || `lectura ${indice + 1}`;
-  const enmienda: EnmiendaPrerregistro = { fecha: ahora, quien: quien.trim() || 'persona', campo: 'ensayo', antes, despues: nuevo, motivo: razon, lectura: { indice, nombre, campo } };
-  const enmiendas = [...(x.enmiendas ?? []), enmienda];
   const nuevas = lecturas.map((y, i) => (i === indice ? { ...y, [campo]: nuevo } : y));
+  const hashAntes = x.hashLecturas || hashLecturas(x);
+  const hashDespues = hashLecturas({ ...x, lecturas: nuevas });
+  const enmienda: EnmiendaPrerregistro = { fecha: ahora, quien: quien.trim() || 'persona', campo: `lecturas[${indice}].${campo}`, lectura: nombre, antes, despues: nuevo, motivo: razon, hashAntes, hashDespues };
+  const enmiendas = [...(x.enmiendas ?? []), enmienda];
   const siguiente = {
     ...estado,
     hipotesis: reemplazar(estado.hipotesis, hipotesisId, (y) => ({
       ...y,
-      experimento: { ...y.experimento!, lecturas: nuevas, enmiendas },
+      experimento: { ...y.experimento!, lecturas: nuevas, enmiendas, hashLecturas: hashDespues },
       procedencia: { ...y.procedencia, registro: [...y.procedencia.registro, `${new Date(ahora).toISOString()} enmienda ${enmiendas.length} del prerregistro por ${quien}: lectura «${nombre}», ${campo} (${razon.slice(0, 80)})`] },
     })),
   };
@@ -1115,7 +1171,7 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
   const lineas = [
     `# Prerregistro: ${h.titulo}`,
     '',
-    `Congelado el ${fecha}. Asignado a: ${laboratorio}. Hipotesis ${h.id}, iteracion ${h.iteracion}.`,
+    `Congelado el ${fecha}. Asignado a: ${laboratorio}. Hipótesis ${h.id}, iteración ${h.iteracion}.`,
     '',
     '## Hipótesis (no se modifica después de esta fecha)',
     h.enunciado,
@@ -1123,10 +1179,10 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
     '## Mecanismo propuesto',
     h.mecanismo,
     '',
-    '## Como se comprobara',
+    '## Cómo se comprobará',
     `Biomarcador: ${c.biomarcador}`,
     `Cohorte: ${c.cohorte}`,
-    `Diseno: ${c.diseno}`,
+    `Diseño: ${c.diseno}`,
     '',
     '## Protocolo',
     x.protocolo,
@@ -1140,18 +1196,30 @@ export function textoPrerregistro(h: Hipotesis, laboratorio: string, ahora: numb
 ${x.costeEstimado}`,
   ];
   if (x.analisisPedido) lineas.push('', '## Análisis sobre datos existentes', x.analisisPedido);
-  if (k) lineas.push('', '## Estado de la evidencia al prerregistrar', `Certeza: ${k.certeza}. Direccion: ${k.direccion}.`, k.enunciado, `Subiria la certeza si: ${k.subiria}`, `Bajaria si: ${k.bajaria}`);
+  if (k) lineas.push('', '## Estado de la evidencia al prerregistrar', `Certeza: ${k.certeza}. Dirección: ${k.direccion}.`, k.enunciado, `Subiría la certeza si: ${k.subiria}`, `Bajaría si: ${k.bajaria}`);
   if (arnes) lineas.push('', '## Versión de Rosa', `Commit ${arnes.commit}, firmas ${arnes.firmas}, programas optimizados: ${arnes.optimizados}.`);
   lineas.push('', 'Lo que se analice fuera de este registro se reporta como exploratorio, separado de lo prerregistrado.');
   return lineas.join('\n');
 }
 
-export function registrarDatosExperimento(estado: EstadoRosa, hipotesisId: string, fichero: string, analisis: string): EstadoRosa {
+/** Un nombre de fichero que se declara de prueba ("datos_gfap_sintetico.csv",
+ *  "synthetic", "dummy", "fake", "mock", "datos de prueba", "prueba.csv"): la
+ *  bandera se fuerza a sí aunque la casilla no se marcara. Copia exacta de
+ *  NOMBRE_SINTETICO en rosa/certeza.py (misma regla en los dos lados). "prueba"
+ *  suelta no cuenta: en clínica "prueba_cognitiva_MMSE.csv" es un dato real. */
+export const FICHERO_SINTETICO = /sint[eé]tic|synthetic|(?<![a-z0-9])(?:dummy|fake|mock)(?![a-z0-9])|(?<![a-z0-9])(?:datos?|data)[_\- ]?(?:de[_\- ]?)?prueba(?![a-z0-9])|(?<![a-z0-9])de[_\- ]prueba(?![a-z0-9])|^\s*prueba(?:[_\- ]?\d+)?\.[a-z0-9]+\s*$/i;
+
+/** Registra el fichero de datos del laboratorio (espejo de
+ *  `registrar_datos_experimento`). `sintetico` es lo que declaró la persona
+ *  con la casilla "estos datos son sintéticos o de prueba"; un dato sintético
+ *  se etiqueta siempre y nunca cuenta como observación ni sube el techo GRADE. */
+export function registrarDatosExperimento(estado: EstadoRosa, hipotesisId: string, fichero: string, analisis: string, sintetico = false): EstadoRosa {
   if (fichero.trim() === '') return estado;
+  const datosSinteticos = Boolean(sintetico) || FICHERO_SINTETICO.test(fichero);
   return {
     ...estado,
     hipotesis: reemplazar(estado.hipotesis, hipotesisId, (h) =>
-      h.experimento ? { ...h, experimento: { ...h.experimento, ficheroDatos: fichero.trim(), analisisPedido: analisis.trim(), estado: 'datos_recibidos' } } : h,
+      h.experimento ? { ...h, experimento: { ...h.experimento, ficheroDatos: fichero.trim(), analisisPedido: analisis.trim(), estado: 'datos_recibidos', datosSinteticos, resultado: null } } : h,
     ),
   };
 }
@@ -1284,15 +1352,15 @@ export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: 
           const ref = h.procedencia.find((p) => p.fuenteId === fid)!.referencia;
           const f = fuentes.get(fid);
           if (!citas.has(fid)) citas.set(fid, { fuenteId: fid, referencia: ref, doi: f?.doi ?? null, pmid: f?.pmid ?? null, titulo: f?.titulo ?? '' });
-          return `${ref}${paginas.length ? `, pag. ${paginas.sort((a, b) => a - b).join(', ')}` : ''}${f?.pmid ? `, PMID ${f.pmid}` : ''}`;
+          return `${ref}${paginas.length ? `, pág. ${paginas.sort((a, b) => a - b).join(', ')}` : ''}${f?.pmid ? `, PMID ${f.pmid}` : ''}`;
         })
         .join('; ') || 'inferencia de Rosa'
     );
   };
   const partes: string[] = [];
   if (sabidos.length > 0) partes.push(`Se sabe: ${sabidos.map((x) => `${x.h.enunciado} [${citar(x.h)}]`).join(' ')}`);
-  if (abiertos.length > 0) partes.push(`Esta abierto: ${abiertos.map((x) => x.h.enunciado).join(' ')}`);
-  if (descartados.length > 0) partes.push(`Se descarto: ${descartados.map((x) => `${x.h.enunciado} (${x.h.motivoDescarte ?? 'sin motivo registrado'})`).join(' ')}`);
+  if (abiertos.length > 0) partes.push(`Está abierto: ${abiertos.map((x) => x.h.enunciado).join(' ')}`);
+  if (descartados.length > 0) partes.push(`Se descartó: ${descartados.map((x) => `${x.h.enunciado} (${x.h.motivoDescarte ?? 'sin motivo registrado'})`).join(' ')}`);
   return { respuesta: partes.join('\n'), nodos: puntuados.map((x) => x.h), citas: [...citas.values()] };
 }
 
@@ -1390,7 +1458,7 @@ export function aprobarMision(estado: EstadoRosa, investigacionId: string, misio
     investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, mision: nueva })),
     corridas: estado.corridas.map((c) => (c.investigacionId === investigacionId && c.estado !== 'detenida' && c.estado !== 'terminada' && nueva.presupuesto.llamadas > c.gasto.llamadas ? { ...c, presupuesto: { ...c.presupuesto, limiteLlamadas: nueva.presupuesto.llamadas } } : c)),
   };
-  return conEvento(siguiente, investigacionId, 'mision', `Mision aprobada por ${quien}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+  return conEvento(siguiente, investigacionId, 'mision', `Misión aprobada por ${quien}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
 }
 
 /** Eximir la puerta de reproduccion es una excepcion de politica (nivel 3):
@@ -1401,13 +1469,13 @@ export function eximirPuerta(estado: EstadoRosa, investigacionId: string, motivo
   if (!inv || texto === '') return estado;
   const puerta = inv.puertaReproduccion ?? puertaVacia();
   if (puerta.estado === 'eximida') return estado;
-  const cambio: CambioAprendizaje = { id: nuevoId('apr'), investigacionId, nivel: 3, tipo: 'politica', descripcion: `Puerta de reproduccion eximida: ${texto}`, origen: 'puertaReproduccion', estado: 'aplicado', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien };
+  const cambio: CambioAprendizaje = { id: nuevoId('apr'), investigacionId, nivel: 3, tipo: 'politica', descripcion: `Puerta de reproducción eximida: ${texto}`, origen: 'puertaReproduccion', estado: 'aplicado', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien };
   const siguiente: EstadoRosa = {
     ...estado,
     investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, puertaReproduccion: { ...puerta, estado: 'eximida', eximidaPor: quien, motivo: texto, fecha: ahora } })),
     aprendizaje: [...(estado.aprendizaje ?? []), cambio],
   };
-  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproduccion eximida por ${quien}: ${texto.slice(0, 120)}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproducción eximida por ${quien}: ${texto.slice(0, 120)}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
 }
 
 export function cerrarPuerta(estado: EstadoRosa, investigacionId: string, quien: string, ahora: number): EstadoRosa {
@@ -1419,7 +1487,7 @@ export function cerrarPuerta(estado: EstadoRosa, investigacionId: string, quien:
     ...estado,
     investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, puertaReproduccion: { ...puerta, estado: puerta.superadas >= puerta.requeridas ? 'abierta' : 'bloqueada', eximidaPor: null, motivo: '', fecha: ahora } })),
   };
-  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproduccion vuelta a exigir por ${quien}`, null, ahora);
+  return conEvento(siguiente, investigacionId, 'aprendizaje', `Puerta de reproducción vuelta a exigir por ${quien}`, null, ahora);
 }
 
 export interface DatosReproduccion {
@@ -1438,7 +1506,7 @@ export function anadirReproduccion(estado: EstadoRosa, investigacionId: string, 
   if (!inv || !inv.datasets.some((d) => d.id === datasetId)) return { estado, id: null };
   if (datos.referencia.trim() === '' || datos.descripcion.trim() === '' || !Number.isFinite(datos.valorPublicado) || !(datos.tolerancia > 0 && datos.tolerancia <= 1)) return { estado, id: null };
   const r: Reproduccion = { id: nuevoId('rep'), investigacionId, datasetId, referencia: datos.referencia.trim(), doi: datos.doi.trim(), descripcion: datos.descripcion.trim(), cifraPublicada: datos.cifraPublicada.trim(), valorPublicado: datos.valorPublicado, tolerancia: datos.tolerancia, planId: null, ejecucionId: null, valorObtenido: null, estado: 'pendiente', creadaEn: ahora };
-  const siguiente = conEvento({ ...estado, reproducciones: [...(estado.reproducciones ?? []), r] }, investigacionId, 'analisis', `Reproduccion registrada: ${r.referencia}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
+  const siguiente = conEvento({ ...estado, reproducciones: [...(estado.reproducciones ?? []), r] }, investigacionId, 'analisis', `Reproducción registrada: ${r.referencia}`, `#/investigaciones/${investigacionId}/investigacion`, ahora);
   return { estado: siguiente, id: r.id };
 }
 
@@ -1450,9 +1518,9 @@ export function pedirAnalisis(estado: EstadoRosa, hipotesisId: string, datasetId
   const inv = estado.investigaciones.find((i) => i.id === h.investigacionId);
   const ds = inv?.datasets.find((d) => d.id === datasetId);
   if (!ds || ds.estado !== 'aprobado' || !ds.procedencia?.hash) return estado;
-  const mensaje = { id: nuevoId('m'), de: 'investigadora' as const, texto: `Analisis pedido sobre ${ds.nombre}: ${pregunta.trim() || 'aplicar la predicción falsable de la hipótesis'}`, creadoEn: ahora };
+  const mensaje = { id: nuevoId('m'), de: 'investigadora' as const, texto: `Análisis pedido sobre ${ds.nombre}: ${pregunta.trim() || 'aplicar la predicción falsable de la hipótesis'}`, creadoEn: ahora };
   const siguiente: EstadoRosa = { ...estado, hipotesis: reemplazar(estado.hipotesis, hipotesisId, (x) => ({ ...x, procedencia: { ...x.procedencia, mensajes: [...x.procedencia.mensajes, mensaje] } })) };
-  return conEvento(siguiente, h.investigacionId, 'analisis', `Analisis in silico pedido sobre ${ds.nombre}: ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
+  return conEvento(siguiente, h.investigacionId, 'analisis', `Análisis in silico pedido sobre ${ds.nombre}: ${h.titulo.slice(0, 80)}`, `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
 /** Promover un cambio de nivel 2. Solo una persona; un criterio promovido
@@ -1643,7 +1711,7 @@ export function actualizarMetodo(estado: EstadoRosa, metodoId: string, cambios: 
   const nuevo: MetodoRegistrado = { ...m, ...resto, actualizadoEn: ahora };
   let aprendizaje = estado.aprendizaje ?? [];
   if (cambios.estado && cambios.estado !== m.estado) {
-    aprendizaje = [...aprendizaje, { id: nuevoId('apr'), investigacionId: null, nivel: 2, tipo: 'programa', descripcion: `Metodo '${m.nombre.slice(0, 60)}': de ${m.estado} a ${cambios.estado}`, origen: `metodo:${metodoId}`, estado: 'promovido', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien }];
+    aprendizaje = [...aprendizaje, { id: nuevoId('apr'), investigacionId: null, nivel: 2, tipo: 'programa', descripcion: `Método '${m.nombre.slice(0, 60)}': de ${m.estado} a ${cambios.estado}`, origen: `metodo:${metodoId}`, estado: 'promovido', evaluacion: null, quien, fecha: ahora, resueltoEn: ahora, resueltoPor: quien }];
   }
   return { ...estado, metodos: (estado.metodos ?? []).map((x) => (x.id === metodoId ? nuevo : x)), aprendizaje };
 }

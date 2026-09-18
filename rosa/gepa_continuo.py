@@ -290,11 +290,19 @@ class Trazador(BaseCallback):
 
                 entrada = int((uso or {}).get("prompt_tokens", 0) or 0)
                 salida = int((uso or {}).get("completion_tokens", 0) or 0)
+                # El coste que manda es el facturado por el gateway (`usage.cost`); la
+                # tabla de precios solo cuando falta (S-19). `usdReal` acumula aparte lo
+                # facturado para poder compararlo con la estimación.
+                usd, es_real = CFG.coste_desde_uso(uso, str(getattr(instancia, "model", "")))
                 with self.lock:
                     self.gasto["llamadas"] = self.gasto.get("llamadas", 0) + 1
                     self.gasto["tokensEntrada"] = self.gasto.get("tokensEntrada", 0) + entrada
                     self.gasto["tokensSalida"] = self.gasto.get("tokensSalida", 0) + salida
-                    self.gasto["usd"] = round(self.gasto.get("usd", 0.0) + CFG.coste_usd(str(getattr(instancia, "model", "")), entrada, salida), 4)
+                    self.gasto["usd"] = round(self.gasto.get("usd", 0.0) + usd, 4)
+                    if es_real:
+                        self.gasto["usdReal"] = round(self.gasto.get("usdReal", 0.0) + usd, 4)
+                    else:
+                        self.gasto["usdEstimadoEnLlamadas"] = self.gasto.get("usdEstimadoEnLlamadas", 0) + 1
             except Exception:  # noqa: BLE001
                 pass
         self.guardar("modelo", {**ctx, "llamada": call_id, "modelo": getattr(instancia, "model", ""),
@@ -739,6 +747,11 @@ class Servicio:
             juez_lm = LMConParada(self.modelos.juez, self._motivo_parada)
             reflexion_lm = LMConParada(self.modelos.reflexion, self._motivo_parada)
             metrica = self._metric(contrato, ciclo, nombre, juez_lm)
+            # Examen: dos lecturas del juez por versión. Con la caché de DSPy activa las
+            # dos eran la misma respuesta servida del disco (S-20); `rollout_id` 0 y 1
+            # entra en la clave de la caché sin cambiar el prompt, así que son dos
+            # llamadas reales. `LMConParada` copia `base.kwargs`, y ahí va el rollout_id.
+            metricas_examen = [self._metric(contrato, ciclo, nombre, LMConParada(self.modelos.juez.copy(rollout_id=k), self._motivo_parada)) for k in (0, 1)]
             destino = self.ruta / ciclo
             destino.mkdir(mode=0o700)
             # Misma familia del módulo en producción; el juez fijo no se optimiza. El
@@ -758,11 +771,12 @@ class Servicio:
                 for ejemplo in test_ej:
                     if self._detenido():
                         raise FalloTransitorio("Servicio detenido antes del examen final")
-                    # Mismo caso, mismo juez, dos lecturas por versión para amortiguar el ruido.
+                    # Mismo caso, mismo juez, dos lecturas distintas (rollout_id 0 y 1) por
+                    # versión para amortiguar el ruido.
                     salida_base = base(**ejemplo.inputs())
                     salida_cand = candidato(**ejemplo.inputs())
-                    antes.append(sum(float(metrica(ejemplo, salida_base).score) for _ in range(2)) / 2)
-                    despues.append(sum(float(metrica(ejemplo, salida_cand).score) for _ in range(2)) / 2)
+                    antes.append(sum(float(m(ejemplo, salida_base).score) for m in metricas_examen) / len(metricas_examen))
+                    despues.append(sum(float(m(ejemplo, salida_cand).score) for m in metricas_examen) / len(metricas_examen))
             if self.fallos_evaluador:
                 raise FalloTransitorio("El evaluador falló en el examen final; comparación no válida")
             promovido = aprobar(antes, despues)

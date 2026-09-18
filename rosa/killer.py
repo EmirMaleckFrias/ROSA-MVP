@@ -9,13 +9,14 @@ resultados con `decidir`, siguiendo la regla que salió de la investigación
 del 11 de septiembre de 2026:
 
 - descartar en este contexto solo si falla la evidencia misma: citas que no
-  resuelven, afirmaciones no sostenidas, o un supuesto del que depende la
-  hipótesis contradicho;
+  resuelven o afirmaciones no sostenidas;
 - reformular si falla algo arreglable: dirección causal, falsabilidad,
   factibilidad, redundancia;
 - suspender (no evaluable) si una comprobación crítica quedó sin poder
-  comprobarse porque una fuente no respondió o falta el dato;
-- avanzar solo si nada critico falla y hay predicción falsable.
+  comprobarse porque una fuente no respondió o falta el dato, o si un
+  supuesto del que depende la hipótesis aparece contradicho (desde el 17 de
+  septiembre de 2026: antes descartaba; ver DESCARTAN);
+- avanzar solo si nada crítico falla y hay predicción falsable.
 
 Separar detección de decisión evita el fallo documentado en revisores LLM
 que señalan el problema y aun así aprueban.
@@ -23,6 +24,8 @@ que señalan el problema y aun así aprueban.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from typing import Any
 
@@ -36,7 +39,7 @@ BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutad
 # Qué hace cada una de las quince comprobaciones cuando FALLA. Ninguna queda
 # sin consecuencia: una hipótesis ya publicada o sin fuentes primarias no
 # llega a candidata "con aviso".
-#   descartar:  la evidencia no la sostiene (citas, fidelidad, supuestos).
+#   descartar:  la evidencia no la sostiene (citas, fidelidad).
 #   reformular: arreglable reescribiendo (causalidad, falsabilidad, factibilidad,
 #               redundancia, dirección de la evidencia, unidades, novedad: si ya
 #               está publicada, hay que decir qué añade; contexto humano: la diana
@@ -44,12 +47,26 @@ BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutad
 #               que hay que cambiar la diana, el tejido o explicar cómo llega).
 #   suspender:  hace falta más o mejor evidencia antes de seguir (sin fuente
 #               primaria, riesgo de sesgo serio en toda la evidencia, la diana no
-#               resuelve en las bases): lo decide una persona o una búsqueda nueva.
+#               resuelve en las bases, un supuesto contradicho): lo decide una
+#               persona o una búsqueda nueva.
 #   avisar:     avanza con la certeza limitada (una sola cohorte: es un factor
 #               GRADE, no un fallo de la hipótesis).
-DESCARTAN = ("citas_reales", "fidelidad_evidencia", "supuestos")
+#
+# Por qué "supuestos" suspende y no descarta (revisión del 17 de septiembre de
+# 2026, hallazgo S-10). Los supuestos que se evalúan no los escribe el
+# generador: los redacta el revisor inicial (Opus) y los juzga Sonnet con la
+# firma EvaluarSupuesto, que daba "contradicho" incluso cuando ninguna
+# afirmación mencionaba el supuesto ("ausencia" leída como "negación"). Cuatro
+# de los cinco descartes de la investigación viva salieron de ahí, la auditoría
+# discrepó en todos los auditados y el juez Opus que lo negó fue ignorado por
+# `fusionar`. Un supuesto contradicho es "hace falta más o mejor evidencia" (o
+# un factor GRADE), no "la evidencia no sostiene la hipótesis": solo las citas y
+# la fidelidad hablan de la evidencia misma. Suspendida, la hipótesis se queda
+# en la cola como material que Rosa mejora y el bucle la rejuzga; descartada,
+# salía del bucle por el eslabón más barato y menos vigilado.
+DESCARTAN = ("citas_reales", "fidelidad_evidencia")
 REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "novedad", "contexto_humano")
-SUSPENDEN = ("fuente_primaria", "sesgo_evidencia", "identificadores_resuelven")
+SUSPENDEN = ("fuente_primaria", "sesgo_evidencia", "identificadores_resuelven", "supuestos")
 AVISAN = ("independencia_cohortes",)
 # Las que, sin poder comprobarse, suspenden.
 CRITICAS = ("citas_reales", "fidelidad_evidencia", "supuestos", "falsabilidad", "novedad")
@@ -69,9 +86,12 @@ def cohorte_en_texto(texto: str) -> str:
 
 def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[dict[str, str]]:
     """Las comprobaciones que Rosa resuelve sin modelo."""
-    afs = h.get("afirmaciones", [])
+    # Registros antiguos o rotos: `afirmaciones`, `procedencia` o `novedad` pueden
+    # venir como None; se leen como vacíos en vez de tumbar el Killer entero.
+    afs = [a for a in (h.get("afirmaciones") or []) if isinstance(a, dict)]
+    h = {**h, "afirmaciones": afs}  # los ayudantes de abajo (medidas, cohortes) leen la misma lista limpia
     c: list[dict[str, str]] = []
-    # 1. Citas reales: ninguna afirmacion con cita que no resuelve o sin cita.
+    # 1. Citas reales: ninguna afirmación con cita que no resuelve o sin cita.
     rotas = [a for a in afs if a["veredicto"] in ("cita_no_resuelve", "sin_cita")]
     if not afs:
         c.append({"comprobacion": "citas_reales", "resultado": "falla", "detalle": "La hipótesis no cita ninguna afirmación"})
@@ -86,12 +106,12 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     if no_sost:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "falla", "detalle": f"{len(no_sost)} afirmaciones que la fuente no sostiene" + (" (una es dato de otra entidad)" if any(a.get("entidadDistinta") for a in no_sost) else "") + ": " + "; ".join(a["texto"][:80] for a in no_sost[:3])})
     elif afs and sin_ver and not sostenidas:
-        c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(sin_ver)} afirmaciones sin verificar todavía (el juez no dictamino)"})
+        c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(sin_ver)} afirmaciones sin verificar todavía (el juez no dictaminó)"})
     elif sostenidas:
         parciales = sum(1 for a in sostenidas if a["veredicto"] == "parcial")
         # Cifras del texto que no aparecen en el pasaje citado: el verificador pudo
-        # dar por sostenida una afirmacion cuya cifra se copio mal. No mata: deja la
-        # comprobacion en no_comprobable (suspender) para que alguien la mire.
+        # dar por sostenida una afirmación cuya cifra se copió mal. No mata: deja la
+        # comprobación en no_comprobable (suspender) para que alguien la mire.
         desviadas = [(a["texto"][:70], falt) for a in sostenidas for falt in [cifras_fuera_del_pasaje(a.get("texto", ""), a.get("fragmento", ""))] if falt]
         if desviadas:
             c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": f"{len(desviadas)} afirmaciones con cifras que no están en su pasaje: " + "; ".join(f"'{t}' ({', '.join(f)})" for t, f in desviadas[:3])})
@@ -99,12 +119,13 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
             c.append({"comprobacion": "fidelidad_evidencia", "resultado": "pasa", "detalle": f"Las afirmaciones están sostenidas por su fuente y sus cifras aparecen en el pasaje" + (f"; {parciales} solo parcialmente" if parciales else "")})
     else:
         c.append({"comprobacion": "fidelidad_evidencia", "resultado": "no_comprobable", "detalle": "Sin afirmaciones verificadas"})
-    # 3. Supuestos: falla solo si un supuesto necesario esta CONTRADICHO por la
-    # evidencia. Un supuesto sin evidencia no tumba la hipotesis: se lista como
-    # aviso y como lo que haria falta comprobar. (El panel del 11 de septiembre
-    # de 2026 mostro que dejar esto al juez descartaba el 100 % de las
-    # hipotesis por supuestos "sin respaldo".)
-    sups = h.get("supuestos", []) or []
+    # 3. Supuestos: falla solo si un supuesto necesario está CONTRADICHO por la
+    # evidencia. Un supuesto sin evidencia no tumba la hipótesis: se lista como
+    # aviso y como lo que haría falta comprobar. (El panel del 11 de septiembre
+    # de 2026 mostró que dejar esto al juez descartaba el 100 % de las
+    # hipótesis por supuestos "sin respaldo".)
+    # Registros antiguos o de prueba: un supuesto puede venir como texto o None.
+    sups = [x for x in (h.get("supuestos") or []) if isinstance(x, dict)]
     contradichos = [x for x in sups if x.get("estado") == "contradicho"]
     sin_ev = [x for x in sups if x.get("estado") == "sin_evidencia"]
     if contradichos:
@@ -116,7 +137,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     # 4. Independencia de cohortes: por nombre de cohorte y, cuando no lo hay,
     # por autores compartidos, mismo centro y periodo cercano.
     cohortes = cohortes_de(h)
-    fuentes = h.get("procedencia", {}).get("fuentes", [])
+    fuentes = [f for f in ((h.get("procedencia") or {}).get("fuentes") or []) if isinstance(f, dict)]
     primarias = [f for f in fuentes if f.get("tipoEstudio") not in ("revision_narrativa", "revision_sistematica", "otro")]
     grupos, pistas_misma = grupos_de_cohorte(fuentes)
     if len(fuentes) <= 1:
@@ -136,7 +157,7 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
         c.append({"comprobacion": "independencia_cohortes", "resultado": "falla", "detalle": "Las fuentes parecen la misma cohorte aunque no la nombren: " + "; ".join(pistas_misma[:2])})
     else:
         c.append({"comprobacion": "independencia_cohortes", "resultado": "no_comprobable", "detalle": f"{len(fuentes)} fuentes, {len(cohortes)} con cohorte identificada, {len(primarias)} parecen primarias" + ("; posibles solapes: " + "; ".join(pistas_misma[:2]) if pistas_misma else "")})
-    # 5. Direccion de la evidencia frente al enunciado, y unidades comparables.
+    # 5. Dirección de la evidencia frente al enunciado, y unidades comparables.
     c.extend(consistencia_medidas(h))
     # 6. La diana de la tarjeta resuelve a identificadores estables (MyGene, UniProt).
     diana = ((h.get("tarjeta") or {}).get("diana") or "").strip()
@@ -157,11 +178,17 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     # falla por falta de dato). Falla solo si HPA no detecta la diana en cerebro y
     # la hipótesis afirma un mecanismo cerebral.
     c.append(DI.comprobacion_contexto_humano(h, h.get("perfilDiana")))
-    # 8. Novedad con recuperacion.
-    n = h.get("novedad", {})
-    prec = n.get("precedente", {})
-    if str(prec.get("detalle", "")).startswith("No comprobado"):
-        c.append({"comprobacion": "novedad", "resultado": "no_comprobable", "detalle": prec.get("detalle", "")[:160]})
+    # 8. Novedad con recuperación.
+    n = h.get("novedad") if isinstance(h.get("novedad"), dict) else {}
+    prec = n.get("precedente") if isinstance(n.get("precedente"), dict) else {}
+    # "no_comprobado" (17 de septiembre de 2026): la consulta no se hizo, devolvió
+    # 0 obras o el modelo no respondió; también tras reformular (el precedente era
+    # de la versión anterior). Nunca es "sin precedente".
+    if prec.get("estado") == "no_comprobado" or str(prec.get("detalle", "")).startswith("No comprobado"):
+        detalle_prec = str(prec.get("detalle", "") or "No comprobado todavía")
+        if not detalle_prec.startswith("No comprobado"):
+            detalle_prec = "No comprobado: " + detalle_prec  # `fusionar` reconoce la novedad pendiente por este prefijo
+        c.append({"comprobacion": "novedad", "resultado": "no_comprobable", "detalle": detalle_prec[:160]})
     elif prec.get("estado") == "ya_publicado":
         c.append({"comprobacion": "novedad", "resultado": "falla", "detalle": prec.get("detalle", "")[:160]})
     elif prec.get("estado") == "parcial":
@@ -169,34 +196,49 @@ def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[d
     else:
         c.append({"comprobacion": "novedad", "resultado": "pasa", "detalle": prec.get("detalle", "Sin precedente claro")[:160]})
     # Factibilidad parcial: si ClinicalTrials no respondio, no comprobable (el juez completa).
-    ens = n.get("ensayos", {})
+    ens = n.get("ensayos") if isinstance(n.get("ensayos"), dict) else {}
     if str(ens.get("detalle", "")).startswith("No comprobado"):
-        c.append({"comprobacion": "factibilidad", "resultado": "no_comprobable", "detalle": "ClinicalTrials.gov no respondio: no se pudo ver si existe un ensayo o cohorte que la mida"})
+        c.append({"comprobacion": "factibilidad", "resultado": "no_comprobable", "detalle": "ClinicalTrials.gov no respondió: no se pudo ver si existe un ensayo o cohorte que la mida"})
     return c
 
 
 # Comprobaciones en las que el juez puede ver algo que la regla no vio (una cifra
 # distinta del pasaje, un supuesto contradicho en el texto). Si discrepa de la
-# determinista, nadie manda: queda no_comprobable y la hipotesis se suspende
+# determinista, nadie manda: queda no_comprobable y la hipótesis se suspende
 # hasta que una persona o el verificador lo resuelvan.
 DISCREPABLES = ("fidelidad_evidencia", "citas_reales", "supuestos")
+# Comprobaciones que solo resuelve una consulta a bases externas: el juez no las
+# convierte en "pasa" ni en "falla" de memoria mientras estén pendientes de buscar
+# (detalle "No comprobado todavía").
+SOLO_POR_RECUPERACION = ("novedad",)
 
 
 def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Las deterministas mandan; el juez solo aporta las que Rosa no resolvio.
-    Excepcion: en las comprobaciones DISCREPABLES, si la determinista dice
+    """Las deterministas mandan; el juez solo aporta las que Rosa no resolvió.
+    Excepción: en las comprobaciones DISCREPABLES, si la determinista dice
     pasa y el juez dice falla con detalle, el resultado es no_comprobable
     (los dos jueces discrepan: se abstiene, no mata)."""
     hechas = {c["comprobacion"] for c in deterministas if c["resultado"] != "no_comprobable"}
-    # Una determinista que quedo en no_comprobable CON detalle encontro algo
-    # (una cifra que no esta en el pasaje, un identificador que no resuelve). El
+    # Una determinista que quedó en no_comprobable CON detalle encontró algo
+    # (una cifra que no está en el pasaje, un identificador que no resuelve). El
     # juez puede confirmarlo (falla) pero no borrarlo diciendo "pasa".
-    # Solo en las comprobaciones objetivas (las DISCREPABLES y la de identificadores):
-    # una "novedad" no comprobable porque la base no respondio si la puede resolver el juez.
+    # Solo en las comprobaciones objetivas (las DISCREPABLES y la de identificadores).
     sospechosas = {c["comprobacion"] for c in deterministas if c["resultado"] == "no_comprobable" and (c.get("detalle") or "").strip() and c["comprobacion"] in DISCREPABLES + ("identificadores_resuelven",)}
+    # La novedad solo la resuelve la recuperación (OpenAlex, Exa): si está
+    # pendiente de buscar ("No comprobado todavía", porque la base no respondió o
+    # el enunciado acaba de cambiar), el juez no puede darla por "pasa" ni por
+    # "falla" de memoria (S-11, 17 de septiembre de 2026: una reformulación
+    # heredaba un veredicto que nunca se recomprobó). Queda no_comprobable hasta
+    # el paso de novedad.
+    solo_recuperacion = {c["comprobacion"] for c in deterministas if c["resultado"] == "no_comprobable" and c["comprobacion"] in SOLO_POR_RECUPERACION and str(c.get("detalle") or "").startswith("No comprobado")}
     salida = list(deterministas)
     for c in del_juez:
         nombre = c.get("comprobacion")
+        if nombre in solo_recuperacion:
+            for d in salida:
+                if d["comprobacion"] == nombre and (c.get("detalle") or "").strip():
+                    d["detalle"] = (d.get("detalle") or "")[:220] + f" | El juez opina ({str(c.get('resultado'))}: {str(c.get('detalle'))[:120]}), pero la novedad solo la resuelve la búsqueda."
+            continue
         if nombre in sospechosas and c.get("resultado") == "pasa":
             for d in salida:
                 if d["comprobacion"] == nombre:
@@ -208,9 +250,18 @@ def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]
                     d["resultado"] = "no_comprobable"
                     d["detalle"] = f"El juez discrepa de la comprobación por regla: {c['detalle'][:200]}"
             continue
+        # Simetría en "supuestos" (17 de septiembre de 2026): la "determinista" de
+        # supuestos no es una regla sino el veredicto de Sonnet. Si dice falla y el
+        # juez (Opus) dice que pasa con detalle, nadie manda: queda no_comprobable.
+        if nombre == "supuestos" and nombre in hechas and c.get("resultado") == "pasa" and (c.get("detalle") or "").strip():
+            for d in salida:
+                if d["comprobacion"] == nombre and d["resultado"] == "falla":
+                    d["resultado"] = "no_comprobable"
+                    d["detalle"] = f"El evaluador de supuestos los da por contradichos y el juez discrepa: {c['detalle'][:200]}"
+            continue
         if nombre in hechas:
             continue
-        # Si Rosa dejo una no_comprobable y el juez la resolvio, se sustituye.
+        # Si Rosa dejó una no_comprobable y el juez la resolvió, se sustituye.
         salida = [x for x in salida if x["comprobacion"] != nombre]
         salida.append({"comprobacion": nombre, "resultado": c.get("resultado", "no_comprobable"), "detalle": str(c.get("detalle", ""))[:400]})
     return salida
@@ -243,6 +294,40 @@ def decidir(comprobaciones: list[dict[str, str]], tiene_prediccion: bool, versio
     return "avanzar", nota
 
 
+def _lista_o_texto(v: Any) -> list[str]:
+    """`socavadaPor` viene como lista o como una sola cadena; None es []."""
+    if v is None or v == "":
+        return []
+    if isinstance(v, (list, tuple, set)):
+        return sorted(str(x) for x in v)
+    return [str(v)]
+
+
+def huella_evidencia(h: dict[str, Any]) -> str:
+    """Hash estable (SHA-256, 16 hex) de la evidencia sobre la que decide el
+    Killer y concluye el juez: ids, veredictos, relaciones y `socavadaPor` de
+    las afirmaciones; ids de las fuentes; versión de la hipótesis; textos y
+    estados de los supuestos; estado de la novedad (precedente, patentes,
+    financiación). Cambia si entra una afirmación nueva, cambia un veredicto o
+    un supuesto, o se recomprueba la novedad; NO cambia con el orden de las
+    listas ni con los partidos del torneo, el Elo o las conclusiones. Sirve
+    para no reconcluir ni rejugar sin evidencia nueva (contrato del grupo D,
+    17 de septiembre de 2026). Tolera registros antiguos sin las claves."""
+    h = h if isinstance(h, dict) else {}
+    afs = [a for a in (h.get("afirmaciones") or []) if isinstance(a, dict)]
+    afirmaciones = sorted(
+        (str(a.get("afirmacionId") or a.get("id") or a.get("cita") or a.get("texto") or ""), str(a.get("veredicto") or ""), str(a.get("relacion") or ""), _lista_o_texto(a.get("socavadaPor")))
+        for a in afs
+    )
+    procedencia = h.get("procedencia") if isinstance(h.get("procedencia"), dict) else {}
+    fuentes = sorted(str(f.get("id") or f.get("referencia") or "") for f in (procedencia.get("fuentes") or []) if isinstance(f, dict))
+    supuestos = sorted((str(x.get("texto") or ""), str(x.get("estado") or "")) for x in (h.get("supuestos") or []) if isinstance(x, dict))
+    novedad = h.get("novedad") if isinstance(h.get("novedad"), dict) else {}
+    estado_novedad = {k: str((novedad.get(k) or {}).get("estado") if isinstance(novedad.get(k), dict) else novedad.get(k)) for k in ("precedente", "patentes", "financiacion")}
+    carga = {"afirmaciones": afirmaciones, "fuentes": fuentes, "version": h.get("version", 1), "supuestos": supuestos, "novedad": estado_novedad}
+    return hashlib.sha256(json.dumps(carga, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+
+
 def texto_tarjeta(h: dict[str, Any]) -> str:
     t = h.get("tarjeta") or {}
     if not t:
@@ -263,7 +348,7 @@ def muestrear_para_auditoria(indice: int) -> bool:
 
 def sospechoso_inyeccion(texto: str) -> bool:
     """Patrones de instrucción dirigida al modelo dentro de un fragmento. No
-    bloquea (falsos positivos en texto técnico); marca para ensenarlo."""
+    bloquea (falsos positivos en texto técnico); marca para enseñarlo."""
     t = (texto or "").lower()
     patrones = [r"ignore (all |the )?(previous|above|prior) instructions", r"\bsystem prompt\b", r"\bas an ai\b", r"you must (now )?(respond|answer|output)", r"\bassistant:\s", r"disregard (all|the) (previous|above)", r"\bprompt injection\b", r"</?\s*(system|assistant|instruction)s?\s*>"]
     return any(re.search(p, t) for p in patrones)
@@ -341,7 +426,7 @@ def grupos_de_cohorte(fuentes: list[dict[str, Any]]) -> tuple[list[list[str]], l
 
 
 # ---------------------------------------------------------------------------
-# Direccion y unidades: lo que se puede comprobar sin modelo
+# Dirección y unidades: lo que se puede comprobar sin modelo
 # ---------------------------------------------------------------------------
 
 _SUBE = re.compile(r"\b(increas|higher|elevat|rise|rising|up-?regulat|greater|aument|mayor(es)?|elevad|sube|suben|incrementa|superior)", re.I)
@@ -363,10 +448,10 @@ def unidad_de(texto: str) -> str:
 
 
 def consistencia_medidas(h: dict[str, Any]) -> list[dict[str, str]]:
-    """Dos comprobaciones automaticas sobre el registro de evidencia:
-    direccion_evidencia (la evidencia sostenida va en la direccion que el
-    enunciado dice; si va al reves, la hipotesis se reformula) y unidades
-    (las cifras que se comparan estan en la misma unidad; si no, aviso)."""
+    """Dos comprobaciones automáticas sobre el registro de evidencia:
+    direccion_evidencia (la evidencia sostenida va en la dirección que el
+    enunciado dice; si va al revés, la hipótesis se reformula) y unidades
+    (las cifras que se comparan están en la misma unidad; si no, aviso)."""
     bio = ((h.get("comprobacion") or {}).get("biomarcador") or h.get("biomarcador") or "").strip().lower()
     afs = [a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial")]
     relevantes = [a for a in afs if bio in a.get("texto", "").lower()] if bio else afs
@@ -412,9 +497,9 @@ def _normaliza_num(t: str) -> str:
 
 
 def cifras_fuera_del_pasaje(texto: str, pasaje: str) -> list[str]:
-    """Las cifras del texto de una afirmacion que no aparecen en su pasaje
+    """Las cifras del texto de una afirmación que no aparecen en su pasaje
     citado. Solo se comprueba cuando el pasaje existe y trae alguna cifra;
-    los anios (1900 a 2099) y los numeros de una cifra se ignoran porque
+    los años (1900 a 2099) y los números de una cifra se ignoran porque
     aparecen en cualquier frase. Devuelve [] si no hay nada que objetar."""
     if not pasaje or not texto:
         return []
@@ -431,9 +516,9 @@ def cifras_fuera_del_pasaje(texto: str, pasaje: str) -> list[str]:
         except ValueError:
             continue
         if v < 10 and "." not in n and not re.search(re.escape(m) + r"\s*(pg|ng|mg|ug|µg|%|mmol|pmol|nmol|fold|veces|x\b|mL|ml|HR|OR|SD|IC|CI)", texto, re.I):
-            continue  # un digito suelto sin unidad: "3 cohortes", "dos grupos"
+            continue  # un dígito suelto sin unidad: "3 cohortes", "dos grupos"
         if 1900 <= v <= 2099 and "." not in n:
-            continue  # anio
+            continue  # año
         if n not in en_pasaje and not any(abs(v - float(x)) < 1e-9 for x in en_pasaje if _es_num(x)):
             faltan.append(m)
     return faltan

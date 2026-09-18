@@ -17,7 +17,7 @@ def test_instantanea_cuenta_peldanos_subidos_bajados_y_fallidos():
     p1 = PROG.instantanea(e, c, it1, hechos_nuevos=3, hipotesis_nuevas=1, afirmaciones_bloqueadas=2, ahora=2000)
     assert [x["hipotesisId"] for x in p1["certezas"]] == ["h1", "h2"]  # descartadas y otras investigaciones fuera
     assert p1["peldanosTotales"] == 1 and p1["peldanosSubidos"] == 1 and p1["peldanosBajados"] == 0  # h2 nace en baja
-    assert p1["fallidos"] == {"pasos": 1, "pistas": 1, "killer": 1, "afirmacionesBloqueadas": 2}
+    assert p1["fallidos"] == {"pasos": 1, "pistas": 1, "killer": 1, "afirmacionesBloqueadas": 2, "sinTrabajo": 0}
     assert p1["hechosNuevos"] == 3 and p1["usdAcumulado"] == 2.5 and p1["arnes"] == "abc"
     c["progreso"].append(p1)
     # Segunda iteración: h1 sube a baja, h2 baja a muy baja, nace h5 en moderada.

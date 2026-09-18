@@ -358,7 +358,11 @@ def test_killer_sin_diana_ni_juez_no_rompe(monkeypatch):
     monkeypatch.setattr(Ctx, "llamar", llamar_roto)
     decision = asyncio.run(PASOS._killer(ctx, h, "", None))
     x = next(y for y in al.estado["hipotesis"] if y["id"] == h["id"])
-    assert decision == "suspender" and x["perfilDiana"] is None and x["alternativas"] == [] and isinstance(x["ruta"], dict)
+    # S-09 (17 de septiembre de 2026): sin juez no hay decisión. La hipótesis queda
+    # pendiente de juicio (marca de revisión y un intento contado), no suspendida.
+    assert decision == "pendiente" and x["perfilDiana"] is None and x["alternativas"] == []
+    assert x["decisionKiller"] is None and x["_revisionPedida"] is True and x["_killerIntentos"] == 1
+    assert not [d for d in al.estado["decisiones"] if d["hipotesisId"] == h["id"]]
     assert DI.texto_perfil(x["perfilDiana"]).startswith("Perfil de evidencia por diana: sin consultar")
 
 

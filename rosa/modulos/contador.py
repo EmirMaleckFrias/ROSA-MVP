@@ -1,12 +1,12 @@
 """Contador de llamadas a modelos: cuenta, registra y corta por presupuesto.
 
-Es un `BaseCallback` de DSPy: DSPy lo llama antes y despues de cada llamada
+Es un `BaseCallback` de DSPy: DSPy lo llama antes y después de cada llamada
 al modelo. Antes, comprueba el presupuesto de la corrida y, si esta agotado,
 lanza `PresupuestoAgotado` para que la pista pare limpia. Despues, lee
 `lm.history[-1]` (donde DSPy deja `usage`) y suma tokens y llamadas al gasto
 de la corrida, y registra la llamada en SQLite.
 
-El contexto (que corrida y que iteracion estan llamando) va en una variable
+El contexto (que corrida y que iteración estan llamando) va en una variable
 de contexto, porque las pistas corren en paralelo.
 """
 
@@ -38,25 +38,44 @@ class ContextoLlamada:
 contexto_actual: contextvars.ContextVar[ContextoLlamada | None] = contextvars.ContextVar("rosa_contexto_llamada", default=None)
 
 
+def tope_agotado_en(e: dict[str, Any], corrida_id: str, iteracion: int | None = None) -> str | None:
+    """Qué tope cortó, sobre un estado ya cargado: None si hay presupuesto,
+    "corrida" si el gasto de la corrida llegó a `limiteLlamadas`, "iteracion" si
+    la iteración dada gastó su `limite`. La corrida se mira primero porque es
+    el tope que la persona amplía; el de la iteración es el que se recorta al
+    denegar un permiso. Un límite de iteración de 0 (lo que deja una
+    denegación con la iteración recién abierta) también corta: antes se
+    trataba como "sin tope" y la denegación no tenía efecto (revisión del
+    17 de septiembre de 2026, S-15)."""
+    c = next((x for x in e.get("corridas", []) if x["id"] == corrida_id), None)
+    if not c:
+        return None
+    if c["gasto"]["llamadas"] >= c["presupuesto"]["limiteLlamadas"]:
+        return "corrida"
+    if iteracion is not None:
+        it = next((x for x in e.get("iteraciones", []) if x["corridaId"] == corrida_id and x["numero"] == iteracion), None)
+        pres = (it or {}).get("presupuesto") or {}
+        limite = pres.get("limite")
+        if isinstance(limite, (int, float)) and not isinstance(limite, bool) and int(pres.get("usado") or 0) >= limite:
+            return "iteracion"
+    return None
+
+
+def tope_agotado(almacen, corrida_id: str, iteracion: int | None = None) -> str | None:
+    """`tope_agotado_en` sobre el estado del almacén."""
+    return tope_agotado_en(almacen.estado, corrida_id, iteracion)
+
+
 def presupuesto_ok(almacen, corrida_id: str, iteracion: int | None = None) -> bool:
-    """La comprobacion que corta de verdad: la llama Ctx.llamar antes de cada
+    """La comprobación que corta de verdad: la llama Ctx.llamar antes de cada
     llamada al modelo. (Lanzar dentro del callback de DSPy no sirve: DSPy
     captura las excepciones de los callbacks y solo escribe un aviso.)
-    Comprueba el tope de la corrida y, si se da la iteracion, tambien el suyo:
-    el limite que la persona ve (y que puede recortar al denegar un permiso)
-    es el que corta, no solo el global."""
-    e = almacen.estado
-    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
-    if not c:
-        return True
-    if c["gasto"]["llamadas"] >= c["presupuesto"]["limiteLlamadas"]:
-        return False
-    if iteracion is not None:
-        it = next((x for x in e["iteraciones"] if x["corridaId"] == corrida_id and x["numero"] == iteracion), None)
-        pres = (it or {}).get("presupuesto") or {}
-        if pres.get("limite") and pres.get("usado", 0) >= pres["limite"]:
-            return False
-    return True
+    Comprueba el tope de la corrida y, si se da la iteración, también el suyo:
+    el límite que la persona ve (y que puede recortar al denegar un permiso)
+    es el que corta, no solo el global. Sigue devolviendo un booleano porque
+    `Ctx.llamar` hace `if not presupuesto_ok(...)`; quién necesite saber qué
+    tope cortó usa `tope_agotado`."""
+    return tope_agotado(almacen, corrida_id, iteracion) is None
 
 
 def _entrada_de_esta_llamada(candidatos: list[dict[str, Any]], entradas: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -97,10 +116,10 @@ class Contador(BaseCallback):
         ms = int((time.monotonic() - inicio) * 1000)
         entrada = salida = 0
         historial = dspy.settings.lm.history if dspy.settings.lm is not None else []
-        # Las pistas corren en paralelo: la ultima entrada del historial global
+        # Las pistas corren en paralelo: la última entrada del historial global
         # puede ser de otra llamada. Se busca hacia atras la entrada cuyos
         # mensajes (o prompt) son los de esta llamada; solo si no aparece se
-        # toma la ultima por aproximacion.
+        # toma la última por aproximacion.
         try:
             from dspy.clients.base_lm import GLOBAL_HISTORY
 
@@ -108,11 +127,18 @@ class Contador(BaseCallback):
         except Exception:
             candidatos = list(historial[-40:])
         ultimo = _entrada_de_esta_llamada(candidatos, entradas) or (candidatos[-1] if candidatos else None)
+        uso: dict[str, Any] = {}
         if ultimo and exception is None:
             uso = ultimo.get("usage") or {}
             entrada = int(uso.get("prompt_tokens", 0) or 0)
             salida = int(uso.get("completion_tokens", 0) or 0)
             modelo = ultimo.get("model", modelo)
+        # S-19: el coste que manda es el que factura el gateway (`usage.cost`); la
+        # tabla de precios de config es solo el respaldo cuando no viene. `usd`
+        # acumula la mejor cifra disponible de cada llamada; `usdReal` solo lo
+        # facturado, y `usdEsEstimado` queda a True si alguna llamada tuvo que
+        # estimarse (así la interfaz sabe que las dos cifras no son comparables).
+        usd_llamada, es_real = config.coste_desde_uso(uso, str(modelo))
 
         def sumar(e: dict[str, Any]) -> bool:
             if not ctx:
@@ -124,8 +150,12 @@ class Contador(BaseCallback):
             g["llamadas"] += 1
             g["tokensEntrada"] += entrada
             g["tokensSalida"] += salida
-            g["usd"] = round(g.get("usd", 0.0) + config.coste_usd(str(modelo), entrada, salida), 4)
-            # El uso del contexto es lo que entro en la ultima llamada (tokens reales de
+            g["usd"] = round(g.get("usd", 0.0) + usd_llamada, 4)
+            if es_real:
+                g["usdReal"] = round(g.get("usdReal", 0.0) + usd_llamada, 4)
+            elif entrada or salida:
+                g["usdEsEstimado"] = True
+            # El uso del contexto es lo que entro en la última llamada (tokens reales de
             # entrada), no una suma acumulada: dice cuanto de la ventana ocupa un prompt.
             if entrada:
                 c["contexto"]["tokensUsados"] = min(c["contexto"]["tokensLimite"], entrada)

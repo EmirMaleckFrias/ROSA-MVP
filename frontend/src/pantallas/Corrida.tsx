@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { acciones } from '../datos/almacen';
 import { iteracionActualDe } from '../datos/acciones';
-import type { AlcancePermiso, Corrida as CorridaTipo, EstadoRosa, Investigacion } from '../datos/tipos';
+import type { AlcancePermiso, Corrida as CorridaTipo, EstadoCorrida, EstadoRosa, Investigacion } from '../datos/tipos';
 import { PlanEnVivo } from '../componentes/PlanEnVivo';
 import { FormularioMision, PreguntaDeCampana, RevisionDeRegistro } from '../componentes/Rosa2018';
 import { Presupuesto } from '../componentes/Presupuesto';
@@ -149,11 +149,12 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
   const [vigilar, setVigilar] = useState(true);
   const [indicacionProceso, setIndicacionProceso] = useState<Record<string, string>>({});
   const viva = corrida.estado !== 'detenida' && corrida.estado !== 'terminada';
-  // El reloj de la corrida avanza cada segundo en pantalla mientras esta viva;
-  // el servidor guarda gasto.segundos solo de vez en cuando (cada 5 s de reloj
-  // y solo si coincide con una vuelta del bucle), asi que sin esto el tiempo
-  // saltaba "de la nada". Al terminar se ensena el valor guardado.
-  const segundosDeCorrida = useSegundosDeCorrida(corrida.empezadaEn, corrida.gasto.segundos, viva);
+  // El reloj de la corrida es tiempo de trabajo (misma regla que
+  // rosa/bucle/corrida.py tiempo_trabajo_ms: reloj de pared menos la espera a
+  // una persona y menos las pausas del proceso), avanza cada segundo en
+  // pantalla mientras Rosa trabaja y se queda quieto mientras espera a alguien.
+  const segundosDeCorrida = useSegundosDeCorrida(corrida);
+  const enEspera = esperandoPersona(corrida.estado);
 
 
   const iteracion = iteracionActualDe(estado, corrida);
@@ -186,9 +187,17 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             </span>
             {corrida.terminadaEn !== null && (
               <span className="meta">
-                Término <Momento t={corrida.terminadaEn} ahora={ahora} />
+                Terminó <Momento t={corrida.terminadaEn} ahora={ahora} />
               </span>
             )}
+            <span className="meta" title="Tiempo de trabajo: el reloj de pared menos lo que la corrida pasó esperando a una persona (plan sin aprobar, permiso, pausa) y menos las pausas del proceso. Es lo que se compara con el tope en horas.">
+              {formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo{viva && enEspera ? ' · en espera de una persona: el reloj no corre' : ''}
+            </span>
+            {(corrida.gasto.usdReal !== undefined && corrida.gasto.usdReal !== null) || (corrida.gasto.usd ?? 0) > 0 ? (
+              <span className="meta" title={textoCoste(corrida.gasto).title}>
+                {textoCoste(corrida.gasto).corto}
+              </span>
+            ) : null}
             {corrida.motivoCierre && <span className="meta">{corrida.motivoCierre}</span>}
             {corrida.metrica && resumenMetrica(corrida.metrica) && (
               <span className="meta" title="Balance de la corrida: peldaños de certeza GRADE subidos por las hipótesis, netos de los bajados, y por dólar gastado">
@@ -222,12 +231,12 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             <Confirmar
               etiqueta="Detener"
               peligro
-              pregunta="La corrida se detiene y no se reanuda: lo que hay en el modelo de mundo y en la cola se conserva. Para seguir habria que arrancar una corrida nueva."
-              pedirTexto={{ etiqueta: 'Por que se detiene', marcador: 'Hay que revisar la cola antes de seguir gastando' }}
+              pregunta="La corrida se detiene y no se reanuda: lo que hay en el modelo de mundo y en la cola se conserva. Para seguir habría que arrancar una corrida nueva."
+              pedirTexto={{ etiqueta: 'Por qué se detiene', marcador: 'Hay que revisar la cola antes de seguir gastando' }}
               extra={
                 <label className="interruptor">
                   <input type="checkbox" checked={vigilar} onChange={(e) => setVigilar(e.target.checked)} />
-                  Vigilar la literatura 30 dias: Rosa avisa de articulos nuevos que toquen una hipotesis aceptada
+                  Vigilar la literatura 30 días: Rosa avisa de artículos nuevos que toquen una hipótesis aceptada
                 </label>
               }
               onConfirmar={(motivo) => acciones.detenerCorrida(corrida.id, motivo, vigilar ? 30 : null)}
@@ -237,7 +246,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       </div>
 
       {(() => {
-        // La ultima iteracion cerrada con resumen: lo primero que se lee.
+        // La última iteración cerrada con resumen: lo primero que se lee.
         const cerrada = [iteracion, ...anteriores].filter((i): i is NonNullable<typeof i> => i !== null && i.terminadaEn !== null && i.resumen !== '').sort((a, b) => b.numero - a.numero)[0];
         return cerrada ? (
           <>
@@ -248,7 +257,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       })()}
 
       {incidenciasPendientes.length > 0 && (
-        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se nego o un conector caducado no matan la corrida en silencio: aparecen aquí con la alternativa que Rosa propone.">
+        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se negó o un conector caducado no matan la corrida en silencio: aparecen aquí con la alternativa que Rosa propone.">
           {incidenciasPendientes.map((i) => (
             <TarjetaIncidencia key={i.id} incidencia={i} ahora={ahora} onResolver={(r) => acciones.resolverIncidencia(i.id, r)} />
           ))}
@@ -258,7 +267,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       {pendientes.length > 0 && (
         <Seccion
           titulo={pendientes.length === 1 ? 'Rosa necesita tu permiso' : `Rosa necesita tu permiso (${pendientes.length})`}
-          nota={`La aprobacion va antes del efecto: nada de esto ocurre hasta que respondas. Si nadie decide en ${estado.politicaEsperas.horas} h: ${estado.politicaEsperas.accion === 'recordar' ? 'se recuerda' : estado.politicaEsperas.accion === 'escalar' ? `se escala a ${estado.politicaEsperas.escalarA}` : estado.politicaEsperas.accion === 'detener' ? 'la corrida se detiene con seguridad' : 'la corrida continua y queda registrado'} (se cambia en Ajustes).`}
+          nota={`La aprobación va antes del efecto: nada de esto ocurre hasta que respondas. Si nadie decide en ${estado.politicaEsperas.horas} h: ${estado.politicaEsperas.accion === 'recordar' ? 'se recuerda' : estado.politicaEsperas.accion === 'escalar' ? `se escala a ${estado.politicaEsperas.escalarA}` : estado.politicaEsperas.accion === 'detener' ? 'la corrida se detiene con seguridad' : 'la corrida continúa y queda registrado'} (se cambia en Ajustes).`}
           acciones={
             seleccion.size > 1 ? (
               <div className="acciones">
@@ -276,7 +285,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                     Permitir {ALCANCE[a].toLowerCase()}
                   </button>
                 ))}
-                {alcancesComunes.length === 0 && <span className="meta">sin un alcance común; resuelvelas una a una</span>}
+                {alcancesComunes.length === 0 && <span className="meta">sin un alcance común; resuélvelas una a una</span>}
                 <button
                   type="button"
                   className="btn btn-s btn-peligro"
@@ -312,12 +321,18 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
 
       <div className="rejilla-2" style={{ marginTop: 28, alignItems: 'start' }}>
         <div className="seccion" style={{ gridColumn: '1 / -1' }}>
-          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} artículos leídos, ${formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de corrida.`}>
+          <SoloDetalle resumen={`Gasto: ${formatearEntero(corrida.gasto.llamadas)} llamadas al modelo, ${formatearEntero(corrida.gasto.articulosLeidos)} artículos leídos, ${formatearDuracion(segundosDeCorrida * 1000) || '0 s'} de trabajo${viva && enEspera ? ' (en espera de una persona)' : ''}${textoCoste(corrida.gasto).corto ? `, ${textoCoste(corrida.gasto).corto}` : ''}.`}>
           <div className="gasto">
-            <div className="gasto-item">
+            <div className="gasto-item" title="Tiempo de trabajo: reloj de pared menos la espera a una persona y las pausas del proceso; es lo que se compara con el tope en horas.">
               <strong>{formatearDuracion(segundosDeCorrida * 1000) || '0 s'}</strong>
-              <span>de corrida</span>
+              <span>{viva && enEspera ? 'de trabajo · en espera de una persona' : 'de trabajo'}</span>
             </div>
+            {textoCoste(corrida.gasto).corto && (
+              <div className="gasto-item" title={textoCoste(corrida.gasto).title}>
+                <strong>{textoCoste(corrida.gasto).principal}</strong>
+                <span>{textoCoste(corrida.gasto).etiqueta}</span>
+              </div>
+            )}
             <div className="gasto-item">
               <strong>{formatearEntero(corrida.gasto.articulosLeidos)}</strong>
               <span>artículos leídos</span>
@@ -340,10 +355,10 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                 <span>en Exa</span>
               </div>
             )}
-            <div className="gasto-item" title="Cuanto del contexto del cerebro está ocupado y cuantas veces se ha resumido el historial. Explica por que Rosa puede 'olvidar' tras días.">
+            <div className="gasto-item" title="Cuánto del contexto del cerebro está ocupado y cuántas veces se ha resumido el historial. Explica por qué Rosa puede 'olvidar' tras días.">
               <strong>{formatearPorcentaje(contextoPct)}</strong>
               <span>
-                contexto ocupado · {corrida.contexto.compactaciones} {corrida.contexto.compactaciones === 1 ? 'compactacion' : 'compactaciones'}
+                contexto ocupado · {corrida.contexto.compactaciones} {corrida.contexto.compactaciones === 1 ? 'compactación' : 'compactaciones'}
               </span>
               <Barra fraccion={contextoPct} tono={contextoPct > 0.8 ? 'aviso' : undefined} />
             </div>
@@ -356,7 +371,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       </div>
 
       {inv.mision && !inv.mision.aprobadaEn && viva && (
-        <Seccion titulo="La misión espera tu aprobación" nota="Rosa propuso el marco de la investigación a partir de tu objetivo (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como esta; si quieres corregirla, hazlo aquí o en Objetivo y datos.">
+        <Seccion titulo="La misión espera tu aprobación" nota="Rosa propuso el marco de la investigación a partir de tu objetivo (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como está; si quieres corregirla, hazlo aquí o en Objetivo y datos.">
           <FormularioMision inv={inv} compacto />
         </Seccion>
       )}
@@ -391,7 +406,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             iteracion.terminadaEn
               ? `Terminada`
               : iteracion.planAprobado
-                ? `Empezo`
+                ? `Empezó`
                 : `Plan propuesto, sin aprobar`
           }
           acciones={
@@ -456,7 +471,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             <thead>
               <tr>
                 <th>Proceso</th>
-                <th>Donde</th>
+                <th>Dónde</th>
                 <th className="num">CPU</th>
                 <th className="num">Memoria</th>
                 <th>Desde</th>
@@ -587,7 +602,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                     etiqueta="Bifurcar desde aquí"
                     clase="btn-s"
                     pregunta={`Se crea una investigación hermana partiendo del estado de la iteración ${it.numero}. La original sigue igual.`}
-                    pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Hipótesis rival desde este punto' }}
+                    pedirTexto={{ etiqueta: 'Nombre de la rama (di para qué es)', marcador: 'Hipótesis rival desde este punto' }}
                     onConfirmar={(motivo) => {
                       const id = acciones.bifurcarInvestigacion(inv.id, `${motivo} (desde la iteración ${it.numero})`);
                       if (id) irA(rutaDe(id, 'corrida'));
@@ -633,15 +648,74 @@ function VolverOpciones({ onElegir }: { onElegir: (que: 'plan' | 'mundo' | 'ambo
   );
 }
 
-/** Segundos desde que empezo la corrida, actualizados cada segundo mientras
- *  esta viva; si no, el valor que guardo el servidor. */
-function useSegundosDeCorrida(empezadaEn: number, guardados: number, viva: boolean): number {
+/** Estados en que la corrida espera a una persona (plan sin aprobar, permiso
+ *  de gasto, pausa, presupuesto agotado): el reloj de trabajo no corre. Misma
+ *  lista que ESTADOS_DE_ESPERA_HUMANA en rosa/bucle/corrida.py, más la pausa
+ *  por presupuesto, que también espera a que alguien lo amplíe. */
+export const ESTADOS_DE_ESPERA_HUMANA: ReadonlySet<EstadoCorrida> = new Set<EstadoCorrida>(['esperando_plan', 'esperando_aprobacion', 'pausada', 'pausada_por_presupuesto']);
+
+export function esperandoPersona(estado: EstadoCorrida): boolean {
+  return ESTADOS_DE_ESPERA_HUMANA.has(estado);
+}
+
+type CorridaConReloj = Pick<CorridaTipo, 'estado' | 'empezadaEn' | 'gasto'> & Partial<Pick<CorridaTipo, 'esperaHumanaMs' | 'pausaMs' | 'terminadaEn'>>;
+
+function ms(x: unknown): number {
+  const n = Number(x);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Segundos de trabajo de la corrida en un instante dado: lo que guardó el
+ *  servidor (`gasto.segundos`, que ya es tiempo de trabajo) y, solo mientras
+ *  la corrida trabaja, el reloj de pared desde `empezadaEn` menos la espera a
+ *  una persona (`esperaHumanaMs`) y las pausas del proceso (`pausaMs`), como
+ *  hace rosa/bucle/corrida.py tiempo_trabajo_ms. Mientras espera a alguien o
+ *  ya terminó, se enseña el valor guardado: el reloj no corre. Un registro
+ *  antiguo sin los contadores cae al reloj de pared, como antes. */
+export function segundosDeTrabajo(c: CorridaConReloj, ahora: number): number {
+  const guardados = Math.max(0, Math.round(ms(c.gasto?.segundos)));
+  const viva = c.estado !== 'detenida' && c.estado !== 'terminada';
+  if (!viva || esperandoPersona(c.estado)) return guardados;
+  // Sin fecha de arranque no hay reloj de pared que restar: enseñar
+  // `ahora / 1000` sería medio siglo de trabajo.
+  const empezada = ms(c.empezadaEn);
+  if (empezada === 0) return guardados;
+  const porReloj = Math.round((ahora - empezada - ms(c.esperaHumanaMs) - ms(c.pausaMs)) / 1000);
+  return Math.max(guardados, Number.isFinite(porReloj) ? porReloj : 0);
+}
+
+/** El coste de la corrida para enseñarlo: el facturado por el AI Gateway
+ *  cuando el servidor lo guardó (`gasto.usdReal`, la cifra real) con el
+ *  estimado por tokens al lado; si no hay factura, solo el estimado y dicho
+ *  como tal. Vacío si no hay ninguna cifra. */
+export function textoCoste(g: Pick<CorridaTipo['gasto'], 'usd' | 'usdReal' | 'usdEsEstimado'>): { corto: string; principal: string; etiqueta: string; title: string } {
+  const usd = (v: number) => `${v.toFixed(2).replace('.', ',')} USD`;
+  const real = typeof g.usdReal === 'number' && Number.isFinite(g.usdReal) ? g.usdReal : null;
+  const estimado = typeof g.usd === 'number' && Number.isFinite(g.usd) ? g.usd : null;
+  if (real !== null) {
+    const nota = g.usdEsEstimado ? ' (alguna llamada llegó sin coste del gateway y se estimó por tokens)' : '';
+    return {
+      corto: `${usd(real)} facturados por el gateway${estimado !== null ? ` (estimado por tokens: ${usd(estimado)})` : ''}`,
+      principal: usd(real),
+      etiqueta: `facturado por el gateway${estimado !== null ? ` · estimado por tokens: ${usd(estimado)}` : ''}`,
+      title: `Lo que el AI Gateway de Vercel facturó por las llamadas de esta corrida (campo cost de cada llamada, sumado por el servidor)${nota}. La estimación por tokens usa la tabla de precios de Rosa y puede diferir.`,
+    };
+  }
+  if (estimado !== null && estimado > 0) {
+    return { corto: `${usd(estimado)} estimados por tokens`, principal: usd(estimado), etiqueta: 'estimados por tokens (el servidor no guardó la factura del gateway)', title: 'Estimación con la tabla de precios de Rosa a partir de los tokens; la factura real la da el AI Gateway y esta corrida no la trae guardada.' };
+  }
+  return { corto: '', principal: '', etiqueta: '', title: '' };
+}
+
+/** Segundos de trabajo, actualizados cada segundo mientras la corrida trabaja
+ *  (no mientras espera a una persona ni cuando terminó). */
+function useSegundosDeCorrida(corrida: CorridaConReloj): number {
   const [ahora, setAhora] = useState(() => Date.now());
+  const corre = corrida.estado === 'en_marcha';
   useEffect(() => {
-    if (!viva) return;
+    if (!corre) return;
     const t = window.setInterval(() => setAhora(Date.now()), 1000);
     return () => window.clearInterval(t);
-  }, [viva]);
-  if (!viva) return guardados;
-  return Math.max(guardados, Math.round((ahora - empezadaEn) / 1000));
+  }, [corre]);
+  return segundosDeTrabajo(corrida, ahora);
 }

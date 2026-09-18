@@ -22,6 +22,7 @@ const almacen = vi.hoisted(() => ({
   QUIEN: 'la persona responsable',
   avisar: vi.fn(),
   conectar: vi.fn(async () => 'servidor' as const),
+  useRosa: () => ({ corridas: [] }),
 }));
 vi.mock('../datos/almacen', () => almacen);
 
@@ -302,8 +303,10 @@ describe('ContratoDelExperimento', () => {
     expect(nodo.querySelector('[data-lectura-negativo]')!.getAttribute('data-lectura-negativo')).toBe('discreta');
   });
 
-  it('enmienda una lectura solo cuando está prerregistrado y sin resultado, con motivo, por la acción del almacén si existe y por el reducer local si no', async () => {
+  it('enmienda una lectura solo cuando está prerregistrado y sin resultado, con motivo, siempre por la acción del almacén (sin camino de reserva)', async () => {
     const h = contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' });
+    const accion = vi.fn();
+    almacen.acciones = { enmendarLectura: accion };
     await render(<ContratoDelExperimento h={h} />);
     const botones = [...nodo.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Enmendar');
     expect(botones).toHaveLength(3);
@@ -319,20 +322,18 @@ describe('ContratoDelExperimento', () => {
     expect(registrar.disabled).toBe(true);
     await escribir(motivo!, 'el criterio anterior no cubría una bajada');
     expect(registrar.disabled).toBe(false);
-    // Sin acción en el almacén: reducer local.
     await pulsar(registrar);
-    expect(almacen.aplicar).toHaveBeenCalledTimes(1);
+    // La acción del almacén (que aplica el reducer y manda el POST) recibe la lectura, el campo, el texto y el motivo; el reducer local no se llama aparte.
+    expect(accion).toHaveBeenCalledWith(h.id, 1, 'queRefuta', 'baja o no cambia', 'el criterio anterior no cubría una bajada');
+    expect(almacen.aplicar).not.toHaveBeenCalled();
     expect(nodo.querySelector('[data-enmienda-lectura]')).toBeNull();
-    // Con la acción en el almacén: se usa esa, con la lectura, el campo, el texto y el motivo.
-    const accion = vi.fn();
-    almacen.acciones = { enmendarLectura: accion };
     await pulsar([...nodo.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Enmendar')[0]!);
     const form2 = nodo.querySelector('[data-enmienda-lectura]')!;
     await escribir([...form2.querySelectorAll('input')][0]!, 'sube al menos un 20 %');
     await escribir([...form2.querySelectorAll('input')][1]!, 'ajuste de potencia');
     await pulsar(boton('Registrar enmienda de la lectura')!);
     expect(accion).toHaveBeenCalledWith(h.id, 0, 'queConfirma', 'sube al menos un 20 %', 'ajuste de potencia');
-    expect(almacen.aplicar).toHaveBeenCalledTimes(1);
+    expect(accion).toHaveBeenCalledTimes(2);
     // Una lectura derivada de los criterios antiguos no se enmienda desde aquí.
     h.experimento = { ...h.experimento!, lecturas: [], confirma: 'x', refuta: 'y' };
     await render(<ContratoDelExperimento h={h} />);
@@ -518,67 +519,68 @@ describe('adversario: registros basura en el resultado y en la ruta', () => {
   });
 });
 
-describe('adversario: el camino de reserva contra el servidor', () => {
-  const fetchOriginal = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = fetchOriginal;
-    almacen.modoActual = () => 'muestra';
-    almacen.avisar.mockReset();
-    almacen.conectar.mockClear();
+// M-32 y S-19 (17 de septiembre de 2026): el hash congelado que se enseña es el
+// del prerregistro (enmiendas[0].hashAntes), no el recalculado; y el coste
+// facturado por el gateway se suma desde las corridas cuando el servidor lo guardó.
+describe('hash congelado frente a vigente, y factura del gateway', () => {
+  it('hashCongelado es el hashAntes de la primera enmienda (o el propio hashLecturas sin enmiendas); hashVigente el último hashDespues o el recalculado', async () => {
+    const { hashCongelado, hashVigente } = await import('./Rosa2018');
+    const { hashLecturas } = await import('../datos/acciones');
+    const lecturas = [{ nombre: 'GFAP en plasma', tipo: 'biomarcador' as const, queConfirma: 'sube 20 %', queRefuta: 'no sube', control: 'sin tratar', unidad: 'pg/mL' }];
+    const congelado = hashLecturas({ lecturas });
+    const sinEnmiendas = { hashLecturas: congelado, enmiendas: [], lecturas };
+    expect(hashCongelado(sinEnmiendas)).toBe(congelado);
+    expect(hashVigente(sinEnmiendas)).toBe(congelado);
+    // Tras una enmienda del servidor: hashLecturas ya es el nuevo; el congelado vive en hashAntes.
+    const nuevas = [{ ...lecturas[0]!, queConfirma: 'sube 30 %' }];
+    const nuevo = hashLecturas({ lecturas: nuevas });
+    const enmendado = { hashLecturas: nuevo, lecturas: nuevas, enmiendas: [{ fecha: 1, quien: 'p', campo: 'lecturas[0].queConfirma', lectura: 'GFAP en plasma', antes: 'sube 20 %', despues: 'sube 30 %', motivo: 'm', hashAntes: congelado, hashDespues: nuevo }] };
+    expect(hashCongelado(enmendado)).toBe(congelado);
+    expect(hashVigente(enmendado)).toBe(nuevo);
+    expect(hashVigente(enmendado)).not.toBe(hashCongelado(enmendado));
+    // Registros raros: enmiendas sin hash, enmiendas que no son lista, sin hash.
+    expect(hashCongelado({ hashLecturas: congelado, enmiendas: [{ fecha: 1, quien: 'p', campo: 'protocolo', antes: '', despues: 'x', motivo: 'm' }] })).toBe(congelado);
+    expect(hashCongelado({ hashLecturas: '', enmiendas: 'x' as never })).toBeNull();
+    expect(hashCongelado({ hashLecturas: undefined, enmiendas: [null as never] })).toBeNull();
+    expect(hashVigente({ hashLecturas: undefined, enmiendas: undefined, lecturas: 7 as never })).toBe(hashLecturas({ lecturas: 7 }));
   });
 
-  const enmendar = async (h: Hipotesis) => {
+  it('la ficha del contrato enseña el hash congelado del prerregistro y avisa de que las lecturas se enmendaron después', async () => {
+    const h = contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' });
+    const { hashLecturas } = await import('../datos/acciones');
+    const congelado = hashLecturas(h.experimento);
+    h.experimento!.hashLecturas = congelado;
     await render(<ContratoDelExperimento h={h} />);
-    await pulsar([...nodo.querySelectorAll('button')].filter((x) => x.textContent?.trim() === 'Enmendar')[0]!);
-    const form = nodo.querySelector('[data-enmienda-lectura]')!;
-    await escribir([...form.querySelectorAll('input')][0]!, 'sube al menos un 20 %');
-    await escribir([...form.querySelectorAll('input')][1]!, 'motivo');
-    await pulsar(boton('Registrar enmienda de la lectura')!);
-    // Deja pasar las promesas del fetch.
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-  };
-
-  it('en modo servidor sin acción en el almacén manda el índice del registro y, si el servidor la rechaza, avisa y recarga el estado', async () => {
-    almacen.modoActual = () => 'servidor';
-    const llamadas: { url: string; body: string }[] = [];
-    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      llamadas.push({ url: String(url), body: String(init?.body ?? '') });
-      return { ok: true, status: 200, json: async () => ({ ok: false }) } as unknown as Response;
-    }) as typeof fetch;
-    const h = contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' });
-    const [a, b] = h.experimento!.lecturas!;
-    h.experimento!.lecturas = [null, a!, b!] as unknown as NonNullable<Hipotesis['experimento']>['lecturas'];
-    await enmendar(h);
-    expect(almacen.aplicar).toHaveBeenCalledTimes(1);
-    expect(llamadas).toHaveLength(1);
-    expect(llamadas[0]!.url).toBe('/api/acciones/enmendarLectura');
-    expect(JSON.parse(llamadas[0]!.body)).toEqual({ hipotesis_id: h.id, indice: 1, campo: 'queConfirma', despues: 'sube al menos un 20 %', motivo: 'motivo', quien: 'la persona responsable' });
-    expect(almacen.avisar).toHaveBeenCalledTimes(1);
-    expect(String(almacen.avisar.mock.calls[0]![0])).toContain('no aplicó la enmienda');
-    expect(almacen.conectar).toHaveBeenCalledWith(false);
+    expect(nodo.textContent).toContain(`Hash de las lecturas congelado al prerregistrar: ${congelado.slice(0, 16)}`);
+    expect(nodo.textContent).not.toContain('se enmendaron después');
+    // El servidor recalculó el hash tras una enmienda: el congelado sigue siendo el de antes.
+    const lecturas = h.experimento!.lecturas!.map((l, i) => (i === 0 ? { ...l, queConfirma: 'otro criterio' } : l));
+    const nuevo = hashLecturas({ ...h.experimento, lecturas });
+    h.experimento = { ...h.experimento!, lecturas, hashLecturas: nuevo, enmiendas: [{ fecha: 2, quien: 'p', campo: 'lecturas[0].queConfirma', lectura: 'x', antes: 'a', despues: 'otro criterio', motivo: 'm', hashAntes: congelado, hashDespues: nuevo }] };
+    await render(<ContratoDelExperimento h={h} />);
+    expect(nodo.textContent).toContain(`Hash de las lecturas congelado al prerregistrar: ${congelado.slice(0, 16)}`);
+    expect(nodo.textContent).toContain(`se enmendaron después: hash actual ${nuevo.slice(0, 16)}`);
+    expect(nodo.textContent).not.toContain(`congelado al prerregistrar: ${nuevo.slice(0, 16)}`);
   });
 
-  it('con un 400 del servidor también avisa y recarga; con ok no avisa; en modo muestra no llama a la red', async () => {
-    almacen.modoActual = () => 'servidor';
-    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 400, json: async () => ({}) }) as unknown as Response) as typeof fetch;
-    const h = contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' });
-    await enmendar(h);
-    expect(almacen.avisar).toHaveBeenCalledTimes(1);
-    expect(String(almacen.avisar.mock.calls[0]![0])).toContain('(400)');
-    expect(almacen.conectar).toHaveBeenCalledTimes(1);
-    almacen.avisar.mockReset();
-    almacen.conectar.mockClear();
-    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }) as unknown as Response) as typeof fetch;
-    await enmendar(contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' }));
-    expect(almacen.avisar).not.toHaveBeenCalled();
-    expect(almacen.conectar).not.toHaveBeenCalled();
-    almacen.modoActual = () => 'muestra';
-    const red = vi.fn();
-    globalThis.fetch = red as unknown as typeof fetch;
-    await enmendar(contratoCompleto(hipConExperimento(), { prerregistradoEn: 1, estado: 'asignado', laboratorio: 'FLENI' }));
-    expect(red).not.toHaveBeenCalled();
+  it('facturadoPorGateway suma gasto.usdReal de las corridas de la investigación y dice cuántas lo traen; null si ninguna', async () => {
+    const { facturadoPorGateway } = await import('./Rosa2018');
+    const corridas = [
+      { investigacionId: 'inv-1', gasto: { usd: 26.79, usdReal: 12.71 } },
+      { investigacionId: 'inv-1', gasto: { usd: 19.16, usdReal: 10.75, usdEsEstimado: true } },
+      { investigacionId: 'inv-1', gasto: { usd: 5 } },
+      { investigacionId: 'inv-2', gasto: { usd: 1, usdReal: 1 } },
+      null,
+      { investigacionId: 'inv-1', gasto: null },
+    ] as never;
+    const f = facturadoPorGateway(corridas, 'inv-1')!;
+    expect(f.usd).toBeCloseTo(23.46, 5);
+    expect(f.conFactura).toBe(2);
+    expect(f.total).toBe(4);
+    expect(f.estimado).toBeCloseTo(50.95, 5);
+    expect(f.mixto).toBe(true);
+    expect(facturadoPorGateway(corridas, 'inv-3')).toBeNull();
+    expect(facturadoPorGateway([{ investigacionId: 'inv-1', gasto: { usd: 5 } }] as never, 'inv-1')).toBeNull();
+    expect(facturadoPorGateway('x' as never, 'inv-1')).toBeNull();
   });
 });

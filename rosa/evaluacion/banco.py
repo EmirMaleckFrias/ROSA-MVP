@@ -130,7 +130,8 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("uso: python -m rosa.evaluacion.banco <corrida_id> [clave_objetivo]")
         return 2
-    al = Almacen()
+    # Solo lee: sin cerrojo, así funciona con Rosa en marcha (S-01).
+    al = Almacen(solo_lectura=True)
     try:
         e = al.estado
         objetivos = cargar_objetivos()

@@ -52,6 +52,7 @@ from rosa import indice_semantico, reranker
 from rosa import lecciones as LEC
 from rosa.bucle import vivero as VIVERO
 from rosa.fuentes import clinicaltrials, crossref, europepmc, exa, openalex, opentargets, pdf, pubmed, unpaywall
+from rosa.fuentes import base as FB
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
 from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, presupuesto_ok
@@ -231,11 +232,16 @@ class Ctx:
 
     # -- modelos -----------------------------------------------------------
 
-    async def llamar(self, rol: str, programa, **kwargs) -> Any:
+    async def llamar(self, rol: str, programa, rollout_id: int | None = None, **kwargs) -> Any:
         """Una llamada a un modelo por rol, con el contexto para el contador.
         Si el modelo devuelve vacío o lo bloquea un filtro, reintenta una vez
-        con el modelo de volumen y deja una incidencia."""
+        con el modelo de volumen y deja una incidencia. `rollout_id` (S-20)
+        entra en la clave de la caché de DSPy sin cambiar el prompt: dos
+        llamadas iguales con ids distintos son dos lecturas reales (lo usan las
+        trayectorias de réplica); sin él, una llamada repetida vuelve de la caché."""
         lm = {"cerebro": self.modelos.cerebro, "juez": self.modelos.juez, "volumen": self.modelos.volumen, "replica": getattr(self.modelos, "replica", None) or self.modelos.juez}[rol]
+        if rollout_id is not None and hasattr(lm, "copy"):
+            lm = lm.copy(rollout_id=int(rollout_id))
         # El corte de presupuesto de verdad: antes de llamar. (El callback de DSPy no
         # puede cortar: DSPy captura lo que lance y sigue.)
         if not presupuesto_ok(self.almacen, self.corrida_id, self.numero):
@@ -348,17 +354,51 @@ def claves_de_fuente(datos: dict[str, Any]) -> set[str]:
     return claves
 
 
+def _desambiguar_referencia_local(referencia: str, existentes: list[str]) -> str:
+    """Respaldo mientras rosa/fuentes/base.py no traiga `desambiguar_referencia`
+    (grupo A, mismo contrato): si ya hay otra fuente con la misma referencia
+    corta en la corrida, se añade una letra al año ("Sin autor, 2023b") o un
+    ordinal ("Sin autor (2)"), para que dos artículos distintos del mismo
+    primer autor y año no compartan cita."""
+    existentes_norm = {(x or "").strip().lower() for x in existentes}
+    base = (referencia or "").strip()
+    if base.lower() not in existentes_norm:
+        return base
+    m = re.search(r"(\d{4})[a-z]?$", base)
+    for i in range(1, 26):
+        letra = chr(ord("a") + i)  # b, c, d...
+        candidata = (base[: m.start()] + m.group(1) + letra) if m else f"{base} ({i + 1})"
+        if candidata.lower() not in existentes_norm:
+            return candidata
+    return base
+
+
+def desambiguar_referencia(referencia: str, existentes: list[str]) -> str:
+    """La referencia corta que se guarda y que va en la cita `[referencia,
+    localizador]`: única dentro de la corrida. Usa la del grupo A
+    (rosa/fuentes/base.py) si existe; si no, el respaldo local."""
+    fn = getattr(FB, "desambiguar_referencia", None)
+    if fn is None:
+        return _desambiguar_referencia_local(referencia, existentes)
+    try:
+        return str(fn(referencia, list(existentes)) or referencia)
+    except Exception:  # noqa: BLE001  la desambiguación nunca tumba el registro de una fuente
+        return _desambiguar_referencia_local(referencia, existentes)
+
+
 def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: list[dict[str, str]], relevancia: int, marca: str | None, marca_detalle: str, comprobada_en: int | None, consulta: str | None = None) -> str:
-    """Añade una fuente al almacen privado de la corrida (o la actualiza) y
-    devuelve su id."""
+    """Añade una fuente al almacén privado de la corrida (o la actualiza) y
+    devuelve su id. Una fuente nueva cuya referencia corta ya la usa otra
+    fuente distinta de la corrida se registra desambiguada (S-04: dos
+    "Bhagunde et al., 2026" resolvían la cita al texto equivocado)."""
     claves = claves_de_fuente(datos)
 
     def fn(e: dict[str, Any]) -> str:
         c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
         fuentes = c.setdefault("_fuentes", {})
         # La misma fuente puede llegar de PubMed sin DOI y de Europe PMC con DOI:
-        # coincide si comparte cualquier identificador normalizado (o el titulo
-        # normalizado). Sin identificadores ni titulo, nunca se fusiona.
+        # coincide si comparte cualquier identificador normalizado (o el título
+        # normalizado). Sin identificadores ni título, nunca se fusiona.
         existente = next((f for f in fuentes.values() if claves and (set(f.get("_claves") or ([f["_clave"]] if f.get("_clave") else [])) & claves)), None)
         if existente:
             existente["_claves"] = sorted(set(existente.get("_claves") or []) | claves)
@@ -379,8 +419,9 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
                 existente["porque"] = datos["_porque"]
             return existente["id"]
         tipo_estudio, nivel = pubmed.tipo_estudio(datos.get("tipos", []), datos.get("titulo", ""))
+        referencia = desambiguar_referencia(datos["referencia"], [x.get("referencia", "") for x in fuentes.values()])
         f = P.nueva_fuente(
-            referencia=datos["referencia"],
+            referencia=referencia,
             titulo=datos.get("titulo", ""),
             tipo=tipo,
             doi=datos.get("doi"),
@@ -425,7 +466,7 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
         fragmentos.append({"localizador": "resumen", "texto": datos["resumen"], "encabezado": datos.get("titulo", "")})
     if not con_texto_completo:
         return fragmentos
-    # 1. PDF en acceso abierto: pagina exacta.
+    # 1. PDF en acceso abierto: página exacta.
     url_pdf = datos.get("pdf")
     if not url_pdf and datos.get("doi"):
         try:
@@ -444,7 +485,7 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
                 return fragmentos
         except FuenteNoDisponible as ex:
             pista.nota(f"PDF no descargable de {datos['referencia']}: {str(ex)[:120]}")
-    # 2. XML de Europe PMC: seccion como localizador.
+    # 2. XML de Europe PMC: sección como localizador.
     if datos.get("pmcid"):
         try:
             secciones = await europepmc.texto_completo(datos["pmcid"])
@@ -819,23 +860,34 @@ async def _novedad_exa_dominios(ctx: Ctx, h: dict[str, Any], pista: Pista, noved
         docs, n, coste = await exa.buscar(h["enunciado"][:600], maximo=5, categoria=None, dominios=dominios, pregunta_pasajes=h["enunciado"][:500], hasta_fecha=fecha_iso_de_ms(h.get("creadaEn")))
         pista.accion(f"Exa ({etiqueta}): enunciado completo", {"base": "Exa", "parametros": f"includeDomains={','.join(dominios[:3])}...&numResults=5&endPublishedDate=creación de la hipótesis", "resultados": f"{n} documentos, {coste:.4f} USD"})
         _anotar_coste_exa(ctx, coste)
+        candidatos = [x for x in docs if x.get("titulo")][:3]
+        if not candidatos:
+            # Cero documentos no es "no hay": es que no se pudo comparar con nada (S-02).
+            novedad[clave] = {"estado": "no_comprobado", "detalle": f"No comprobado: Exa no devolvió documentos con título en {etiqueta} anteriores a la hipótesis ({n} resultados); no se puede afirmar ausencia", "url": None}
+            return
         mejor, mejor_ref, mejor_url = 0, "", None
-        for d in [x for x in docs if x.get("titulo")][:3]:
+        evaluadas, fallos = 0, 0
+        for d in candidatos:
             try:
                 p = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=f"{pregunta}: {h['enunciado']}", titulo=d["titulo"], resumen=(d.get("resumen") or "")[:2500])
+                evaluadas += 1
                 if int(p.puntuacion) > mejor:
                     mejor, mejor_ref, mejor_url = int(p.puntuacion), f"{d['titulo'][:90]} ({d.get('fecha') or 'sin fecha'})", d.get("url")
             except PresupuestoAgotado:
                 raise
-            except Exception:  # noqa: BLE001
-                continue
+            except Exception as ex:  # noqa: BLE001
+                fallos += 1
+                pista.nota(f"Relevancia ({etiqueta}) falló para «{str(d.get('titulo', ''))[:60]}»: {type(ex).__name__}: {str(ex)[:80]}")
+        if evaluadas == 0:
+            novedad[clave] = {"estado": "no_comprobado", "detalle": f"No comprobado: el modelo de relevancia no respondió en {fallos} de {len(candidatos)} documentos de {etiqueta}; no se puede afirmar ausencia", "url": None}
+            return
         estado = estado_por_puntuacion(mejor, *estados)
         if estado == estados[0]:
             detalle = f"Ya existe algo muy cercano en {etiqueta}: {mejor_ref} (puntuación {mejor}/10)"
         elif estado == estados[1]:
             detalle = f"Relación parcial en {etiqueta}: {mejor_ref} (puntuación {mejor}/10)"
         else:
-            detalle = f"Nada claro en {etiqueta} entre {n} documentos anteriores a la hipótesis"
+            detalle = f"Nada claro en {etiqueta}: {evaluadas} documentos evaluados de {n} anteriores a la hipótesis" + (f"; {fallos} sin puntuar por fallo del modelo" if fallos else "")
         novedad[clave] = {"estado": estado, "detalle": detalle, "url": mejor_url if estado != estados[2] else None}
     except FuenteNoDisponible as ex:
         novedad[clave] = {"estado": "no_comprobado", "detalle": f"No comprobado: Exa no respondió al buscar en {etiqueta} ({str(ex)[:60]})", "url": None}
@@ -980,6 +1032,63 @@ async def paso_ensayos(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Secciones "de fondo": lo que un artículo dice en su introducción, antecedentes o
+# discusión resume trabajo ajeno o interpreta; no es un resultado propio de su cohorte.
+# La certeza (rosa/certeza.py) lo pesa menos y no le da cohorte (M-10).
+SECCIONES_DE_FONDO = re.compile(r"^\s*(?:secci[oó]n\s+)?(?:\d+(?:\.\d+)*[.)]?\s*)?(introduction|background|discussion|introducci[oó]n|antecedentes|discusi[oó]n)\b", re.IGNORECASE)
+
+
+def es_de_fondo(localizador: str | None, encabezado: str | None = None) -> bool:
+    """True si el fragmento viene de una sección de fondo (Introduction,
+    Background, Discussion o sus equivalentes en castellano), mirando el
+    localizador ("sección Introduction") y, solo cuando el localizador es una
+    sección, el encabezado (que ahí es el nombre completo de la sección). La
+    sección tiene que empezar por esa palabra (se admite un numeral delante:
+    "1. Introduction"); "Results and discussion" es una sección de resultados.
+    Una página de PDF, el resumen o un texto web no lo son nunca: en esos
+    fragmentos el encabezado es el título del artículo, y un artículo titulado
+    "Background parenchymal..." o "Discussion of..." no es de fondo."""
+    if not isinstance(localizador, str) or not localizador.strip():
+        return False
+    if SECCIONES_DE_FONDO.match(localizador):
+        return True
+    es_seccion = re.match(r"^\s*secci[oó]n\s+", localizador, re.IGNORECASE) is not None
+    return es_seccion and isinstance(encabezado, str) and SECCIONES_DE_FONDO.match(encabezado) is not None
+
+
+def _resolver_cita(cita: str, fragmentos: list[V.Fragmento], fuente_id: str | None) -> V.Fragmento | None:
+    """`V.resolver_cita` con el id de la fuente cuando el verificador lo admite
+    (grupo A: resuelve primero por (fuente_id, localizador)); si aún no lo
+    admite, por texto de la cita como antes."""
+    try:
+        return V.resolver_cita(cita, fragmentos, fuente_id=fuente_id)
+    except TypeError:
+        return V.resolver_cita(cita, fragmentos)
+
+
+def _comprobar_determinista(texto: str, cita: str, fragmento_citado: str | None, fragmentos: list[V.Fragmento], alcance: list[V.Fragmento], excluir: set[str] | None, fuente_id: str | None) -> V.Resultado:
+    """`V.comprobar_determinista` pasando el id de la fuente de la afirmación,
+    para que dos fuentes con la misma referencia corta no se crucen (S-04).
+    Si el verificador aún no admite el parámetro, se llama como antes."""
+    try:
+        return V.comprobar_determinista(texto, cita, fragmento_citado, fragmentos, alcance, excluir, fuente_id=fuente_id)
+    except TypeError:
+        return V.comprobar_determinista(texto, cita, fragmento_citado, fragmentos, alcance, excluir)
+
+
+def _localizador_admitido(localizador: str) -> bool:
+    """Si el verificador declara qué localizadores admite
+    (`LOCALIZADORES_ADMITIDOS`, grupo A), se comprueba contra eso; si no, se
+    acepta y la resolución de la cita lo dirá."""
+    patron = getattr(V, "LOCALIZADORES_ADMITIDOS", None)
+    if patron is None:
+        return True
+    try:
+        return bool(patron.fullmatch(localizador.strip())) or bool(patron.match(localizador.strip()))
+    except Exception:  # noqa: BLE001
+        return True
+
+
 async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     preguntas = _criterio(ctx, inv)
@@ -1000,7 +1109,11 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
         nonlocal total, hechas
         nuevas: list[dict[str, Any]] = []
         frags = f.get("fragmentos", [])
-        # Con texto completo, el resumen se salta (las cifras estan en el cuerpo).
+        # Los fragmentos de esta fuente tal como los ve el verificador: la cita que se
+        # escribe tiene que resolver contra ellos antes de guardarse (S-03).
+        frags_verificador = [V.Fragmento(f["id"], f["referencia"], x["localizador"], x["texto"], x.get("encabezado", "")) for x in frags]
+        localizadores_avisados: set[str] = set()
+        # Con texto completo, el resumen se salta (las cifras están en el cuerpo).
         if len(frags) > 1:
             frags = [fr for fr in frags if fr["localizador"] != "resumen"]
         for fr in frags[:MAX_FRAGMENTOS_POR_FUENTE]:
@@ -1009,49 +1122,71 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
             texto = fr["texto"][:6000]
             if len(texto.strip()) < 80:
                 continue
+            de_fondo = es_de_fondo(fr["localizador"], fr.get("encabezado", ""))
+            cita = f"[{f['referencia']}, {fr['localizador']}]"
+            cita_resuelve = _resolver_cita(cita, frags_verificador, f["id"]) is not None
+            if fr["localizador"] not in localizadores_avisados:
+                if not cita_resuelve:
+                    localizadores_avisados.add(fr["localizador"])
+                    pista.nota(f"{f['referencia']}: el verificador no reconoce el localizador «{fr['localizador']}»; sus afirmaciones se guardan como cita_no_resuelve con ese motivo (no es que la fuente falte)")
+                elif not _localizador_admitido(fr["localizador"]):
+                    # Resuelve por el id de la fuente, pero el patrón de citas no lo admite:
+                    # la réplica (que resuelve por texto) fallaría. Se avisa, no se bloquea.
+                    localizadores_avisados.add(fr["localizador"])
+                    pista.nota(f"{f['referencia']}: el localizador «{fr['localizador']}» no está en los admitidos por el patrón de citas; la cita resuelve por el id de la fuente, pero la réplica por texto no lo reconocería")
             sospechoso = K.sospechoso_inyeccion(texto)
             if sospechoso:
                 pista.nota(f"{f['referencia']} ({fr['localizador']}): el fragmento contiene texto que parece una instrucción para un modelo; se marca y se enseña, no se bloquea")
             async with sem:
                 try:
-                    # El fragmento entra delimitado como dato (spotlighting), nunca como instruccion.
+                    # El fragmento entra delimitado como dato (spotlighting), nunca como instrucción.
                     pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=_criterio_para_fuente(preguntas, f), referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
                 except PresupuestoAgotado:
                     raise
                 except Exception as ex:  # noqa: BLE001
-                    pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor fallo: {str(ex)[:120]}")
+                    pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor falló: {str(ex)[:120]}")
                     fallos_fragmentos += 1
                     continue
             for a in pred.afirmaciones:
-                # Comprobacion literal en PDF: la pagina de la cita tiene que contener el fragmento.
-                if fr.get("_ruta") and fr["localizador"].startswith("pág.") and not pdf.fragmento_en_pagina(__import__("pathlib").Path(fr["_ruta"]), a.fragmento, int(fr["localizador"].split(" ")[1])):
-                    pista.nota(f"{f['referencia']}: fragmento no encontrado literalmente en la {fr['localizador']}; la afirmacion se marca cita_no_resuelve")
+                # Comprobación literal en PDF: la página de la cita tiene que contener el fragmento.
+                if not (a.fragmento or "").strip():
+                    # Sin pasaje no hay nada que verificar: el motivo dice la causa real.
+                    pista.nota(f"{f['referencia']} ({fr['localizador']}): el extractor no devolvió pasaje para una afirmación; se marca cita_no_resuelve")
+                    veredicto_inicial = "cita_no_resuelve"
+                    motivo = "El extractor no devolvió el pasaje copiado de la fuente; sin pasaje no se puede comprobar la literalidad."
+                elif fr["localizador"].startswith("pág.") and not pdf.fragmento_en_texto_de_pagina(fr.get("texto", ""), a.fragmento):
+                    # Misma regla que el verificador, contra el texto ya guardado de la
+                    # página (sin reabrir el PDF por afirmación; S-05).
+                    pista.nota(f"{f['referencia']}: fragmento no encontrado literalmente en la {fr['localizador']}; la afirmación se marca cita_no_resuelve")
                     veredicto_inicial = "cita_no_resuelve"
                     motivo = "El fragmento citado no aparece literalmente en la página indicada."
+                elif not cita_resuelve:
+                    veredicto_inicial = "cita_no_resuelve"
+                    motivo = f"Localizador no reconocido por el verificador: «{fr['localizador']}». La fuente y el pasaje existen; hay que ampliar los localizadores admitidos y volver a verificar."
                 else:
                     veredicto_inicial, motivo = "sin_verificar", "Pendiente de verificación"
                 cohorte = (getattr(a, "cohorte", "") or "").strip()[:60]
                 nivel = getattr(a, "nivel_medicion", "resultado_analisis") or "resultado_analisis"
                 registro = {k: (getattr(a, k, "") or "").strip()[:80] for k in ("n", "comparador", "efecto", "incertidumbre")}
-                # Comprobaciones automaticas del registro de evidencia (plan completo,
-                # seccion 3): lo que un dato deberia traer y no trae queda sin resolver.
+                # Comprobaciones automáticas del registro de evidencia (plan completo,
+                # sección 3): lo que un dato debería traer y no trae queda sin resolver.
                 sin_resolver = [k for k in ("n", "comparador", "efecto") if a.tipo == "dato" and not registro[k]]
                 if a.tipo == "dato" and nivel == "interpretacion_autor":
                     sin_resolver.append("una interpretación de los autores no es una medida: se rebaja a literatura")
                     tipo_af = "literatura"
                 else:
                     tipo_af = a.tipo
-                nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": f"[{f['referencia']}, {fr['localizador']}]", "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": tipo_af, "clase": "literatura", "sintetico": False, "cohorte": cohorte, "sospechosoInyeccion": sospechoso, "nivelMedicion": nivel, **registro, "sinResolver": sin_resolver, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
+                nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": cita, "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": tipo_af, "clase": "literatura", "sintetico": False, "cohorte": cohorte, "sospechosoInyeccion": sospechoso, "nivelMedicion": nivel, **registro, "sinResolver": sin_resolver, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "deFondo": de_fondo, "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
 
         def guardar(e: dict[str, Any]) -> bool:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
             c.setdefault("_afirmaciones", []).extend(nuevas)
             fuente = c["_fuentes"][f["id"]]
-            # Con algun fragmento sin extraer por fallo del modelo, la fuente queda pendiente para reintentar.
+            # Con algún fragmento sin extraer por fallo del modelo, la fuente queda pendiente para reintentar.
             fuente["extraida"] = fallos_fragmentos == 0
-            # La cohorte de la fuente: la que mas dijeron sus afirmaciones, o la que
-            # se reconoce en el titulo y el resumen. Sirve para contar cohortes, no
-            # articulos, al medir replicacion.
+            # La cohorte de la fuente: la que más dijeron sus afirmaciones, o la que
+            # se reconoce en el título y el resumen. Sirve para contar cohortes, no
+            # artículos, al medir replicación.
             if not fuente.get("cohorte"):
                 dichas = [a["cohorte"] for a in nuevas if a.get("cohorte")]
                 fuente["cohorte"] = (max(set(dichas), key=dichas.count) if dichas else K.cohorte_en_texto(fuente.get("titulo", "") + " " + " ".join(fr.get("texto", "")[:600] for fr in fuente.get("fragmentos", [])[:1]))) or None
@@ -1078,7 +1213,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     except PresupuestoAgotado:
         pista.cerrar("Presupuesto agotado a mitad de la extracción", "detenida")
         raise
-    return f"{total} afirmaciones extraidas de {hechas} fuentes"
+    return f"{total} afirmaciones extraídas de {hechas} fuentes"
 
 
 # ---------------------------------------------------------------------------
@@ -1086,18 +1221,20 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], pista: Pista | None, pregunta: str, rol: str = "juez") -> dict[str, int]:
+async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], pista: Pista | None, pregunta: str, rol: str = "juez", rollout_id: int | None = None) -> dict[str, int]:
     """Deterministas primero, juez después. Cambia el veredicto en sitio (y en
-    el almacen). Devuelve el recuento por veredicto."""
+    el almacén). Devuelve el recuento por veredicto. `rollout_id` distingue las
+    trayectorias de réplica en la caché de DSPy (S-20)."""
     frags = ctx.fragmentos_verificador()
-    por_id = {f.fuente_id: f for f in frags}
     recuento: dict[str, int] = {}
     al_juez: list[tuple[dict[str, Any], V.Resultado]] = []
-    # Los terminos del objetivo (la enfermedad, la cohorte) no cuentan como
-    # identificadores en una declaracion de ausencia: estan en todo el corpus.
+    # Los términos del objetivo (la enfermedad, la cohorte) no cuentan como
+    # identificadores en una declaración de ausencia: están en todo el corpus.
     excluir = V.terminos_del_dominio(pregunta)
     for a in afirmaciones:
-        r = V.comprobar_determinista(a["texto"], a["cita"], a.get("fragmento"), frags, frags, excluir)
+        # El id de la fuente manda sobre el texto de la cita: dos fuentes con la misma
+        # referencia corta ("Sin autor", dos "Bhagunde et al., 2026") ya no se cruzan (S-04).
+        r = _comprobar_determinista(a["texto"], a["cita"], a.get("fragmento"), frags, frags, excluir, a.get("fuenteId"))
         if r.necesita_juez:
             al_juez.append((a, r))
         else:
@@ -1108,12 +1245,20 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
     sem = asyncio.Semaphore(4)
     juzgadas = 0
 
+    def _fragmento_propio(a: dict[str, Any]) -> V.Fragmento | None:
+        """El fragmento de la propia fuente de la afirmación, por (fuenteId,
+        localizador), cuando el determinista no lo dejó resuelto."""
+        if not a.get("fuenteId") or not a.get("localizador"):
+            return None
+        clave = V._clave_localizador(str(a["localizador"]))
+        return next((x for x in frags if x.fuente_id == a["fuenteId"] and V._clave_localizador(x.localizador) == clave), None)
+
     async def juzgar(a: dict[str, Any], r: V.Resultado) -> None:
         nonlocal juzgadas
-        frag = r.fragmento
+        frag = r.fragmento or _fragmento_propio(a)
         async with sem:
             try:
-                pred = await ctx.llamar(rol, ctx.programas.juzgar, pregunta=pregunta, afirmacion=a["texto"], fragmento=K.como_dato(f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}"), pistas=r.pistas)
+                pred = await ctx.llamar(rol, ctx.programas.juzgar, rollout_id=rollout_id, pregunta=pregunta, afirmacion=a["texto"], fragmento=K.como_dato(f"Encabezado: {frag.encabezado if frag else a.get('encabezado', '')}\n\n{(frag.texto if frag else a.get('fragmento', ''))[:6000]}"), pistas=r.pistas)
                 v = pred.veredicto
                 a["veredicto"] = v.veredicto
                 a["motivo"] = v.motivo
@@ -1122,7 +1267,7 @@ async def verificar_afirmaciones(ctx: Ctx, afirmaciones: list[dict[str, Any]], p
                 raise
             except Exception as ex:  # noqa: BLE001
                 a["veredicto"] = "sin_verificar"
-                a["motivo"] = f"El juez no dictamino: {str(ex)[:120]}"
+                a["motivo"] = f"El juez no dictaminó: {str(ex)[:120]}"
         juzgadas += 1
         recuento[a["veredicto"]] = recuento.get(a["veredicto"], 0) + 1
         if pista and juzgadas % 10 == 0:
@@ -1395,10 +1540,436 @@ async def _anotar_entidades(ctx: Ctx, h: dict[str, Any]) -> None:
 
 
 def _fuentes_de_hipotesis(ctx: Ctx, h: dict[str, Any]) -> list[dict[str, Any]]:
-    """Las fuentes privadas de la corrida que respaldan la hipótesis."""
+    """Las fuentes que respaldan la hipótesis, con lo acumulado entre corridas
+    (S-08): primero la copia privada de esta corrida (con fragmentos), después
+    la privada de otra corrida de la misma investigación y, si no queda ninguna,
+    la copia pública de la procedencia (lleva el riesgo de sesgo compacto, así
+    que la comprobación de sesgo funciona sobre ella)."""
     privadas = ctx.fuentes()
-    ids = [f["id"] for f in (h.get("procedencia") or {}).get("fuentes", [])]
-    return [privadas[i] for i in ids if i in privadas]
+    publicas = [f for f in ((h.get("procedencia") or {}).get("fuentes") or []) if isinstance(f, dict) and f.get("id")]
+    otras: dict[str, dict[str, Any]] | None = None
+    salida: list[dict[str, Any]] = []
+    for f in publicas:
+        i = f["id"]
+        if i in privadas:
+            salida.append(privadas[i])
+            continue
+        if otras is None:
+            otras = {}
+            for c in ctx.e.get("corridas", []) or []:
+                if isinstance(c, dict) and c.get("id") != ctx.corrida_id and isinstance(c.get("_fuentes"), dict):
+                    otras.update(c["_fuentes"])
+        salida.append(otras[i] if i in otras else f)
+    return salida
+
+
+# ---------------------------------------------------------------------------
+# Evidencia acumulada: orden por relación y recorte por caracteres (S-08, M-21)
+# ---------------------------------------------------------------------------
+
+# Cuántas veces puede fallar el juez del Killer sobre una hipótesis antes de que
+# Rosa deje constancia de una suspensión explícita y espere a una persona (S-09).
+# Mismo valor que MAX_INTENTOS_KILLER en rosa/bucle/corrida.py.
+MAX_INTENTOS_JUEZ = 3
+_ORDEN_RELACION = {None: 0, "": 0, "apoya": 0, "apoya_indirecta": 1, "socava": 2, "contradice": 3}
+
+
+def es_contra(a: dict[str, Any]) -> bool:
+    """Una afirmación cuenta EN CONTRA de la hipótesis si su relación es
+    'contradice' o 'socava', o si otra la socavó (`socavadaPor`). Es el
+    complemento del predicado `apoyos_existentes` de rosa/bucle/evidencia.py:
+    lo que no es apoyo no puede entrar como apoyo de signo opuesto (M-21)."""
+    if not isinstance(a, dict):
+        return False
+    if a.get("relacion") in ("contradice", "socava"):
+        return True
+    s = a.get("socavadaPor")
+    return bool(s) if not isinstance(s, str) else bool(s.strip())
+
+
+def afirmaciones_ordenadas(afirmaciones: Any) -> list[dict[str, Any]]:
+    """Las afirmaciones de una hipótesis en el orden en que conviene leerlas:
+    primero las que apoyan (directas, después indirectas), luego las que
+    socavan y al final las que contradicen; dentro de cada grupo, las
+    sostenidas antes que las no verificadas. Estable: no cambia el orden
+    relativo de las iguales. Tolera filas que no son diccionarios."""
+    afs = [a for a in (afirmaciones if isinstance(afirmaciones, list) else []) if isinstance(a, dict)]
+    return sorted(afs, key=lambda a: (_ORDEN_RELACION.get(a.get("relacion"), 1), 0 if a.get("veredicto") in ("sostenida", "parcial") else 1))
+
+
+def recortar_lineas(lineas: list[str], maximo: int, que: str = "afirmaciones") -> str:
+    """Une líneas hasta `maximo` caracteres (la primera entra siempre) y, si
+    sobran, lo dice con el número exacto en vez de cortar a las 8 primeras."""
+    salida: list[str] = []
+    total = 0
+    for linea in lineas:
+        if salida and total + len(linea) + 1 > maximo:
+            break
+        salida.append(linea)
+        total += len(linea) + 1
+    if len(salida) < len(lineas):
+        salida.append(f"(... {len(lineas) - len(salida)} {que} más no se listan por tope de caracteres; están en la ficha)")
+    return "\n".join(salida)
+
+
+def _etiqueta_relacion(a: dict[str, Any]) -> str:
+    if a.get("relacion") == "contradice":
+        return ", EN CONTRA de la hipótesis"
+    if a.get("relacion") == "socava":
+        return ", SOCAVA un apoyo"
+    if a.get("relacion") == "apoya_indirecta":
+        return ", apoyo indirecto"
+    return ""
+
+
+def texto_afirmaciones_killer(h: dict[str, Any], maximo: int = 14000) -> str:
+    """Lo que el juez del Killer lee de la evidencia: toda la acumulada, ordenada
+    por relación (S-08), cada una con veredicto, tipo, clase, cohorte y pasaje,
+    recortada por caracteres y no por las primeras N."""
+    lineas = []
+    for a in afirmaciones_ordenadas(h.get("afirmaciones")):
+        cabecera = f"[{a.get('veredicto', 'sin_verificar')}, {a.get('tipo', 'dato')}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{_etiqueta_relacion(a)}{', cohorte ' + str(a['cohorte']) if a.get('cohorte') else ''}]"
+        linea = f"- {cabecera} {a.get('texto', '')} {a.get('cita', '')}"
+        if a.get("fragmento"):
+            linea += f"\n    Pasaje: \"{str(a['fragmento'])[:240]}\""
+        lineas.append(linea)
+    return recortar_lineas(lineas, maximo) if lineas else "Ninguna"
+
+
+def hipotesis_para_torneo(h: dict[str, Any], maximo: int = 6000) -> str:
+    """La tarjeta que el juez del torneo compara: hipótesis, evidencia acumulada
+    ordenada por relación y recortada por caracteres (antes solo las 8 primeras
+    afirmaciones, así que una hipótesis con 28 acumuladas se juzgaba con la
+    evidencia de su nacimiento), supuestos con su estado y revisiones automáticas."""
+    lineas = [f"  - [{a.get('veredicto', 'sin_verificar')}{_etiqueta_relacion(a).replace(', apoyo indirecto', ', indirecta')}] {a.get('texto', '')} {a.get('cita', '')}" for a in afirmaciones_ordenadas(h.get("afirmaciones"))]
+    afs = recortar_lineas(lineas, maximo) if lineas else "  (ninguna)"
+    sup = "\n".join(f"  - [{s.get('estado', 'sin_evidencia')}] {s.get('texto', '')}" for s in (h.get("supuestos") or [])[:8] if isinstance(s, dict))
+    revs = "; ".join(f"{r['tipo']}: {r['resumen']}" for r in (h.get("revisionesAutomaticas") or []) if isinstance(r, dict) and r.get("estado") != "pendiente")
+    return f"{T.hipotesis_texto(h)}\nAfirmaciones:\n{afs}\nSupuestos:\n{sup or '  (ninguno)'}\nRevisiones automáticas: {revs}"
+
+
+def comprobaciones_con_contras_aparte(h: dict[str, Any], deterministas: list[dict[str, str]]) -> list[dict[str, str]]:
+    """M-21: la dirección de la evidencia y las unidades se comprueban solo sobre
+    las afirmaciones que cuentan a favor. Una afirmación 'contradice' enlazada
+    por la búsqueda en amplitud iba al cálculo como si fuera un apoyo con el
+    signo cambiado, `direccion_evidencia` fallaba y el Killer pedía reformular
+    por una evidencia que en realidad es inconsistencia (un factor GRADE que
+    valora rosa/certeza.py). Las contras se informan aparte en el detalle."""
+    afs = [a for a in (h.get("afirmaciones") or []) if isinstance(a, dict)]
+    contras = [a for a in afs if es_contra(a)]
+    if not contras:
+        return deterministas
+    sin_contras = {**h, "afirmaciones": [a for a in afs if not es_contra(a)]}
+    nuevas = {c["comprobacion"]: dict(c) for c in K.consistencia_medidas(sin_contras)}
+    sostenidas_contra = sum(1 for a in contras if a.get("veredicto") in ("sostenida", "parcial"))
+    nota = f" {len(contras)} afirmaciones en contra o que socavan un apoyo quedan fuera de esta comprobación: las valora la certeza GRADE como inconsistencia, no el Killer como fallo."
+    salida: list[dict[str, str]] = []
+    for c in deterministas:
+        nombre = c.get("comprobacion")
+        if nombre in nuevas:
+            n = nuevas[nombre]
+            if nombre == "direccion_evidencia":
+                n["detalle"] = (n.get("detalle") or "") + nota
+            salida.append(n)
+        elif nombre == "fidelidad_evidencia" and c.get("resultado") == "pasa":
+            salida.append({**c, "detalle": f"{c.get('detalle', '')}; {sostenidas_contra} en contra, también sostenidas por su fuente"})
+        else:
+            salida.append(c)
+    return salida
+
+
+def _huella(h: dict[str, Any]) -> str:
+    """`rosa.killer.huella_evidencia` (grupo D) o, si aún no existe, un hash
+    local de ids de afirmaciones, fuentes y versión con el mismo sentido."""
+    fn = getattr(K, "huella_evidencia", None)
+    if callable(fn):
+        try:
+            v = fn(h)
+            if isinstance(v, str) and v:
+                return v
+        except Exception:  # noqa: BLE001
+            pass
+    import hashlib
+    import json
+
+    afs = sorted(str(a.get("afirmacionId") or a.get("texto") or "") + "|" + str(a.get("veredicto")) + "|" + str(a.get("relacion")) for a in (h.get("afirmaciones") or []) if isinstance(a, dict))
+    fuentes = sorted(str(f.get("id") or "") for f in ((h.get("procedencia") or {}).get("fuentes") or []) if isinstance(f, dict))
+    return hashlib.sha256(json.dumps([afs, fuentes, h.get("version", 1)], sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def _decisiones_killer_de(e: dict[str, Any], hipotesis_id: str) -> list[dict[str, Any]]:
+    return [d for d in (e.get("decisiones") or []) if isinstance(d, dict) and d.get("hipotesisId") == hipotesis_id and str(d.get("etapa", "")).startswith("killer")]
+
+
+def indice_auditoria(e: dict[str, Any], investigacion_id: str, excluir_id: str | None = None) -> int:
+    """Cuántas decisiones descartar o reformular del Killer (etapa killer_1)
+    lleva ya la investigación, sin contar la recién registrada. Es el índice
+    del muestreo de la auditoría (S-12): antes se contaba por corrida y, como
+    cada corrida arrancaba en 0 y el índice 0 siempre se audita, se auditaba el
+    69 % en vez del 34 % de la política."""
+    return sum(1 for d in (e.get("decisiones") or []) if isinstance(d, dict) and d.get("investigacionId") == investigacion_id and d.get("etapa") == "killer_1" and d.get("decision") in ("descartar_en_contexto", "reformular") and d.get("id") != excluir_id)
+
+
+def normalizar_comprobacion_discutida(texto: Any, nombres: list[str]) -> str:
+    """El nombre canónico de la comprobación que el auditor pone en duda (lo
+    escribe libre: 'supuestos', 'Supuestos', 'fidelidad de la evidencia'). Vacío
+    si no casa con ninguna de la decisión."""
+    import unicodedata
+
+    plano = "".join(ch for ch in unicodedata.normalize("NFKD", str(texto or "")) if not unicodedata.combining(ch))
+    t = re.sub(r"[^a-z0-9_ ]", "", plano.strip().lower().replace("-", "_")).replace(" ", "_")
+    t = re.sub(r"_+", "_", t).strip("_")
+    if not t:
+        return ""
+    for n in nombres:
+        if t == n:
+            return n
+    for n in nombres:
+        if n in t or t in n or n.replace("_", "") == t.replace("_", "") or n.replace("_evidencia", "") == t.replace("_de_la_evidencia", "").replace("_evidencia", ""):
+            return n
+    return ""
+
+
+_AUSENCIA = re.compile(r"ning[uú]n[ao]?s?\s+(?:de\s+las\s+)?(?:afirmaci[oó]n(?:es)?|fuentes?|evidencia)\s+(?:lo|la|los|las|le)?\s*(?:menciona|mencionan|toca|tocan|habla|hablan|trata|tratan|aborda|abordan|nombra|nombran|se refiere|se refieren|respalda|respaldan|contradice|contradicen|niega|niegan)|no\s+(?:hay|existe|aparece|se encuentra|se menciona)\s+(?:ninguna\s+|una\s+)?(?:afirmaci[oó]n|evidencia|dato|menci[oó]n)|no (?:lo|la) mencionan?|none of the (?:claims|statements)|no (?:claim|statement) mentions", re.I)
+
+
+def validar_supuesto_evaluado(estado: Any, evidencia: Any, indices: Any, afirmaciones: list[dict[str, Any]]) -> tuple[str, str, list[str]]:
+    """Regla sobre lo que devuelve `EvaluarSupuesto` (S-10): 'contradicho' solo
+    vale si señala al menos una afirmación de la lista numerada que se le pasó
+    (índices 1..N válidos) y la evidencia no dice que ninguna afirmación lo
+    menciona; si no, baja a 'sin_evidencia' con la evidencia original conservada
+    y la nota de por qué. Ausencia no es negación. Devuelve (estado, evidencia,
+    ids de las afirmaciones que lo niegan)."""
+    estado = str(estado or "sin_evidencia").strip()
+    if estado not in ("respaldado", "plausible", "sin_evidencia", "contradicho"):
+        estado = "sin_evidencia"
+    evidencia = str(evidencia or "").strip()
+    validos: list[int] = []
+    for i in (indices if isinstance(indices, (list, tuple)) else []):
+        try:
+            n = int(i)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= n <= len(afirmaciones) and n not in validos:
+            validos.append(n)
+    ids = [str(afirmaciones[n - 1].get("afirmacionId") or afirmaciones[n - 1].get("id") or f"#{n}") for n in validos]
+    if estado == "contradicho":
+        ausencia = bool(_AUSENCIA.search(evidencia))
+        if not validos or ausencia:
+            motivo = "la evidencia dice que ninguna afirmación lo menciona" if ausencia else "el evaluador no señaló ninguna afirmación de la lista que lo niegue"
+            estado = "sin_evidencia"
+            evidencia = f"{evidencia[:400]} | Rebajado a 'sin evidencia' por regla: {motivo}; ausencia no es negación."
+            ids = []
+    return estado, evidencia, ids
+
+
+def fusionar_supuestos(existentes: Any, del_revisor: Any, nunca_revisada: bool, maximo: int = 12) -> list[dict[str, Any]]:
+    """Los supuestos con los que se evalúa la hipótesis (S-10): se conservan los
+    que ya tenía (los del generador, con origen 'generador'; en un registro ya
+    revisado antes de esta regla el origen se deja como esté) y se añaden los
+    que descompone el revisor inicial con origen 'revisor', sin repetir textos
+    (por texto normalizado) y reutilizando el id para que los hallazgos no se
+    dupliquen entre pasadas. Antes la lista del revisor sustituía a la del
+    generador entera, con ids nuevos cada vez."""
+    salida: list[dict[str, Any]] = []
+    vistos: set[str] = set()
+    for s in (existentes if isinstance(existentes, list) else []):
+        if not isinstance(s, dict):
+            continue
+        texto = str(s.get("texto") or "").strip()
+        clave = V.normalizar(texto)
+        if not texto or clave in vistos:
+            continue
+        vistos.add(clave)
+        item = {"id": s.get("id") or P.nuevo_id("sup"), "texto": texto, "estado": s.get("estado") or "sin_evidencia", "evidencia": s.get("evidencia") or "Pendiente", "hijos": s.get("hijos") if isinstance(s.get("hijos"), list) else []}
+        origen = s.get("origen") or ("generador" if nunca_revisada else None)
+        if origen:
+            item["origen"] = origen
+        salida.append(item)
+    for t in (del_revisor if isinstance(del_revisor, (list, tuple)) else []):
+        texto = str(t or "").strip()
+        clave = V.normalizar(texto)
+        if not texto or clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append({"id": P.nuevo_id("sup"), "texto": texto[:400], "estado": "sin_evidencia", "evidencia": "Pendiente", "hijos": [], "origen": "revisor"})
+    return salida[:maximo]
+
+
+def _clave_afirmacion(a: dict[str, Any]) -> str:
+    return str(a.get("afirmacionId") or a.get("id") or V.normalizar(str(a.get("texto") or "")))
+
+
+def afirmaciones_para_supuestos(h: dict[str, Any], de_la_corrida: list[dict[str, Any]], maximo: int = 8000) -> tuple[str, list[dict[str, Any]]]:
+    """La lista numerada contra la que se evalúan los supuestos (S-08): primero
+    las afirmaciones sostenidas o parciales de la propia hipótesis (toda su
+    evidencia acumulada, ordenada por relación y con las contras marcadas) y
+    después las de la corrida que no estén ya. Se recorta por caracteres
+    completando afirmaciones enteras, para que la numeración que ve el modelo
+    sea exactamente la lista contra la que se validan los índices."""
+    lista: list[dict[str, Any]] = []
+    vistos: set[str] = set()
+    for a in afirmaciones_ordenadas(h.get("afirmaciones")):
+        if a.get("veredicto") not in ("sostenida", "parcial"):
+            continue
+        clave = _clave_afirmacion(a)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        copia = dict(a)
+        copia.setdefault("tipo", "dato")
+        copia.setdefault("cita", "")
+        if es_contra(a):
+            copia["texto"] = f"{copia.get('texto', '')} [EN CONTRA de la hipótesis]"
+        lista.append(copia)
+    for a in (de_la_corrida if isinstance(de_la_corrida, list) else []):
+        if not isinstance(a, dict) or a.get("veredicto") not in ("sostenida", "parcial"):
+            continue
+        clave = _clave_afirmacion(a)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        lista.append(a)
+    seleccion: list[dict[str, Any]] = []
+    total = 0
+    for a in lista:
+        coste = len(str(a.get("texto") or "")) + len(str(a.get("cita") or "")) + 24
+        if seleccion and total + coste > maximo:
+            break
+        seleccion.append(a)
+        total += coste
+    return T.afirmaciones_sostenidas(seleccion)
+
+
+def _hallazgo_abierto(x: dict[str, Any], resumen: str) -> dict[str, Any] | None:
+    return next((z for z in (x.get("hallazgos") or []) if isinstance(z, dict) and z.get("estado") == "abierto" and z.get("resumen") == resumen), None)
+
+
+def _atender_hallazgos(x: dict[str, Any], prefijo: str, respuesta: str) -> int:
+    n = 0
+    for z in (x.get("hallazgos") or []):
+        if isinstance(z, dict) and z.get("estado") == "abierto" and str(z.get("resumen") or "").startswith(prefijo):
+            z["estado"] = "atendido"
+            z["respuestaDeRosa"] = respuesta
+            n += 1
+    return n
+
+
+def _hubo_accion_humana_despues(e: dict[str, Any], x: dict[str, Any], excluir_id: str | None = None) -> bool:
+    """Si la última palabra sobre la hipótesis la tuvo una persona (decisión de
+    etapa 'persona' posterior a la última del Killer), el Killer no le cambia el
+    estado por su cuenta. `excluir_id` es la decisión que el Killer acaba de
+    registrar en esta misma pasada: sin excluirla, la última del Killer era
+    siempre la de ahora mismo y ninguna persona podía ser posterior (adversario
+    del 17 de septiembre de 2026: la protección solo saltaba con fechas del
+    futuro)."""
+    propias = [d for d in (e.get("decisiones") or []) if isinstance(d, dict) and d.get("hipotesisId") == x.get("id") and (excluir_id is None or d.get("id") != excluir_id)]
+    ultima_persona = max((int(d.get("fecha") or 0) for d in propias if d.get("etapa") == "persona"), default=-1)
+    ultima_killer = max((int(d.get("fecha") or 0) for d in propias if str(d.get("etapa", "")).startswith("killer")), default=-1)
+    return ultima_persona > ultima_killer
+
+
+# Revisiones que escribe la propia Rosa sin que medie una persona: no cuentan
+# como "última palabra" de nadie al decidir si el Killer puede cambiar el estado.
+_REVISIONES_AUTOMATICAS = ("killer", "suspendida", "propuesta", "reformulada")
+# Revisiones que señalan un diálogo abierto con una persona: un comentario suyo
+# (acciones.enviar_comentarios deja la hipótesis en_revision), un "no puedo
+# juzgar" y la aclaración de Rosa que lo responde. Mientras duren, el estado lo
+# cambia la persona, no el Killer.
+_REVISIONES_DIALOGO = ("comentada", "aclarada", "no_puedo_juzgar")
+
+
+def _sacar_de_revision_si_toca(e2: dict[str, Any], x: dict[str, Any], anterior: str | None, decision: str, nota: str, decision_id: str | None = None) -> str | None:
+    """M-19: una hipótesis que está `en_revision` porque el propio Killer propuso
+    descartarla (la decisión anterior fue descartar, o sigue abierto el hallazgo
+    'El Killer propone descartarla': en el estado real hay hipótesis con la
+    decisión ya en 'avanzar' y el hallazgo abierto por el código viejo) o porque
+    una persona la reabrió, vuelve a `propuesta` cuando el Killer decide después
+    avanzar, suspender o reformular, y el hallazgo queda atendido. Si hay un
+    diálogo abierto con una persona (comentario, "no puedo juzgar", aclaración)
+    o la última decisión fue de una persona, el hallazgo se atiende igual (el
+    Killer ya no propone descartarla) pero el estado no se toca. Devuelve
+    'propuesta' si cambió el estado, 'hallazgo' si solo atendió el hallazgo y
+    None si no había nada que hacer."""
+    if x.get("estado") != "en_revision" or decision not in ("avanzar", "suspender", "reformular"):
+        return None
+    hallazgo_abierto = _hallazgo_abierto(x, "El Killer propone descartarla en este contexto") is not None
+    # La última revisión que no escribió la propia Rosa por su cuenta.
+    ultima_ajena = next((r for r in reversed(x.get("revisiones") or []) if isinstance(r, dict) and r.get("accion") not in _REVISIONES_AUTOMATICAS), None)
+    accion_ajena = ultima_ajena.get("accion") if ultima_ajena else None
+    reabierta = accion_ajena == "reabierta"
+    if anterior != "descartar_en_contexto" and not hallazgo_abierto and not reabierta:
+        return None
+    _atender_hallazgos(x, "El Killer propone descartarla", nota)
+    if accion_ajena in _REVISIONES_DIALOGO:
+        return "hallazgo"
+    if _hubo_accion_humana_despues(e2, x, decision_id) and not reabierta:
+        return "hallazgo"
+    x["estado"] = "propuesta"
+    return "propuesta"
+
+
+def _registrar_juez_sin_respuesta(ctx: Ctx, h: dict[str, Any], deterministas: list[dict[str, str]], error: str, pista: Pista | None) -> str:
+    """S-09: el juez del Killer no respondió (tiempo agotado, adaptador que no
+    parsea, filtro). No se registra ninguna decisión: la hipótesis conserva su
+    `decisionKiller` y su motivo anteriores, queda con `_revisionPedida` para
+    que el siguiente paso la repita y se cuenta el intento en `_killerIntentos`.
+    A partir de MAX_INTENTOS_JUEZ intentos se registra una decisión explícita
+    'suspender' con el motivo técnico y una cuestión, y se deja de insistir hasta
+    que una persona pida la revisión o llegue evidencia nueva. Devuelve
+    'pendiente' o 'suspender'."""
+    ahora = P.ahora_ms()
+    quien = ctx.modelos.juez.model
+    ruta = f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{h['id']}"
+    resultado = {"decision": "pendiente", "intentos": 0}
+
+    def fn(e2: dict[str, Any]) -> bool:
+        x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return False
+        intentos = int(x.get("_killerIntentos") or 0) + 1
+        resultado["intentos"] = intentos
+        if intentos < MAX_INTENTOS_JUEZ:
+            x["_killerIntentos"] = intentos
+            x["_revisionPedida"] = True
+            # Clave pública para la ficha (S-09): la interfaz enseña "pendiente de
+            # juicio" en vez de la decisión anterior mientras el juez no responde.
+            x["killerPendiente"] = {"intentos": intentos, "maximo": MAX_INTENTOS_JUEZ, "motivo": f"el juez no respondió (intento {intentos} de {MAX_INTENTOS_JUEZ})"}
+            x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"El juez del Killer no respondió (motivo técnico, intento {intentos} de {MAX_INTENTOS_JUEZ}): {error[:160]}. La decisión anterior se conserva y la revisión se repite en el siguiente paso.", "creadoEn": ahora})
+            A.con_evento(e2, ctx.investigacion_id, "killer", f"Killer pendiente de juicio sobre «{x['titulo'][:70]}»: el juez no respondió (intento {intentos} de {MAX_INTENTOS_JUEZ}); se repite en el siguiente paso", ruta, ahora)
+            return True
+        # Tope: decisión explícita, técnica y visible, y se deja de insistir.
+        motivo = f"El juez no respondió {intentos} veces (motivo técnico, no científico): pendiente de que una persona pida la revisión o de que llegue evidencia nueva. Último error: {error[:120]}"
+        falta = "Que el juez responda: pide la revisión desde la ficha cuando el modelo esté disponible"
+        d = A.registrar_decision(e2, x, "killer_1", "suspender", motivo, quien, ahora, deterministas, falta)
+        d["corridaId"] = ctx.corrida_id
+        d["sinJuez"] = True
+        # Huella también aquí: rosa/bucle/corrida.py::pedir_revision_por_huella la
+        # compara con la actual; sin ella comparaba con una decisión anterior y
+        # pedía otros tres juicios sobre la misma evidencia.
+        d["huella"] = _huella(x)
+        x["_huellaKiller"] = d["huella"]
+        x["decisionKiller"] = "suspender"
+        x["_killerIntentos"] = 0
+        x.pop("_revisionPedida", None)
+        x.pop("killerPendiente", None)
+        CU.desde_killer(e2, x, falta, ahora)
+        x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "killer", "nota": f"suspender: {motivo[:240]}", "aCiegas": False})
+        x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": falta, "aCiegas": False})
+        x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Hypothesis Killer (v{x.get('version', 1)}): suspender. {motivo}", "creadoEn": ahora})
+        A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer deja suspendida «{x['titulo'][:70]}» hasta que una persona pida la revisión: el juez no respondió {intentos} veces", ruta, ahora)
+        A.recalcular_bloqueos(e2, x)
+        resultado["decision"] = "suspender"
+        return True
+
+    ctx.mutar(fn, "killer_sin_juez")
+    ctx.incidencia("juez_sin_respuesta", f"El Killer no pudo juzgar «{h['titulo'][:60]}»", error[:400], h["id"], f"Se repite en el siguiente paso de hipótesis; a los {MAX_INTENTOS_JUEZ} intentos la hipótesis queda suspendida hasta que una persona pida la revisión desde la ficha.")
+    if pista:
+        if resultado["decision"] == "pendiente":
+            pista.error(f"El Killer no respondió para {h['titulo'][:50]} (intento {resultado['intentos']} de {MAX_INTENTOS_JUEZ}): {error[:100]}; la hipótesis queda pendiente de juicio, no suspendida")
+        else:
+            pista.error(f"El Killer no respondió {resultado['intentos']} veces para {h['titulo'][:50]}: queda suspendida hasta que una persona pida la revisión")
+    return resultado["decision"]
 
 
 def _texto_fuente_para_sesgo(f: dict[str, Any]) -> str:
@@ -1606,6 +2177,9 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     # el veredicto lo pone la regla del instrumento. Sustituye al juicio libre.
     await _evaluar_sesgo_fuentes(ctx, h, pista)
     deterministas = [c for c in deterministas if c["comprobacion"] != "sesgo_evidencia"] + [SESGO.comprobacion_sesgo(_fuentes_de_hipotesis(ctx, h))]
+    # M-21: las afirmaciones en contra no entran en la dirección de la evidencia
+    # como apoyos de signo opuesto; se informan aparte y las valora GRADE.
+    deterministas = comprobaciones_con_contras_aparte(h, deterministas)
     # El comprobador de supuestos causales entra como una comprobacion mas: si
     # la identificacion no cierra, direccion_causal queda "no comprobable" con
     # los supuestos que faltan (el juez o un experimento los resuelven).
@@ -1616,8 +2190,10 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "pasa", "detalle": "Identificación por regla: " + "; ".join(grafo_previo["supuestosCumplidos"])[:300]})
         elif grafo_previo["identificacion"] in ("acotado", "sin_resolver"):
             deterministas.append({"comprobacion": "direccion_causal", "resultado": "no_comprobable", "detalle": f"Identificación {grafo_previo['identificacion']}: faltan " + "; ".join(grafo_previo["supuestosFaltantes"])[:300]})
-    afs_texto = "\n".join(f"- [{a['veredicto']}, {a['tipo']}, clase {a.get('clase', 'literatura')}{', SINTÉTICO' if a.get('sintetico') else ''}{', EN CONTRA de la hipótesis' if a.get('relacion') == 'contradice' else (', apoyo indirecto' if a.get('relacion') == 'apoya_indirecta' else '')}{', cohorte ' + a['cohorte'] if a.get('cohorte') else ''}] {a['texto']} {a['cita']}" + (f"\n    Pasaje: \"{a['fragmento'][:240]}\"" if a.get("fragmento") else "") for a in h["afirmaciones"]) or "Ninguna"
+    # Toda la evidencia acumulada, ordenada por relación y recortada por caracteres (S-08).
+    afs_texto = texto_afirmaciones_killer(h)
     mundo_h = await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, f"{h['titulo']}. {h['enunciado']}", maximo=40)
+    juez_fallo: str | None = None
     try:
         pred = await ctx.llamar(
             "juez",
@@ -1626,7 +2202,10 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             mision=_texto_mision(inv),
             hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")),
             afirmaciones=afs_texto,
-            supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h["supuestos"]) or "Sin supuestos evaluados",
+            # Registros incompletos (supuesto sin 'evidencia', o un texto suelto) no
+            # pueden convertirse en "el juez no respondió": este argumento se monta
+            # dentro del mismo try que la llamada al modelo.
+            supuestos="\n".join(f"- [{s.get('estado', 'sin_evidencia')}] {s.get('texto', '')} ({s.get('evidencia') or 'sin evaluar'})" for s in (h.get("supuestos") or []) if isinstance(s, dict) and s.get("texto")) or "Sin supuestos evaluados",
             modelo_de_mundo=mundo_h + "\n\nOtras hipótesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], ctx.investigacion_id),
             comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
             criterios_revision="\n".join(e["criteriosRevision"]),
@@ -1642,12 +2221,19 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     except PresupuestoAgotado:
         raise
     except Exception as ex:  # noqa: BLE001
-        if pista:
-            pista.error(f"El Killer no respondió para {h['titulo'][:50]}: {str(ex)[:100]}; la hipótesis queda suspendida hasta la siguiente revisión")
+        juez_fallo = f"{type(ex).__name__}: {str(ex)[:200]}"
         del_juez, resumen, sugerida, falta, alternativas, invalidante = [], f"El juez no respondió: {str(ex)[:120]}", "", "Repetir la revisión cuando el modelo responda", [], ""
         alternativas_rev = []
         contradice_a = []
     comprobaciones = K.fusionar(deterministas, del_juez)
+    if juez_fallo is not None:
+        # S-09: sin juez no hay juicio. Solo las comprobaciones que Rosa hace sola
+        # contra el texto (citas que resuelven, fidelidad al pasaje) pueden
+        # descartar sin él; todo lo demás (avanzar, suspender, reformular) espera
+        # a que el juez responda, y el intento se cuenta.
+        fallan_descarte = [c for c in comprobaciones if c["resultado"] == "falla" and c["comprobacion"] in K.DESCARTAN]
+        if not fallan_descarte:
+            return _registrar_juez_sin_respuesta(ctx, h, comprobaciones, juez_fallo, pista)
     # El supuesto invalidante del juez solo tumba si algun supuesto esta contradicho
     # de verdad; si no, es un aviso de lo que haria falta comprobar.
     if invalidante and any(s_.get("estado") == "contradicho" for s_ in h.get("supuestos", [])) and not any(c["comprobacion"] == "supuestos" and c["resultado"] == "falla" for c in comprobaciones):
@@ -1656,8 +2242,8 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         falta = f"Comprobar el supuesto: {invalidante[:200]}"
     tiene_prediccion = bool((h.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in (h.get("tarjeta") or {}).get("prediccionFalsable", "").lower()
     decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
-    if not del_juez and decision == "avanzar":
-        decision, motivo = "suspender", "El juez no respondió: no se puede dar por revisada"
+    if juez_fallo is not None:
+        motivo = f"[Sin juez: {juez_fallo[:80]}; deciden las comprobaciones que Rosa hace sola contra el texto] {motivo}"
     # Regresión entre versiones: la versión n+1 solo avanza si no falla lo que la n pasaba.
     regresion = regresion_de_comprobaciones(e, h, comprobaciones)
     if regresion and decision == "avanzar":
@@ -1677,13 +2263,27 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
             # decision queda registrada sobre la version que juzgo y no toca la actual.
             d = A.registrar_decision(e2, x, "killer_1", decision, f"[Sobre la versión {version_juzgada}; la hipótesis ya está en la {x.get('version', 1)} y se volverá a juzgar] {motivo}", quien, ahora, comprobaciones, falta)
             d["version"] = version_juzgada
+            d["corridaId"] = ctx.corrida_id
             x["_revisionPedida"] = True
             return d
+        anterior = x.get("decisionKiller")
         d = A.registrar_decision(e2, x, "killer_1", decision, motivo, quien, ahora, comprobaciones, falta)
         d["_alternativas"] = alternativas
+        d["corridaId"] = ctx.corrida_id
+        # La huella de la evidencia que vio el Killer: rosa/bucle/corrida.py la
+        # compara con la actual para pedir revisión solo cuando cambie (S-08, S-13).
+        d["huella"] = _huella(x)
+        x["_huellaKiller"] = d["huella"]
+        if juez_fallo is not None:
+            d["sinJuez"] = True
         if regresion:
             d["regresion"] = regresion
         x["decisionKiller"] = decision
+        # La petición de revisión queda atendida al juzgar la versión actual (M-19):
+        # antes sobrevivía a cualquier reformulación y provocaba un segundo juicio.
+        x.pop("_revisionPedida", None)
+        x.pop("_killerIntentos", None)
+        x.pop("killerPendiente", None)
         # Grafo de evidencia: con quién es redundante (partido dirimente en el torneo)
         # y a quién contradice según el juez (ataque declarado; rosa/argumentacion.py
         # calcula con ello qué candidatas no pueden ser ciertas a la vez).
@@ -1717,15 +2317,27 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "killer", "nota": f"{decision.replace('_', ' ')}: {motivo[:240]}", "aCiegas": False})
         if decision == "suspender":
             x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": falta[:240] or motivo[:240], "aCiegas": False})
+        ruta_h = f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}"
         if decision == "descartar_en_contexto":
             if e2["autonomia"].get("descartar_hipotesis") == "actuar":
                 A.revisar_hipotesis(e2, x["id"], "descartar", f"Descartada en este contexto por el Killer: {motivo[:300]}", quien, ahora, False, None, etapa="killer_1")
             else:
                 x["estado"] = "en_revision"
-                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "El Killer propone descartarla en este contexto", "razonamiento": motivo, "estado": "abierto", "respuestaDeRosa": None})
-                A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer propone descartar: {x['titulo'][:80]}. Decide tu.", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}", ahora)
-        elif decision == "avanzar":
-            A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer deja avanzar (v{x.get('version', 1)}): {x['titulo'][:80]}", f"#/investigaciones/{ctx.investigacion_id}/hipotesis/{x['id']}", ahora)
+                abierto = _hallazgo_abierto(x, "El Killer propone descartarla en este contexto")
+                if abierto:
+                    # Ya estaba propuesto: se actualiza el motivo, sin segundo hallazgo ni segundo "Decide tú" (M-19).
+                    abierto["razonamiento"] = motivo
+                else:
+                    x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "El Killer propone descartarla en este contexto", "razonamiento": motivo, "estado": "abierto", "respuestaDeRosa": None})
+                    A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer propone descartar: {x['titulo'][:80]}. Decide tú.", ruta_h, ahora)
+        else:
+            retirada = _sacar_de_revision_si_toca(e2, x, anterior, decision, f"Retirada en la versión {x.get('version', 1)}: el Killer decidió {decision.replace('_', ' ')} con la evidencia actual. {motivo[:160]}", d["id"])
+            if retirada == "propuesta":
+                A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer retira la propuesta de descarte de «{x['titulo'][:70]}» (ahora {decision.replace('_', ' ')}): vuelve a la cola como propuesta", ruta_h, ahora)
+            elif retirada == "hallazgo":
+                A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer retira la propuesta de descarte de «{x['titulo'][:70]}» (ahora {decision.replace('_', ' ')}); sigue en revisión porque una persona la está mirando", ruta_h, ahora)
+            if decision == "avanzar":
+                A.con_evento(e2, ctx.investigacion_id, "killer", f"El Killer deja avanzar (v{x.get('version', 1)}): {x['titulo'][:80]}", ruta_h, ahora)
         A.recalcular_bloqueos(e2, x)
         return d
 
@@ -1733,53 +2345,119 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     actual = next((y for y in ctx.e["hipotesis"] if y["id"] == h["id"]), h)
     if actual.get("version", 1) != version_juzgada:
         if pista:
-            pista.nota(f"La hipótesis cambio a la versión {actual.get('version', 1)} mientras se juzgaba la {version_juzgada}: la decisión queda registrada sobre la {version_juzgada} y la nueva se juzga aparte")
+            pista.nota(f"La hipótesis cambió a la versión {actual.get('version', 1)} mientras se juzgaba la {version_juzgada}: la decisión queda registrada sobre la {version_juzgada} y la nueva se juzga aparte")
         return decision
     if pista:
         pista.resultado(f"Killer sobre '{h['titulo'][:50]}' (v{h.get('version', 1)}): {decision.replace('_', ' ')}. " + "; ".join(f"{c['comprobacion']} {c['resultado']}" for c in fallidas)[:200])
-    # Auditoria de una muestra de descartes y reformulaciones, con otro metodo (debate) y otra familia (cerebro).
-    if decision in ("descartar_en_contexto", "reformular") and isinstance(d, dict):
-        c = ctx.corrida()
-        indice = c.get("_descartesVistos", 0)
-        ctx.mutar(lambda e2: (next(x for x in e2["corridas"] if x["id"] == ctx.corrida_id).__setitem__("_descartesVistos", indice + 1), True)[1], "auditoria_contador")
+    # Auditoría de una muestra de descartes y reformulaciones, con otro método
+    # (debate) y otra familia (cerebro). El índice del muestreo se deriva de las
+    # decisiones de la investigación (S-12), no de un contador por corrida.
+    if decision in ("descartar_en_contexto", "reformular") and isinstance(d, dict) and juez_fallo is None:
+        indice = indice_auditoria(ctx.e, ctx.investigacion_id, excluir_id=d.get("id"))
         if K.muestrear_para_auditoria(indice):
-            await _auditar_descarte(ctx, h, d, fallidas, afs_texto, pista)
+            recalculada = await _auditar_descarte(ctx, h, d, fallidas, afs_texto, pista)
+            if recalculada is not None:
+                # La auditoría discrepó y la decisión se recalculó por regla
+                # (killer_2): en esta pasada no se reformula ni se descarta.
+                return recalculada
     if decision == "reformular" and profundidad < politicas.MAX_REFORMULACIONES:
         ok = await _reformular(ctx, h, "Killer: " + motivo + (f". Sugerencia: {sugerida}" if sugerida else ""), quien, pista)
         if ok:
+            # S-11: si la reformulación se pidió por algo que solo recalcula un paso
+            # del plan (novedad: OpenAlex y Exa; contexto humano: las bases por
+            # diana), no se vuelve a juzgar de inmediato con el dato de la versión
+            # vieja. `reformular_hipotesis` deja `_revisionPedida` y reinicia la
+            # novedad; el paso de novedad la recomprueba y el siguiente paso de
+            # hipótesis la juzga con el precedente fresco.
+            por_recuperacion = [c["comprobacion"] for c in comprobaciones if c["resultado"] == "falla" and c["comprobacion"] in ("novedad", "contexto_humano")]
+            if por_recuperacion:
+                if pista:
+                    pista.nota(f"Reformulada por {', '.join(c.replace('_', ' ') for c in por_recuperacion)}: la versión nueva se juzga cuando el paso de novedad y las bases la hayan recomprobado, no ahora")
+                return decision
             nueva = next((y for y in ctx.e["hipotesis"] if y["id"] == h["id"]), h)
             return await _killer(ctx, nueva, texto_afirmaciones, pista, profundidad + 1)
     return decision
 
 
-async def _auditar_descarte(ctx: Ctx, h: dict[str, Any], decision: dict[str, Any], fallidas: list[dict[str, str]], evidencia: str, pista: Pista | None) -> None:
+async def _auditar_descarte(ctx: Ctx, h: dict[str, Any], decision: dict[str, Any], fallidas: list[dict[str, str]], evidencia: str, pista: Pista | None) -> str | None:
     """Segundo método, otra familia: el cerebro defiende la hipótesis y luego
-    juzga si la decisión del Killer resiste. Un desacuerdo no revierte nada:
-    va a la persona con las dos posturas."""
+    juzga si la decisión del Killer resiste. Si el auditor no responde, la
+    auditoría queda como `acuerdo: None` (sin auditar), nunca como acuerdo. En
+    desacuerdo (S-12) se aplica la regla "se abstiene, no mata" que ya tiene
+    `fusionar`: la comprobación discutida baja a no_comprobable con el argumento
+    del auditor, la decisión se recalcula con `K.decidir` (regla pura, sin
+    modelo) y se registra como etapa `killer_2`; la persona recibe un evento
+    "Decide tú" con las dos posturas. Devuelve la decisión recalculada cuando
+    hubo desacuerdo (aunque coincida con la original), y None si no."""
+    quien = ctx.modelos.cerebro.model
     try:
-        pred = await ctx.llamar("cerebro", ctx.programas.auditar_descarte, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), decision=f"{decision['decision']}: {decision['motivo']}", comprobaciones_fallidas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in fallidas) or "ninguna", evidencia=evidencia + "\n\nSupuestos:\n" + "\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]))
+        pred = await ctx.llamar("cerebro", ctx.programas.auditar_descarte, hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), decision=f"{decision['decision']}: {decision['motivo']}", comprobaciones_fallidas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in fallidas) or "ninguna", evidencia=evidencia + "\n\nSupuestos:\n" + "\n".join(f"- [{s.get('estado', 'sin_evidencia')}] {s.get('texto', '')}" for s in (h.get("supuestos") or []) if isinstance(s, dict)))
         au = pred.auditoria
-        auditoria = {"quien": ctx.modelos.cerebro.model, "acuerdo": bool(au.acuerdo), "motivo": (au.motivo.strip() + (f" Mejor argumento a favor: {au.mejor_argumento_a_favor.strip()}" if not au.acuerdo else ""))[:600], "fecha": P.ahora_ms(), "comprobacionDiscutida": au.comprobacion_discutida.strip()[:80]}
+        argumento = str(getattr(au, "mejor_argumento_a_favor", "") or "").strip()
+        acuerdo = bool(au.acuerdo)
+        nombres = [c["comprobacion"] for c in (decision.get("comprobaciones") or []) if isinstance(c, dict)]
+        auditoria = {"quien": quien, "acuerdo": acuerdo, "estado": "respondio", "motivo": (str(au.motivo or "").strip() + (f" Mejor argumento a favor: {argumento}" if not acuerdo else ""))[:600], "argumentoAFavor": argumento[:600], "fecha": P.ahora_ms(), "comprobacionDiscutida": normalizar_comprobacion_discutida(getattr(au, "comprobacion_discutida", ""), nombres) or str(getattr(au, "comprobacion_discutida", "") or "").strip()[:80]}
     except PresupuestoAgotado:
         raise
     except Exception as ex:  # noqa: BLE001
-        auditoria = {"quien": ctx.modelos.cerebro.model, "acuerdo": True, "motivo": f"El auditor no respondió: {str(ex)[:120]}", "fecha": P.ahora_ms(), "comprobacionDiscutida": ""}
+        auditoria = {"quien": quien, "acuerdo": None, "estado": "no_respondio", "motivo": f"El auditor no respondió: {str(ex)[:120]}", "argumentoAFavor": "", "fecha": P.ahora_ms(), "comprobacionDiscutida": ""}
+        ctx.incidencia("auditoria_sin_respuesta", f"La auditoría del Killer sobre «{h['titulo'][:60]}» quedó sin respuesta", str(ex)[:400], decision["id"], "La decisión queda sin auditar (no cuenta como acuerdo); se vuelve a muestrear en la siguiente decisión.")
+
+    resultado: dict[str, Any] = {"nueva": None}
+    ahora = P.ahora_ms()
+    ruta_h = f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}"
 
     def fn(e: dict[str, Any]) -> bool:
         d = next((x for x in e.get("decisiones", []) if x["id"] == decision["id"]), None)
         if not d:
             return False
         d["auditoria"] = auditoria
-        if not auditoria["acuerdo"]:
-            x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
-            if x:
-                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "La auditoría discrepa del Killer", "razonamiento": auditoria["motivo"], "estado": "abierto", "respuestaDeRosa": None})
-            A.con_evento(e, h["investigacionId"], "killer", f"Auditoría en desacuerdo con el Killer sobre '{h['titulo'][:60]}': revisa las dos posturas", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", P.ahora_ms())
+        if auditoria["acuerdo"] is not False:
+            return True
+        x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
+        if not x:
+            return True
+        abierto = _hallazgo_abierto(x, "La auditoría discrepa del Killer")
+        if abierto:
+            abierto["razonamiento"] = auditoria["motivo"]
+        else:
+            x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "La auditoría discrepa del Killer", "razonamiento": auditoria["motivo"], "estado": "abierto", "respuestaDeRosa": None})
+        nombre = auditoria["comprobacionDiscutida"]
+        comps = [dict(c) for c in (d.get("comprobaciones") or []) if isinstance(c, dict)]
+        discutible = nombre and any(c.get("comprobacion") == nombre and c.get("resultado") == "falla" for c in comps) and x.get("version", 1) == d.get("version", x.get("version", 1))
+        if not discutible:
+            A.con_evento(e, h["investigacionId"], "killer", f"Auditoría en desacuerdo con el Killer sobre «{x['titulo'][:60]}» sin señalar una comprobación fallida concreta: la decisión ({d['decision'].replace('_', ' ')}) se mantiene. Decide tú.", ruta_h, ahora)
+            return True
+        for c in comps:
+            if c.get("comprobacion") == nombre:
+                c["resultado"] = "no_comprobable"
+                c["detalle"] = f"Discutida por la auditoría ({quien}): {auditoria['argumentoAFavor'][:200] or auditoria['motivo'][:200]}"
+        tiene_prediccion = bool((x.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in str((x.get("tarjeta") or {}).get("prediccionFalsable", "")).lower()
+        nueva, motivo2 = K.decidir(comps, tiene_prediccion, x.get("version", 1))
+        d2 = A.registrar_decision(e, x, "killer_2", nueva, f"Recalculada por regla tras el desacuerdo de la auditoría sobre {nombre.replace('_', ' ')} (se abstiene, no mata): {motivo2}", quien, ahora, comps, auditoria["argumentoAFavor"][:400] if nueva != "avanzar" else "")
+        d2["corridaId"] = ctx.corrida_id
+        d2["huella"] = d.get("huella")
+        d2["discuteA"] = d["id"]
+        anterior = d["decision"]
+        if nueva != anterior:
+            x["decisionKiller"] = nueva
+            x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "killer", "nota": f"{nueva.replace('_', ' ')} (tras auditoría en desacuerdo sobre {nombre.replace('_', ' ')}): {motivo2[:200]}", "aCiegas": False})
+            if nueva == "suspender":
+                x["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "suspendida", "nota": auditoria["argumentoAFavor"][:240] or motivo2[:240], "aCiegas": False})
+            _sacar_de_revision_si_toca(e, x, anterior, nueva, f"Retirada tras la auditoría: la comprobación {nombre.replace('_', ' ')} quedó discutida y el Killer recalculó a {nueva.replace('_', ' ')}", d2["id"])
+            if nueva == "descartar_en_contexto" and anterior != "descartar_en_contexto" and e["autonomia"].get("descartar_hipotesis") != "actuar":
+                x["estado"] = "en_revision"
+            A.recalcular_bloqueos(e, x)
+        x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Auditoría en desacuerdo con el Killer sobre {nombre.replace('_', ' ')}. Argumento a favor: {auditoria['argumentoAFavor'][:240] or 'sin detallar'}. Recalculado por regla: {nueva.replace('_', ' ')}.", "creadoEn": ahora})
+        A.con_evento(e, h["investigacionId"], "killer", f"Auditoría en desacuerdo con el Killer sobre «{x['titulo'][:60]}»: el Killer dijo {anterior.replace('_', ' ')} por {nombre.replace('_', ' ')}; el auditor: {auditoria['argumentoAFavor'][:120] or auditoria['motivo'][:120]}. Recalculado por regla: {nueva.replace('_', ' ')}. Decide tú.", ruta_h, ahora)
+        resultado["nueva"] = nueva
         return True
 
     ctx.mutar(fn, "auditoria_descarte")
     if pista:
-        pista.resultado(f"Auditoría del descarte de '{h['titulo'][:40]}': {'de acuerdo' if auditoria['acuerdo'] else 'EN DESACUERDO'}")
+        estado = "sin respuesta del auditor (no cuenta como acuerdo)" if auditoria["acuerdo"] is None else ("de acuerdo" if auditoria["acuerdo"] else f"EN DESACUERDO; recalculado por regla: {resultado['nueva'].replace('_', ' ') if resultado['nueva'] else 'sin recalcular'}")
+        pista.resultado(f"Auditoría de la decisión sobre '{h['titulo'][:40]}': {estado}")
+    return resultado["nueva"]
 
 
 async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pista: Pista | None) -> bool:
@@ -1796,8 +2474,13 @@ async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pist
             if not x:
                 return False
             m = f"Agotó las {politicas.MAX_REFORMULACIONES} reformulaciones de la política: {motivo[:200]}"
-            A.registrar_decision(e2, x, "killer_1", "descartar_en_contexto", m, quien, ahora)
+            d = A.registrar_decision(e2, x, "killer_1", "descartar_en_contexto", m, quien, ahora)
+            d["corridaId"] = ctx.corrida_id
+            d["huella"] = _huella(x)
             x["decisionKiller"] = "descartar_en_contexto"
+            x.pop("_revisionPedida", None)
+            x.pop("_killerIntentos", None)
+            x.pop("killerPendiente", None)
             if e2["autonomia"].get("descartar_hipotesis") == "actuar":
                 A.revisar_hipotesis(e2, x["id"], "descartar", m, quien, ahora, False, None, etapa="killer_1")
             else:
@@ -1820,59 +2503,93 @@ async def _reformular(ctx: Ctx, h: dict[str, Any], motivo: str, quien: str, pist
         raise
     except Exception as ex:  # noqa: BLE001
         if pista:
-            pista.error(f"La reformulación fallo: {str(ex)[:120]}")
+            pista.error(f"La reformulación falló: {str(ex)[:120]}")
         return False
 
 
 async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: Pista | None) -> None:
     """Revisión inicial (juez), supuestos (volumen), y el Killer con su
-    decisión derivada por regla."""
+    decisión derivada por regla. Desde la revisión del 17 de septiembre de 2026:
+    si la revisión inicial falla se sigue con los supuestos y el Killer (S-08:
+    antes se perdía la petición); la revisión inicial no se repite si ya se hizo
+    para esta versión (solo se reevalúan los supuestos y se vuelve a pasar el
+    Killer, que es lo que cambia con la evidencia); los supuestos del generador
+    se conservan y los del revisor se añaden con su origen (S-10); y se evalúan
+    primero contra las afirmaciones propias de la hipótesis, con la lista
+    numerada exacta contra la que se validan los índices."""
     inv = ctx.inv()
     ahora = P.ahora_ms()
-    try:
-        pred = await ctx.llamar("juez", ctx.programas.revisar_inicial, objetivo=inv["objetivo"], hipotesis=T.hipotesis_texto(h), criterios_revision="\n".join(ctx.e["criteriosRevision"]))
-        rev = pred.revision
-    except PresupuestoAgotado:
-        raise
-    except Exception as ex:  # noqa: BLE001
+    version = h.get("version", 1)
+    rev = None
+    inicial_fallo: str | None = None
+    ya_revisada = h.get("_revisionInicialVersion") == version and h.get("ultimaRevisionAutomatica") is not None
+    if ya_revisada:
         if pista:
-            pista.error(f"Revisión inicial fallo para {h['titulo'][:60]}: {str(ex)[:100]}")
-        return
-    supuestos_texto = list(rev.supuestos)[:8] or [s["texto"] for s in h["supuestos"]]
-    evaluados: list[dict[str, Any]] = []
+            pista.nota(f"Revisión inicial ya hecha para la versión {version} de «{h['titulo'][:50]}»: se reevalúan los supuestos con la evidencia acumulada y se vuelve a pasar el Killer")
+    else:
+        try:
+            pred = await ctx.llamar("juez", ctx.programas.revisar_inicial, objetivo=inv["objetivo"], hipotesis=T.hipotesis_texto(h), criterios_revision="\n".join(ctx.e["criteriosRevision"]))
+            rev = pred.revision
+        except PresupuestoAgotado:
+            raise
+        except Exception as ex:  # noqa: BLE001
+            inicial_fallo = f"{type(ex).__name__}: {str(ex)[:100]}"
+            if pista:
+                pista.error(f"Revisión inicial falló para {h['titulo'][:60]}: {inicial_fallo}; se sigue con los supuestos y el Killer")
+    supuestos = fusionar_supuestos(h.get("supuestos"), list(getattr(rev, "supuestos", None) or [])[:8] if rev is not None else [], nunca_revisada=h.get("ultimaRevisionAutomatica") is None)
+    texto_sup, lista_sup = afirmaciones_para_supuestos(h, ctx.afirmaciones())
+    evaluados: list[dict[str, Any] | None] = [None] * len(supuestos)
     sem = asyncio.Semaphore(4)
 
-    async def evaluar(s: str) -> None:
+    async def evaluar(i: int, s: dict[str, Any]) -> None:
         async with sem:
             try:
-                p2 = await ctx.llamar("volumen", ctx.programas.evaluar_supuesto, supuesto=s, afirmaciones_sostenidas=texto_afirmaciones)
-                evaluados.append({"id": P.nuevo_id("sup"), "texto": s, "estado": p2.evaluacion.estado, "evidencia": p2.evaluacion.evidencia, "hijos": []})
+                p2 = await ctx.llamar("volumen", ctx.programas.evaluar_supuesto, supuesto=s["texto"], afirmaciones_sostenidas=texto_sup)
+                ev = p2.evaluacion
+                estado, evidencia, ids = validar_supuesto_evaluado(getattr(ev, "estado", None), getattr(ev, "evidencia", None), getattr(ev, "indices_que_lo_niegan", None), lista_sup)
+                evaluados[i] = {**s, "estado": estado, "evidencia": evidencia, "niegaAfirmaciones": ids}
             except PresupuestoAgotado:
                 raise
-            except Exception:  # noqa: BLE001
-                evaluados.append({"id": P.nuevo_id("sup"), "texto": s, "estado": "sin_evidencia", "evidencia": "No se pudo evaluar", "hijos": []})
+            except Exception as ex:  # noqa: BLE001
+                evaluados[i] = {**s, "estado": "sin_evidencia", "evidencia": f"No se pudo evaluar: el modelo no respondió ({type(ex).__name__})", "niegaAfirmaciones": []}
 
-    await asyncio.gather(*(evaluar(s) for s in supuestos_texto))
-    contradichos = [s for s in evaluados if s["estado"] == "contradicho"]
+    await asyncio.gather(*(evaluar(i, s) for i, s in enumerate(supuestos)))
+    finales = [s for s in evaluados if s is not None]
+    contradichos = [s for s in finales if s["estado"] == "contradicho"]
 
     def aplicar(e: dict[str, Any]) -> bool:
         x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
         if not x:
             return False
-        x["supuestos"] = evaluados
+        x["supuestos"] = finales
         for r in x["revisionesAutomaticas"]:
-            if r["tipo"] == "inicial":
+            if r["tipo"] == "inicial" and rev is not None:
                 r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=("Pasa: " if rev.pasa else "NO pasa: ") + rev.resumen, fecha=ahora)
             elif r["tipo"] == "profunda":
-                r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"{len(evaluados)} supuestos: " + ", ".join(f"{s['estado']} {sum(1 for t in evaluados if t['estado'] == s['estado'])}" for s in {v['estado']: v for v in evaluados}.values()), fecha=ahora)
+                r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"{len(finales)} supuestos: " + ", ".join(f"{s['estado']} {sum(1 for t in finales if t['estado'] == s['estado'])}" for s in {v['estado']: v for v in finales}.values()), fecha=ahora)
             elif r["tipo"] == "completa":
                 r.update(estado="hecha" if r["estado"] == "pendiente" else "rehecha", resumen=f"{sum(1 for a in x['afirmaciones'] if a['veredicto'] == 'sostenida')} de {len(x['afirmaciones'])} afirmaciones sostenidas; {len(contradichos)} supuestos contradichos", fecha=ahora)
         x["ultimaRevisionAutomatica"] = ahora
-        if not rev.pasa:
-            x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "La revisión inicial no la da por buena", "razonamiento": rev.resumen, "estado": "abierto", "respuestaDeRosa": None})
+        if rev is not None:
+            x["_revisionInicialVersion"] = version
+            if not rev.pasa and not _hallazgo_abierto(x, "La revisión inicial no la da por buena"):
+                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "conclusion_no_sigue", "resumen": "La revisión inicial no la da por buena", "razonamiento": rev.resumen, "estado": "abierto", "respuestaDeRosa": None})
+            x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Revisión inicial: {rev.resumen}", "creadoEn": ahora})
+        elif inicial_fallo:
+            x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"La revisión inicial no respondió ({inicial_fallo}); se siguió con los supuestos y el Killer.", "creadoEn": ahora})
         for s in contradichos:
-            x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "valor_contradice_fuente", "resumen": f"Supuesto contradicho: {s['texto'][:100]}", "razonamiento": s["evidencia"], "estado": "abierto", "respuestaDeRosa": None})
-        x["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Revisión inicial: {rev.resumen}", "creadoEn": ahora})
+            resumen = f"Supuesto contradicho: {s['texto'][:100]}"
+            abierto = _hallazgo_abierto(x, resumen)
+            if abierto:
+                abierto["razonamiento"] = s["evidencia"]
+            else:
+                x["hallazgos"].append({"id": P.nuevo_id("hal"), "tipo": "valor_contradice_fuente", "resumen": resumen, "razonamiento": s["evidencia"], "estado": "abierto", "respuestaDeRosa": None})
+        # Un supuesto que dejó de estar contradicho cierra su hallazgo.
+        vivos = {f"Supuesto contradicho: {s['texto'][:100]}" for s in contradichos}
+        for z in x["hallazgos"]:
+            if isinstance(z, dict) and z.get("estado") == "abierto" and str(z.get("resumen", "")).startswith("Supuesto contradicho: ") and z["resumen"] not in vivos:
+                z["estado"] = "atendido"
+                z["respuestaDeRosa"] = "El supuesto ya no aparece contradicho al reevaluarlo con la evidencia acumulada."
         return True
 
     ctx.mutar(aplicar, "revision_hipotesis")
@@ -1881,15 +2598,76 @@ async def _revisar_hipotesis(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: st
         await _killer(ctx, actual, texto_afirmaciones, pista)
 
 
+def par_sin_evidencia_nueva(a: dict[str, Any], b: dict[str, Any], huellas: dict[str, str]) -> bool:
+    """S-13: un par ya se jugó con exactamente esta evidencia si el último
+    partido entre las dos guarda la misma huella de evidencia de cada una que
+    la actual (`_huellaPropia`, `_huellaRival`, privadas: no viajan al
+    navegador). Los partidos antiguos sin huella no cuentan como repetidos: se
+    juegan una vez más y quedan con huella. Unas tablas (el juez cambió de
+    opinión al invertir A y B) no son un resultado: tras unas tablas el par se
+    rejuega una vez con la misma evidencia; tras dos tablas seguidas con la
+    misma evidencia, ya no (el Elo no se mueve y el juez no aporta)."""
+    contra_b = [p for p in (a.get("partidos") or []) if isinstance(p, dict) and p.get("rivalId") == b.get("id")]
+    if not contra_b:
+        return False
+
+    def misma_evidencia(p: dict[str, Any]) -> bool:
+        return bool(p.get("_huellaPropia")) and bool(p.get("_huellaRival")) and p["_huellaPropia"] == huellas.get(a["id"]) and p["_huellaRival"] == huellas.get(b["id"])
+
+    ultimo = contra_b[-1]
+    if not misma_evidencia(ultimo):
+        return False
+    if ultimo.get("resultado") != "tablas":
+        return True
+    penultimo = contra_b[-2] if len(contra_b) >= 2 else None
+    return penultimo is not None and penultimo.get("resultado") == "tablas" and misma_evidencia(penultimo)
+
+
+def pares_del_torneo(propias: list[dict[str, Any]], forzados: list[tuple[str, str]], semilla: int | None, maximo: int = 6) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], int, dict[str, str]]:
+    """Los pares de esta ronda: los que propone `torneo.emparejar` menos los que
+    repetirían un partido sin evidencia nueva en ninguna de las dos (S-13), salvo
+    los forzados por redundancia, que se juegan siempre. Devuelve (pares, cuántos
+    se saltaron, huellas por id). El Elo de lo que no se juega no cambia."""
+    huellas = {h["id"]: _huella(h) for h in propias if isinstance(h, dict) and h.get("id")}
+    forzados_set = {frozenset(par) for par in (forzados or [])}
+    candidatos = torneo.emparejar(propias, maximo=max(maximo * 2, maximo), semilla=semilla, forzados=forzados)
+    pares: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    saltados = 0
+    for a, b in candidatos:
+        if frozenset((a["id"], b["id"])) not in forzados_set and par_sin_evidencia_nueva(a, b, huellas):
+            saltados += 1
+            continue
+        pares.append((a, b))
+    pares = pares[:maximo]
+    # Los huecos que dejan las revanchas saltadas se rellenan con pares que nunca
+    # se han enfrentado y tienen Elo cercano (los más cercanos primero): el
+    # torneo agota la información nueva antes de quedarse sin partidos.
+    usados = {i for par in pares for i in (par[0]["id"], par[1]["id"])}
+    libres = sorted((h for h in propias if isinstance(h, dict) and h.get("estado") in ("propuesta", "en_revision", "refinar", "aceptada") and h.get("id") not in usados), key=lambda h: -h.get("elo", 0))
+    import itertools
+
+    nunca = sorted(((a, b) for a, b in itertools.combinations(libres, 2) if b["id"] not in (a.get("rivales") or []) and a["id"] not in (b.get("rivales") or []) and abs(a.get("elo", 0) - b.get("elo", 0)) <= 150), key=lambda par: abs(par[0].get("elo", 0) - par[1].get("elo", 0)))
+    for a, b in nunca:
+        if len(pares) >= maximo:
+            break
+        if a["id"] in usados or b["id"] in usados:
+            continue
+        pares.append((a, b))
+        usados.update({a["id"], b["id"]})
+    return pares, saltados, huellas
+
+
 async def _torneo(ctx: Ctx, pista: Pista) -> int:
     inv = ctx.inv()
     propias = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id]
     # Pares forzados: las que el Killer marcó como redundantes juegan un partido
     # dirimente (fusión de ramas por torneo, rosa/torneo.py).
     forzados = [(h["id"], r) for h in propias if h["estado"] != "descartada" for r in (h.get("redundanteCon") or []) if not any(p.get("rivalId") == r and p.get("relacion") for p in h.get("partidos", []))]
-    pares = torneo.emparejar(propias, maximo=6, semilla=ctx.numero, forzados=forzados)
+    pares, saltados, huellas = pares_del_torneo(propias, forzados, ctx.numero)
+    if saltados:
+        pista.nota(f"{saltados} pares no se rejuegan: la evidencia de las dos hipótesis es la misma que en su último partido (el Elo no se mueve sin evidencia nueva)")
     if not pares:
-        pista.nota("Menos de dos hipótesis vivas: no hay torneo")
+        pista.nota("Sin torneo en esta iteración: todos los pares posibles ya se jugaron con esta misma evidencia" if saltados else "Menos de dos hipótesis vivas: no hay torneo")
         return 0
     texto_af, _ = T.afirmaciones_sostenidas(ctx.afirmaciones())
     evidencia = (texto_af[:6000] + "\n\nModelo de mundo:\n" + await T.modelo_de_mundo_para(ctx.almacen, ctx.investigacion_id, _consulta_del_paso(ctx, inv), maximo=30))
@@ -1897,12 +2675,12 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
     cambios: list[str] = []
     for a, b in pares:
         try:
-            p1 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=T.hipotesis_para_torneo(a), hipotesis_b=T.hipotesis_para_torneo(b), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(a)}\nSobre B: {T.revisiones_humanas(b)}")
-            p2 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=T.hipotesis_para_torneo(b), hipotesis_b=T.hipotesis_para_torneo(a), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(b)}\nSobre B: {T.revisiones_humanas(a)}")
+            p1 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=hipotesis_para_torneo(a), hipotesis_b=hipotesis_para_torneo(b), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(a)}\nSobre B: {T.revisiones_humanas(b)}")
+            p2 = await ctx.llamar("juez", ctx.programas.comparar, objetivo=inv["objetivo"], hipotesis_a=hipotesis_para_torneo(b), hipotesis_b=hipotesis_para_torneo(a), evidencia=evidencia, revisiones_humanas=f"Sobre A: {T.revisiones_humanas(b)}\nSobre B: {T.revisiones_humanas(a)}")
         except PresupuestoAgotado:
             raise
         except Exception as ex:  # noqa: BLE001
-            pista.error(f"Partido {a['titulo'][:40]} vs {b['titulo'][:40]}: el juez fallo ({str(ex)[:80]})")
+            pista.error(f"Partido {a['titulo'][:40]} vs {b['titulo'][:40]}: el juez falló ({str(ex)[:80]})")
             continue
         gano_a_1 = p1.comparacion.mejor == "A"
         gano_a_2 = p2.comparacion.mejor == "B"  # en la segunda llamada A y B van invertidas
@@ -1915,6 +2693,11 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
             x = next(y for y in e["hipotesis"] if y["id"] == a["id"])
             y_ = next(y for y in e["hipotesis"] if y["id"] == b["id"])
             torneo.registrar_partido(x, y_, gano_a, ctx.numero, p1.comparacion.resumen, p1.comparacion.eje, relacion)
+            # Con qué evidencia se jugó (S-13): claves privadas, no viajan al navegador.
+            if x.get("partidos"):
+                x["partidos"][-1]["_huellaPropia"], x["partidos"][-1]["_huellaRival"] = huellas.get(a["id"], ""), huellas.get(b["id"], "")
+            if y_.get("partidos"):
+                y_["partidos"][-1]["_huellaPropia"], y_["partidos"][-1]["_huellaRival"] = huellas.get(b["id"], ""), huellas.get(a["id"], "")
             for r in x["revisionesAutomaticas"] + y_["revisionesAutomaticas"]:
                 if r["tipo"] == "torneo":
                     r["fecha"] = P.ahora_ms()
@@ -2056,13 +2839,15 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
     # Revision de las nuevas y de las humanas sin revisar.
     a_revisar = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and (h["id"] in nuevas_ids or (h["origen"] == "humana" and h["ultimaRevisionAutomatica"] is None) or h.get("_revisionPedida"))]
     for h in a_revisar:
-        version_antes = h.get("version", 1)
         await _revisar_hipotesis(ctx, h, texto_af[:8000], pista)
 
-        def quitar_peticion(e2: dict[str, Any], h=h, v=version_antes) -> bool:
+        def quitar_peticion(e2: dict[str, Any], h=h) -> bool:
+            # La marca la quita el propio Killer al juzgar la versión actual (M-19) y
+            # la deja puesta si el juez no respondió (S-09). Aquí solo se retira si la
+            # hipótesis ya salió del bucle (decidida por una persona) y no hay nada
+            # que juzgar.
             x = next((y for y in e2["hipotesis"] if y["id"] == h["id"]), None)
-            # Si la hipotesis cambio de version mientras se revisaba, la peticion sigue viva.
-            if x and x.get("version", 1) == v:
+            if x and x.get("estado") in ("descartada", "aceptada"):
                 x.pop("_revisionPedida", None)
             return True
 
@@ -2334,17 +3119,45 @@ async def contexto_de_bases(ctx: Ctx, h: dict[str, Any], pista: Pista | None) ->
     ctx.mutar(aplicar, "contexto_bases")
 
 
+class _SinConsulta(Exception):
+    """Señal interna de `paso_novedad`: una base no se consultó porque no había
+    con qué (la novedad ya quedó escrita como "no comprobado" con su motivo)."""
+
+
+def novedad_pendiente(h: dict[str, Any]) -> bool:
+    """Si la hipótesis necesita (otra) comprobación de novedad: el precedente
+    quedó "no comprobado" (por estado o por detalle), o quedó "sin precedente"
+    sin haber evaluado ninguna obra (los registros antiguos "entre 0 obras",
+    S-02), o la genética sigue sin comprobar. Un registro sin `novedad` o sin
+    `precedente` también cuenta como pendiente."""
+    n = h.get("novedad") if isinstance(h.get("novedad"), dict) else {}
+    prec = n.get("precedente") if isinstance(n.get("precedente"), dict) else {}
+    detalle = str(prec.get("detalle") or "")
+    if not prec or prec.get("estado") == "no_comprobado" or detalle.startswith("No comprobado"):
+        return True
+    if prec.get("estado") == "sin_precedente" and re.search(r"\bentre 0 obras\b", detalle):
+        return True
+    return (n.get("genetica") or {}).get("estado") == "no_comprobado"
+
+
 async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
-    pendientes = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h["estado"] not in ("descartada",) and (h["novedad"]["precedente"]["detalle"].startswith("No comprobado") or (h["novedad"].get("genetica") or {}).get("estado") == "no_comprobado")]
+    pendientes = [h for h in ctx.e["hipotesis"] if h["investigacionId"] == ctx.investigacion_id and h["estado"] not in ("descartada",) and novedad_pendiente(h)]
     if not pendientes:
         return "Todas las hipótesis tienen la novedad comprobada"
+    # Las menos intentadas primero: si las seis primeras de la lista se quedan en
+    # "no comprobado" (sin términos en inglés y sin Exa), sin este orden se
+    # repetirían cada iteración y las demás no llegarían nunca a comprobarse
+    # (adversario del 17 de septiembre de 2026). `_novedadIntentos` es privada.
+    pendientes.sort(key=lambda h: (int(h.get("_novedadIntentos") or 0), int(h.get("creadaEn") or 0)))
     pista = ctx.pista(paso["id"], "novedad", f"Novedad de {len(pendientes)} hipótesis", "Open Targets, ClinicalTrials.gov, OpenAlex")
     for h in pendientes[:6]:
         if pista.detenida():
             break
-        entidades = h.get("_entidades") or T.terminos_clave(h["titulo"], maximo=4)
-        novedad = {k: dict(v) for k, v in h["novedad"].items()}
-        # Open Targets: genes o proteinas.
+        entidades = h.get("_entidades") or T.terminos_clave(h.get("titulo") or "", maximo=4)
+        # Un registro antiguo puede venir sin `novedad` o con entradas que no son dict:
+        # el filtro `novedad_pendiente` lo deja pasar, así que aquí no puede romper.
+        novedad = {k: dict(v) for k, v in (h.get("novedad") or {}).items() if isinstance(v, dict)}
+        # Open Targets: genes o proteínas.
         genes = [x for x in entidades if re.fullmatch(r"[A-Z][A-Z0-9\-]{1,9}", x) and x not in NO_GEN] or simbolos_de_genes(" ".join([h["titulo"], ((h.get("tarjeta") or {}).get("diana") or ""), ((h.get("comprobacion") or {}).get("biomarcador") or "")]))
         detalles = []
         for g in genes[:3]:
@@ -2372,23 +3185,45 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                 novedad["openTargets"] = {"estado": "evidencia_previa" if con_asociacion else "sin_evidencia", "detalle": "; ".join(detalles)}
         else:
             novedad["openTargets"] = {"estado": "sin_evidencia", "detalle": "No aplica: la hipótesis no nombra una diana molecular"}
-        # ClinicalTrials.gov.
+        # ClinicalTrials.gov está en inglés: siglas, genes y tokens con cifra, nunca
+        # palabras sueltas en castellano ("Precedencia anormalidad" daba 0 ensayos).
+        termino_registro = " ".join(T.terminos_para_ingles(h, maximo=3))
         try:
-            termino = " ".join(T.terminos_clave(h["titulo"] + " " + h["comprobacion"]["biomarcador"], maximo=3))
+            if not termino_registro:
+                # No se consultó: decirlo así, no "no respondió" (la base no tuvo la culpa).
+                novedad["ensayos"] = {"estado": "no_comprobado", "detalle": "No comprobado: la hipótesis no da términos buscables en inglés (siglas, genes o tokens con cifra) para ClinicalTrials.gov; no se puede afirmar que no haya ensayo", "nct": None}
+                raise _SinConsulta()
+            termino = termino_registro
             estudios, total = await clinicaltrials.buscar("Alzheimer Disease", termino=termino, maximo=5)
             pista.accion(f"ClinicalTrials.gov: {termino}", {"base": "ClinicalTrials.gov v2", "parametros": f"query.cond=Alzheimer Disease&query.term={termino}", "resultados": f"{total}"})
             if total > 0:
                 novedad["ensayos"] = {"estado": "ensayo_existente", "detalle": f"{total} ensayos con esos términos; el más cercano: {estudios[0]['nct']} ({estudios[0]['titulo'][:80]}). Hay que leer si mide lo mismo.", "nct": estudios[0]["nct"]}
             else:
                 novedad["ensayos"] = {"estado": "sin_ensayo", "detalle": f"Ningún ensayo registrado con: {termino}", "nct": None}
+        except _SinConsulta:
+            pass
         except FuenteNoDisponible as ex:
-            novedad["ensayos"] = {"estado": "no_comprobado", "detalle": f"No comprobado: ClinicalTrials.gov no respondio ({str(ex)[:60]})", "nct": None}
-        # Precedente en literatura (OpenAlex) con cribado del modelo.
+            novedad["ensayos"] = {"estado": "no_comprobado", "detalle": f"No comprobado: ClinicalTrials.gov no respondió ({str(ex)[:60]})", "nct": None}
+        # Precedente en literatura: OpenAlex por términos en inglés (siglas, genes,
+        # tokens con cifra) y Exa por significado, con cribado del modelo. Tres
+        # salidas distintas (S-02): "no comprobado" cuando no hubo obras o el modelo
+        # no puntuó ninguna; "ya publicado" o "parcial" cuando alguna puntuó alto;
+        # "sin precedente" solo cuando se evaluaron obras y ninguna se parece.
+        terminos_ingles = T.terminos_para_ingles(h, maximo=3)
+        # Con un solo término ("P-tau181") OpenAlex devuelve los artículos más citados
+        # del tema, que no dicen nada del precedente: hacen falta al menos dos.
+        termino = " ".join(terminos_ingles) if len(terminos_ingles) >= 2 else ""
         try:
-            termino = " ".join(T.terminos_clave(h["titulo"], maximo=4))
-            obras, total, coste = await openalex.buscar(termino, maximo=6)
-            pista.accion(f"OpenAlex: {termino}", {"base": "OpenAlex", "parametros": f"filter=title_and_abstract.search:{termino}", "resultados": f"{total} obras, {coste} USD"})
-            candidatas = list(obras[:5])
+            candidatas: list[dict[str, Any]] = []
+            total = 0
+            bases: list[str] = []
+            if termino:
+                obras, total, coste = await openalex.buscar(termino, maximo=6)
+                pista.accion(f"OpenAlex: {termino}", {"base": "OpenAlex", "parametros": f"filter=title_and_abstract.search:{termino}", "resultados": f"{total} obras, {coste} USD"})
+                candidatas = list(obras[:5])
+                bases.append("OpenAlex")
+            else:
+                pista.nota(f"{h['titulo'][:60]}: la hipótesis no da al menos dos términos buscables en inglés (siglas, genes o tokens con cifra; tiene {len(terminos_ingles)}); no se consulta OpenAlex")
             if exa.disponible():
                 # Por significado, con el enunciado entero: la pregunta de novedad
                 # difícil es "¿alguien ya propuso esto con otras palabras?".
@@ -2401,28 +3236,39 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                     vistos = {o.get("doi") for o in candidatas if o.get("doi")}
                     candidatas.extend(o for o in obras_exa[:5] if not (o.get("doi") and o["doi"] in vistos))
                     total += n_exa
+                    bases.append("Exa")
                 except FuenteNoDisponible as ex:
                     pista.nota(f"Exa no respondió: {str(ex)[:80]}; la novedad se comprueba solo con OpenAlex")
-            candidatas, _fuera = await cortar_con_reranker(f"Alguien ya propuso o demostró esto: {h['enunciado']}", [o for o in candidatas if o.get("titulo")], pista, maximo=5)
-            mejor = 0
-            mejor_ref = ""
-            for o in candidatas:
-                if not o["titulo"]:
-                    continue
-                try:
-                    p = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=f"Alguien ya propuso o demostro esto: {h['enunciado']}", titulo=o["titulo"], resumen=o["resumen"][:2500])
-                    if int(p.puntuacion) > mejor:
-                        mejor, mejor_ref = int(p.puntuacion), f"{o['referencia']} ({o['doi'] or 'sin DOI'})"
-                except PresupuestoAgotado:
-                    raise
-                except Exception:  # noqa: BLE001
-                    continue
-            if mejor >= 8:
-                novedad["precedente"] = {"estado": "ya_publicado", "detalle": f"Ya publicado o muy cercano: {mejor_ref} (puntuación {mejor}/10)"}
-            elif mejor >= 5:
-                novedad["precedente"] = {"estado": "parcial", "detalle": f"Precedente parcial: {mejor_ref} (puntuación {mejor}/10)"}
+            con_titulo = [o for o in candidatas if o.get("titulo")]
+            consulta_texto = termino or h["enunciado"][:80]
+            if not bases:
+                novedad["precedente"] = {"estado": "no_comprobado", "detalle": "No comprobado: la hipótesis no da términos buscables en inglés y Exa no está disponible; no se puede afirmar novedad"}
+            elif not con_titulo:
+                novedad["precedente"] = {"estado": "no_comprobado", "detalle": f"No comprobado: la consulta «{consulta_texto}» no devolvió obras evaluables en {' ni '.join(bases)} ({total} obras); no se puede afirmar novedad"}
             else:
-                novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"Sin precedente claro entre {total} obras que casan con: {termino}"}
+                candidatas, _fuera = await cortar_con_reranker(f"Alguien ya propuso o demostró esto: {h['enunciado']}", con_titulo, pista, maximo=5)
+                mejor = 0
+                mejor_ref = ""
+                evaluadas, fallos = 0, 0
+                for o in candidatas:
+                    try:
+                        p = await ctx.llamar("volumen", ctx.programas.relevancia, preguntas_abiertas=f"Alguien ya propuso o demostró esto: {h['enunciado']}", titulo=o["titulo"], resumen=(o.get("resumen") or "")[:2500])
+                        evaluadas += 1
+                        if int(p.puntuacion) > mejor:
+                            mejor, mejor_ref = int(p.puntuacion), f"{o.get('referencia') or o['titulo'][:60]} ({o.get('doi') or 'sin DOI'})"
+                    except PresupuestoAgotado:
+                        raise
+                    except Exception as ex:  # noqa: BLE001
+                        fallos += 1
+                        pista.nota(f"Relevancia falló para «{str(o.get('referencia') or o.get('titulo') or '?')[:60]}»: {type(ex).__name__}: {str(ex)[:80]}")
+                if evaluadas == 0:
+                    novedad["precedente"] = {"estado": "no_comprobado", "detalle": f"No comprobado: el modelo de relevancia no respondió en {fallos} de {len(candidatas)} obras candidatas; no se puede afirmar novedad"}
+                elif mejor >= 8:
+                    novedad["precedente"] = {"estado": "ya_publicado", "detalle": f"Ya publicado o muy cercano: {mejor_ref} (puntuación {mejor}/10)"}
+                elif mejor >= 5:
+                    novedad["precedente"] = {"estado": "parcial", "detalle": f"Precedente parcial: {mejor_ref} (puntuación {mejor}/10)"}
+                else:
+                    novedad["precedente"] = {"estado": "sin_precedente", "detalle": f"Sin precedente claro: {evaluadas} obras evaluadas de {total} que casan con «{consulta_texto}» en {' y '.join(bases)}" + (f"; {fallos} sin puntuar por fallo del modelo" if fallos else "")}
         except FuenteNoDisponible as ex:
             novedad["precedente"] = {"estado": "no_comprobado", "detalle": f"No comprobado: OpenAlex no respondió ({str(ex)[:60]})"}
 
@@ -2430,25 +3276,40 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
         await _novedad_exa_dominios(ctx, h, pista, novedad, "patentes", exa.DOMINIOS_PATENTES, "Alguien ya patentó o reivindicó esto", ("patente_relacionada", "parcial", "sin_patente"), "patentes")
         await _novedad_exa_dominios(ctx, h, pista, novedad, "financiacion", exa.DOMINIOS_FINANCIACION, "Alguien ya financió un proyecto para comprobar esto", ("proyecto_financiado", "parcial", "sin_proyecto"), "convocatorias y proyectos financiados")
 
-        # Conectores: genetica humana, farmacos y datos publicos para la misma diana.
+        # Conectores: genética humana, fármacos y datos públicos para la misma diana.
         consultas = await _novedad_por_conectores(ctx, h, genes[:1], novedad, pista)
 
         def aplicar(e: dict[str, Any], h=h, novedad=novedad, consultas=consultas) -> bool:
             x = next((y for y in e["hipotesis"] if y["id"] == h["id"]), None)
             if not x:
                 return False
+            estados_antes = _estados_de_novedad(x.get("novedad"))
+            primera_vez = int(x.get("_novedadIntentos") or 0) == 0
             x["novedad"] = novedad
+            x["_novedadIntentos"] = int(x.get("_novedadIntentos") or 0) + 1
             x.setdefault("consultas", []).extend(consultas)
-            if x.get("decisionKiller") == "suspender":
-                # El Killer la suspendio antes de tener la novedad: hay que volver a juzgarla.
+            if x.get("decisionKiller") == "suspender" and (primera_vez or estados_antes != _estados_de_novedad(novedad)):
+                # El Killer la suspendió antes de tener la novedad: hay que volver a
+                # juzgarla. Solo si algún estado de la novedad cambió (o es la primera
+                # comprobación): si sigue igual de "no comprobado" que antes, otro juicio
+                # daría lo mismo y, tras una suspensión técnica del juez (sinJuez),
+                # encadenaba tres fallos más por iteración.
                 x["_revisionPedida"] = True
-            x["procedencia"]["registro"].append(f"iteración {ctx.numero}: novedad -> Open Targets {novedad['openTargets']['estado']}, ensayos {novedad['ensayos']['estado']}, precedente {novedad['precedente']['estado']}, genética {novedad.get('genetica', {}).get('estado')}, fármacos {novedad.get('farmacos', {}).get('estado')}, datos públicos {novedad.get('datosPublicos', {}).get('estado')}")
+            x.setdefault("procedencia", {}).setdefault("registro", []).append(f"iteración {ctx.numero}: novedad -> Open Targets {novedad['openTargets']['estado']}, ensayos {novedad['ensayos']['estado']}, precedente {novedad['precedente']['estado']}, genética {novedad.get('genetica', {}).get('estado')}, fármacos {novedad.get('farmacos', {}).get('estado')}, datos públicos {novedad.get('datosPublicos', {}).get('estado')}")
             return True
 
         ctx.mutar(aplicar, "novedad")
         pista.resultado(f"{h['titulo'][:60]}: precedente {novedad['precedente']['estado']}, ensayos {novedad['ensayos']['estado']}, Open Targets {novedad['openTargets']['estado']}")
     pista.cerrar(f"Novedad comprobada en {min(len(pendientes), 6)} hipótesis")
     return f"Novedad comprobada en {min(len(pendientes), 6)} hipótesis"
+
+
+def _estados_de_novedad(novedad: Any) -> dict[str, Any]:
+    """Los estados de cada comprobación de novedad (precedente, ensayos,
+    patentes...), para saber si una comprobación nueva cambió algo."""
+    if not isinstance(novedad, dict):
+        return {}
+    return {k: v.get("estado") for k, v in novedad.items() if isinstance(v, dict)}
 
 
 # ---------------------------------------------------------------------------

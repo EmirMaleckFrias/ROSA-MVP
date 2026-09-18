@@ -123,7 +123,23 @@ function recibirRemoto(remoto: EstadoRosa, version: number | null = null): void 
   if (retirado) return;
   if (version !== null && version < vivo.version) return;
   const visita = leerVisita();
-  vivo.estado = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
+  let siguiente: EstadoRosa = { ...remoto, conexion: 'en_linea', ultimaVisita: visita ?? remoto.ultimaVisita };
+  // Las decisiones diferidas (aceptar, descartar, refinar) todavía no han
+  // llegado al servidor: se vuelven a aplicar sobre su estado para que un
+  // empuje SSE no las deshaga en pantalla mientras el aviso de "Deshacer"
+  // sigue vivo, y también mientras el POST ya salió pero el servidor no ha
+  // respondido (`enVuelo`): en ese hueco el bucle sigue empujando estados sin
+  // la decisión. El reducer es puro y lleva su guarda de versión e
+  // idempotencia: si la hipótesis cambió, o el servidor ya trae la decisión,
+  // no toca nada.
+  for (const reaplicar of [...pendientes.map((p) => p.reaplicar), ...enVuelo]) {
+    try {
+      siguiente = reaplicar(siguiente);
+    } catch {
+      // Un registro remoto raro no puede tumbar la recepción del estado.
+    }
+  }
+  vivo.estado = siguiente;
   if (version !== null) vivo.version = version;
   notificar();
 }
@@ -144,14 +160,24 @@ function versionDe(texto: string | null | undefined): number | null {
 
 export interface AccionPendiente {
   id: string;
+  /** Sobre qué actúa (por ejemplo "revisarHipotesis:hip-1"): dos pendientes con
+   *  la misma clave son la misma decisión repetida y solo cuenta la primera. */
+  clave: string;
   etiqueta: string;
   hasta: number;
   ms: number;
+  /** El reducer puro de la decisión, para reaplicarla sobre cada estado que
+   *  llegue del servidor mientras esté pendiente. */
+  reaplicar: (e: EstadoRosa) => EstadoRosa;
   enviar: () => void;
   deshacer: () => void;
 }
 
 let pendientes: AccionPendiente[] = [];
+/** Reducers de decisiones cuyo POST ya salió y todavía no tiene respuesta:
+ *  se siguen reaplicando sobre cada estado que llegue hasta que el servidor
+ *  conteste, así la tarjeta no parpadea a "propuesta" en ese hueco. */
+let enVuelo: ((e: EstadoRosa) => EstadoRosa)[] = [];
 const oyentesPendientes = new Set<() => void>();
 
 function avisarPendientes(): void {
@@ -171,44 +197,97 @@ export function useAccionesPendientes(): AccionPendiente[] {
 
 export const MS_DESHACER = 6000;
 
-function programar(etiqueta: string, aplicarLocal: () => void, enviarServidor: () => void, ms = MS_DESHACER): void {
+let descargaVigilada = false;
+
+/** Al cerrar o abandonar la pestaña (pagehide) o al pasar a segundo plano
+ *  (visibilitychange a hidden, lo que en el móvil precede a que el navegador
+ *  mate la página), las decisiones pendientes salen ya, con `keepalive` para
+ *  que el navegador complete el POST aunque la página desaparezca. Sin esto
+ *  una decisión tomada en los últimos 6 s antes de cerrar no quedaba en
+ *  ningún sitio. Se registra una sola vez. */
+function vigilarDescarga(): void {
+  if (descargaVigilada || typeof window === 'undefined') return;
+  descargaVigilada = true;
+  window.addEventListener('pagehide', vaciarPendientes);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') vaciarPendientes();
+  });
+}
+
+/** Envía ahora todas las decisiones pendientes (con keepalive) y vacía la cola. */
+export function vaciarPendientes(): void {
+  for (const p of [...pendientes]) p.enviar();
+}
+
+/** Aplica una decisión diferida: en pantalla al instante (por el reducer puro)
+ *  y al servidor cuando pase el margen de deshacer. Si el reducer no cambia
+ *  nada (la decisión ya está aplicada, o la hipótesis cambió de versión), no se
+ *  programa ningún envío: así un doble clic no registra la decisión dos veces.
+ *  `clave` identifica sobre qué actúa: si hay otra decisión pendiente con la
+ *  misma clave (aceptar y, dentro del margen, reabrir o descartar), esa sale
+ *  ya al servidor y la nueva se programa encima, en ese orden; antes la nueva
+ *  se tiraba en silencio y "Reabrir" no hacía nada durante 6 s. */
+function programar(clave: string, etiqueta: string, reductor: (e: EstadoRosa) => EstadoRosa, enviarServidor: (keepalive: boolean) => Promise<unknown> | void, ms = MS_DESHACER): boolean {
   const antes = vivo.estado;
-  aplicarLocal();
-  const despues = vivo.estado;
+  const despues = reductor(antes);
+  if (despues === antes) return false;
+  for (const p of pendientes.filter((x) => x.clave === clave)) p.enviar();
+  vivo.estado = despues;
+  notificar();
+  vigilarDescarga();
   const id = `pend-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+  let enviada = false;
+  let timer = 0;
   const quitar = () => {
     pendientes = pendientes.filter((p) => p.id !== id);
     avisarPendientes();
   };
-  const timer = window.setTimeout(() => {
-    enviarServidor();
+  const mandar = (keepalive: boolean) => {
+    if (enviada) return;
+    enviada = true;
+    window.clearTimeout(timer);
     quitar();
-  }, ms);
+    // Hasta que el servidor conteste, la decisión sigue reaplicándose sobre
+    // los estados que lleguen; cuando conteste, el estado del servidor manda.
+    enVuelo = [...enVuelo, reductor];
+    const soltar = () => {
+      enVuelo = enVuelo.filter((r) => r !== reductor);
+    };
+    try {
+      const respuesta = enviarServidor(keepalive);
+      if (respuesta && typeof (respuesta as Promise<unknown>).then === 'function') void (respuesta as Promise<unknown>).then(soltar, soltar);
+      else soltar();
+    } catch {
+      soltar();
+    }
+  };
+  timer = window.setTimeout(() => mandar(false), ms);
   pendientes = [
     ...pendientes,
     {
       id,
+      clave,
       etiqueta,
       hasta: Date.now() + ms,
       ms,
-      enviar: () => {
-        window.clearTimeout(timer);
-        enviarServidor();
-        quitar();
-      },
+      reaplicar: reductor,
+      enviar: () => mandar(true),
       deshacer: () => {
+        if (enviada) return;
+        enviada = true;
         window.clearTimeout(timer);
+        quitar();
         if (vivo.estado === despues) {
           vivo.estado = antes;
           notificar();
         } else {
           void resincronizar();
         }
-        quitar();
       },
     },
   ];
   avisarPendientes();
+  return true;
 }
 
 /* ---------------------------------------------------------------------
@@ -352,13 +431,13 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
       if (!r.ok) {
         // 4xx: el servidor rechazo la accion (argumentos, permiso). No es un corte de
         // conexion: se deshace el cambio optimista volviendo a pedir el estado.
-        fijarAviso(`El servidor no acepto la accion "${nombre}" (${r.status}). Se recargo el estado del servidor; lo que veias como aplicado no lo estaba.`);
+        fijarAviso(`El servidor no aceptó la acción "${nombre}" (${r.status}). Se recargó el estado del servidor; lo que veías como aplicado no lo estaba.`);
         void resincronizar();
         return;
       }
       const d = (await r.json().catch(() => null)) as { ok?: boolean } | null;
       if (d && d.ok === false) {
-        fijarAviso(`El servidor no aplico la accion "${nombre}": la regla no se cumplia (otro cambio llego antes). Se recargo el estado.`);
+        fijarAviso(`El servidor no aplicó la acción "${nombre}": la regla no se cumplía (otro cambio llegó antes). Se recargó el estado.`);
         void resincronizar();
       }
     })
@@ -367,12 +446,13 @@ function enviar(nombre: string, args: Record<string, unknown>): void {
     });
 }
 
-/** Como `enviar`, pero devuelve si el servidor aplico la accion (ok), la
- *  rechazo (false) o no se pudo saber (null). */
-async function enviarYComprobar(nombre: string, args: Record<string, unknown>): Promise<boolean | null> {
+/** Como `enviar`, pero devuelve si el servidor aplicó la acción (ok), la
+ *  rechazó (false) o no se pudo saber (null). `keepalive` deja que el
+ *  navegador complete el POST aunque la página se esté cerrando. */
+async function enviarYComprobar(nombre: string, args: Record<string, unknown>, keepalive = false): Promise<boolean | null> {
   if (modo !== 'servidor') return null;
   try {
-    const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args) });
+    const r = await fetch(`${API}/acciones/${nombre}`, { method: 'POST', headers: cabeceras(), body: JSON.stringify(args), ...(keepalive ? { keepalive: true } : {}) });
     if (r.status >= 500) return null;
     if (!r.ok) return false;
     const cuerpo = (await r.json()) as { ok: boolean };
@@ -498,20 +578,37 @@ export const acciones = {
   /** Decidir sobre una hipotesis. Va con la version que la persona veia y los
    *  segundos que tardo en decidir; si el servidor la rechaza (la hipotesis
    *  cambio entre medias), se resincroniza el estado y se avisa. */
-  revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null) => {
+  revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null): boolean => {
     const titulo = vivo.estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipótesis';
     const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decisión registrada';
-    programar(
-      `${verbo}: ${titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo}`,
-      () => aplicar((e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, Date.now(), aCiegas, revisionHumana, versionEsperada)),
-      () => {
-        void enviarYComprobar('revisarHipotesis', { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision }).then((ok) => {
-          if (ok === false) {
-            fijarAviso('La hipótesis cambio mientras la revisabas (Rosa la reformuló). Se recargó la versión nueva; vuelve a mirarla antes de decidir.');
+    const ahora = Date.now();
+    const corto = titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo;
+    const args = { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision };
+    // Si el servidor no responde (red caída, 5xx), la decisión no se pierde en
+    // silencio: se avisa y se reintenta tres veces con espera creciente.
+    const mandar = (keepalive: boolean, intento = 0): Promise<void> =>
+      enviarYComprobar('revisarHipotesis', args, keepalive).then((ok) => {
+        if (ok === false) {
+          fijarAviso('La hipótesis cambió mientras la revisabas (Rosa la reformuló) o la decisión ya estaba registrada. Se recargó la versión del servidor; vuelve a mirarla antes de decidir.');
+          void resincronizar();
+          return;
+        }
+        if (ok === null && modo === 'servidor') {
+          if (intento < 3) {
+            const espera = 5000 * (intento + 1);
+            fijarAviso(`No pude registrar tu decisión sobre «${corto}»: el servidor no respondió. Se reintenta en ${espera / 1000} s.`);
+            window.setTimeout(() => void mandar(false, intento + 1), espera);
+          } else {
+            fijarAviso(`Tu decisión sobre «${corto}» no quedó registrada: el servidor no respondió en cuatro intentos. Cuando vuelva la conexión, vuelve a decidir.`);
             void resincronizar();
           }
-        });
-      },
+        }
+      });
+    return programar(
+      `revisarHipotesis:${id}`,
+      `${verbo}: ${corto}`,
+      (e) => A.revisarHipotesis(e, id, accion, nota, QUIEN, ahora, aCiegas, revisionHumana, versionEsperada),
+      (keepalive) => mandar(keepalive),
     );
   },
   votarRelevancia: (id: string, voto: 'alta' | 'media' | 'baja') => {
@@ -540,28 +637,49 @@ export const acciones = {
     aplicar((e) => A.asignarExperimento(e, id, laboratorio));
     enviar('asignarExperimento', { hipotesis_id: id, laboratorio });
   },
-  registrarDatosExperimento: (id: string, fichero: string, analisis: string) => {
-    aplicar((e) => A.registrarDatosExperimento(e, id, fichero, analisis));
-    enviar('registrarDatosExperimento', { hipotesis_id: id, fichero, analisis });
+  registrarDatosExperimento: (id: string, fichero: string, analisis: string, sintetico = false) => {
+    aplicar((e) => A.registrarDatosExperimento(e, id, fichero, analisis, sintetico));
+    // `sintetico` solo viaja cuando es sí: el servidor lo admite desde el 17 de septiembre de 2026 (misma forma que la subida de datasets).
+    enviar('registrarDatosExperimento', sintetico ? { hipotesis_id: id, fichero, analisis, sintetico: 'si' } : { hipotesis_id: id, fichero, analisis });
   },
   /** Sube el fichero de datos del laboratorio. Con servidor, va por multipart
-   *  y Rosa lo evalua contra el prerregistro; en modo muestra solo se registra
-   *  el nombre. Devuelve un mensaje de error o null. */
-  subirDatosExperimento: async (id: string, fichero: File, analisis: string): Promise<string | null> => {
+   *  y Rosa lo evalúa contra el prerregistro; en modo muestra solo se registra
+   *  el nombre. `sintetico` es la casilla "estos datos son sintéticos o de
+   *  prueba": viaja como el campo `sintetico` ("si" o "no", igual que en la
+   *  subida de datasets) y un dato sintético nunca cuenta como evidencia.
+   *  Devuelve un mensaje de error o null. */
+  subirDatosExperimento: async (id: string, fichero: File, analisis: string, sintetico = false): Promise<string | null> => {
     if (modo !== 'servidor') {
-      aplicar((e) => A.registrarDatosExperimento(e, id, fichero.name, analisis));
+      aplicar((e) => A.registrarDatosExperimento(e, id, fichero.name, analisis, sintetico));
       return null;
     }
     const cuerpo = new FormData();
     cuerpo.append('fichero', fichero, fichero.name);
     cuerpo.append('analisis', analisis);
+    cuerpo.append('sintetico', sintetico || A.FICHERO_SINTETICO.test(fichero.name) ? 'si' : 'no');
+    let r: Response;
     try {
-      const r = await fetch(`${API}/hipotesis/${encodeURIComponent(id)}/datos`, { method: 'POST', headers: cabeceras(false), body: cuerpo });
-      if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
-      return null;
+      r = await fetch(`${API}/hipotesis/${encodeURIComponent(id)}/datos`, { method: 'POST', headers: cabeceras(false), body: cuerpo });
     } catch {
       return 'No se pudo subir el fichero: sin conexión con el servidor.';
     }
+    if (!r.ok) return `El servidor rechazó el fichero (${r.status}).`;
+    if (!sintetico) return null;
+    // Red de seguridad (S-18): mientras el endpoint multipart del servidor no
+    // declare el campo `sintetico`, lo ignora y el fichero quedaría como dato
+    // real, que sube el techo GRADE. Se relee el estado del servidor y, si la
+    // bandera no quedó puesta, se manda la acción con `sintetico: "si"` sobre
+    // el nombre con el que el servidor guardó el fichero. La certeza solo
+    // baja: un dato declarado de prueba nunca cuenta como evidencia.
+    const d = (await r.json().catch(() => null)) as { fichero?: unknown } | null;
+    await resincronizar();
+    const x = vivo.estado.hipotesis.find((h) => h.id === id)?.experimento;
+    const nombre = (x && typeof x.ficheroDatos === 'string' && x.ficheroDatos) || (d && typeof d.fichero === 'string' && d.fichero) || fichero.name;
+    if (x && x.datosSinteticos !== true) {
+      aplicar((e) => A.registrarDatosExperimento(e, id, nombre, analisis, true));
+      void enviarYComprobar('registrarDatosExperimento', { hipotesis_id: id, fichero: nombre, analisis, sintetico: 'si' });
+    }
+    return null;
   },
   anadirComentario: (hipotesisId: string, ancla: AnclaComentario, nota: string) => {
     aplicar((e) => A.anadirComentario(e, hipotesisId, ancla, nota, Date.now()));
@@ -602,7 +720,7 @@ export const acciones = {
       const invId = id;
       void enviarYComprobar('crearInvestigacion', { datos: conQuien, id_: invId }).then((ok) => {
         if (ok === false) {
-          fijarAviso('El servidor no creo la investigación. Se recargó el estado.');
+          fijarAviso('El servidor no creó la investigación. Se recargó el estado.');
           void resincronizar();
           return;
         }
@@ -621,7 +739,7 @@ export const acciones = {
     if (id !== null) {
       enviar('bifurcarInvestigacion', { investigacion_id: investigacionId, motivo, id_: id });
       const rama = vivo.estado.investigaciones.find((i) => i.id === id);
-      avisar(`Rama creada: "${rama?.titulo ?? 'rama'}". Estas dentro de la rama; la original sigue igual y esta en la barra lateral. Arranca su primera corrida cuando quieras.`);
+      avisar(`Rama creada: "${rama?.titulo ?? 'rama'}". Estás dentro de la rama; la original sigue igual y está en la barra lateral. Arranca su primera corrida cuando quieras.`);
     }
     return id;
   },
@@ -810,7 +928,7 @@ export const acciones = {
       const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/preguntar`, { method: 'POST', headers: cabeceras(), body: JSON.stringify({ pregunta, quien: QUIEN }) });
       if (!r.ok) return `El servidor no pudo responder (${r.status}).`;
       const d = (await r.json()) as { ok: boolean; resultado?: { error?: string | null } };
-      return d.ok ? null : d.resultado?.error ?? 'La pregunta fallo.';
+      return d.ok ? null : d.resultado?.error ?? 'La pregunta falló.';
     } catch {
       return 'Sin conexión con el servidor.';
     }
@@ -915,7 +1033,7 @@ export const acciones = {
     cuerpo.append('sintetico', sintetico ? 'si' : 'no');
     try {
       const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/datasets`, { method: 'POST', headers: cabeceras(false), body: cuerpo });
-      if (!r.ok) return `El servidor rechazo el fichero (${r.status}).`;
+      if (!r.ok) return `El servidor rechazó el fichero (${r.status}).`;
       return null;
     } catch {
       return 'No se pudo subir el fichero: sin conexión con el servidor.';

@@ -23,13 +23,18 @@ Reglas de estructura (qué clase de evidencia hay):
 - "réplica directa": evidencia directa y dos o más cohortes distintas: puede
   llegar a alta.
 
-Reglas de peso (cuánto pesa lo que hay; 16 de septiembre de 2026):
+Reglas de peso (cuánto pesa lo que hay; 16 y 17 de septiembre de 2026):
 
 Cada afirmación pesa según su relación con la hipótesis (`PESO_RELACION`), el
 diseño del estudio del que viene (`PESO_DISENO`, solo penaliza lo conocido
 como débil), el riesgo de sesgo de esa fuente (`PESO_SESGO`) y el tamaño de
-muestra (`PESO_N`). El peso es el producto de esos factores con el signo de
-la relación, y cada factor lleva su motivo (`peso_afirmacion`). La suma de los
+muestra (`PESO_N`) y la sección de la que sale (`PESO_SECCION_FONDO`: una
+frase de la introducción o los antecedentes resume estudios ajenos, pesa 0,25
+y no da cohorte a su fuente; `deFondo` lo escribe el extractor y, si falta,
+se lee de la cita). El riesgo de sesgo se relee por dominios
+(`juicio_sesgo_util`): "sin información" no es "riesgo alto" y queda como
+sin evaluar, con peso neutro. El peso es el producto de esos factores con el
+signo de la relación, y cada factor lleva su motivo (`peso_afirmacion`). La suma de los
 apoyos es `aFavor`; la de las que contradicen, `enContra` (en positivo). Una
 afirmación que socava no pesa por sí misma: descuenta el apoyo que ataca,
 que deja de contar mientras esté socavado (`balance_pesos`).
@@ -95,6 +100,34 @@ PESO_RELACION: dict[str | None, float] = {"apoya": 1.0, "apoya_indirecta": 0.5, 
 # Solo penaliza lo conocido como débil; el resto de diseños y el desconocido pesan 1.0.
 PESO_DISENO: dict[str, float] = {"revision_narrativa": 0.3, "otro": 0.5, "serie_de_casos": 0.5, "in_vitro": 0.6, "preclinico": 0.6, "transversal": 0.8}
 PESO_SESGO: dict[str, float] = {"alto": 0.5, "algunas_dudas": 0.8}
+# Una afirmación tomada de la introducción o los antecedentes de un artículo
+# resume trabajo ajeno: es una revisión narrativa dentro del artículo, no un
+# resultado de su cohorte. Pesa como tal y no aporta cohorte (M-10, 17 de
+# septiembre de 2026: eran el 47 % del peso a favor en 11 hipótesis).
+PESO_SECCION_FONDO = 0.25
+# La sección puede venir numerada ("sección 1. Introduction", "sección 2 BACKGROUND").
+_SECCION_FONDO = re.compile(r"secci[oó]n\s+(?:\d+(?:\.\d+)*\.?\s+)?(?:Introduction|Background|Introducci[oó]n|Antecedentes)\b", re.I)
+# Fichero de laboratorio de prueba aunque falte la bandera (S-18). Es la única
+# copia de la regla: rosa/estado/acciones.py (`es_fichero_sintetico`) la importa
+# de aquí. Delatan un fichero de prueba: "sintético"/"synthetic" en cualquier
+# posición; "dummy", "fake" o "mock" como palabra (el guion bajo cuenta como
+# separador, que es lo normal en un nombre de fichero); "de prueba" o "datos
+# prueba" como locución; y "prueba" solo como nombre entero del fichero
+# ("prueba.csv", "prueba_2.csv"). NO delatan: "prueba" suelta ("prueba_cognitiva_MMSE.csv",
+# "resultados_prueba_ELISA.csv": en clínica "prueba" es un ensayo o un test real)
+# ni "humo"/"smoke" ("exposicion_humo_tabaco.csv" es un dato real). La regla
+# solo fuerza a sintético; un falso positivo tiraría evidencia real en silencio,
+# así que se prefiere no acertar un fichero de prueba mal nombrado (la casilla
+# de la ficha sigue mandando) a descartar uno real.
+NOMBRE_SINTETICO = re.compile(
+    r"sint[eé]tic|synthetic"
+    r"|(?<![a-z0-9])(?:dummy|fake|mock)(?![a-z0-9])"
+    r"|(?<![a-z0-9])(?:datos?|data)[_\- ]?(?:de[_\- ]?)?prueba(?![a-z0-9])"
+    r"|(?<![a-z0-9])de[_\- ]prueba(?![a-z0-9])"
+    r"|^\s*prueba(?:[_\- ]?\d+)?\.[a-z0-9]+\s*$",
+    re.I,
+)
+_NOMBRE_SINTETICO = NOMBRE_SINTETICO
 PESO_N: dict[str, float] = {"menos_de_20": 0.7, "de_20_a_99": 0.9, "100_o_mas": 1.0, "desconocido": 1.0}
 # Por nivel: (peso mínimo a favor, divisor máximo de la evidencia en contra respecto a la a favor).
 UMBRALES_PESO: dict[str, tuple[float, int | None]] = {"baja": (1.0, None), "moderada": (1.5, 2), "alta": (2.5, 3)}
@@ -208,6 +241,52 @@ def socavada(a: dict[str, Any]) -> bool:
     return bool(_socavadores(a))
 
 
+def es_sintetica(a: dict[str, Any]) -> bool:
+    """La afirmación es de un ensayo en seco y no cuenta como evidencia: lleva
+    `sintetico` verdadero, o es un dato directo (laboratorio o análisis) cuyo
+    fichero o cita delatan que es de prueba aunque la bandera falte o sea
+    falsa (registros anteriores al 17 de septiembre de 2026, S-18). Una
+    afirmación de literatura nunca se marca por su cita: un artículo puede
+    hablar de datos sintéticos y ser real."""
+    a = _dict(a)
+    if a.get("sintetico"):
+        return True
+    if a.get("tipo") != "dato" or _clave(a.get("clase")) not in CLASES_DIRECTAS:
+        return False
+    tray = a.get("trayectoria")
+    fichero = str(_dict(tray).get("id") or "") if isinstance(tray, dict) else str(tray or "")
+    cita = str(a.get("cita") or "")
+    return bool(_NOMBRE_SINTETICO.search(fichero)) or (cita.lstrip().startswith("[Datos") and bool(_NOMBRE_SINTETICO.search(cita)))
+
+
+def de_fondo(a: dict[str, Any]) -> bool:
+    """La afirmación sale de la introducción o los antecedentes del artículo
+    (`deFondo`, que escribe el extractor desde el localizador del fragmento);
+    para registros sin la clave, se lee de la cita ("sección Introduction",
+    "sección Background", "Introducción", "Antecedentes"). Un `deFondo` falso
+    explícito manda sobre la cita. La discusión no cuenta como fondo: los
+    autores hablan ahí de sus propios datos."""
+    a = _dict(a)
+    v = a.get("deFondo")
+    if isinstance(v, bool):
+        return v
+    return bool(_SECCION_FONDO.search(str(a.get("cita") or "")))
+
+
+def juicio_sesgo_util(riesgo: Any) -> tuple[str | None, str]:
+    """(clave del juicio que cuenta para el peso, motivo). Desde el 17 de
+    septiembre de 2026 (M-01) "sin información" no es "riesgo alto": la regla
+    vive en rosa/sesgo.py `juicio_util` (una sola para el peso GRADE y para la
+    comprobación `sesgo_evidencia` del Killer) y aquí solo se traduce a las
+    claves de PESO_SESGO. Solo puede rebajar la penalización, nunca subirla."""
+    from rosa import sesgo as SESGO
+
+    juicio, motivo = SESGO.juicio_util(riesgo)
+    if juicio is not None and juicio not in PESO_SESGO and juicio != "bajo":
+        return None, "riesgo de sesgo sin evaluar"
+    return juicio, motivo
+
+
 def _cortes(cuerpo: str) -> list[int]:
     """Las longitudes de prefijo de una cita que pueden ser una referencia
     entera: hasta el final o hasta justo antes de un delimitador, de la más
@@ -306,8 +385,8 @@ def _factor_relacion(a: dict[str, Any]) -> tuple[float, str]:
     """La magnitud con signo que aporta la relación, o 0 con el motivo por el
     que la afirmación no cuenta (sintética, no sostenida, socavada, socava)."""
     rel = _relacion(a)
-    if a.get("sintetico"):
-        return 0.0, "sintética (ensayo en seco): no cuenta como evidencia"
+    if es_sintetica(a):
+        return 0.0, "sintética (ensayo en seco o fichero de prueba): no cuenta como evidencia"
     if a.get("veredicto") not in VEREDICTOS_QUE_CUENTAN:
         return 0.0, f"veredicto {a.get('veredicto') or 'sin veredicto'}: solo cuentan las sostenidas o parciales"
     if socavada(a):
@@ -320,7 +399,8 @@ def _factor_relacion(a: dict[str, Any]) -> tuple[float, str]:
 
 def peso_afirmacion(a: dict[str, Any], fuente: dict[str, Any] | None = None) -> dict[str, Any]:
     """{peso, factores}: el peso de una afirmación como evidencia y por qué.
-    Producto de la magnitud de la relación por el diseño, el sesgo y el n,
+    Producto de la magnitud de la relación por el diseño, el sesgo, el n y la
+    sección (0,25 si es una frase de la introducción o los antecedentes),
     con el signo de la relación; 0 si socava, si está socavada, si es
     sintética o si no está sostenida. Cada factor: {factor, valor, motivo}."""
     a = _dict(a)
@@ -338,14 +418,15 @@ def peso_afirmacion(a: dict[str, Any], fuente: dict[str, Any] | None = None) -> 
         motivo_d = f"{ETIQUETAS_DISENO.get(tipo, tipo)}: " + ("no se penaliza" if d == 1.0 else f"pesa {d:g}")
     factores.append({"factor": "diseno", "valor": d, "motivo": motivo_d})
 
-    global_ = _clave(_dict((fuente or {}).get("riesgoSesgo")).get("global"))
     if fuente is None:
         s, motivo_s = 1.0, "sin fuente emparejada: el sesgo no se penaliza"
-    elif global_ not in PESO_SESGO and global_ != "bajo":
-        s, motivo_s = 1.0, "riesgo de sesgo sin evaluar: no se penaliza"
     else:
-        s = PESO_SESGO.get(global_, 1.0)
-        motivo_s = f"{ETIQUETAS_SESGO.get(global_, global_)}: " + ("no se penaliza" if s == 1.0 else f"pesa {s:g}")
+        global_, por_que = juicio_sesgo_util(fuente.get("riesgoSesgo"))
+        if global_ not in PESO_SESGO and global_ != "bajo":
+            s, motivo_s = 1.0, "riesgo de sesgo sin evaluar: no se penaliza" + (f" ({por_que})" if global_ is None and "sin información" in por_que else "")
+        else:
+            s = PESO_SESGO.get(global_, 1.0)
+            motivo_s = f"{ETIQUETAS_SESGO.get(global_, global_)}: " + ("no se penaliza" if s == 1.0 else f"pesa {s:g}")
     factores.append({"factor": "sesgo", "valor": s, "motivo": motivo_s})
 
     n = _entero(a.get("n"))
@@ -359,8 +440,15 @@ def peso_afirmacion(a: dict[str, Any], fuente: dict[str, Any] | None = None) -> 
         motivo_n = f"n = {n}: {'muestra pequeña' if tramo == 'menos_de_20' else 'muestra mediana (de 20 a 99)'}, pesa {pn:g}"
     factores.append({"factor": "n", "valor": pn, "motivo": motivo_n})
 
+    # El factor "seccion" solo aparece cuando aplica (una frase de introducción o
+    # antecedentes): las afirmaciones de resultados siguen con sus cuatro factores.
+    sec = 1.0
+    if de_fondo(a):
+        sec = PESO_SECCION_FONDO
+        factores.append({"factor": "seccion", "valor": sec, "motivo": f"frase de la introducción o los antecedentes (resume estudios ajenos, no un resultado de esta cohorte): pesa {PESO_SECCION_FONDO:g} y no aporta cohorte"})
+
     signo = -1.0 if magnitud < 0 else 1.0
-    peso = signo * abs(magnitud) * d * s * pn
+    peso = signo * abs(magnitud) * d * s * pn * sec
     return {"peso": round(peso, 4) + 0.0, "factores": factores}
 
 
@@ -376,8 +464,10 @@ class _Vista:
         self.indice = _Indice(self.fuentes)
         self.emparejadas: list[list[int]] = [self.indice.resolver(a) for a in self.afs]
         self.pesos: list[dict[str, Any]] = [peso_afirmacion(a, self.fuente_principal(i)) for i, a in enumerate(self.afs)]
-        reales = [i for i, a in enumerate(self.afs) if a.get("veredicto") in VEREDICTOS_QUE_CUENTAN and not a.get("sintetico")]
+        reales = [i for i, a in enumerate(self.afs) if a.get("veredicto") in VEREDICTOS_QUE_CUENTAN and not es_sintetica(a)]
         self.apoyos: list[int] = [i for i in reales if _relacion(self.afs[i]) in RELACIONES_APOYO and not socavada(self.afs[i])]
+        # Apoyos que son frases de introducción: pesan 0,25 y no dan cohorte a su fuente.
+        self.apoyos_de_fondo: set[int] = {i for i in self.apoyos if de_fondo(self.afs[i])}
         self.contras: list[int] = [i for i in reales if _relacion(self.afs[i]) == "contradice"]
         self.socavadas = sum(1 for i in reales if socavada(self.afs[i]))
         self.socavan = sum(1 for i in reales if _relacion(self.afs[i]) == "socava")
@@ -388,13 +478,14 @@ class _Vista:
 
     def fuentes_que_cuentan(self) -> list[dict[str, Any]]:
         """Las fuentes que aportan cohorte: las que tienen al menos un apoyo no
-        socavado emparejado, y las que no tienen ninguna afirmación emparejable
-        (no se puede afirmar que no apoyen). Una fuente cuyas afirmaciones
-        emparejables son todas en contra, socavan, están socavadas o no están
-        sostenidas no cuenta."""
+        socavado emparejado que no sea una frase de introducción, y las que no
+        tienen ninguna afirmación emparejable (no se puede afirmar que no
+        apoyen). Una fuente cuyas afirmaciones emparejables son todas en
+        contra, socavan, están socavadas, no están sostenidas o son de fondo
+        (resumen de estudios ajenos) no cuenta."""
         if not self.afs:
             return self.fuentes
-        de_apoyo = set(self.apoyos)
+        de_apoyo = set(self.apoyos) - self.apoyos_de_fondo
         con_afirmacion: set[int] = set()
         con_apoyo: set[int] = set()
         for i, encontrados in enumerate(self.emparejadas):
@@ -411,6 +502,16 @@ class _Vista:
 
         return METODOS.cohortes_distintas([{**f, "id": f"c{i}"} for i, f in enumerate(self.fuentes_que_cuentan()) if _nombre_cohorte(f)])
 
+    def fuentes_solo_de_fondo(self) -> int:
+        """Cuántas fuentes tienen apoyos emparejados pero todos de introducción
+        o antecedentes: se les descuenta la cohorte."""
+        con_real: set[int] = set()
+        con_fondo: set[int] = set()
+        for i in self.apoyos:
+            for j in self.emparejadas[i]:
+                (con_fondo if i in self.apoyos_de_fondo else con_real).add(j)
+        return len(con_fondo - con_real)
+
     def sin_cohorte(self) -> int:
         """Cuántas identidades de fuente (mismo id o misma referencia son una)
         que aportan apoyo no tienen cohorte en ninguna de sus entradas."""
@@ -426,7 +527,9 @@ class _Vista:
         return sum(1 for clave in vistas if clave not in nombradas)
 
     def directa(self) -> list[dict[str, Any]]:
-        return [self.afs[i] for i in self.apoyos if self.afs[i].get("tipo") == "dato" and self.afs[i].get("clase") in CLASES_DIRECTAS]
+        """Apoyos que vienen de datos (laboratorio o análisis sobre datos reales).
+        Lo sintético ya no está en `apoyos`; se repite el filtro por si acaso."""
+        return [self.afs[i] for i in self.apoyos if self.afs[i].get("tipo") == "dato" and _clave(self.afs[i].get("clase")) in CLASES_DIRECTAS and not es_sintetica(self.afs[i])]
 
     def motivos_bajo_peso(self) -> list[str]:
         """Qué resta peso a los apoyos, sin repetir: revisión narrativa, sesgo
@@ -542,6 +645,9 @@ def _techo_estructura(v: _Vista, factores: list[Any] | None) -> tuple[str, str]:
     texto_cohortes = f"{n} cohortes distintas" if n >= 2 else ("una sola cohorte" if n == 1 else "ninguna cohorte identificada en las fuentes")
     if sin:
         texto_cohortes += f" ({sin} {'fuente' if sin == 1 else 'fuentes'} sin cohorte identificada, que no cuentan como independientes)"
+    fondo = v.fuentes_solo_de_fondo()
+    if fondo:
+        texto_cohortes += f" ({fondo} {'fuente' if fondo == 1 else 'fuentes'} cuyos apoyos son frases de introducción, que no aportan cohorte)"
     if directa:
         clases = sorted(str(a.get("clase")) for a in directa)
         que = "resultado de laboratorio" if "observacion_original" in clases else "análisis sobre datos reales"
@@ -607,6 +713,8 @@ def _remedios_de_peso(v: _Vista) -> list[str]:
         debiles = sorted(ETIQUETAS_DISENO.get(d, d) for d in disenos if d and d not in ("revision_narrativa", "otro"))
         if debiles:
             remedios.append("un estudio con diseño más fuerte (cohorte, casos y controles o ensayo) en vez de " + ", ".join(debiles))
+    if "seccion" in bajos:
+        remedios.append("un resultado del propio estudio (sección de resultados) en vez de una frase de su introducción, que resume trabajo ajeno")
     if "sesgo" in bajos:
         remedios.append("una fuente con menos riesgo de sesgo")
     if "n" in bajos:

@@ -94,7 +94,7 @@ async def detalles(pmids: list[str]) -> list[dict[str, Any]]:
                     "titulo": titulo,
                     "autores": autores,
                     "centro": centro,
-                    "referencia": referencia_corta(autores, anio),
+                    "referencia": referencia_corta(autores, anio, identificador=doi or (f"PMID {pmid}" if pmid else None)),
                     "anio": anio,
                     "revista": revista,
                     "resumen": resumen,

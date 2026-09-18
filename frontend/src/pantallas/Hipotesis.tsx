@@ -24,7 +24,7 @@ import { Bloqueos, ConsultasABases, ContextoDeBases, ContratoDelExperimento, Dec
 import { FranjaRanking } from '../componentes/FranjaRanking';
 import { Alternativas } from '../componentes/Alternativas';
 import { dependeDeRetractada, resumenEvidencia, tramosFuertes } from '../lib/calidad';
-import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, CERTEZA_EVIDENCIA, DECISION_KILLER, RESULTADO_LABORATORIO } from '../lib/etiquetas';
+import { ESTADO_HIPOTESIS, ESTADO_SUPUESTO, TIPO_REVISION, DECISION_KILLER, RESULTADO_LABORATORIO, certezaDe, killerPendienteDe } from '../lib/etiquetas';
 import { expediente } from '../lib/exportar';
 import { formatearDuracion } from '../lib/formato';
 import { motivoNoAceptable, ordenarCola, resumirVerificacion, variacionElo } from '../lib/hipotesis';
@@ -40,7 +40,28 @@ const TONO_ESTADO: Record<Hip['estado'], 'ok' | 'aviso' | 'mal' | 'acento' | und
   aclarando: 'aviso',
 };
 
-/** Texto con los tramos que afirman de mas subrayados en ambar. */
+/** Los hallazgos del revisor tal como cuentan hoy. El Killer abre un hallazgo
+ *  "El Killer propone descartarla en este contexto" al proponer el descarte; si
+ *  una pasada posterior (con evidencia nueva) dijo avanzar o suspender, ese
+ *  hallazgo ya no describe la decisión vigente y se enseña como atendido, con
+ *  la nota de por qué, en vez de seguir bloqueando la aceptación y contando
+ *  como "hallazgo abierto". Misma lectura que hace el servidor al restaurar el
+ *  estado tras un avanzar (rosa/bucle/pasos.py): solo con "avanzar" o
+ *  "suspender" posteriores. Sin decisión (la versión nueva aún no pasó por el
+ *  Killer) o con "reformular", el servidor no lo atiende y aquí tampoco: un
+ *  descarte propuesto no se retira por ausencia de juicio. Nada se borra: el
+ *  hallazgo sigue en el registro con su razonamiento. */
+export function hallazgosVigentes(h: Pick<Hip, 'hallazgos' | 'decisionKiller' | 'version'>): Hip['hallazgos'] {
+  const hallazgos = Array.isArray(h.hallazgos) ? h.hallazgos : [];
+  if (h.decisionKiller !== 'avanzar' && h.decisionKiller !== 'suspender') return hallazgos;
+  return hallazgos.map((x) =>
+    x && x.estado === 'abierto' && /^El Killer propone descartarla/i.test(String(x.resumen ?? ''))
+      ? { ...x, estado: 'atendido' as const, respuestaDeRosa: x.respuestaDeRosa || `Retirado: la decisión más reciente del Killer sobre la versión ${h.version ?? 1} ya no es descartar${h.decisionKiller ? ` (${(DECISION_KILLER[h.decisionKiller]?.etiqueta ?? String(h.decisionKiller)).toLowerCase()})` : ''}.` }
+      : x,
+  );
+}
+
+/** Texto con los tramos que afirman de más subrayados en ámbar. */
 function TextoConFuertes({ texto, campo, como = 'p' }: { texto: string; campo: 'enunciado' | 'mecanismo'; como?: 'p' | 'h2' }) {
   const Etiqueta = como;
   const tramos = tramosFuertes(texto);
@@ -72,7 +93,8 @@ function TextoConFuertes({ texto, campo, como = 'p' }: { texto: string; campo: '
 function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: number; href: string; horasEspera: number; estado: EstadoRosa }) {
   const r = resumirVerificacion(h.afirmaciones);
   const bloqueos = bloqueosDe(estado, h);
-  const abiertos = h.hallazgos.filter((x) => x.estado === 'abierto').length;
+  const abiertos = hallazgosVigentes(h).filter((x) => x.estado === 'abierto').length;
+  const juicioPendiente = killerPendienteDe(h);
   const d = variacionElo(h);
   const pendiente = h.estado === 'propuesta' || h.estado === 'en_revision' || h.estado === 'refinar';
   const espera = ahora - h.creadaEn;
@@ -87,13 +109,18 @@ function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: numb
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <span className={`tono-${r.tono === 'vacio' ? 'aviso' : r.tono}`}>{r.frase}</span>
           {h.conclusion && (
-            <Chip tono={CERTEZA_EVIDENCIA[h.conclusion.certeza].tono} title={h.conclusion.escalera?.[0] ? `Para subir a ${CERTEZA_EVIDENCIA[h.conclusion.escalera[0].a].etiqueta.toLowerCase()}: ${h.conclusion.escalera[0].falta}` : CERTEZA_EVIDENCIA[h.conclusion.certeza].nota}>
-              {CERTEZA_EVIDENCIA[h.conclusion.certeza].etiqueta}
+            <Chip tono={certezaDe(h.conclusion.certeza).tono} title={h.conclusion.escalera?.[0] ? `Para subir a ${certezaDe(h.conclusion.escalera[0].a).etiqueta.toLowerCase()}: ${h.conclusion.escalera[0].falta}` : certezaDe(h.conclusion.certeza).nota}>
+              {certezaDe(h.conclusion.certeza).etiqueta}
             </Chip>
           )}
-          {h.decisionKiller && (
+          {h.decisionKiller && DECISION_KILLER[h.decisionKiller] && (
             <Chip tono={DECISION_KILLER[h.decisionKiller].tono} title={DECISION_KILLER[h.decisionKiller].nota}>
               Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}
+            </Chip>
+          )}
+          {juicioPendiente && (
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas.">
+              {juicioPendiente}
             </Chip>
           )}
           {(h.version ?? 1) > 1 && <Chip tono="borde">v{h.version}</Chip>}
@@ -172,7 +199,7 @@ function FormularioHipotesis({ inv, onCerrar, irA }: { inv: Investigacion; onCer
     >
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 600 }}>Proponer una hipótesis</h3>
-        <p className="meta">Entra al torneo con el mismo Elo inicial que las de Rosa, marcada como tuya. En Co-Scientist la conjetura del experto acabo superando a las generadas.</p>
+        <p className="meta">Entra al torneo con el mismo Elo inicial que las de Rosa, marcada como tuya. En Co-Scientist la conjetura del experto acabó superando a las generadas.</p>
       </div>
       {campo('titulo', 'Titulo', 1, 'La función renal sesga los umbrales de p-tau217 en cohortes latinoamericanas')}
       {campo('enunciado', 'Enunciado', 3)}
@@ -212,9 +239,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
   const [subiendo, setSubiendo] = useState(false);
   const [errorSubida, setErrorSubida] = useState<string | null>(null);
   const [analisis, setAnalisis] = useState('');
+  const [datosSinteticos, setDatosSinteticos] = useState(false);
   const [aplicableA, setAplicableA] = useState('');
   const pendientes = estado.comentarios.filter((c) => c.hipotesisId === h.id && c.estado === 'pendiente');
-  const motivo = motivoNoAceptable(h);
+  const vigentes = hallazgosVigentes(h);
+  const motivo = motivoNoAceptable({ ...h, hallazgos: vigentes });
+  const juicioPendiente = killerPendienteDe(h);
   const rivales = h.rivales.map((id) => estado.hipotesis.find((x) => x.id === id)).filter((x): x is Hip => x !== undefined);
   const cerrada = h.estado === 'aceptada' || h.estado === 'descartada';
   const aclarando = h.estado === 'aclarando';
@@ -238,15 +268,20 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           {h.origen === 'humana' && <Chip tono="acento">Propuesta por una persona</Chip>}
           {h.derivadaDe && (
             <a className="chip chip-borde" href={rutaDe(h.investigacionId, 'hipotesis', h.derivadaDe)}>
-              Derivada de otra hipotesis
+              Derivada de otra hipótesis
             </a>
           )}
           <span className="meta">Elo {h.elo} · {h.partidos.length} {h.partidos.length === 1 ? 'partido' : 'partidos'}</span>
           <span className="meta">Iteración {h.iteracion}</span>
           <span className="meta">Versión {h.version ?? 1}</span>
-          {h.decisionKiller && (
+          {h.decisionKiller && DECISION_KILLER[h.decisionKiller] && (
             <Chip tono={DECISION_KILLER[h.decisionKiller].tono} title={DECISION_KILLER[h.decisionKiller].nota}>
               Killer: {DECISION_KILLER[h.decisionKiller].etiqueta}
+            </Chip>
+          )}
+          {juicioPendiente && (
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas con «Pedir revisión».">
+              {juicioPendiente}
             </Chip>
           )}
           <Bloqueos bloqueos={bloqueosDe(estado, h)} candidata={h.candidata} />
@@ -263,7 +298,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       {retractadas.length > 0 && (
         <div className="aviso-retractada" role="alert">
-          Depende de {retractadas.length === 1 ? 'una fuente retractada' : `${retractadas.length} fuentes retractadas`}: {retractadas.map((f) => f.referencia).join(', ')}. No vale como evidencia y la hipotesis baja en el ranking.
+          Depende de {retractadas.length === 1 ? 'una fuente retractada' : `${retractadas.length} fuentes retractadas`}: {retractadas.map((f) => f.referencia).join(', ')}. No vale como evidencia y la hipótesis baja en el ranking.
         </div>
       )}
 
@@ -526,7 +561,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </Seccion>
       )}
 
-      <Seccion detalle titulo="Revisiones del agente" nota="Seis tipos de revisión, separados, para saber que se hizo y que falta.">
+      <Seccion detalle titulo="Revisiones del agente" nota="Seis tipos de revisión, separados, para saber qué se hizo y qué falta.">
         <ul className="revisiones-auto">
           {h.revisionesAutomaticas.map((r) => (
             <li key={r.tipo} className={`revision-auto revision-${r.estado}`}>
@@ -547,12 +582,12 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </ul>
       </Seccion>
 
-      <Seccion detalle titulo="Revisor" nota="Rosa atiende cada hallazgo en su siguiente mensaje: corrige o explica por que no aplica.">
-        <Revisor hallazgos={h.hallazgos} />
+      <Seccion detalle titulo="Revisor" nota="Rosa atiende cada hallazgo en su siguiente mensaje: corrige o explica por qué no aplica. Un descarte que el Killer propuso y después retiró se enseña como atendido.">
+        <Revisor hallazgos={vigentes} />
       </Seccion>
 
       {h.partidos.length > 0 && (
-        <Seccion detalle titulo="Partidos del torneo" nota="Contra quien, quien ganó y por que. Un Elo con pocos partidos dice poco.">
+        <Seccion detalle titulo="Partidos del torneo" nota="Contra quién, quién ganó y por qué. Un Elo con pocos partidos dice poco.">
           <table className="tabla">
             <thead>
               <tr>
@@ -560,7 +595,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 <th>Rival</th>
                 <th>Resultado</th>
                 <th>Eje decisivo</th>
-                <th>Por que</th>
+                <th>Por qué</th>
               </tr>
             </thead>
             <tbody>
@@ -585,7 +620,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <Seccion
         detalle titulo="Replicación independiente"
-        nota="Kosmos confirmo sus hallazgos clave con cinco trayectorias independientes. Gasta presupuesto de la iteración."
+        nota="Kosmos confirmó sus hallazgos clave con cinco trayectorias independientes. Gasta presupuesto de la iteración."
         acciones={
           <button type="button" className="btn btn-s" disabled={h.replicacion?.estado === 'en_curso' || !corrida || corrida.estado !== 'en_marcha'} onClick={() => acciones.replicarHipotesis(h.id, 5)}>
             Replicar x5
@@ -666,7 +701,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 )}
                 {h.experimento.alternativa && (
                   <div className="experimento-bloque">
-                    <h4>Explicación alternativa y como se distingue</h4>
+                    <h4>Explicación alternativa y cómo se distingue</h4>
                     <p>{h.experimento.alternativa}</p>
                   </div>
                 )}
@@ -700,7 +735,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                       {RESULTADO_LABORATORIO[h.experimento.resultado.clasificacion].etiqueta}
                     </Chip>
                   )}
-                  {h.experimento.resultado.versionProbada !== undefined && h.experimento.resultado.compatibleConActual === false && <Chip tono="aviso" title="El resultado probo una versión anterior de la hipótesis">Probo la v{h.experimento.resultado.versionProbada}</Chip>}
+                  {h.experimento.resultado.versionProbada !== undefined && h.experimento.resultado.compatibleConActual === false && <Chip tono="aviso" title="El resultado probó una versión anterior de la hipótesis">Probó la v{h.experimento.resultado.versionProbada}</Chip>}
                   <span className="meta">
                     {h.experimento.resultado.fichero} · <Momento t={h.experimento.resultado.fecha} ahora={ahora} />
                   </span>
@@ -710,7 +745,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 {h.experimento.resultado.accionTomada && <p className="meta">Qué hizo Rosa: {h.experimento.resultado.accionTomada}</p>}
                 {h.experimento.resultado.hipotesisDerivadaId && (
                   <p className="meta">
-                    Hipotesis derivada:{' '}
+                    Hipótesis derivada:{' '}
                     <a className="enlace" href={rutaDe(h.investigacionId, 'hipotesis', h.experimento.resultado.hipotesisDerivadaId)}>
                       abrir
                     </a>
@@ -761,8 +796,13 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             {(h.experimento.estado === 'asignado' || h.experimento.estado === 'datos_recibidos') && (
               <div className="seccion">
                 <p className="meta">
-                  Cuando lleguen los datos del laboratorio, subelos aqui (CSV, TSV, JSON, texto o PDF, hasta 50 MB). Rosa los resume sin ningun modelo, el juez los compara con los criterios congelados en el prerregistro y la conclusion se rehace con esa evidencia.
+                  Cuando lleguen los datos del laboratorio, súbelos aquí (CSV, TSV, JSON, texto o PDF, hasta 50 MB). Rosa los resume sin ningún modelo, el juez los compara con los criterios congelados en el prerregistro y la conclusión se rehace con esa evidencia.
                 </p>
+                {h.experimento.datosSinteticos && h.experimento.ficheroDatos && (
+                  <Chip tono="aviso" title="La persona declaró al subirlos que son datos sintéticos o de prueba (o el nombre del fichero lo dice). Sirven para probar la pantalla y el flujo; nunca cuentan como observación ni suben el techo GRADE, y no entran al modelo de mundo.">
+                    Datos sintéticos o de prueba: no cuentan como evidencia
+                  </Chip>
+                )}
                 <div className="campo">
                   <label htmlFor="exp-fichero">Fichero de datos</label>
                   <input id="exp-fichero" type="file" accept=".csv,.tsv,.txt,.json,.pdf,.md" onChange={(e) => setFicheroDatos(e.target.files?.[0] ?? null)} />
@@ -771,6 +811,10 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                   <label htmlFor="exp-analisis">Qué análisis quieres (además de los criterios prerregistrados)</label>
                   <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteración, por grupo genético" onChange={(e) => setAnalisis(e.target.value)} />
                 </div>
+                <label className="interruptor" title="Márcala si el fichero es inventado, simulado o de prueba. Rosa lo etiqueta como sintético: se evalúa contra el prerregistro para probar el flujo, pero nunca cuenta como observación real, no sube el techo GRADE ni entra al modelo de mundo. Si el nombre del fichero dice «sintético», se marca solo.">
+                  <input type="checkbox" checked={datosSinteticos} onChange={(e) => setDatosSinteticos(e.target.checked)} />
+                  Estos datos son sintéticos o de prueba (nunca cuentan como evidencia)
+                </label>
                 <div className="acciones">
                   <button
                     type="button"
@@ -779,10 +823,13 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                     onClick={async () => {
                       if (!ficheroDatos) return;
                       setSubiendo(true);
-                      const error = await acciones.subirDatosExperimento(h.id, ficheroDatos, analisis);
+                      const error = await acciones.subirDatosExperimento(h.id, ficheroDatos, analisis, datosSinteticos);
                       setSubiendo(false);
                       setErrorSubida(error);
-                      if (!error) setFicheroDatos(null);
+                      if (!error) {
+                        setFicheroDatos(null);
+                        setDatosSinteticos(false);
+                      }
                     }}
                   >
                     {subiendo ? 'Subiendo...' : 'Subir datos y evaluar contra el prerregistro'}
@@ -835,7 +882,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       <Seccion titulo="Decisión" nota={cerrada ? 'Esta hipótesis ya se decidió. Se puede reabrir.' : aclarando ? 'Rosa está aclarando lo que marcaste. Volverá a la cola.' : motivo ?? 'Nada impide aceptarla. Tu lectura decide.'}>
         <div className="campo">
           <label htmlFor="nota-decision">Nota para Rosa y para el historial</label>
-          <textarea id="nota-decision" value={nota} rows={2} onChange={(e) => setNota(e.target.value)} placeholder="Comprobable en FLENI; pedir a el investigador clínico principal si la cohorte tiene genotipo de TREM2" />
+          <textarea id="nota-decision" value={nota} rows={2} onChange={(e) => setNota(e.target.value)} placeholder="Comprobable en FLENI; pedir al investigador clínico principal si la cohorte tiene genotipo de TREM2" />
         </div>
         <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setRevisionAbierta((v) => !v)}>
           {revisionAbierta ? 'Ocultar la revisión estructurada' : 'Escribir una revisión estructurada (entra al torneo como revisión, no solo como veredicto)'}
@@ -867,7 +914,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
               </button>
               <Confirmar
                 etiqueta="No puedo juzgar"
-                pregunta="Di que te impide juzgarla (ambigua, falta contexto, no reproducible). Rosa la aclara y vuelve a la cola marcada como aclarada."
+                pregunta="Di qué te impide juzgarla (ambigua, falta contexto, no reproducible). Rosa la aclara y vuelve a la cola marcada como aclarada."
                 pedirTexto={{ etiqueta: 'Qué falta', marcador: 'No queda claro si habla de PSEN1 o de todo el Alzheimer familiar' }}
                 onConfirmar={(m) => decidir('no_puedo_juzgar', m)}
               />
@@ -875,7 +922,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 etiqueta="Descartar"
                 peligro
                 pregunta="El motivo queda en el modelo de mundo para que Rosa no vuelva a proponer lo mismo."
-                pedirTexto={{ etiqueta: 'Motivo', marcador: 'Se apoya en un articulo retractado' }}
+                pedirTexto={{ etiqueta: 'Motivo', marcador: 'Se apoya en un artículo retractado' }}
                 onConfirmar={(m) => {
                   acciones.revisarHipotesis(h.id, 'descartar', m, aCiegas, revisionHumana, h.version ?? 1, segundosRevision());
                   setNota('');
@@ -893,7 +940,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
       <Seccion
         titulo="Dossier para el laboratorio"
-        nota="El expediente con el que la hipótesis sale al laboratorio, en siete partes: si va o no y por que (bloqueos), la hipótesis completa con su versión, la evidencia con procedencia, los análisis con datos, las decisiones, el protocolo prerregistrado y que se aprende con cada resultado. Se arma sin ningún modelo, con lo que hay en el estado."
+        nota="El expediente con el que la hipótesis sale al laboratorio, en siete partes: si va o no y por qué (bloqueos), la hipótesis completa con su versión, la evidencia con procedencia, los análisis con datos, las decisiones, el protocolo prerregistrado y qué se aprende con cada resultado. Se arma sin ningún modelo, con lo que hay en el estado."
         acciones={
           <button type="button" className="btn btn-s" disabled={estado.conexion === 'muestra'} onClick={() => acciones.generarDossier(h.id)}>
             {h.dossierArtefactoId ? 'Regenerar dossier' : 'Generar dossier'}
@@ -902,11 +949,11 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       >
         {h.dossierArtefactoId ? (
           <p className="meta">
-            Ultimo dossier:{' '}
+            Último dossier:{' '}
             <a className="enlace" href={rutaDe(h.investigacionId, 'artefactos', h.dossierArtefactoId)}>
               abrir en Artefactos
             </a>
-            . Cada generacion es una version nueva; las anteriores se conservan.
+            . Cada generación es una versión nueva; las anteriores se conservan.
           </p>
         ) : (
           <p className="meta">Sin dossier todavía.</p>

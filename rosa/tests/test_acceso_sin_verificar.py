@@ -50,18 +50,24 @@ def test_sin_correo_configurado_entra_cualquiera_del_dominio_y_se_cierra_al_conf
     al.cerrar()
 
 
-def test_web_entra_sin_verificar_desde_cualquier_equipo_y_luego_solo_con_enlace(web):
+def test_web_entra_sin_verificar_desde_cualquier_equipo_y_luego_solo_con_enlace(web, monkeypatch):
     cliente, app, al = web
+    monkeypatch.delenv('ROSA_ADMIN', raising=False)
+    monkeypatch.delattr(config, 'ROSA_ADMIN', raising=False)
     assert cliente.get('/api/estado').status_code == 401
     assert cliente.post('/api/acceso/entrar_sin_verificar', json={'correo': 'x@gmail.com'}, headers={'X-Rosa': '1'}).status_code == 403
     r = cliente.post('/api/acceso/entrar_sin_verificar', json={'correo': EMAIL}, headers={'X-Rosa': '1'})
     assert r.status_code == 200 and r.json()['verificada'] is False and 'HttpOnly' in r.headers['set-cookie']
     estado = cliente.get('/api/acceso/estado').json()
-    assert estado['correo'] == EMAIL and estado['administrador']
+    # Una cuenta que entra sin verificar nunca administra (S-21): administra ROSA_ADMIN o la primera confirmada por enlace.
+    assert estado['correo'] == EMAIL and not estado['administrador']
     assert cliente.get('/api/estado').status_code == 200
     # Sin la cabecera X-Rosa (una web ajena) no entra nadie.
     assert cliente.post('/api/acceso/entrar_sin_verificar', json={'correo': OTRO}).status_code == 403
-    # Al configurar el correo, la puerta sin verificar se cierra.
+    # Al configurar el correo, la puerta sin verificar se cierra. Configurarlo exige administrar:
+    # una cuenta sin verificar no administra, así que hace falta ROSA_ADMIN (S-21).
+    assert cliente.post('/api/correo/configuracion', json=CONFIG, headers={'X-Rosa': '1'}).status_code == 403
+    monkeypatch.setenv('ROSA_ADMIN', EMAIL)
     assert cliente.post('/api/correo/configuracion', json=CONFIG, headers={'X-Rosa': '1'}).status_code == 200
     assert cliente.post('/api/acceso/salir', json={}, headers={'X-Rosa': '1'}).status_code == 200
     assert cliente.post('/api/acceso/entrar_sin_verificar', json={'correo': OTRO}, headers={'X-Rosa': '1'}).status_code == 403

@@ -144,6 +144,24 @@ _COHORTES_DEF: tuple[tuple[str, str, list[Any], dict[str, Any]], ...] = (
     ("amp_ad", "AMP-AD", ["Accelerating Medicines Partnership-Alzheimer's Disease", "AMP-AD Knowledge Portal"], {}),
     ("api_colombia", "API Colombia", ["Alzheimer's Prevention Initiative", "API ADAD", "PSEN1 E280A", "E280A", "Colombian kindred", "Paisa kindred", "Antioquia kindred"], {"nct": ["NCT01998841"]}),
     ("finger", "FINGER", [_A(alias="FINGER", excepto=r"[-‐–\s]?(?:prick|tapping|print|tip)"), "Finnish Geriatric Intervention Study to Prevent Cognitive Impairment and Disability", "FINGER trial"], {"etiqueta_busca": False, "nct": ["NCT01041989"]}),
+    # Ensayos de fase 2 y 3 del campo (17 de septiembre de 2026, M-03): antes el
+    # catálogo no los conocía y la regla de tokens fundía "TRAILBLAZER-ALZ" con
+    # "TRAILBLAZER-ALZ 2" (dos ensayos distintos) y separaba "ALZ 2" de "ALZ2" (el
+    # mismo). Cada ensayo es su propia cohorte; el NCT manda cuando viene. Los
+    # nombres con espacio se buscan respetando mayúsculas para que "study 201" en
+    # una frase corriente no cuente.
+    ("trailblazer_alz", "TRAILBLAZER-ALZ", ["TRAILBLAZER-ALZ 1", "TRAILBLAZER-ALZ1"], {"nct": ["NCT03367403"], "etiqueta_mayusculas": True}),
+    ("trailblazer_alz2", "TRAILBLAZER-ALZ 2", ["TRAILBLAZER-ALZ2", "TRAILBLAZER-ALZ-2"], {"nct": ["NCT04437511"], "etiqueta_mayusculas": True}),
+    ("trailblazer_alz3", "TRAILBLAZER-ALZ 3", ["TRAILBLAZER-ALZ3", "TRAILBLAZER-ALZ-3"], {"nct": ["NCT05026866"], "etiqueta_mayusculas": True}),
+    ("clarity_ad", "CLARITY AD", ["Clarity AD", "CLARITY-AD"], {"nct": ["NCT03887455"], "etiqueta_mayusculas": True}),
+    ("study_201", "Study 201", [_A(alias="Study 201 core", mayusculas=True), "BAN2401-G000-201", _A(alias="lecanemab Study 201", mayusculas=True)], {"nct": ["NCT01767311"], "etiqueta_mayusculas": True}),
+    ("emerge", "EMERGE", [_A(alias="EMERGE trial", mayusculas=True)], {"nct": ["NCT02484547"]}),
+    ("engage", "ENGAGE", [_A(alias="ENGAGE trial", mayusculas=True)], {"nct": ["NCT02477800"]}),
+    ("graduate_1", "GRADUATE I", [_A(alias="GRADUATE 1", mayusculas=True), _A(alias="GRADUATE-I", mayusculas=True)], {"nct": ["NCT03444870"], "etiqueta_mayusculas": True}),
+    ("graduate_2", "GRADUATE II", [_A(alias="GRADUATE 2", mayusculas=True), _A(alias="GRADUATE-II", mayusculas=True)], {"nct": ["NCT03443973"], "etiqueta_mayusculas": True}),
+    # evoke y evoke+ (semaglutida, NCT04777396 y NCT04777409) no entran: "evoke" es una
+    # palabra inglesa corriente y su NCT ya resuelve solo como "ensayo:NCT...".
+    ("invoke_2", "INVOKE-2", ["INVOKE2"], {"nct": ["NCT04592874"]}),
     ("insight46", "Insight 46", ["Insight46", "MRC National Survey of Health and Development", "NSHD", "1946 British birth cohort"], {}),
     ("emif_ad", "EMIF-AD", ["European Medical Information Framework for Alzheimer's Disease", "EMIF-AD MBD"], {}),
     ("blsa", "BLSA", ["Baltimore Longitudinal Study of Aging"], {}),
@@ -472,7 +490,21 @@ def cohorte_en_texto(texto: str | None) -> str:
 
 
 def _tokens_cohorte(nombre: str) -> set[str]:
+    """Palabras que distinguen un nombre libre de cohorte, sin genéricas ni
+    paréntesis. Un número suelto que sigue a una palabra se le pega
+    ("TRAILBLAZER-ALZ 2" y "TRAILBLAZER-ALZ2" dan las dos 'trailblazer-alz2'),
+    de modo que dos nombres que solo difieren en el sufijo numérico NO
+    comparten token: "TRAILBLAZER-ALZ" y "TRAILBLAZER-ALZ 2" son ensayos
+    distintos (M-03, 17 de septiembre de 2026). Antes el '2' suelto se
+    perdía (menos de tres caracteres) y producía el efecto contrario."""
     limpio = re.sub(r"\(.*?\)", " ", (nombre or "").lower())
+
+    def pegar(m: re.Match[str]) -> str:
+        palabra, numero = m.group(1), m.group(2)
+        # "and 3" o "phase 2" no son un nombre con sufijo: la genérica se queda suelta.
+        return m.group(0) if palabra in _GENERICOS_COHORTE or palabra in _GENERICOS_MIXTA else palabra + numero
+
+    limpio = re.sub(r"([a-záéíóúñ][a-záéíóúñ0-9\-]*[a-záéíóúñ])[\s\-]+(\d{1,2})(?![a-záéíóúñ0-9])", pegar, limpio)
     return {t for t in re.findall(r"[a-záéíóúñ0-9][a-záéíóúñ0-9\-]{2,}", limpio) if t not in _GENERICOS_COHORTE}
 
 
@@ -692,6 +724,21 @@ def _agrupar_nombres(items: list[tuple[str, str]]) -> list[dict[str, Any]]:
             motivo = _parte_del_nombre(nombres[i], por_id(id_c))
             if motivo:
                 unir(j, i, motivo)
+                break
+    # 2b. Alias aprendido dentro del registro (M-03): "X (NCT01234567)" enseña que X
+    # es ese ensayo, así que otro registro que solo dice "X" se une al grupo del
+    # NCT, aunque el ensayo no esté en el catálogo. Solo si los tokens del nombre
+    # libre están todos en el texto que acompaña al NCT (dirección conservadora).
+    ensayos_por_texto = [(j, _tokens_cohorte(_NCT.sub(" ", nombres[j])) - _GENERICOS_MIXTA) for j, c in enumerate(canon) if c and c["id"].startswith("ensayo:")]
+    for i in libres:
+        if raiz(i) != i and canon_de_raiz.get(raiz(i)):
+            continue  # ya está en un grupo del catálogo
+        toks_i = _tokens_cohorte(nombres[i]) - _GENERICOS_MIXTA
+        if not toks_i:
+            continue
+        for j, toks_j in ensayos_por_texto:
+            if toks_j and toks_i <= toks_j:
+                unir(j, i, f"'{nombres[i]}' es el nombre que acompaña al registro {canon[j]['etiqueta']} en '{nombres[j]}'")
                 break
     # 3. Libres entre sí por tokens (los tokens se calculan una vez por nombre).
     tokens = {i: (_tokens_cohorte(nombres[i]) or {nombres[i].lower()}) for i in libres}

@@ -88,14 +88,14 @@ def test_alias_y_nombres_largos():
 def test_nct_manda_y_los_conocidos_resuelven_a_su_cohorte():
     c = M.canonizar_cohorte("NCT01234567")
     assert c["id"] == "ensayo:NCT01234567" and c["etiqueta"] == "NCT01234567" and c["tipo"] == "ensayo"
-    assert M.cohorte_en_texto("Trial NCT04437511 results") == "NCT04437511"
-    assert M.cohorte_en_texto("ADNI data (nct04437511)") == "NCT04437511"  # el NCT manda sobre el nombre
+    assert M.cohorte_en_texto("Trial NCT09999999 results") == "NCT09999999"
+    assert M.cohorte_en_texto("ADNI data (nct09999999)") == "NCT09999999"  # el NCT manda sobre el nombre
     assert M.canonizar_cohorte("NCT02008357")["id"] == "cohorte:a4"
     assert M.cohorte_en_texto("the A4 study (NCT02008357)") == "A4"
     assert M.misma_cohorte("A4", "NCT02008357") is True
     assert M.misma_cohorte("NCT01234567", "NCT01234567") is True and M.misma_cohorte("NCT01234567", "NCT01234568") is False
-    ids = [x["id"] for x in M.cohortes_en_texto("ADNI and NCT04437511 and BioFINDER")]
-    assert ids == ["cohorte:adni", "ensayo:NCT04437511", "cohorte:biofinder"]
+    ids = [x["id"] for x in M.cohortes_en_texto("ADNI and NCT09999999 and BioFINDER")]
+    assert ids == ["cohorte:adni", "ensayo:NCT09999999", "cohorte:biofinder"]
 
 
 def test_sin_falsos_positivos():
@@ -321,7 +321,7 @@ def test_coincide_con_killer_en_los_treinta_nombres():
         assert K.cohorte_en_texto(f"Plasma GFAP in the {ambiguo} cohort") == "" and M.AMBIGUOS[ambiguo]
     # Los casos del test de killer siguen dando lo mismo.
     assert M.cohorte_en_texto("Plasma GFAP in the BioFINDER-2 cohort") == "BioFINDER" == K.cohorte_en_texto("Plasma GFAP in the BioFINDER-2 cohort")
-    assert M.cohorte_en_texto("Trial NCT04437511 results") == "NCT04437511" and M.cohorte_en_texto("nothing here") == ""
+    assert M.cohorte_en_texto("Trial NCT09999999 results") == "NCT09999999" and M.cohorte_en_texto("nothing here") == ""
 
 
 def test_el_modulo_no_lleva_guiones_largos():

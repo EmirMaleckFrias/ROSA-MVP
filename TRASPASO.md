@@ -555,57 +555,59 @@ están y si no cae a las E-utilities de NCBI.
   datos, 150 herramientas): https://www.epocrates.com/online/article/stanford-open-source-ai-agent-runs-biomedical-lab-research
 - Proyecto Alzheimer INTEC y AI Robotix: https://www.intec.edu.do/en/notas-de-prensa-investigacion/item/intec-y-empresa-ai-robotix-generan-modelo-de-ia-para-investigar-alzheimer
 
-## Pendientes al cierre del 16 de septiembre de 2026 (para el 17)
+## Pendientes del 16 y 17 de septiembre de 2026: estado al 18
 
-Anotados durante la revisión de la corrida 7, a petición de Emir ("las demás
-cosas déjalas en pendiente para mañana"). Ninguno se toca sin su visto bueno.
+La revisión completa de fallos está en `REVISION-BUGS-2026-09-17.md` (96
+hallazgos verificados, plan en tres tandas). La tanda 1 se aplicó el 17 por la
+tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
 
-- Extracción y verificación: de 131 afirmaciones extraídas de 11 fuentes, 87
-  quedaron bloqueadas por "cita no resuelve" porque salieron de fuentes sin
-  texto completo (solo 6 de 13 lo tenían). Propuesta: extraer solo de fuentes
-  con texto completo, o marcar lo que sale de un resumen como "sin página" con
-  menos peso, en vez de extraer y bloquear. Ahorra dos de cada tres llamadas de
-  verificación sin tocar la regla de la página exacta.
-- Comprobar que el bucle vuelve de verdad sobre las hipótesis que esperan en
-  la cola ("propuesta" suspendida y "en revisión" con descarte propuesto por el
-  Killer): que la evidencia nueva se les enlaza (revisión automática), que el
-  Killer las vuelve a juzgar cuando cambia su evidencia y que una hipótesis en
-  revisión puede recuperarse si la evidencia nueva la sostiene. Emir las deja
-  ahí a propósito como material que Rosa mejora; si no se mueven, el fallo está
-  en el bucle.
-- Un mismo hecho generó dos eventos "hecho nuevo" idénticos en la corrida 7
-  (he-mu4jz1is-2264): buscar la doble llamada a `con_evento` en el paso de
-  modelo.
-- Cobertura de los temas focales del plan: en la iteración 1 varios temas
-  clave (lecanemab, donanemab con predicción incremental, fuentes primarias de
-  EMERGE/ENGAGE) quedaron con 0 leídos mientras la amplitud trajo temas
-  laterales (BMS-984923 en ratón, vehículos de transporte de anticuerpos).
-  Revisar el reparto foco/amplitud de las consultas de literatura.
-- El arreglo del planificador (`datasets_disponibles`, commit e2d722b) entra en
-  el próximo reinicio del servidor; no reiniciar con una corrida viva.
-- Hechos con enunciado repetido de corridas anteriores (Belder, Chatterjee):
-  la deduplicación del paso de modelo no los fundió.
-- (17 de septiembre, tras la corrida 7) El límite de tiempo de una corrida se
-  cuenta en tiempo de reloj: el Mac durmió toda la noche con la iteración 2 a
-  medias y al despertar Rosa dio por cumplidos los 40 minutos y omitió cinco
-  pasos. Mientras corra una corrida el equipo no puede dormirse (`caffeinate`
-  o ajuste de energía); lo correcto es que Rosa cuente tiempo de trabajo o
-  detecte la suspensión del proceso y no la cargue a la corrida
-  (rosa/parada.py y el cierre de iteración en rosa/bucle/corrida.py).
-- Una consulta de literatura devolvió 3.377 identificados en la iteración 2:
-  recortar o dividir las consultas que superen un umbral antes de cribar.
-- (17 de septiembre, corrida 8) El tiempo que un plan espera la aprobación
-  humana cuenta contra el tope de la corrida (21 de los 60 minutos se fueron
-  esperando el plan de la iteración 1), y la comprobación del tope se hace
-  después de aprobar el plan: la iteración 2 se aprobó a las 09:35 y se cerró
-  a las 09:36 con los siete pasos omitidos, pero igual corrió lecciones,
-  revisor de registro y meta-campaña sobre una iteración vacía (llamadas al
-  juez sin nada que juzgar). Propuesta: no contar la espera humana, comprobar
-  el tope antes de proponer el plan, y no correr los cierres cuando todos los
-  pasos se omitieron.
-- La métrica de la corrida 8 dice `hipotesisNuevas: 5` cuando no nació ninguna
-  hipótesis; revisar qué cuenta rosa/progreso.py en ese campo.
-- (17 de septiembre, árbol en canvas) Queda la repulsión O(n²) de `paso` en
-  frontend/src/lib/arbol.ts y de `paso3d` (rejilla espacial o Barnes-Hut) y
-  llevar la física a un Web Worker; hoy la vista plana asentándose va a 56 fps
-  con un presupuesto de 5 ms por paso.
+- **Afirmaciones bloqueadas por "cita no resuelve" (corridas 7 a 12): resuelto,
+  y la causa anotada el 16 era incorrecta.** No eran fuentes sin texto completo:
+  el verificador no reconocía el localizador "texto web, parte N" del texto que
+  baja Exa (875 de 875 bloqueadas) y la comparación literal contra el PDF fallaba
+  con ligaduras, guiones de fin de línea y comillas (284 de 540). Ahora la cita
+  se resuelve por fuente y localizador (rosa/verificador.py) y la comparación
+  usa una normalización compartida (rosa/fuentes/pdf.py). Las afirmaciones
+  bloqueadas de corridas pasadas no se reverifican solas; el script de solo
+  lectura scripts/diagnostico_citas.py dice cuántas resolverían hoy.
+- **El bucle vuelve sobre las hipótesis en cola: resuelto.** La evidencia nueva
+  marca la hipótesis para que el Killer la vuelva a juzgar (62b327b); al arrancar
+  y al cerrar cada iteración se marcan también las que tienen una huella de
+  evidencia distinta de la de su última decisión (rosa/killer.py
+  huella_evidencia); un juez que no responde ya no suspende (reintenta hasta
+  tres veces); "supuestos" suspende en vez de descartar; la auditoría en
+  desacuerdo tiene consecuencia; un "avanzar" posterior saca a la hipótesis de
+  "en revisión".
+- **Novedad "sin precedente" con cero obras: resuelto.** La consulta a OpenAlex
+  sale en inglés con siglas y genes, y con cero obras o el modelo caído el estado
+  es "no comprobado" (migración de las hipótesis afectadas al arrancar).
+- **Reloj de la corrida, espera humana, sueño del Mac e iteración vacía:
+  resuelto** (8a4eb64): tiempo de trabajo, la parada propia manda sobre la de la
+  investigación, cierre sin llamadas cuando todos los pasos se omiten, y el tic
+  ya no escribe el estado por segundos.
+- **`hipotesisNuevas` mal contado: resuelto.** Una sola función
+  `hipotesis_nacidas_en` por ventana temporal (rosa/progreso.py) en los cinco
+  sitios; el resumen y el llano reciben la cola completa por regla.
+- **Coste mostrado al doble: resuelto.** El gasto usa el coste que factura el
+  gateway (`gasto.usdReal`) y la tabla de precios corregida como respaldo.
+- **Dos procesos sobre la misma base: resuelto.** Cerrojo de instancia
+  (rosa.db.lock con el PID) y escrituras condicionadas por versión
+  (rosa/estado/almacen.py). Poner `ROSA_ADMIN=<correo>` en `.env`: con la regla
+  nueva la primera cuenta creada ya no es administradora por orden de llegada.
+- **Evento "hecho nuevo" duplicado: no era doble emisión**, eran hechos
+  duplicados por paráfrasis (M-08 de la revisión): pendiente, tanda 2.
+- **Temas focales con 0 leídos: causa distinta a la anotada.** No es el reparto
+  foco/amplitud: son consultas de foco hiperespecíficas sin relajación, la red de
+  seguridad por nombre apagada por una comprobación de subcadena y la caché de
+  exclusiones (S-07): pendiente, tanda 2.
+- **Consultas demasiado anchas (3.377 identificados)**: pendiente, dentro de S-07.
+- **Hechos repetidos de corridas anteriores (Belder, Chatterjee)**: pendiente
+  (M-08 y S-06, memoria de fuentes entre corridas), tanda 2.
+- **`hechosNuevos` cuenta también las preguntas que entran al modelo de mundo**
+  (hallado por el test de punta a punta rosa/tests/test_bucle_iteracion.py):
+  pendiente menor.
+- **Física del árbol** (rejilla espacial o Barnes-Hut en `paso` y `paso3d`, Web
+  Worker): pendiente, tanda 3.
+- **El servidor vivo corre el código anterior a la tanda 1 hasta el próximo
+  reinicio.** No reiniciar el 18 por la mañana antes del consejo; después, con
+  `ROSA_ADMIN` en `.env` y sin corrida viva.

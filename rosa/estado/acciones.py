@@ -23,11 +23,12 @@ aqui se respeta; si no, se genera uno.
 from __future__ import annotations
 
 import copy
+import math
 
 from datetime import datetime, timezone
 from typing import Any
 
-from rosa import config, politicas
+from rosa import certeza as CERTEZA, config, politicas
 from rosa import parada as PARADA
 from rosa import cuestiones as CU
 from rosa import dependencias as DEP
@@ -114,17 +115,48 @@ def detener_corrida(e: Estado, corrida_id: str, motivo: str, ahora: int, vigilar
 
 
 def ampliar_presupuesto(e: Estado, corrida_id: str, nuevo_limite: float, ahora: int) -> bool:
+    """Sube el tope de llamadas de la corrida y, con el mismo margen que la
+    persona concede, el de la iteración en curso. Misma regla en
+    `frontend/src/datos/acciones.ts` (ampliarPresupuesto):
+
+    - el tope nuevo tiene que ser mayor que lo gastado y que cero;
+    - margen = max(topeNuevo - topeAnterior, 0);
+    - la iteración en curso (la de número más alto de la corrida) pasa a
+      limite = max(limite, usado + margen). Antes solo se tocaba el tope de la
+      corrida y, cuando lo que había cortado era el tope de la iteración (447
+      llamadas), ampliar ponía la corrida en marcha y la primera llamada la
+      volvía a pausar con el mismo aviso (17 de septiembre de 2026, S-15);
+    - las alertas ya avisadas que con el tope nuevo aún no se cruzan vuelven a
+      poder avisar;
+    - una corrida pausada por presupuesto vuelve a en_marcha."""
     c = corrida_de(e, corrida_id)
-    if not c or not isinstance(nuevo_limite, (int, float)) or isinstance(nuevo_limite, bool):
+    # `math.isfinite`: el JSON de Python admite Infinity y NaN, y `int(round(inf))`
+    # lanzaba en vez de devolver False (misma comprobación que Number.isFinite en el espejo).
+    if not c or not isinstance(nuevo_limite, (int, float)) or isinstance(nuevo_limite, bool) or not math.isfinite(nuevo_limite):
         return False
     limite = int(round(nuevo_limite))
     if limite <= c["gasto"]["llamadas"] or limite <= 0:
         return False
+    anterior = c["presupuesto"].get("limiteLlamadas") or 0
+    margen = max(limite - int(anterior), 0)
     c["presupuesto"]["limiteLlamadas"] = limite
     c["presupuesto"]["avisadas"] = [a for a in c["presupuesto"]["avisadas"] if c["gasto"]["llamadas"] / limite >= a]
+    it = iteracion_actual_de(e, c)
+    limite_nuevo_it: int | None = None
+    if it is not None and isinstance(it.get("presupuesto"), dict):
+        pres = it["presupuesto"]
+        usado = int(pres.get("usado") or 0)
+        limite_it = pres.get("limite")
+        limite_it = int(limite_it) if isinstance(limite_it, (int, float)) and not isinstance(limite_it, bool) else 0
+        pres["limite"] = limite_nuevo_it = max(limite_it, usado + margen)
     if c["estado"] == "pausada_por_presupuesto":
         c["estado"] = "en_marcha"
-    con_evento(e, c["investigacionId"], "presupuesto", f"Presupuesto ampliado a {limite} llamadas", None, ahora)
+        if isinstance(c["presupuesto"], dict):
+            c["presupuesto"]["motivoPausa"] = ""
+    texto = f"Presupuesto ampliado a {limite} llamadas"
+    if it is not None and margen and limite_nuevo_it is not None:
+        texto += f"; la iteración {it.get('numero')} puede gastar hasta {limite_nuevo_it}"
+    con_evento(e, c["investigacionId"], "presupuesto", texto, None, ahora)
     return True
 
 
@@ -381,6 +413,13 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
     # nueva; la interfaz se resincroniza y la persona vuelve a mirar.
     if version_esperada is not None and int(version_esperada) != h.get("version", 1):
         return False
+    # Idempotencia: una decisión que ya está aplicada (aceptar sobre una aceptada,
+    # descartar sobre una descartada) no se registra dos veces. Pasa cuando la
+    # persona pulsa dos veces o cuando la interfaz reintenta un POST tras un 5xx
+    # que en realidad se aplicó. Misma regla que `revisarHipotesis` en
+    # frontend/src/datos/acciones.ts.
+    if h.get("estado") == ESTADO_TRAS_ACCION[accion]:
+        return False
     nota_limpia = (nota or "").strip()
     if accion in ("descartar", "no_puedo_juzgar") and not nota_limpia:
         return False
@@ -402,7 +441,7 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
                 "enunciado": f"Hipótesis aceptada para perseguir: {h['titulo']}" if aceptar else h["titulo"],
                 "estado": "abierto" if aceptar else "descartado",
                 "origen": "inferencia",
-                "procedencia": [{"fuenteId": f["id"], "referencia": f["referencia"], "pagina": f["pagina"]} for f in h["procedencia"]["fuentes"]],
+                "procedencia": [{"fuenteId": f.get("id"), "referencia": f.get("referencia"), "pagina": f.get("pagina")} for f in (h.get("procedencia") or {}).get("fuentes", []) or [] if isinstance(f, dict)],
                 "motivoDescarte": None if aceptar else f"{nota_limpia} ({quien})",
                 "actualizadoEn": ahora,
                 "prioridad": 1 if aceptar else 9,
@@ -462,12 +501,15 @@ def recalcular_bloqueos(e: Estado, h: dict) -> list[str]:
     """Los bloqueos no compensables, calculados con la misma regla que
     `frontend/src/lib/priorizacion.ts`. Se guardan en la hipotesis para que
     el ranking, el dossier y la pantalla digan lo mismo."""
-    from rosa.priorizacion import bloqueos_de
+    from rosa.priorizacion import anotar_cohortes, bloqueos_de
 
     b = bloqueos_de(e, h)
     h["bloqueos"] = b
     if b:
         h["candidata"] = False
+    # La cuenta canónica de cohortes viaja en la conclusión (M-04): se rehace
+    # aquí, donde cambian fuentes o afirmaciones, y al cerrar la iteración.
+    anotar_cohortes(h)
     return b
 
 
@@ -746,6 +788,8 @@ def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str
         return False
     version_anterior = P.version_de(h, ahora, quien, motivo.strip() or "Reformulada")
     instantanea = REG.instantanea_extendida(h)  # certeza, Elo, cuántas afirmaciones y fuentes tenía esa versión
+    cambia_texto = any(texto[k] and texto[k] != str(h.get(k) or "").strip() for k in ("titulo", "enunciado"))
+    diana_anterior = str(((h.get("tarjeta") or {}).get("diana") or "")).strip().lower()
     h["version"] = version + 1
     for k, v in texto.items():
         if v:
@@ -764,10 +808,30 @@ def reformular_hipotesis(e: Estado, hipotesis_id: str, cambios: dict, quien: str
     h["candidata"] = False
     h.pop("_reformularPedida", None)
     h["_revisionPedida"] = True
+    # Novedad por versión (S-11, 17 de septiembre de 2026). El precedente, las
+    # patentes y la financiación se buscan con el título y el enunciado: si
+    # cambian, lo comprobado era de la versión anterior y la nueva hereda un
+    # "ya publicado" que nunca se recomprobó (el Killer volvía a fallar por la
+    # misma novedad y a la tercera descartaba). Igual que rosa/dianas.py hace con
+    # el perfil de diana por versión: vuelven a "No comprobado todavía" y
+    # `paso_novedad` las recoge. La novedad vieja se guarda en la versión. Si
+    # además cambió la diana de la tarjeta, lo que depende del gen también.
+    novedad_anterior = copy.deepcopy(h.get("novedad")) if isinstance(h.get("novedad"), dict) else None
+    if cambia_texto and isinstance(h.get("novedad"), dict):
+        n = h["novedad"]
+        for clave in ("precedente", "patentes", "financiacion"):
+            n[clave] = P.novedad_no_comprobada(version + 1)
+        diana_nueva = str(((h.get("tarjeta") or {}).get("diana") or "")).strip().lower()
+        if diana_nueva != diana_anterior:
+            pendiente = P.novedad_pendiente()
+            for clave in ("openTargets", "ensayos", "genetica", "farmacos", "datosPublicos"):
+                n[clave] = {**pendiente[clave], "detalle": f"No comprobado todavía para la versión {version + 1}: la diana cambió"}
     h["hallazgos"] = [x for x in h["hallazgos"] if x["estado"] != "abierto"] + [{**x, "estado": "atendido", "respuestaDeRosa": f"Atendido en la versión {version + 1}: {motivo.strip()[:200]}"} for x in h["hallazgos"] if x["estado"] == "abierto"]
     # Instantánea con diff (rosa/registro.py): qué cambió campo a campo de esa versión a esta.
     version_guardada = REG.version_con_diff(version_anterior, h)
     version_guardada.update(instantanea)
+    if novedad_anterior is not None:
+        version_guardada["novedad"] = novedad_anterior
     h.setdefault("versiones", []).append(version_guardada)
     resumen_cambios = REG.resumen_diff(version_guardada["cambios"])
     h["revisiones"].append({"fecha": ahora, "quien": quien, "accion": "reformulada", "nota": f"Versión {version + 1}: {motivo.strip()[:300]}", "aCiegas": False})
@@ -1273,9 +1337,20 @@ def enmendar_lectura(e: Estado, hipotesis_id: str, indice: int, campo: str, desp
     anterior y el nuevo, quién, cuándo y por qué. `indice` es la posición en
     `experimento.lecturas` tal como está guardada. El nombre y el tipo de la
     lectura no se enmiendan: cambiarlos es otra lectura, no una corrección.
-    Como las lecturas cambian, se recalcula `hashLecturas` y la enmienda
-    guarda el hash anterior y el nuevo, para que se vea que ya no coincide
-    con el del artefacto congelado."""
+    Regla del hash (la del servidor manda; el espejo
+    `frontend/src/datos/acciones.ts` enmendarLectura debe hacer exactamente
+    esto, 17 de septiembre de 2026, M-32):
+      1. hashAntes = experimento.hashLecturas si existe; si no,
+         hash_lecturas(experimento) calculado antes de tocar nada.
+      2. Se aplica el cambio a la lectura.
+      3. hashDespues = hash_lecturas(experimento) recalculado.
+      4. experimento.hashLecturas = hashDespues (el vigente es el nuevo).
+      5. La enmienda guarda {fecha, quien, campo: "lecturas[i].campo",
+         lectura: nombre, antes, despues, motivo, hashAntes, hashDespues}.
+    El hash congelado al prerregistrar no se pierde: está en el artefacto del
+    prerregistro y en `hashAntes` de la primera enmienda; la pantalla debe
+    enseñar "congelado" el de la primera enmienda (o el del artefacto) y
+    "actual" el de `hashLecturas`, no etiquetar el nuevo como congelado."""
     h = _buscar(e["hipotesis"], hipotesis_id)
     if not h or not isinstance(h.get("experimento"), dict) or campo not in CAMPOS_LECTURA_ENMENDABLES:
         return False
@@ -1343,15 +1418,43 @@ def texto_protocolo_real(x: dict) -> str:
     return "\n\n".join(partes)
 
 
-def registrar_datos_experimento(e: Estado, hipotesis_id: str, fichero: str, analisis: str) -> bool:
+def es_fichero_sintetico(nombre: Any) -> bool:
+    """Regla defensiva por nombre (S-18): un fichero que se llama "sintético",
+    "synthetic", "dummy", "fake", "mock", "datos de prueba" o "prueba.csv" es
+    de prueba aunque nadie marque la casilla. La regla vive en
+    rosa/certeza.py (`NOMBRE_SINTETICO`) para que el techo GRADE y esta acción
+    digan lo mismo; "prueba" suelta ("prueba_cognitiva.csv") y "humo" no
+    cuentan porque en clínica son datos reales. Solo fuerza a sí; nunca
+    convierte en real lo declarado de prueba."""
+    return bool(CERTEZA.NOMBRE_SINTETICO.search(str(nombre or "")))
+
+
+def registrar_datos_experimento(e: Estado, hipotesis_id: str, fichero: str, analisis: str, sintetico: Any = False) -> bool:
+    """Los datos del laboratorio para un experimento asignado. `sintetico`
+    (casilla "son datos de prueba" de la ficha; acepta bool o texto: "si",
+    "sí", "true", "1", "yes", "verdadero" y "on", que es lo que manda un
+    formulario HTML con la casilla marcada; cualquier otro texto es no) se
+    guarda en `experimento.datosSinteticos` y se fuerza a True si el nombre
+    del fichero lo delata (`es_fichero_sintetico`). El bucle
+    (rosa/bucle/corrida.py, `_evaluar_resultado`) lo lee: una afirmación de
+    laboratorio sintética lleva `sintetico: True`, no sube el techo GRADE ni
+    crea hecho en el modelo de mundo. Antes un CSV llamado
+    `datos_gfap_nfl_sintetico.csv` contaba como "análisis sobre datos reales"
+    y subía el techo a moderada (17 de septiembre de 2026)."""
     h = _buscar(e["hipotesis"], hipotesis_id)
-    if not h or not fichero.strip() or not h["experimento"]:
+    if not h or not isinstance(fichero, str) or not fichero.strip() or not isinstance(h.get("experimento"), dict):
         return False
-    h["experimento"]["ficheroDatos"] = fichero.strip()
-    h["experimento"]["analisisPedido"] = analisis.strip()
-    h["experimento"]["estado"] = "datos_recibidos"
-    h["experimento"].pop("resultado", None)
-    h.pop("_resultadoEvaluado", None)  # el bucle evalua los datos contra el prerregistro
+    if isinstance(sintetico, str):
+        declarado = sintetico.strip().lower() in ("si", "sí", "true", "1", "yes", "verdadero", "on")
+    else:
+        declarado = bool(sintetico)
+    x = P.experimento_con_datos(h["experimento"])
+    x["ficheroDatos"] = fichero.strip()
+    x["analisisPedido"] = str(analisis or "").strip()
+    x["datosSinteticos"] = declarado or es_fichero_sintetico(fichero)
+    x["estado"] = "datos_recibidos"
+    x.pop("resultado", None)
+    h.pop("_resultadoEvaluado", None)  # el bucle evalúa los datos contra el prerregistro
     return True
 
 

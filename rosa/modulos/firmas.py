@@ -178,6 +178,7 @@ class RevisionInicial(BaseModel):
 class SupuestoEvaluado(BaseModel):
     estado: Literal["respaldado", "plausible", "sin_evidencia", "contradicho"]
     evidencia: str = Field(description="Qué afirmación o fuente lo respalda o contradice; 'ninguna' si no hay")
+    indices_que_lo_niegan: list[int] = Field(default_factory=list, description="Los números (tal como van numeradas en afirmaciones_sostenidas) de las afirmaciones que niegan el supuesto. Vacío si ninguna lo niega; sin al menos un número, el estado no puede ser 'contradicho'")
 
 
 # ---------------------------------------------------------------------------
@@ -346,10 +347,12 @@ class RevisarInicial(dspy.Signature):
 
 
 class EvaluarSupuesto(dspy.Signature):
-    """Evaluar un supuesto de una hipotesis contra las afirmaciones sostenidas disponibles.
-    `respaldado` solo si una afirmacion lo sostiene directamente; `contradicho` si alguna
-    lo niega; `plausible` si es consistente pero sin evidencia directa; `sin_evidencia` si
-    nada aplica. No inventar evidencia."""
+    """Evaluar un supuesto de una hipótesis contra las afirmaciones sostenidas disponibles.
+    `respaldado` solo si una afirmación lo sostiene directamente; `contradicho` solo si
+    alguna afirmación numerada lo niega, y entonces `indices_que_lo_niegan` lleva sus
+    números; `plausible` si es consistente pero sin evidencia directa; `sin_evidencia` si
+    nada aplica. No inventar evidencia: un supuesto que las afirmaciones no tocan es
+    `sin_evidencia` o `plausible`, nunca `contradicho`."""
 
     supuesto: str = dspy.InputField()
     afirmaciones_sostenidas: str = dspy.InputField()
@@ -438,12 +441,18 @@ class ResponderComentarios(dspy.Signature):
 
 class ResumirIteracion(dspy.Signature):
     """Resumir la iteración en tres o cuatro líneas para la investigadora y para la siguiente
-    iteración: que se busco, que se sostuvo, que entro al modelo de mundo, que hipótesis
-    hay en la cola y que quedó sin poder comprobar."""
+    iteración: qué se buscó, qué se sostuvo, qué entró al modelo de mundo, qué hipótesis
+    nacieron en esta iteración, qué hay en la cola y qué quedó sin poder comprobar. Las
+    hipótesis nuevas y la cola son cosas distintas: `hipotesis_nuevas` son solo las que
+    nacieron ahora (puede ser ninguna); `cola` es la lista completa de las que esperan, con
+    el recuento calculado por regla. El número de hipótesis en cola se copia de la primera
+    línea de `cola` tal cual; la decisión y el motivo del Killer se toman de `cola` y, si
+    no vienen, no se inventan."""
 
     plan_ejecutado: str = dspy.InputField(desc="Pasos con su estado y resumen de pistas")
     cambios_modelo_de_mundo: str = dspy.InputField()
-    hipotesis_nuevas: str = dspy.InputField()
+    hipotesis_nuevas: str = dspy.InputField(desc="Solo las hipótesis que nacieron en esta iteración; 'Ninguna' si no nació ninguna")
+    cola: str = dspy.InputField(desc="Calculada por regla: primera línea con el recuento ('N en cola: X con descarte propuesto, Y suspendidas, Z sin juzgar'), después cada hipótesis viva con título, estado, decisión del Killer con su motivo real y fecha de nacimiento. Se copia el recuento; no se inventan motivos")
     sin_comprobar: str = dspy.InputField()
     resumen: str = dspy.OutputField()
 
@@ -455,37 +464,42 @@ class Termino(BaseModel):
 
 class ResumenLlano(BaseModel):
     titulo: str = Field(description="La pregunta de la iteración, como pregunta, en una línea")
-    mensajes_clave: list[str] = Field(description="Dos o tres frases. La primera responde a la pregunta con el verbo de la certeza (indica / probablemente / puede que / no esta claro) y dice que no se pudo comprobar; la ultima dice que toca ahora. Sin recomendaciones clinicas")
+    mensajes_clave: list[str] = Field(description="Dos o tres frases. La primera responde a la pregunta con el verbo de la certeza (indica / probablemente / puede que / no está claro) y dice qué no se pudo comprobar; la última dice qué toca ahora. Sin recomendaciones clínicas")
     que_buscaba: str = Field(description="Una o dos frases")
-    que_hizo: str = Field(description="Qué fuentes consultó y cuantos resultados, cuantas afirmaciones verificó y con que veredicto, que fuentes no respondieron")
+    que_hizo: str = Field(description="Qué fuentes consultó y cuántos resultados, cuántas afirmaciones verificó y con qué veredicto, qué fuentes no respondieron")
     que_encontro: list[str] = Field(description="Entre 2 y 5 frases cortas, una por hallazgo, sin siglas sin explicar; las cifras con su denominador")
-    limitaciones: str = Field(description="Por que hay que fiarse solo hasta cierto punto, en llano: una sola cohorte, muestras pequeñas, otro biomarcador, etc.")
-    cambios: list[str] = Field(description="Qué hipótesis subieron o bajaron de certeza o cambiaron de dirección respecto a la iteración anterior, con motivo. Vacío en la primera iteración o si nada cambio")
-    que_propone: list[str] = Field(description="Una frase por hipótesis, con la forma 'Si X, entonces Y'. Vacío si no hubo hipótesis nuevas")
-    que_falta: str = Field(description="Qué no se pudo comprobar o que evidencia falta, en una o dos frases")
+    limitaciones: str = Field(description="Por qué hay que fiarse solo hasta cierto punto, en llano: una sola cohorte, muestras pequeñas, otro biomarcador, etc.")
+    cambios: list[str] = Field(description="Qué hipótesis subieron o bajaron de certeza o cambiaron de dirección respecto a la iteración anterior, con motivo. Vacío en la primera iteración o si nada cambió")
+    que_propone: list[str] = Field(description="Una frase por hipótesis nueva de esta iteración (las de hipotesis_nuevas, no las de la cola), con la forma 'Si X, entonces Y'. Vacío si no nació ninguna")
+    que_falta: str = Field(description="Qué no se pudo comprobar o qué evidencia falta, en una o dos frases")
     que_te_toca: str = Field(description="Qué decisión o acción espera a la persona, en una frase")
     terminos: list[Termino] = Field(description="Cada término técnico usado arriba, explicado en una frase")
 
 
 class ExplicarEnLlano(dspy.Signature):
     """Escribir el resumen de la iteración con la estructura de un resumen en lenguaje
-    llano de Cochrane: título como pregunta, mensajes clave primero, que buscaba, que hizo,
-    que encontró, limitaciones de la evidencia, que cambio, que propone, que falta y que le
+    llano de Cochrane: título como pregunta, mensajes clave primero, qué buscaba, qué hizo,
+    qué encontró, limitaciones de la evidencia, qué cambió, qué propone, qué falta y qué le
     toca a la persona. Lenguaje corriente: frases de unas 20 palabras, voz activa, sin
     siglas sin explicar, cifras con denominador ("de 100 personas..."), sin la palabra
     "significativo", sin recomendaciones clínicas, sin "demuestra" ni "confirma". Los
     verbos siguen la certeza: alta "indica", moderada "probablemente", baja "puede que",
     muy baja "no está claro si". Ausencia de evidencia no es evidencia de ausencia; una
     fuente que no respondió se dice como "no pudimos comprobar". Cada término técnico se
-    explica en el glosario en una frase. No se añade nada que no este en el material.
+    explica en el glosario en una frase. No se añade nada que no esté en el material.
     Cada hipótesis se nombra con su estado real: si el Killer la descartó o la suspendió,
-    se dice descartada o suspendida y por qué, nunca "pendiente de validación"."""
+    se dice descartada o suspendida y por qué, con el motivo que trae `cola`, nunca
+    "pendiente de validación" ni un motivo inventado (si no viene motivo, se dice que el
+    Killer no lo detalló). Las hipótesis nuevas de esta iteración (`hipotesis_nuevas`,
+    que puede ser ninguna) no son la cola: cuando se diga cuántas hipótesis quedan en cola
+    se copia el número de la primera línea de `cola`, calculado por regla."""
 
     objetivo: str = dspy.InputField()
-    resumen_tecnico: str = dspy.InputField(desc="El resumen de la iteración tal como lo escribio Rosa")
+    resumen_tecnico: str = dspy.InputField(desc="El resumen de la iteración tal como lo escribió Rosa")
     hechos_nuevos: str = dspy.InputField()
-    hipotesis_nuevas: str = dspy.InputField(desc="Título, enunciado y para que sirve, de cada una")
+    hipotesis_nuevas: str = dspy.InputField(desc="Título, enunciado y para qué sirve, de cada hipótesis que nació en esta iteración; 'Ninguna' si no nació ninguna")
     estado_hipotesis: str = dspy.InputField(desc="Decisión del Killer y estado de cada hipótesis nueva; el resumen las presenta con ese estado")
+    cola: str = dspy.InputField(desc="Calculada por regla: primera línea con el recuento ('N en cola: X con descarte propuesto, Y suspendidas, Z sin juzgar'), después cada hipótesis viva con título, estado, decisión del Killer con su motivo real y fecha de nacimiento. El recuento se copia tal cual; los motivos no se inventan")
     sin_comprobar: str = dspy.InputField()
     conclusiones: str = dspy.InputField(desc="Certeza y dirección de cada hipótesis de la investigación, y su cambio respecto a la iteración anterior")
     busqueda: str = dspy.InputField(desc="Fuentes consultadas con resultados, afirmaciones verificadas por veredicto, fuentes que no respondieron")
@@ -594,8 +608,8 @@ class FactorCerteza(BaseModel):
 
 class ConclusionHipotesis(BaseModel):
     hipotesis_breve: str = Field(description="La hipótesis como oración con verbo, en una línea y sin punto final, para completar 'la evidencia sostiene que ...' (por ejemplo 'GFAP se altera antes que NfL en portadores de APOE e4 con amiloide positivo')")
-    certeza: Literal["alta", "moderada", "baja", "muy_baja"] = Field(description="Certeza de la evidencia (GRADE): alta si varios estudios independientes y directos coinciden; moderada si la evidencia es consistente pero de una sola cohorte, indirecta o imprecisa; baja si solo hay indicios, inferencias o estudios con limitaciones serias; muy baja si no hay evidencia directa o es contradictoria")
-    direccion: Literal["apoya", "mixta", "en_contra", "sin_evidencia_directa"] = Field(description="Hacia donde apunta la evidencia reunida respecto a la hipótesis. Es independiente de la certeza: no mezclar las dos en una frase")
+    certeza: Literal["alta", "moderada", "baja", "muy_baja"] = Field(description="Certeza de la evidencia (GRADE), con la misma escala que la regla de Rosa (rosa/certeza.py), que después acota el nivel y solo puede bajarlo: muy_baja solo si no hay ningún apoyo sostenido, o si toda la literatura viene de una sola cohorte sin réplica ni datos propios, o si lo que contradice pesa tanto como lo que apoya; baja cuando hay literatura de dos o más cohortes distintas sin evidencia directa (es el punto de partida de la literatura observacional; cada factor grave, riesgo de sesgo, inconsistencia, evidencia indirecta o imprecisión, puede bajarla); moderada cuando hay evidencia directa (un resultado de laboratorio contra el prerregistro o un análisis in silico sobre datos reales de una cohorte); alta solo con réplica directa (evidencia directa en dos o más cohortes distintas). 'Evidencia indirecta' es la de otra población, otro marcador u otro desenlace que los de la hipótesis: baja un nivel, no manda a muy_baja por sí sola. Nunca por encima de `techo_por_regla`")
+    direccion: Literal["apoya", "mixta", "en_contra", "sin_evidencia_directa"] = Field(description="Hacia dónde apuntan las afirmaciones reunidas respecto a la hipótesis, solo las afirmaciones: 'mixta' y 'en_contra' exigen al menos una afirmación sostenida marcada «EN CONTRA»; un supuesto contradicho, una ausencia de evidencia o una duda del propio juez no fijan la dirección (van a factores o a lo_mas_fragil). 'sin_evidencia_directa' solo si no hay ninguna afirmación a favor o todas son de apoyo indirecto. Rosa la corrige por regla si no cumple esto. Es independiente de la certeza: no mezclar las dos en una frase")
     conclusion: str = Field(description="Tres o cuatro frases en lenguaje corriente. El verbo principal sigue la certeza: alta 'la evidencia indica que'; moderada 'probablemente'; baja 'puede que'; muy baja 'no está claro si'. Sin porcentajes ni probabilidades inventadas; las cifras que se den van con su denominador (por ejemplo 'una sola cohorte de 195 personas')")
     factores: list[FactorCerteza] = Field(description="Por que este grado: cada factor que lo bajo o lo subio, con su evidencia")
     a_favor: list[str] = Field(description="Lo que la apoya, una frase por punto, citando la afirmación o fuente")
@@ -615,13 +629,18 @@ class ConcluirHipotesis(dspy.Signature):
     sola cohorte no es replicación (baja la certeza por imprecision o inconsistencia no
     comprobable); evidencia en otra población es indirecta; una interpretación no es un dato;
     ausencia de evidencia no es evidencia de ausencia; no inventar porcentajes de confianza.
-    Las afirmaciones marcadas «EN CONTRA» pesan en la dirección (mixta o en contra); las
-    marcadas «apoyo indirecto» bajan la certeza por evidencia indirecta, no la dirección; las
-    marcadas «añadida en la iteración N» llegaron después de nacer la hipótesis y cuentan
-    igual que las demás. Lenguaje corriente, términos técnicos explicados la primera vez."""
+    Las afirmaciones marcadas «EN CONTRA» pesan en la dirección (mixta o en contra); sin
+    ninguna de ellas la dirección no puede ser mixta ni en contra; las marcadas «apoyo
+    indirecto» bajan la certeza por evidencia indirecta, no la dirección; las marcadas
+    «añadida en la iteración N» llegaron después de nacer la hipótesis y cuentan igual que
+    las demás. `techo_por_regla` es el nivel máximo que la regla de Rosa da con lo contado
+    (cohortes, evidencia directa, pesos): el juez explica dentro de esa caja y solo puede
+    quedarse en el techo o bajar nombrando el factor, nunca subir. Lenguaje corriente,
+    términos técnicos explicados la primera vez."""
 
     hipotesis: str = dspy.InputField()
     afirmaciones: str = dspy.InputField(desc="Con veredicto, tipo y cita")
+    techo_por_regla: str = dspy.InputField(desc="El nivel máximo de certeza que da la regla determinista (rosa/certeza.py) y su motivo, por ejemplo 'baja: solo literatura, pero de dos cohortes distintas'. La certeza no puede quedar por encima; si el juez baja, dice por qué factor")
     supuestos: str = dspy.InputField(desc="Con su estado: respaldado, plausible, sin evidencia, contradicho")
     partidos: str = dspy.InputField(desc="Resultado y eje decisivo de cada comparación en el torneo")
     novedad: str = dspy.InputField()

@@ -61,11 +61,13 @@ nada de esto se opera desde la terminal.
   comprobaciones; la decision (avanzar, reformular, suspender, descartar en
   este contexto) se deriva por regla y cada comprobacion tiene una
   consecuencia declarada cuando falla (`rosa/killer.py`, tabla
-  `CONSECUENCIA`): descartan citas, fidelidad y supuestos; reformulan
+  `CONSECUENCIA`): descartan citas y fidelidad; reformulan
   causalidad, falsabilidad, factibilidad, redundancia, direccion de la
-  evidencia, unidades y novedad; suspenden fuente primaria, riesgo de sesgo
-  e identificadores que no resuelven; una sola cohorte avanza con la certeza
-  limitada. Una comprobacion por regla que encontro algo (una cifra fuera
+  evidencia, unidades y novedad; suspenden fuente primaria, riesgo de sesgo,
+  identificadores que no resuelven y supuestos contradichos (desde el 17 de
+  septiembre de 2026: el evaluador de supuestos daba por contradicho lo que
+  ninguna afirmación mencionaba y descartaba hipótesis buenas); una sola
+  cohorte avanza con la certeza limitada. Una comprobación por regla que encontró algo (una cifra fuera
   del pasaje) no la puede borrar el juez. Reformular crea una version nueva
   (hasta dos por politica). Un tercio de los descartes lo audita otro modelo
   defendiendo la hipotesis. Todo queda en el registro de decisiones, y cada

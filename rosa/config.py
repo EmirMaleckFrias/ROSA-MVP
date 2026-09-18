@@ -1,8 +1,8 @@
-"""Configuracion de Rosa: rutas, puertos y contacto para las APIs.
+"""Configuración de Rosa: rutas, puertos y contacto para las APIs.
 
-Todo lo que puede variar entre la Mac de la persona responsable y otra maquina vive aqui y se
+Todo lo que puede variar entre la Mac de la persona responsable y otra máquina vive aquí y se
 lee del entorno (.env). Los valores por defecto sirven para arrancar sin
-tocar nada: base de datos `rosa.db` en la raiz del repo, servidor en el
+tocar nada: base de datos `rosa.db` en la raíz del repo, servidor en el
 puerto 8765, MLflow en `mlflow.db`.
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -27,12 +28,12 @@ MLFLOW_URI = os.environ.get("ROSA_MLFLOW_URI", f"sqlite:///{RAIZ / 'mlflow.db'}"
 MLFLOW_UI = os.environ.get("ROSA_MLFLOW_UI", "http://127.0.0.1:5000")
 FRONTEND_DIST = RAIZ / "frontend" / "dist"
 
-# Contacto que se manda a Crossref, Unpaywall y OpenAlex. Es publico por
-# diseno (piden un correo real para el "polite pool").
+# Contacto que se manda a Crossref, Unpaywall y OpenAlex. Es público por
+# diseño (piden un correo real para el "polite pool").
 CORREO_CONTACTO = os.environ.get("ROSA_CORREO", "contacto-interno@example.invalid")
 USER_AGENT = f"Rosa/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
 
-# Claves opcionales de fuentes. Sin ellas Rosa funciona con los cupos publicos.
+# Claves opcionales de fuentes. Sin ellas Rosa funciona con los cupos públicos.
 CLAVE_NCBI = os.environ.get("ROSA_NCBI_KEY", "")
 CLAVE_OPENALEX = os.environ.get("ROSA_OPENALEX_KEY", "")
 CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
@@ -40,36 +41,42 @@ CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
 # y los conectores de Exa quedan en el catálogo como "requiere cuenta".
 CLAVE_EXA = os.environ.get("ROSA_EXA_KEY", "")
 # Token de acceso a la API. Obligatorio si el servidor escucha fuera de 127.0.0.1:
-# sin el, cualquier equipo de la red podria arrancar corridas y gastar en el gateway.
+# sin él, cualquier equipo de la red podría arrancar corridas y gastar en el gateway.
 ROSA_TOKEN = os.environ.get("ROSA_TOKEN", "")
-# Preguntas con herramientas (ReAct) por dia: cuestan llamadas al cerebro y no
+# Preguntas con herramientas (ReAct) por día: cuestan llamadas al cerebro y no
 # pasan por el presupuesto de una corrida.
 PREGUNTAS_MAX_DIA = int(os.environ.get("ROSA_PREGUNTAS_MAX_DIA", "40"))
 # Espejo del estado en Convex (opcional): URL del deployment y clave de despliegue. Solo en .env.
 CONVEX_URL = os.environ.get("CONVEX_URL", "").rstrip("/")
 CONVEX_DEPLOY_KEY = os.environ.get("CONVEX_DEPLOY_KEY", "")
 
-# Directorio donde se guardan los PDF descargados (texto completo por pagina).
+# Directorio donde se guardan los PDF descargados (texto completo por página).
 DIR_PDFS = Path(os.environ.get("ROSA_PDFS", RAIZ / "pdfs"))
 
 # Quien firma lo que hace Rosa en los historiales.
 QUIEN_ROSA = "Rosa"
 
 # Presupuesto por defecto de una corrida nueva, en llamadas al modelo.
-# Una iteracion completa cuesta entre 120 y 250 llamadas (medido); 1500 da
+# Una iteración completa cuesta entre 120 y 250 llamadas (medido); 1500 da
 # margen para varias iteraciones antes de que la corrida se pause y pregunte.
 PRESUPUESTO_CORRIDA = int(os.environ.get("ROSA_PRESUPUESTO", "1500"))
 ALERTAS_PRESUPUESTO = [0.5, 0.8, 0.95]
 PRESUPUESTO_ITERACION = int(os.environ.get("ROSA_PRESUPUESTO_ITERACION", "300"))
 
-# Precios estimados por millon de tokens (entrada, salida) en dolares, para
-# el presupuesto en dinero de la mision. Son estimaciones para ordenar el
-# gasto, no la factura: la factura real la da el AI Gateway. Se pueden
-# sobreescribir con ROSA_PRECIOS='{"openai/gpt-6-astra": [5, 20], ...}'.
+# Precios de respaldo por millón de tokens (entrada, salida) en dólares, para
+# cuando una llamada llega sin el coste del gateway. Actualizados el 17 de
+# septiembre de 2026 (hallazgo S-19: la tabla anterior, 5/20, 15/75 y 3/15,
+# hacía que Rosa mostrara el doble del coste real y que el presupuesto de 60
+# dólares de la misión cortara a los 30). Ajustados por mínimos cuadrados sobre
+# 1.980 trazas de GEPA con `usage.cost`: Sonnet 5 y Opus 5 salen exactos; GPT-6
+# Astra es aproximado (no es lineal por la caché de entrada; residuo de 0,10
+# dólares por llamada), así que el coste que manda es siempre el del gateway.
+# Se pueden sobreescribir con ROSA_PRECIOS='{"openai/gpt-6-astra": [12.08, 50.99], ...}'.
+PRECIOS_FECHA = "2026-09-17"
 _PRECIOS_POR_DEFECTO = {
-    "openai/gpt-6-astra": (5.0, 20.0),
-    "anthropic/claude-opus-5": (15.0, 75.0),
-    "anthropic/claude-sonnet-5": (3.0, 15.0),
+    "openai/gpt-6-astra": (12.08, 50.99),
+    "anthropic/claude-opus-5": (5.0, 25.0),
+    "anthropic/claude-sonnet-5": (2.0, 10.0),
 }
 try:
     import json as _json
@@ -80,8 +87,36 @@ except Exception:  # noqa: BLE001
 
 
 def coste_usd(modelo: str, tokens_entrada: int, tokens_salida: int) -> float:
+    """Coste estimado por la tabla de respaldo. Preferir `coste_desde_uso`."""
     # DSPy nombra los modelos del gateway como "openai/anthropic/claude-opus-5":
     # se quita el prefijo del proveedor compatible antes de buscar el precio.
     limpio = modelo.removeprefix("openai/") if modelo.count("/") > 1 else modelo
-    entrada, salida = PRECIOS.get(modelo) or PRECIOS.get(limpio) or PRECIOS.get(modelo.split("/")[-1]) or (5.0, 20.0)
+    entrada, salida = PRECIOS.get(modelo) or PRECIOS.get(limpio) or PRECIOS.get(modelo.split("/")[-1]) or _PRECIOS_POR_DEFECTO["openai/gpt-6-astra"]
     return (tokens_entrada * entrada + tokens_salida * salida) / 1_000_000
+
+
+def coste_desde_uso(uso: Any, modelo: str) -> tuple[float, bool]:
+    """(coste en dólares, es_real). El AI Gateway devuelve en `usage` el campo
+    `cost` (lo facturado por esa llamada; también `market_cost` y
+    `gateway_cost`). Si viene y es un número mayor que cero, manda; si no
+    (usage vacío, sin `cost`, cero, texto raro), se cae a la tabla de respaldo
+    con `prompt_tokens` y `completion_tokens` y `es_real` es False. Lo llaman
+    `Contador.on_lm_end` (rosa/modulos/contador.py) y `gepa_continuo.on_lm_end`.
+    Nunca lanza: un `usage` que no sea un diccionario cuenta como vacío."""
+    u = uso if isinstance(uso, dict) else {}
+    coste = u.get("cost")
+    try:
+        if coste is not None and not isinstance(coste, bool):
+            valor = float(coste)
+            if valor > 0 and valor == valor and valor != float("inf"):
+                return round(valor, 6), True
+    except (TypeError, ValueError):
+        pass
+
+    def _entero(v: Any) -> int:
+        try:
+            return max(int(v or 0), 0)
+        except (TypeError, ValueError):
+            return 0
+
+    return round(coste_usd(str(modelo or ""), _entero(u.get("prompt_tokens")), _entero(u.get("completion_tokens"))), 6), False

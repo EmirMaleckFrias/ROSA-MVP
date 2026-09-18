@@ -45,7 +45,7 @@ def _obra(w: dict[str, Any]) -> dict[str, Any]:
         "pmid": (w.get("ids", {}).get("pmid") or "").replace("https://pubmed.ncbi.nlm.nih.gov/", "") or None,
         "titulo": w.get("title") or "",
         "autores": autores,
-        "referencia": referencia_corta(autores, anio),
+        "referencia": referencia_corta(autores, anio, identificador=((w.get("doi") or "").replace("https://doi.org/", "").lower() or None) or (str(w.get("id") or "").replace("https://openalex.org/", "") or None)),
         "anio": anio,
         "tipo": w.get("type"),
         "retractadoSegunOpenAlex": bool(w.get("is_retracted")),

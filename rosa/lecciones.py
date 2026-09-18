@@ -99,7 +99,8 @@ def generar_al_cerrar(e: dict[str, Any], c: dict[str, Any], it: dict[str, Any], 
     # Hipótesis cerradas por el Killer en esta iteración, con la comprobación que falló.
     titulos = {h["id"]: h["titulo"] for h in e.get("hipotesis", [])}
     for d in e.get("decisiones", []):
-        if d.get("investigacionId") == inv_id and str(d.get("etapa", "")).startswith("killer") and d.get("decision") in CIERRES_KILLER and int(d.get("fecha") or 0) >= desde:
+        # `sinJuez`: suspensión técnica tras tres fallos del juez (S-09), no un juicio científico.
+        if d.get("investigacionId") == inv_id and str(d.get("etapa", "")).startswith("killer") and d.get("decision") in CIERRES_KILLER and int(d.get("fecha") or 0) >= desde and not d.get("sinJuez"):
             fallan = [x.get("comprobacion") for x in d.get("comprobaciones", []) if x.get("resultado") == "falla"]
             add("hipotesis", f"«{titulos.get(d.get('hipotesisId'), d.get('hipotesisId'))[:80]}» cerrada por el Killer ({str(d.get('decision')).replace('_', ' ')}): fallaron {', '.join(str(x).replace('_', ' ') for x in fallan) or 'sin comprobaciones fallidas registradas'}. Haría falta: {(d.get('queHariaFalta') or 'no registrado')[:160]}", f"decision:{d.get('id')}")
     # Ideas retiradas del vivero.

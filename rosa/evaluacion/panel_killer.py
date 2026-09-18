@@ -1,17 +1,17 @@
 """Panel de prueba del Hypothesis Killer (plan completo, etapa E; ROSA2018,
-etapa 6): hipotesis reales de Rosa a las que se les planta un fallo conocido
-y se mide si el Killer lo detecta, si lo detecta la comprobacion correcta,
-y cuanto se abstiene (suspender) o mata de mas en un conjunto gris.
+etapa 6): hipótesis reales de Rosa a las que se les planta un fallo conocido
+y se mide si el Killer lo detecta, si lo detecta la comprobación correcta,
+y cuánto se abstiene (suspender) o mata de más en un conjunto gris.
 
-Por que existe. El Killer decide por regla sobre comprobaciones, pero varias
+Por qué existe. El Killer decide por regla sobre comprobaciones, pero varias
 de esas comprobaciones las hace el juez (Opus 5). Sin un panel con fallos
-plantados no hay forma de saber que tasa de deteccion tiene, ni de ver si
-una version nueva del prompt o del modelo lo empeora. Es la misma logica que
+plantados no hay forma de saber qué tasa de detección tiene, ni de ver si
+una versión nueva del prompt o del modelo lo empeora. Es la misma lógica que
 un conjunto de control: la respuesta correcta se conoce de antemano.
 
 Uso: `uv run python -m rosa.evaluacion.panel_killer --hipotesis 5` con el
 servidor corriendo (lee el estado por HTTP y escribe el resultado como
-registro de evaluacion). Cuesta dinero: cada variante es una llamada al juez.
+registro de evaluación). Cuesta dinero: cada variante es una llamada al juez.
 """
 
 from __future__ import annotations
@@ -37,15 +37,17 @@ from rosa.modulos.firmas import Programas
 
 URL = f"http://{config.HOST}:{config.PUERTO}"
 
-# Que decision se espera para cada fallo plantado y que comprobacion deberia
+# Qué decisión se espera para cada fallo plantado y qué comprobación debería
 # fallar. `esperadas` admite varias decisiones cuando la regla las permite.
 FALLOS: dict[str, dict[str, Any]] = {
-    "original": {"esperadas": None, "comprobacion": None, "descripcion": "La hipótesis tal como esta: se compara con la decisión real que tomo el Killer"},
+    "original": {"esperadas": None, "comprobacion": None, "descripcion": "La hipótesis tal como está: se compara con la decisión real que tomó el Killer"},
     "cifra_alterada": {"esperadas": ("descartar_en_contexto",), "comprobacion": "fidelidad_evidencia", "descripcion": "Una cifra de una afirmación multiplicada por 10 (o la dirección invertida) sin tocar el pasaje citado"},
     "prediccion_vaga": {"esperadas": ("reformular",), "comprobacion": "falsabilidad", "descripcion": "La predicción falsable sustituida por una frase que ninguna observación podría refutar"},
     "causal_sin_temporalidad": {"esperadas": ("reformular",), "comprobacion": "direccion_causal", "descripcion": "El enunciado afirma causalidad directa con evidencia solo transversal"},
     "misma_cohorte": {"esperadas": ("avanzar", "suspender"), "comprobacion": "independencia_cohortes", "descripcion": "Todas las fuentes marcadas como la misma cohorte: debe avanzar con aviso, no descartar"},
-    "supuesto_contradicho": {"esperadas": ("descartar_en_contexto",), "comprobacion": "supuestos", "descripcion": "Un supuesto necesario marcado como contradicho por la evidencia"},
+    # Desde el 17 de septiembre de 2026 un supuesto contradicho suspende (hace falta
+    # más o mejor evidencia), no descarta: ver el comentario de DESCARTAN en rosa/killer.py.
+    "supuesto_contradicho": {"esperadas": ("suspender",), "comprobacion": "supuestos", "descripcion": "Un supuesto necesario marcado como contradicho por la evidencia: debe suspender, nunca descartar"},
     "gris_parcial": {"esperadas": ("avanzar", "suspender", "reformular"), "comprobacion": None, "descripcion": "Un pasaje recortado que solo sostiene a medias la afirmación (veredicto parcial): no debe descartar"},
 }
 
@@ -129,8 +131,8 @@ def _mision_texto(inv: dict[str, Any]) -> str:
 
 
 def juzgar(programas: Programas, juez: dspy.LM, e: dict[str, Any], h: dict[str, Any], volumen: dspy.LM | None = None) -> dict[str, Any]:
-    """Una pasada del Killer sobre una hipotesis (copia local del estado):
-    comprobaciones deterministas, el juez, fusion y decision por regla. Es el
+    """Una pasada del Killer sobre una hipótesis (copia local del estado):
+    comprobaciones deterministas, el juez, fusión y decisión por regla. Es el
     mismo camino que `pasos._killer`, sin escribir en el estado."""
     inv = next(i for i in e["investigaciones"] if i["id"] == h["investigacionId"])
     deterministas = K.comprobaciones_deterministas(h, e)
@@ -235,7 +237,7 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         respuesta.raise_for_status()
         e = respuesta.json()
     candidatas = [h for h in e["hipotesis"] if h["estado"] != "descartada" and len([a for a in h.get("afirmaciones", []) if a.get("veredicto") in ("sostenida", "parcial")]) >= 2 and h.get("tarjeta") and (h.get("tarjeta") or {}).get("prediccionFalsable")]
-    # Primero las que el Killer real dejo avanzar: en una hipotesis que ya se
+    # Primero las que el Killer real dejó avanzar: en una hipótesis que ya se
     # descarta por otro motivo, un fallo plantado no se puede medir.
     candidatas.sort(key=lambda h: (0 if h.get("decisionKiller") == "avanzar" else 1 if h.get("decisionKiller") in (None, "suspender") else 2, -len(h.get("afirmaciones", []))))
     elegidas = candidatas[:n_hipotesis]
@@ -288,8 +290,8 @@ async def correr(n_hipotesis: int, fallos: list[str], paralelo: int, salida: Pat
         "usd": round(sum(r["usd"] for r in resultados), 3),
         "segundos": round(sum(r["segundos"] for r in resultados), 1),
         "juez": modelos.juez.model,
-        # Acuerdo corregido por azar entre lo esperado y lo que salio: por decision
-        # (cuatro categorias) y por comprobacion (falla esperada en los casos
+        # Acuerdo corregido por azar entre lo esperado y lo que salió: por decisión
+        # (cuatro categorías) y por comprobación (falla esperada en los casos
         # plantados frente a pasa esperado en los originales).
         "acuerdo": acuerdo_del_panel(resultados),
     }

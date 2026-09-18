@@ -14,17 +14,44 @@ Es el equivalente de `frontend/src/datos/almacen.ts` en el servidor:
 
 SQLite en modo WAL con un solo escritor: este proceso. Un `threading.Lock`
 serializa las escrituras porque DSPy hace llamadas en hilos.
+
+Tres garantías añadidas el 17 de septiembre de 2026 (hallazgo S-01: dos
+procesos de Rosa escribieron a la vez sobre rosa.db en un reinicio con el
+Killer en vuelo, se perdió una decisión pagada y se rompió la cadena de
+auditoría):
+
+- Cerrojo de instancia: `Almacen.__init__` toma un `fcntl.flock` exclusivo
+  sobre `rosa.db.lock`. Otro proceso que abra la misma base espera lo que se
+  le diga (`espera_cerrojo`, con aviso cada pocos segundos) y después falla
+  con `AlmacenOcupado` y un mensaje claro. Dentro del mismo proceso, dos
+  `Almacen` sobre la misma ruta comparten el cerrojo (lo que hacen los tests
+  que simulan un reinicio) y los protege la segunda garantía. Con
+  `solo_lectura=True` no se toma el cerrojo y no se puede escribir (para
+  scripts de análisis mientras Rosa corre).
+- Escritura condicional por versión: el `UPDATE` del estado exige que la
+  versión en disco sea la que este proceso cree tener. Si no lo es, se
+  deshace la transacción, el almacén queda marcado como obsoleto y `mutar`
+  lanza `EscritorObsoleto`: un escritor atrasado nunca pisa el estado.
+- La cadena de hashes distingue una bifurcación por reinicio (una fila que
+  enlaza con una fila anterior que existe) de una fila borrada (el hash
+  anterior no existe) o alterada, sigue verificando tras cada rotura y admite
+  una fila `reanclaje_registro` que documenta el corte y vuelve a anclar la
+  cadena.
 """
 
 from __future__ import annotations
 
 import asyncio
 import copy
+import fcntl
 import inspect
 import hashlib
 import json
+import os
 import sqlite3
+import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -66,9 +93,102 @@ CREATE INDEX IF NOT EXISTS ix_llamadas_corrida ON llamadas(corrida_id, seq);
 """
 
 
-def hash_fila(hash_anterior: str, t: int, nombre: str, args_json: str, resultado_json: str, version: int) -> str:
-    """sha256 de la fila y del hash de la anterior: el eslabon de la cadena."""
-    return hashlib.sha256("\n".join([hash_anterior or "", str(t), nombre, args_json, resultado_json, str(version)]).encode("utf-8")).hexdigest()
+NOMBRE_REANCLAJE = "reanclaje_registro"
+
+
+class AlmacenOcupado(RuntimeError):
+    """Otro proceso tiene el cerrojo de la base: no se puede abrir para escribir."""
+
+
+class EscritorObsoleto(RuntimeError):
+    """La versión en disco no es la que este proceso creía tener: otro proceso
+    escribió sobre la base. Este proceso no vuelve a escribir."""
+
+
+def hash_fila(hash_anterior: str, t: int, nombre: str, args_json: str, resultado_json: str, version: int, actor: str | None = None) -> str:
+    """sha256 de la fila y del hash de la anterior: el eslabón de la cadena.
+    El actor (correo de la sesión que pidió la acción) entra en el hash cuando
+    existe; las filas anteriores a la columna `actor` (sin actor) conservan su
+    hash de siempre, así la cadena vieja sigue verificándose."""
+    partes = [hash_anterior or "", str(t), nombre, args_json, resultado_json, str(version)]
+    if actor:
+        partes.append(actor)
+    return hashlib.sha256("\n".join(partes).encode("utf-8")).hexdigest()
+
+
+# Cerrojos de fichero tomados por este proceso, por ruta resuelta de la base:
+# {ruta: [descriptor, cuántos Almacen lo comparten]}. `flock` es por descripción
+# de fichero abierta, así que un segundo `open` en el mismo proceso chocaría con
+# el primero: por eso se comparte por contador en vez de abrir otro descriptor.
+_CERROJOS: dict[str, list] = {}
+_CERROJOS_LOCK = threading.Lock()
+
+
+def ruta_cerrojo(ruta: Path) -> Path:
+    return ruta.with_name(ruta.name + ".lock")
+
+
+def _pid_del_cerrojo(ruta_lock: Path) -> str:
+    try:
+        return ruta_lock.read_text(encoding="utf-8").strip() or "desconocido"
+    except OSError:
+        return "desconocido"
+
+
+def _tomar_cerrojo(ruta: Path, espera: float) -> None:
+    """Toma el cerrojo exclusivo de `ruta` (fichero `<base>.lock`). Si otro
+    proceso lo tiene, reintenta cada medio segundo hasta `espera` segundos,
+    avisando por stderr cada 5 s, y después lanza `AlmacenOcupado`."""
+    clave = str(ruta.resolve())
+    with _CERROJOS_LOCK:
+        if clave in _CERROJOS:
+            _CERROJOS[clave][1] += 1
+            return
+        ruta_lock = ruta_cerrojo(ruta)
+        ruta_lock.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(ruta_lock), os.O_RDWR | os.O_CREAT, 0o644)
+        inicio = time.monotonic()
+        ultimo_aviso = -10.0
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                pasado = time.monotonic() - inicio
+                if pasado >= espera:
+                    os.close(fd)
+                    raise AlmacenOcupado(
+                        f"Otra Rosa (PID {_pid_del_cerrojo(ruta_lock)}) sigue escribiendo en {ruta.name}: "
+                        f"espera a que ese proceso termine (está cerrando o acabando una llamada al modelo) antes de arrancar otra. "
+                        f"Para leer la base sin escribir, abre el almacén con solo_lectura=True."
+                    ) from None
+                if pasado - ultimo_aviso >= 5.0:
+                    ultimo_aviso = pasado
+                    print(f"Otra Rosa (PID {_pid_del_cerrojo(ruta_lock)}) sigue cerrando {ruta.name}, probablemente terminando una llamada al modelo; espero ({int(pasado)} s de {int(espera)} s como máximo)...", file=sys.stderr, flush=True)
+                time.sleep(0.5)
+        try:
+            os.ftruncate(fd, 0)
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+        except OSError:
+            pass
+        _CERROJOS[clave] = [fd, 1]
+
+
+def _soltar_cerrojo(ruta: Path) -> None:
+    clave = str(ruta.resolve())
+    with _CERROJOS_LOCK:
+        entrada = _CERROJOS.get(clave)
+        if not entrada:
+            return
+        entrada[1] -= 1
+        if entrada[1] > 0:
+            return
+        fd = entrada[0]
+        del _CERROJOS[clave]
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 def _limpiar_para_cliente(valor: Any) -> Any:
@@ -82,27 +202,61 @@ def _limpiar_para_cliente(valor: Any) -> Any:
 
 
 class Almacen:
-    def __init__(self, ruta: Path | str | None = None):
+    def __init__(self, ruta: Path | str | None = None, *, espera_cerrojo: float = 0.0, solo_lectura: bool = False):
+        """Abre (o crea) la base. `espera_cerrojo`: segundos que se espera a
+        que otro proceso suelte el cerrojo antes de fallar con `AlmacenOcupado`
+        (main.py pasa varios minutos; los tests, cero). `solo_lectura`: no toma
+        el cerrojo y rechaza toda escritura (scripts de análisis con Rosa en
+        marcha)."""
         self.ruta = Path(ruta) if ruta else config.RUTA_BD
+        self.solo_lectura = bool(solo_lectura)
+        self.obsoleto = False  # True cuando otro proceso escribió sobre la base (EscritorObsoleto)
+        self.cerrado = False
+        self._cerrojo_tomado = False
+        if self.solo_lectura and not self.ruta.exists():
+            raise FileNotFoundError(f"No existe {self.ruta}: en solo lectura no se crea la base")
+        if not self.solo_lectura:
+            _tomar_cerrojo(self.ruta, espera_cerrojo)
+            self._cerrojo_tomado = True
         self._lock = threading.RLock()
-        self._con = sqlite3.connect(str(self.ruta), timeout=30.0, check_same_thread=False, isolation_level=None)
-        self._con.execute("PRAGMA journal_mode=WAL")
-        self._con.execute("PRAGMA synchronous=NORMAL")
-        self._con.execute("PRAGMA busy_timeout=30000")
-        self._con.executescript(ESQUEMA)
-        # Bases anteriores al encadenado de hashes: se anaden las columnas.
-        columnas = {fila[1] for fila in self._con.execute("PRAGMA table_info(acciones)")}
-        for col in ("hash", "hash_anterior"):
-            if col not in columnas:
-                self._con.execute(f"ALTER TABLE acciones ADD COLUMN {col} TEXT")
-        ultimo = self._con.execute("SELECT hash FROM acciones ORDER BY seq DESC LIMIT 1").fetchone()
-        self._ultimo_hash: str = (ultimo[0] if ultimo and ultimo[0] else "")
-        self.version = 0
-        self.estado: dict[str, Any] = self._cargar()
+        try:
+            if self.solo_lectura:
+                self._con = sqlite3.connect(f"file:{self.ruta}?mode=ro", uri=True, timeout=30.0, check_same_thread=False, isolation_level=None)
+            else:
+                self._con = sqlite3.connect(str(self.ruta), timeout=30.0, check_same_thread=False, isolation_level=None)
+                self._con.execute("PRAGMA journal_mode=WAL")
+                self._con.execute("PRAGMA synchronous=NORMAL")
+            self._con.execute("PRAGMA busy_timeout=30000")
+            if not self.solo_lectura:
+                self._con.executescript(ESQUEMA)
+                # Bases anteriores al encadenado de hashes y a la columna del actor: se añaden las columnas.
+                columnas = {fila[1] for fila in self._con.execute("PRAGMA table_info(acciones)")}
+                for col in ("hash", "hash_anterior", "actor"):
+                    if col not in columnas:
+                        self._con.execute(f"ALTER TABLE acciones ADD COLUMN {col} TEXT")
+            # En solo lectura una base antigua puede no tener aún la columna `actor`.
+            self._columnas_acciones = {fila[1] for fila in self._con.execute("PRAGMA table_info(acciones)")}
+            ultimo = self._con.execute("SELECT hash FROM acciones ORDER BY seq DESC LIMIT 1").fetchone() if "hash" in self._columnas_acciones else None
+            self._ultimo_hash: str = (ultimo[0] if ultimo and ultimo[0] else "")
+            self.version = 0
+            self.estado: dict[str, Any] = self._cargar()
+        except Exception:
+            if self._cerrojo_tomado:
+                _soltar_cerrojo(self.ruta)
+                self._cerrojo_tomado = False
+            raise
         self._partes: dict[str, str] = {}
-        self._serializar()  # linea base para saber que claves toca cada mutacion
+        self._serializar()  # línea base para saber qué claves toca cada mutación
         self._suscriptores: set[asyncio.Queue] = set()
         self._bucle_asyncio: asyncio.AbstractEventLoop | None = None
+        # Caché de la instantánea pública por versión (S-17): una sola limpieza y
+        # una sola serialización por versión, compartidas por todos los clientes
+        # SSE y por GET /api/estado. Se invalida sola porque va etiquetada con la
+        # versión. Tiene su propio cerrojo para no retener el del bucle mientras
+        # se serializa.
+        self._cache_json: dict[str, Any] = {"version": -1}
+        self._lock_cache = threading.Lock()
+        self._al_quedar_obsoleto: list[Callable[[], Any]] = []
 
     # -- persistencia ------------------------------------------------------
 
@@ -110,6 +264,8 @@ class Almacen:
         fila = self._con.execute("SELECT version, json FROM estado WHERE clave='rosa'").fetchone()
         if fila is None:
             estado = P.estado_inicial()
+            if self.solo_lectura:
+                return estado
             self._con.execute("INSERT INTO estado VALUES ('rosa', 0, ?, ?)", (json.dumps(estado, ensure_ascii=False), P.ahora_ms()))
             return estado
         self.version = fila[0]
@@ -131,8 +287,18 @@ class Almacen:
         self._partes = partes
         return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + v for k, v in partes.items()) + "}", cambiaron
 
-    def _guardar(self, texto: str) -> None:
-        self._con.execute("UPDATE estado SET version=?, json=?, actualizado_en=? WHERE clave='rosa'", (self.version, texto, P.ahora_ms()))
+    def _guardar(self, texto: str, version_anterior: int) -> None:
+        """Escribe el estado solo si la versión en disco sigue siendo la que este
+        proceso conocía. Si otro proceso escribió entre medias, la fila no casa,
+        no se toca nada y se lanza `EscritorObsoleto` (S-01): antes se pisaba en
+        silencio y la decisión del otro proceso desaparecía."""
+        cur = self._con.execute("UPDATE estado SET version=?, json=?, actualizado_en=? WHERE clave='rosa' AND version=?", (self.version, texto, P.ahora_ms(), version_anterior))
+        if cur.rowcount != 1:
+            en_disco = self._con.execute("SELECT version FROM estado WHERE clave='rosa'").fetchone()
+            raise EscritorObsoleto(
+                f"Otro proceso escribió sobre {self.ruta.name}: en disco está la versión {en_disco[0] if en_disco else 'desconocida'} y este proceso "
+                f"creía tener la {version_anterior}. Este proceso deja de escribir para no pisar el estado; hay que cerrarlo y arrancar una sola Rosa."
+            )
 
     # -- lectura -----------------------------------------------------------
 
@@ -143,15 +309,37 @@ class Almacen:
             e["conexion"] = "en_linea"
             return e
 
-    def instantanea_json(self) -> str:
-        return json.dumps(self.instantanea(), ensure_ascii=False)
+    def instantanea_json(self, request_filtrada: bool = False) -> str:
+        """El JSON de la instantánea pública, serializado una sola vez por versión
+        y compartido por todos los clientes (S-17). Con `request_filtrada=True`
+        devuelve el JSON sin la clave `avisos`, para que el servidor añada la
+        de la persona que pregunta sin volver a serializar 10 MB; con False,
+        el JSON completo con los avisos del estado. Para la misma versión
+        devuelve el mismo objeto `str`."""
+        with self._lock_cache:
+            if self._cache_json.get("version") != self.version or "sin_avisos" not in self._cache_json:
+                with self._lock:
+                    version = self.version
+                    e = _limpiar_para_cliente(self.estado)
+                e["conexion"] = "en_linea"
+                avisos = e.pop("avisos", None)
+                sin_avisos = json.dumps(e, ensure_ascii=False, separators=(",", ":"))
+                avisos_json = json.dumps(avisos, ensure_ascii=False, separators=(",", ":"))
+                self._cache_json = {"version": version, "sin_avisos": sin_avisos, "avisos": avisos_json, "completo": componer_json_con_avisos(sin_avisos, avisos_json)}
+            return self._cache_json["sin_avisos"] if request_filtrada else self._cache_json["completo"]
 
     # -- escritura ---------------------------------------------------------
 
-    def mutar(self, fn: Callable[[dict[str, Any]], Any], nombre: str = "bucle", args: dict | None = None) -> Any:
+    def mutar(self, fn: Callable[[dict[str, Any]], Any], nombre: str = "bucle", args: dict | None = None, *, actor: str | None = None) -> Any:
         """Aplica `fn(estado)` bajo el cerrojo. Si devuelve algo distinto de
-        False, sube la versión, guarda y avisa."""
+        False, sube la versión, guarda y avisa. `actor` es el correo de la
+        sesión que pidió la acción (None para el bucle) y queda en la fila del
+        registro, dentro del hash."""
         with self._lock:
+            if self.solo_lectura:
+                raise EscritorObsoleto(f"El almacén sobre {self.ruta.name} se abrió solo para leer: no puede escribir.")
+            if self.obsoleto:
+                raise EscritorObsoleto(f"Otro proceso escribió sobre {self.ruta.name}; este almacén ya no escribe. Cierra este proceso y arranca una sola Rosa.")
             try:
                 resultado = fn(self.estado)
             except Exception:
@@ -159,10 +347,7 @@ class Almacen:
                 # guardar: se vuelve a la ultima version persistida. Se rellena EL
                 # MISMO diccionario (no se rebindea el atributo): las corrutinas del
                 # bucle que capturaron `almacen.estado` siguen viendo el estado bueno.
-                recargado = self._cargar(migrar=False)
-                self.estado.clear()
-                self.estado.update(recargado)
-                self._partes = {}
+                self._recargar_desde_disco()
                 raise
             if resultado is False:
                 return False
@@ -176,24 +361,74 @@ class Almacen:
             args_json = json.dumps(args if args else {"cambiaron": cambiaron}, ensure_ascii=False, default=str)
             res_json = json.dumps(resultado, default=str)
             version_nueva = self.version + 1
-            h = hash_fila(self._ultimo_hash, t, nombre, args_json, res_json, version_nueva)
+            h = hash_fila(self._ultimo_hash, t, nombre, args_json, res_json, version_nueva, actor or None)
             self._con.execute("BEGIN IMMEDIATE")
             try:
+                version_anterior = self.version
                 self.version = version_nueva
-                self._guardar(texto)
-                self._con.execute("INSERT INTO acciones(t, nombre, args, resultado, version, hash, hash_anterior) VALUES (?,?,?,?,?,?,?)", (t, nombre, args_json, res_json, version_nueva, h, self._ultimo_hash))
+                self._guardar(texto, version_anterior)
+                self._con.execute("INSERT INTO acciones(t, nombre, args, resultado, version, hash, hash_anterior, actor) VALUES (?,?,?,?,?,?,?,?)", (t, nombre, args_json, res_json, version_nueva, h, self._ultimo_hash, actor or None))
                 self._con.execute("COMMIT")
-            except Exception:
+            except Exception as ex:
                 self._con.execute("ROLLBACK")
                 self.version = version_nueva - 1
+                if isinstance(ex, EscritorObsoleto):
+                    # Fallo ruidoso y definitivo: este almacén no vuelve a escribir. La
+                    # memoria vuelve a lo que hay en disco (lo que escribió el otro
+                    # proceso, que es la verdad), igual que tras un reducer que lanza,
+                    # para que lo que sirva este proceso mientras se cierra no sea un
+                    # estado que nunca se guardó. Y se avisa a quien se apuntó con
+                    # `al_quedar_obsoleto` (main.py para el bucle y el servidor: seguir
+                    # llamando a modelos cuyo resultado no se puede guardar es tirar
+                    # dinero).
+                    self.obsoleto = True
+                    print(f"ALMACÉN OBSOLETO: {ex}", file=sys.stderr, flush=True)
+                    try:
+                        self._recargar_desde_disco()
+                    except Exception as ex2:  # noqa: BLE001  la recarga no puede tapar el fallo original
+                        print(f"No se pudo recargar el estado desde disco tras quedar obsoleto: {ex2!r}", file=sys.stderr, flush=True)
+                    for fn_aviso in list(self._al_quedar_obsoleto):
+                        try:
+                            fn_aviso()
+                        except Exception as ex2:  # noqa: BLE001
+                            print(f"Un aviso de almacén obsoleto falló: {ex2!r}", file=sys.stderr, flush=True)
                 raise
             self._ultimo_hash = h
             self._avisar()
             return resultado
 
+    def _recargar_desde_disco(self) -> None:
+        """Vuelve la memoria a la última versión persistida, rellenando EL MISMO
+        diccionario (no se rebindea el atributo: las corrutinas del bucle que
+        capturaron `almacen.estado` siguen viendo el estado bueno). Se recarga
+        CON migración: un estado guardado por una versión anterior de Rosa
+        recibe al cargar claves que aún no están en disco hasta la primera
+        escritura (por ejemplo `cuestiones` o `datasetsPrograma`); si se
+        recargara sin migrar, un reducer que lanza justo después de arrancar
+        dejaría en memoria un estado sin esas claves y la interfaz lo recibiría
+        así (revisión adversarial del 17 de septiembre de 2026). Después se
+        recalcula la línea base de las partes serializadas (B-16): si se
+        dejara vacía, la siguiente mutación diría que cambiaron todas las
+        claves del estado."""
+        recargado = self._cargar(migrar=True)
+        self.estado.clear()
+        self.estado.update(recargado)
+        self._serializar()
+
+    def al_quedar_obsoleto(self, fn: Callable[[], Any]) -> None:
+        """Apunta una función que se llama (una vez, desde el hilo que detectó
+        el fallo) cuando otro proceso escribió sobre la base y este almacén
+        deja de escribir. main.py la usa para parar el supervisor y el servidor:
+        una Rosa obsoleta que sigue corriendo paga llamadas al modelo cuyo
+        resultado no puede guardar."""
+        self._al_quedar_obsoleto.append(fn)
+
     def aplicar(self, nombre: str, args: dict[str, Any], *, actor: str | None = None) -> Any:
         """Una acción de la interfaz por nombre (ver ACCIONES). Devuelve el
-        resultado del reducer; lanza KeyError si la acción no existe."""
+        resultado del reducer; lanza KeyError si la acción no existe. Si hay
+        `actor` (la sesión que pidió la acción) y el reducer acepta `quien`, la
+        firma de la decisión es el actor: lo que mande el navegador se ignora
+        (S-22), igual que el sello de tiempo."""
         fn, con_ahora = ACCIONES[nombre]
         kwargs = dict(args)
         # El sello de tiempo lo pone el servidor: las decisiones, permisos y enmiendas
@@ -203,6 +438,8 @@ class Almacen:
             kwargs["ahora"] = P.ahora_ms()
         elif con_ahora and "ahora" not in kwargs:
             kwargs["ahora"] = P.ahora_ms()
+        if actor and nombre in ACCIONES_CON_QUIEN:
+            kwargs["quien"] = actor
         def aplicar_con_autoria(e):
             anteriores = {tabla: {x['id'] for x in e[tabla]} for tabla in ('investigaciones', 'corridas', 'hipotesis')}
             resultado = fn(e, **kwargs)
@@ -213,28 +450,147 @@ class Almacen:
                             x['_correoResponsable'] = actor
             return resultado
 
-        return self.mutar(aplicar_con_autoria, nombre, args)
+        return self.mutar(aplicar_con_autoria, nombre, args, actor=actor)
 
     def verificar_cadena(self) -> dict[str, Any]:
-        """Recorre el registro y recalcula cada eslabon. Devuelve cuantas filas
-        hay, cuantas están encadenadas (las anteriores al encadenado no llevan
-        hash y se cuentan aparte) y la primera rotura si la hay."""
+        """Recorre el registro entero y recalcula cada eslabón. Distingue tres
+        roturas y sigue verificando después de cada una:
+
+        - `bifurcacion`: la fila enlaza con una fila anterior que existe pero no
+          es la inmediata. Es lo que dejan dos procesos escribiendo a la vez
+          (un reinicio con trabajo en vuelo, S-01): nadie borró nada.
+        - `borrada`: el hash anterior no es el de ninguna fila del registro
+          (falta una fila o se insertó una ajena).
+        - `alterada`: el contenido de la fila no corresponde a su hash.
+        - `reanclaje_suelto`: una fila que dice ser reanclaje pero no enlaza con
+          la anterior (insertada a mano): no documenta nada.
+
+        Una fila `reanclaje_registro` (ver `reanclar_registro`) documenta las
+        roturas anteriores y vuelve a anclar la cadena desde ahí: las roturas
+        que quedan antes de un reanclaje cuentan como cortes documentados y no
+        bajan `ok`. Devuelve, además de los campos de siempre (`ok`, `filas`,
+        `encadenadas`, `sinHash`, `rotaEn`, `motivo`), la lista `roturas`, el
+        número de `bifurcaciones`, los `cortesDocumentados` y las filas
+        `alteradas`."""
         with self._lock:
-            filas = self._con.execute("SELECT seq, t, nombre, args, resultado, version, hash, hash_anterior FROM acciones ORDER BY seq").fetchall()
+            if "hash" not in getattr(self, "_columnas_acciones", {"hash"}):
+                return {"ok": True, "filas": 0, "encadenadas": 0, "sinHash": 0, "rotaEn": None, "motivo": "registro sin encadenar", "roturas": [], "bifurcaciones": 0, "alteradas": 0, "cortesDocumentados": 0, "reanclajes": [], "roturasDocumentadas": [], "ultimoHash": ""}
+            col_actor = "actor" if "actor" in getattr(self, "_columnas_acciones", {"actor"}) else "NULL"
+            filas = self._con.execute(f"SELECT seq, t, nombre, args, resultado, version, hash, hash_anterior, {col_actor} FROM acciones ORDER BY seq").fetchall()
         anterior = ""
         encadenadas = 0
         sin_hash = 0
-        for seq, t, nombre, args, resultado, version, h, h_ant in filas:
+        vistos: dict[str, int] = {}  # hash -> seq de la fila que lo lleva
+        roturas: list[dict[str, Any]] = []
+        documentadas: list[dict[str, Any]] = []
+        reanclajes: list[dict[str, Any]] = []
+        alteradas = 0
+        rama_abierta: dict[str, Any] | None = None  # bifurcación en curso: {rotura, tipDeLaRamaPrincipal}
+        for seq, t, nombre, args, resultado, version, h, h_ant, actor in filas:
             if not h:
                 sin_hash += 1
                 continue
-            if (h_ant or "") != anterior and encadenadas > 0:
-                return {"ok": False, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": seq, "motivo": "el hash anterior no coincide (fila borrada o insertada)"}
-            if hash_fila(h_ant or "", t, nombre, args, resultado or "null", version) != h:
-                return {"ok": False, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": seq, "motivo": "el contenido de la fila no corresponde a su hash (fila alterada)"}
+            h_ant = h_ant or ""
+            contenido_ok = hash_fila(h_ant, t, nombre, args, resultado or "null", version, actor or None) == h
+            if not contenido_ok:
+                alteradas += 1
+                roturas.append({"seq": seq, "tipo": "alterada", "motivo": "el contenido de la fila no corresponde a su hash (fila alterada)"})
+            if nombre == NOMBRE_REANCLAJE and contenido_ok and encadenadas > 0 and h_ant != anterior:
+                # Un reanclaje que no enlaza con la fila inmediatamente anterior no lo
+                # escribió `reanclar_registro` (que siempre encadena al último hash):
+                # es una fila metida a mano y no documenta nada. Se cuenta como rotura
+                # propia y se sigue encadenando desde ella para verificar lo que venga.
+                roturas.append({"seq": seq, "tipo": "reanclaje_suelto", "t": t, "motivo": f"la fila {seq} dice ser un reanclaje pero no enlaza con la fila anterior: no documenta ningún corte (fila insertada a mano)"})
+                rama_abierta = None
+                vistos[h] = seq
+                anterior = h
+                encadenadas += 1
+                continue
+            if nombre == NOMBRE_REANCLAJE and contenido_ok:
+                # Corte documentado: las roturas anteriores quedan explicadas por esta
+                # fila y la cadena vuelve a contarse desde su hash.
+                try:
+                    detalle = json.loads(args or "{}")
+                except ValueError:
+                    detalle = {}
+                reanclajes.append({"seq": seq, "t": t, "motivo": str(detalle.get("motivo", ""))[:400], "quien": str(detalle.get("quien", ""))[:120], "roturasDocumentadas": len(roturas)})
+                documentadas.extend(roturas)
+                roturas = []
+                rama_abierta = None
+                vistos[h] = seq
+                anterior = h
+                encadenadas += 1
+                continue
+            if encadenadas > 0 and h_ant != anterior:
+                if rama_abierta is not None and h_ant == rama_abierta["tip_principal"]:
+                    # La rama principal retoma donde estaba antes de la bifurcación: se
+                    # cierra la rama lateral sin contar una rotura nueva.
+                    rama_abierta["rotura"]["filas"] = seq - rama_abierta["rotura"]["seq"]
+                    rama_abierta["rotura"]["hastaSeq"] = seq - 1
+                    rama_abierta = None
+                elif h_ant in vistos:
+                    rotura = {"seq": seq, "tipo": "bifurcacion", "enlazaConSeq": vistos[h_ant], "t": t, "version": version, "filas": None, "hastaSeq": None,
+                              "motivo": f"la fila {seq} enlaza con la {vistos[h_ant]} en vez de con la anterior: dos procesos de Rosa escribieron a la vez (reinicio con trabajo en vuelo); ninguna fila borrada"}
+                    roturas.append(rotura)
+                    rama_abierta = {"rotura": rotura, "tip_principal": anterior}
+                else:
+                    roturas.append({"seq": seq, "tipo": "borrada", "t": t, "motivo": f"el hash anterior de la fila {seq} no es el de ninguna fila del registro (fila borrada o insertada)"})
+                    rama_abierta = None
+            vistos[h] = seq
             anterior = h
             encadenadas += 1
-        return {"ok": True, "filas": len(filas), "encadenadas": encadenadas, "sinHash": sin_hash, "rotaEn": None, "ultimoHash": anterior}
+        if rama_abierta is not None:
+            rama_abierta["rotura"]["filas"] = (filas[-1][0] - rama_abierta["rotura"]["seq"] + 1) if filas else None
+        primera = roturas[0] if roturas else None
+        bifurcaciones = sum(1 for r in roturas + documentadas if r["tipo"] == "bifurcacion")
+        resumen: dict[str, Any] = {
+            "ok": not roturas,
+            "filas": len(filas),
+            "encadenadas": encadenadas,
+            "sinHash": sin_hash,
+            "rotaEn": primera["seq"] if primera else None,
+            "motivo": primera["motivo"] if primera else None,
+            "roturas": roturas,
+            "bifurcaciones": bifurcaciones,
+            "alteradas": alteradas,
+            "cortesDocumentados": len(reanclajes),
+            "reanclajes": reanclajes,
+            "roturasDocumentadas": documentadas,
+            "ultimoHash": anterior,
+        }
+        if not roturas and reanclajes:
+            resumen["motivo"] = f"cadena intacta con {len(reanclajes)} corte{'s' if len(reanclajes) != 1 else ''} documentado{'s' if len(reanclajes) != 1 else ''}"
+        return resumen
+
+    def reanclar_registro(self, motivo: str, quien: str) -> dict[str, Any]:
+        """Inserta una fila `reanclaje_registro` que documenta las roturas que
+        hay hoy en la cadena (con sus filas y extremos) y desde la cual la
+        verificación vuelve a contar. No toca el estado ni la versión. Lo
+        decide una persona con motivo escrito: la fila queda encadenada al
+        último hash y guarda quién la registró."""
+        motivo = str(motivo or "").strip()
+        if len(motivo) < 10:
+            raise ValueError("El reanclaje necesita un motivo escrito (al menos diez caracteres) que explique el corte")
+        with self._lock:
+            if self.solo_lectura or self.obsoleto:
+                raise EscritorObsoleto("Este almacén no puede escribir")
+            informe = self.verificar_cadena()
+            if not informe["roturas"]:
+                raise ValueError("La cadena no tiene roturas sin documentar: no hace falta reanclar")
+            t = P.ahora_ms()
+            detalle = {"motivo": motivo, "quien": str(quien or "")[:120], "roturas": [{k: r.get(k) for k in ("seq", "tipo", "enlazaConSeq", "filas", "hastaSeq", "t")} for r in informe["roturas"]], "ultimoHashAnterior": self._ultimo_hash}
+            args_json = json.dumps(detalle, ensure_ascii=False, default=str)
+            res_json = json.dumps(None)
+            h = hash_fila(self._ultimo_hash, t, NOMBRE_REANCLAJE, args_json, res_json, self.version, quien or None)
+            self._con.execute("BEGIN IMMEDIATE")
+            try:
+                self._con.execute("INSERT INTO acciones(t, nombre, args, resultado, version, hash, hash_anterior, actor) VALUES (?,?,?,?,?,?,?,?)", (t, NOMBRE_REANCLAJE, args_json, res_json, self.version, h, self._ultimo_hash, quien or None))
+                self._con.execute("COMMIT")
+            except Exception:
+                self._con.execute("ROLLBACK")
+                raise
+            self._ultimo_hash = h
+            return {"ok": True, "seq": self._con.execute("SELECT MAX(seq) FROM acciones").fetchone()[0], "roturasDocumentadas": len(informe["roturas"])}
 
     def registrar_llamada(self, modelo: str, rol: str | None, corrida_id: str | None, iteracion: int | None, tokens_entrada: int, tokens_salida: int, ms: int, ok: bool, error: str | None = None) -> None:
         with self._lock:
@@ -302,10 +658,14 @@ class Almacen:
     def desuscribir(self, q: asyncio.Queue) -> None:
         self._suscriptores.discard(q)
 
-    def _avisar(self) -> None:
+    def _avisar(self, forzar: bool = False) -> None:
+        """Despierta a los suscriptores SSE con la versión nueva. Con
+        `forzar=True` pone `None` en la cola: el servidor manda la instantánea
+        aunque la versión no haya cambiado (lo usa el cambio de avisos de una
+        persona, que no vive en el estado)."""
         if not self._suscriptores or self._bucle_asyncio is None:
             return
-        version = self.version
+        version = None if forzar else self.version
 
         def poner() -> None:
             for q in list(self._suscriptores):
@@ -323,9 +683,28 @@ class Almacen:
             pass
 
     def cerrar(self) -> None:
+        """Cierra SQLite y suelta el cerrojo de instancia. Solo entonces otro
+        proceso puede abrir la base para escribir; por eso se llama al final
+        del apagado, cuando la última mutación ya terminó."""
         with self._lock:
-            self._con.commit()
-            self._con.close()
+            if self.cerrado:
+                return
+            self.cerrado = True
+            try:
+                self._con.commit()
+                self._con.close()
+            finally:
+                if self._cerrojo_tomado:
+                    _soltar_cerrojo(self.ruta)
+                    self._cerrojo_tomado = False
+
+
+def componer_json_con_avisos(sin_avisos: str, avisos_json: str) -> str:
+    """Añade la clave `avisos` al JSON de la instantánea sin volver a
+    serializarla (S-17): el servidor pone así los avisos de cada persona."""
+    if sin_avisos.strip() == "{}":
+        return '{"avisos":' + avisos_json + "}"
+    return sin_avisos[:-1] + ',"avisos":' + avisos_json + "}"
 
 
 def _migrar(estado: dict[str, Any]) -> None:
@@ -346,6 +725,91 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_rosa2018(estado)
     _migrar_grafo(estado)
     _migrar_siete_modulos(estado)
+    _migrar_novedad_no_comprobada(estado)
+    _migrar_progreso_por_ventana(estado)
+
+
+PREFIJO_NOVEDAD_VACIA = "Sin precedente claro entre 0 obras"
+
+
+def _migrar_novedad_no_comprobada(estado: dict[str, Any]) -> None:
+    """Hallazgo S-02: el paso de novedad escribía "sin precedente" cuando la
+    búsqueda de precedentes devolvía 0 obras, es decir, sin haber comparado
+    nada. Toda hipótesis cuyo precedente empiece por "Sin precedente claro
+    entre 0 obras" pasa a `no_comprobado` con el motivo, para que el bucle la
+    vuelva a comprobar y para que la interfaz y el Killer no la den por nueva.
+    Idempotente: una vez cambiada, el detalle ya no empieza por ese texto.
+    Tolera hipótesis o novedades con forma rara (no dict): las salta."""
+    hipotesis = estado.get("hipotesis")
+    for h in hipotesis if isinstance(hipotesis, list) else []:
+        if not isinstance(h, dict):
+            continue
+        novedad = h.get("novedad")
+        precedente = novedad.get("precedente") if isinstance(novedad, dict) else None
+        if not isinstance(precedente, dict):
+            continue
+        detalle = precedente.get("detalle")
+        if isinstance(detalle, str) and detalle.startswith(PREFIJO_NOVEDAD_VACIA):
+            precedente["estado"] = "no_comprobado"
+            precedente["motivo"] = "la búsqueda de precedentes devolvió 0 obras: no se comparó con ninguna publicación"
+            precedente["detalle"] = "No comprobado: la búsqueda de precedentes devolvió 0 obras (la consulta estaba mal construida), así que no se comparó con ninguna publicación. Pendiente de volver a buscar. Antes decía: " + detalle[:300]
+
+
+def _migrar_progreso_por_ventana(estado: dict[str, Any]) -> None:
+    """Hallazgo sobre el recuento de hipótesis nuevas por iteración: la serie de
+    progreso de las corridas terminadas contaba `hipotesisNuevas` con una
+    regla distinta a la que usa el resto de Rosa. Se recalcula con
+    `rosa.progreso.hipotesis_nacidas_en` (ventana temporal de la iteración) y,
+    si la corrida ya tenía métrica, se rehace la métrica. Idempotente: el
+    recálculo da lo mismo cada vez. Si `hipotesis_nacidas_en` aún no existe en
+    este árbol (la escribe otro grupo), no se toca nada."""
+    try:
+        from rosa import progreso as PROG
+
+        nacidas = getattr(PROG, "hipotesis_nacidas_en", None)
+        recalcular = getattr(PROG, "recalcular_progreso", None)
+    except Exception:  # noqa: BLE001
+        nacidas = recalcular = None
+    if recalcular is not None:
+        # Una sola regla para todos: la de rosa/progreso.py (la misma que corre el
+        # supervisor al arrancar). Aquí solo se adelanta a la carga del estado.
+        try:
+            recalcular(estado)
+        except Exception as ex:  # noqa: BLE001  la carga del estado no se tumba por el recuento, pero se dice
+            print(f"La migración del progreso por ventana temporal falló y se deja como estaba: {ex!r}", file=sys.stderr, flush=True)
+        return
+    if nacidas is None:
+        return
+    corridas = estado.get("corridas")
+    iteraciones = estado.get("iteraciones")
+    if not isinstance(corridas, list) or not isinstance(iteraciones, list):
+        return
+    for c in corridas:
+        if not isinstance(c, dict) or c.get("estado") not in ("terminada", "detenida"):
+            continue
+        serie = c.get("progreso")
+        if not isinstance(serie, list) or not serie:
+            continue
+        por_numero = {it.get("numero"): it for it in iteraciones if isinstance(it, dict) and it.get("corridaId") == c.get("id")}
+        cambiado = False
+        for p in serie:
+            if not isinstance(p, dict):
+                continue
+            it = por_numero.get(p.get("iteracion"))
+            if not it:
+                continue
+            try:
+                n = len(nacidas(estado, c.get("investigacionId"), it))
+            except Exception:  # noqa: BLE001  una iteración con forma rara no tumba la carga
+                continue
+            if p.get("hipotesisNuevas") != n:
+                p["hipotesisNuevas"] = n
+                cambiado = True
+        if cambiado and c.get("metrica") is not None:
+            try:
+                c["metrica"] = PROG.metrica_de_corrida(estado, c["id"])
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _migrar_siete_modulos(estado: dict[str, Any]) -> None:
@@ -630,6 +1094,9 @@ _TABLA: dict[str, Callable] = {
 }
 
 ACCIONES: dict[str, tuple[Callable, bool]] = {n: (f, _con_ahora(f)) for n, f in _TABLA.items()}
+
+# Acciones cuyo reducer acepta `quien`: con sesión, la firma la pone el servidor.
+ACCIONES_CON_QUIEN: frozenset[str] = frozenset(n for n, f in _TABLA.items() if "quien" in inspect.signature(f).parameters)
 
 
 def copia_profunda(e: dict[str, Any]) -> dict[str, Any]:

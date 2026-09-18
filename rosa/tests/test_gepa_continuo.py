@@ -177,7 +177,8 @@ def test_control_http_autenticado_y_solo_administracion(servicio):
     db = sqlite3.connect(":memory:", check_same_thread=False)
     db.execute("CREATE TABLE cuentas(correo TEXT)")
     db.execute("INSERT INTO cuentas VALUES('admin@alzheimerproject.com')")
-    app.state.acceso = SimpleNamespace(db=db, usuario=lambda token: {"admin": "admin@alzheimerproject.com", "otra": "otra@alzheimerproject.com"}.get(token))
+    # es_admin vive ahora en Acceso (S-21): el falso lo declara igual que la tabla de arriba.
+    app.state.acceso = SimpleNamespace(db=db, usuario=lambda token: {"admin": "admin@alzheimerproject.com", "otra": "otra@alzheimerproject.com"}.get(token), es_admin=lambda email: email == "admin@alzheimerproject.com")
     servicio.almacen.gepa_servicio = servicio
     c = TestClient(app, base_url="http://127.0.0.1:8765")
     try:

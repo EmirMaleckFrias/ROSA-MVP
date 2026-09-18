@@ -1,16 +1,32 @@
 """El servidor HTTP de Rosa (FastAPI).
 
-Tres rutas y nada mas, porque el frontend ya sabe hacer el resto:
+Tres rutas y nada más, porque el frontend ya sabe hacer el resto:
 
-- `GET /api/estado`: la instantanea completa del estado (forma `EstadoRosa`).
+- `GET /api/estado`: la instantánea completa del estado (forma `EstadoRosa`).
 - `GET /api/eventos`: Server-Sent Events. Cada vez que el estado cambia, el
-  servidor manda la instantanea completa con `id` igual a la version. El
+  servidor manda la instantánea completa con `id` igual a la versión. El
   navegador reconecta solo si se corta.
 - `POST /api/acciones/{nombre}`: una acción de la interfaz con sus
   argumentos en JSON. Devuelve `{ok, resultado, version}`.
 
-Ademas `GET /api/llamadas/{corridaId}` da las ultimas llamadas a modelos y,
-si existe `frontend/dist`, sirve la interfaz compilada en la raiz.
+Además `GET /api/llamadas/{corridaId}` da las últimas llamadas a modelos y,
+si existe `frontend/dist`, sirve la interfaz compilada en la raíz.
+
+Guardias, en este orden (17 de septiembre de 2026, hallazgos S-21, S-22 y
+M-29):
+
+1. Si hay `ROSA_TOKEN` configurado, toda la API lo exige (cabecera
+   `X-Rosa-Token` o `?token=` para el SSE), con o sin sesión y también en las
+   rutas de acceso: es la llave de red. Solo el token interno del propio
+   servidor lo salta.
+2. Sesión por cookie: sin ella, 401 salvo en las rutas públicas de acceso.
+3. Toda escritura desde el navegador lleva la cabecera `X-Rosa` (CSRF).
+4. Los cuerpos se leen por trozos con tope, rechazando antes por
+   `Content-Length`, y la firma (`quien`) de cada acción es la sesión, no lo
+   que mande el navegador.
+
+Las respuestas grandes van comprimidas (GZip) y la instantánea del estado se
+serializa una vez por versión para todos los clientes (S-17, primer corte).
 """
 
 from __future__ import annotations
@@ -24,6 +40,7 @@ import secrets
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -31,7 +48,7 @@ from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from rosa import config
 from rosa.estado import plantilla as P
-from rosa.estado.almacen import ACCIONES, Almacen
+from rosa.estado.almacen import ACCIONES, Almacen, EscritorObsoleto, componer_json_con_avisos
 from rosa.acceso import Acceso, COOKIE, DURACION
 from urllib.parse import urlsplit
 
@@ -40,7 +57,33 @@ from urllib.parse import urlsplit
 # preguntas con herramientas): no se aceptan desde el navegador.
 ACCIONES_INTERNAS = {"registrarPreguntaBases", "registrarEvaluacion", "registrarDatosExperimento", "registrarSelloExterno"}
 MAX_CUERPO_ACCION = 1_000_000
+MAX_CUERPO_PEQUENO = 4096
+MAX_CUERPO_PREGUNTA = 16_384
 HOSTS_LOCALES = ("127.0.0.1", "localhost", "::1")
+RUTAS_PUBLICAS = ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion', '/api/acceso/entrar_sin_verificar')
+
+
+async def leer_json_acotado(request: Request, maximo: int) -> Any:
+    """Lee el cuerpo de una petición con tope, antes de tenerlo entero en
+    memoria (M-29): rechaza de entrada si `Content-Length` declara más de
+    `maximo` y, si no lo declara o miente, lee por trozos y corta al pasarlo.
+    Devuelve el JSON decodificado. Errores: 413 (grande), 400 (no es JSON)."""
+    declarado = request.headers.get("content-length")
+    if declarado is not None:
+        try:
+            if int(declarado) > maximo:
+                raise HTTPException(413, f"El cuerpo no puede pasar de {maximo // 1000} kB")
+        except ValueError:
+            raise HTTPException(400, "Content-Length inválido") from None
+    cuerpo = bytearray()
+    async for parte in request.stream():
+        cuerpo.extend(parte)
+        if len(cuerpo) > maximo:
+            raise HTTPException(413, f"El cuerpo no puede pasar de {maximo // 1000} kB")
+    try:
+        return json.loads(bytes(cuerpo) or b"{}")
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, "El cuerpo no es JSON válido") from None
 
 
 async def _leer_acotado(fichero: UploadFile, maximo: int) -> bytes:
@@ -119,38 +162,52 @@ def crear_app(almacen: Almacen) -> FastAPI:
                 and not app.state.acceso.db.execute('SELECT 1 FROM cuentas LIMIT 1').fetchone())
 
     def es_admin(email):
-        fila = app.state.acceso.db.execute('SELECT correo FROM cuentas ORDER BY rowid LIMIT 1').fetchone()
-        return bool(email and fila and fila[0] == email)
+        # Administrador explícito (ROSA_ADMIN en .env) o, si falta, la primera
+        # cuenta confirmada por enlace; nunca una creada sin verificar (S-21).
+        juez = getattr(getattr(app.state, 'acceso', None), 'es_admin', None)
+        return bool(email and juez is not None and juez(email))
 
-    def estado_de(request):
-        e = almacen.instantanea()
+    async def estado_json_de(request) -> str:
+        """El JSON de la instantánea para esta persona: la parte compartida sale
+        de la caché por versión del almacén (serializada en un hilo aparte, fuera
+        del bucle de eventos) y solo se añaden sus avisos. Las preferencias se
+        leen aquí, en el hilo del bucle: la conexión SQLite del correo no admite
+        otros hilos."""
         if request.state.usuario:
-            e['avisos'] = app.state.correo.preferencias(request.state.usuario)
-        return e
+            avisos = json.dumps(app.state.correo.preferencias(request.state.usuario), ensure_ascii=False, separators=(",", ":"))
+            return componer_json_con_avisos(await asyncio.to_thread(almacen.instantanea_json, True), avisos)
+        return await asyncio.to_thread(almacen.instantanea_json)
+
     # Solo se aceptan peticiones dirigidas al nombre con el que se sirve Rosa:
     # frena el "DNS rebinding" (una web ajena que resuelve a 127.0.0.1).
     permitidos = list(HOSTS_LOCALES) + ([config.HOST] if config.HOST not in HOSTS_LOCALES else []) + [f"{h}:{config.PUERTO}" for h in HOSTS_LOCALES]
     # Nunca un comodin: en 0.0.0.0 (el unico caso en que el ataque tiene sentido)
     # los nombres con los que se sirve Rosa van en ROSA_HOSTS.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=permitidos + list(config.HOSTS_PERMITIDOS))
+    # Respuestas grandes comprimidas (la instantánea pesa 10 MB; en gzip, menos
+    # de 2). Starlette no comprime `text/event-stream`, así que el SSE no cambia.
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=1)
 
     @app.middleware("http")
     async def _guardias(request: Request, call_next):
         path = request.url.path
-        publico = path in ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion', '/api/acceso/entrar_sin_verificar')
+        publico = path in RUTAS_PUBLICAS
         acceso = getattr(app.state, 'acceso', None)
         usuario = acceso.usuario(request.cookies.get(COOKIE)) if acceso else None
         request.state.usuario = usuario
         interno = igual_secreto(request.headers.get('x-rosa-interno', ''), app.state.token_interno)
-        if path.startswith('/api/') and not publico and not usuario and not interno:
-            return JSONResponse({'detail': 'Inicia sesión con tu correo verificado'}, status_code=401)
-        # 1. Si hay token configurado (servidor expuesto fuera de la maquina), toda
-        #    la API lo exige, por cabecera o, para el flujo SSE, por parametro.
-        if config.ROSA_TOKEN and path.startswith("/api/") and not usuario and not publico and not interno:
+        # 1. La llave de red (S-21): si hay ROSA_TOKEN configurado, toda la API lo
+        #    exige antes de mirar la sesión y sin excepción para las rutas
+        #    públicas ni para quien ya tenga cookie. Va por cabecera o, para el
+        #    flujo SSE, por parámetro. Solo el token interno del servidor lo salta.
+        if config.ROSA_TOKEN and path.startswith("/api/") and not interno:
             dado = request.headers.get("x-rosa-token") or request.query_params.get("token")
             if not dado or not igual_secreto(dado, config.ROSA_TOKEN):
                 return JSONResponse({"detail": "Falta el token de acceso a Rosa"}, status_code=401)
-        # 2. Toda escritura desde el navegador lleva la cabecera X-Rosa: una pagina
+        # 2. La sesión: quién es la persona.
+        if path.startswith('/api/') and not publico and not usuario and not interno:
+            return JSONResponse({'detail': 'Inicia sesión con tu correo verificado'}, status_code=401)
+        # 3. Toda escritura desde el navegador lleva la cabecera X-Rosa: una página
         #    ajena no puede mandarla sin preflight, y sin CORS el preflight falla.
         if request.method == "POST" and request.url.path.startswith("/api/") and request.headers.get("x-rosa") != "1" and not request.headers.get("x-rosa-interno"):
             return JSONResponse({"detail": "Falta la cabecera X-Rosa (la interfaz la manda siempre)"}, status_code=403)
@@ -170,15 +227,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
                 'correoConfigurado': c['configurado'], 'instalacionLocal': local, 'avisoInstalacion': aviso}
 
     async def objeto_pequeno(request):
-        cuerpo = bytearray()
-        async for parte in request.stream():
-            cuerpo.extend(parte)
-            if len(cuerpo) > 4096:
-                raise HTTPException(413, 'Petición demasiado grande')
-        try:
-            obj = json.loads(cuerpo)
-        except (ValueError, UnicodeDecodeError):
-            raise HTTPException(400, 'JSON inválido') from None
+        obj = await leer_json_acotado(request, MAX_CUERPO_PEQUENO)
         if not isinstance(obj, dict):
             raise HTTPException(400, 'Se espera un objeto JSON')
         return obj
@@ -223,12 +272,16 @@ def crear_app(almacen: Almacen) -> FastAPI:
         # Mientras no haya proveedor de correo, cualquier persona con una
         # dirección del dominio entra escribiéndola. La puerta se cierra sola
         # al configurar el correo (lo comprueba Acceso.entrar_sin_verificar).
+        # Es acceso abierto al dominio: solo se ofrece en el propio equipo
+        # (HOST local) o detrás de la llave de red ROSA_TOKEN (S-21).
+        if config.HOST not in HOSTS_LOCALES and not config.ROSA_TOKEN:
+            raise HTTPException(403, 'La entrada sin verificar solo está abierta en el propio equipo de Rosa o con ROSA_TOKEN configurado')
         obj = await objeto_pequeno(request)
         email = obj.get('correo')
         if not isinstance(email, str):
             raise HTTPException(400, 'Falta el correo corporativo')
         try:
-            token, email = app.state.acceso.entrar_sin_verificar(email)
+            token, email = app.state.acceso.entrar_sin_verificar(email, request.client.host if request.client else 'desconocida')
         except ValueError as ex:
             raise HTTPException(403, str(ex)) from None
         respuesta = JSONResponse({'ok': True, 'correo': email, 'verificada': False})
@@ -245,8 +298,11 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
 
     @app.get("/api/estado")
-    async def estado(request: Request) -> JSONResponse:
-        return JSONResponse(content=estado_de(request), headers={"Cache-Control": "no-store", "X-Rosa-Version": str(almacen.version)})
+    async def estado(request: Request) -> Response:
+        # La serialización (decenas de ms sobre 10 MB) se hace una vez por versión
+        # en el almacén y fuera del hilo del bucle de eventos.
+        texto = await estado_json_de(request)
+        return Response(content=texto, media_type="application/json", headers={"Cache-Control": "no-store", "X-Rosa-Version": str(almacen.version)})
 
     @app.get("/api/correo")
     async def correo_estado(request: Request):
@@ -260,13 +316,8 @@ def crear_app(almacen: Almacen) -> FastAPI:
     async def correo_configuracion(request: Request):
         if not es_admin(request.state.usuario):
             raise HTTPException(403, 'Solo el administrador puede configurar el proveedor')
-        cuerpo = bytearray()
-        async for parte in request.stream():
-            cuerpo.extend(parte)
-            if len(cuerpo) > 4096:
-                raise HTTPException(413, "Configuración demasiado grande")
+        cambios = await leer_json_acotado(request, MAX_CUERPO_PEQUENO)
         try:
-            cambios = json.loads(cuerpo)
             if not isinstance(cambios, dict):
                 raise ValueError("Se espera un objeto de configuración")
             resultado = app.state.correo.configurar(cambios)
@@ -287,23 +338,36 @@ def crear_app(almacen: Almacen) -> FastAPI:
         cola = almacen.suscribir()
 
         async def generar():
+            # La versión que este cliente ya recibió: un aviso que no traiga
+            # versión nueva (un cambio de avisos, un despertar tardío) no vuelve
+            # a mandar los mismos 10 MB (S-17).
+            ultima_enviada = -1
             try:
-                yield {"event": "estado", "id": str(almacen.version), "data": json.dumps(estado_de(request)), "retry": 2000}
+                ultima_enviada = almacen.version
+                yield {"event": "estado", "id": str(ultima_enviada), "data": await estado_json_de(request), "retry": 2000}
                 while True:
                     if request.state.usuario and not app.state.acceso.usuario(request.cookies.get(COOKIE)):
                         break
                     if await request.is_disconnected():
                         break
                     try:
-                        await asyncio.wait_for(cola.get(), timeout=10)
+                        aviso = await asyncio.wait_for(cola.get(), timeout=10)
                     except asyncio.TimeoutError:
                         continue
                     # Coalescer: si llegaron varias versiones, solo importa la ultima.
+                    # Un aviso `None` es un empuje forzado (cambiaron los avisos de la
+                    # persona, que no viven en el estado) y se manda aunque la
+                    # versión sea la misma.
+                    forzar = aviso is None
                     while not cola.empty():
-                        cola.get_nowait()
+                        forzar = cola.get_nowait() is None or forzar
                     if request.state.usuario and not app.state.acceso.usuario(request.cookies.get(COOKIE)):
                         break
-                    yield {"event": "estado", "id": str(almacen.version), "data": json.dumps(estado_de(request))}
+                    version = almacen.version
+                    if version == ultima_enviada and not forzar:
+                        continue
+                    ultima_enviada = version
+                    yield {"event": "estado", "id": str(version), "data": await estado_json_de(request)}
             finally:
                 almacen.desuscribir(cola)
 
@@ -333,21 +397,22 @@ def crear_app(almacen: Almacen) -> FastAPI:
             raise HTTPException(403, f"{nombre} solo la aplica el servidor de Rosa")
         if "application/json" not in request.headers.get("content-type", ""):
             raise HTTPException(415, "Los argumentos van como application/json")
-        cuerpo = await request.body()
-        if len(cuerpo) > MAX_CUERPO_ACCION:
-            raise HTTPException(413, f"El cuerpo de una acción no puede pasar de {MAX_CUERPO_ACCION // 1000} kB")
-        try:
-            args = json.loads(cuerpo or b"{}")
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            raise HTTPException(400, "El cuerpo no es JSON valido")
+        args = await leer_json_acotado(request, MAX_CUERPO_ACCION)
         if not isinstance(args, dict):
             raise HTTPException(400, "Los argumentos van como objeto JSON")
         try:
             if nombre == 'actualizarAvisos' and request.state.usuario:
                 resultado = app.state.correo.guardar_preferencias(request.state.usuario, args.get('avisos'))
-                almacen._avisar()
+                almacen._avisar(forzar=True)
             else:
+                # El actor es la sesión: el almacén lo guarda en la fila del registro
+                # (dentro del hash) y lo pone como `quien` en los reducers que firman
+                # decisiones, ignorando el que mande el navegador (S-22).
                 resultado = almacen.aplicar(nombre, args, actor=request.state.usuario)
+        except EscritorObsoleto as ex:
+            # Otro proceso escribió sobre la base (S-01): este servidor ya no guarda
+            # nada y se está cerrando. La persona lo sabe, en vez de un 500 mudo.
+            raise HTTPException(503, f"Esta Rosa ya no puede guardar cambios: {str(ex)[:300]}") from None
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, IndexError) as ex:
             # El almacen ya deshizo la mutacion a medias; el cliente recibe un 400 con el motivo.
             raise HTTPException(400, f"Argumentos inválidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")
@@ -521,8 +586,23 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.get("/api/registro/integridad")
     async def integridad() -> dict[str, Any]:
-        """Recorre la cadena de hashes del registro de acciones."""
+        """Recorre la cadena de hashes del registro de acciones y distingue una
+        bifurcación por reinicio (dos procesos a la vez) de una fila borrada o
+        alterada; cuenta los cortes documentados con `reanclaje_registro`."""
         return await asyncio.to_thread(almacen.verificar_cadena)
+
+    @app.post("/api/registro/reanclar")
+    async def reanclar(request: Request) -> dict[str, Any]:
+        """Documenta las roturas actuales de la cadena con un motivo escrito y
+        vuelve a anclarla desde ahí. Solo administración; la fila guarda quién
+        y por qué, y no toca el estado."""
+        if not es_admin(request.state.usuario):
+            raise HTTPException(403, "Solo administración puede documentar un corte del registro")
+        obj = await objeto_pequeno(request)
+        try:
+            return await asyncio.to_thread(almacen.reanclar_registro, str(obj.get("motivo", "")), request.state.usuario)
+        except ValueError as ex:
+            raise HTTPException(400, str(ex)) from None
 
     @app.get("/api/calidad/acuerdo")
     async def acuerdo_jueces() -> dict[str, Any]:
@@ -543,10 +623,13 @@ def crear_app(almacen: Almacen) -> FastAPI:
         return JSONResponse(content=datos, headers={"Cache-Control": "no-store"})
 
     @app.post("/api/hipotesis/{hipotesis_id}/datos")
-    async def subir_datos(hipotesis_id: str, fichero: UploadFile = File(...), analisis: str = Form("")) -> dict[str, Any]:
-        """Los datos del laboratorio para una hipotesis con experimento
+    async def subir_datos(hipotesis_id: str, fichero: UploadFile = File(...), analisis: str = Form(""), sintetico: str = Form("no")) -> dict[str, Any]:
+        """Los datos del laboratorio para una hipótesis con experimento
         asignado: se guardan en `datos/<hipotesis>/` y se registra el fichero;
-        el bucle los evalua contra el prerregistro y rehace la conclusion."""
+        el bucle los evalúa contra el prerregistro y rehace la conclusión.
+        `sintetico` es la casilla "son datos de prueba" de la ficha (S-18): el
+        reducer la guarda en `experimento.datosSinteticos` y esa evidencia no
+        sube nunca el techo GRADE."""
         from rosa import datos as D
 
         h = next((x for x in almacen.estado["hipotesis"] if x["id"] == hipotesis_id), None)
@@ -558,7 +641,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
             ruta = await asyncio.to_thread(D.guardar, hipotesis_id, fichero.filename or "datos", contenido)
         except ValueError as ex:
             raise HTTPException(413, str(ex))
-        resultado = almacen.aplicar("registrarDatosExperimento", {"hipotesis_id": hipotesis_id, "fichero": ruta.name, "analisis": analisis})
+        resultado = almacen.aplicar("registrarDatosExperimento", {"hipotesis_id": hipotesis_id, "fichero": ruta.name, "analisis": analisis, "sintetico": sintetico})
         return {"ok": resultado is not False, "fichero": ruta.name, "bytes": tamano, "version": almacen.version}
 
     @app.post("/api/investigaciones/{investigacion_id}/datasets")
@@ -615,19 +698,26 @@ def crear_app(almacen: Almacen) -> FastAPI:
         return politicas.resumen()
 
     @app.post("/api/investigaciones/{investigacion_id}/preguntar")
-    async def preguntar_con_herramientas(investigacion_id: str, cuerpo: dict[str, Any]) -> dict[str, Any]:
+    async def preguntar_con_herramientas(investigacion_id: str, request: Request) -> dict[str, Any]:
         """Una pregunta con herramientas (conectores, búsqueda en el proyecto,
         modelo de mundo) hecha por una persona desde la interfaz. Corre un
-        ReAct acotado con el cerebro y guarda la respuesta con sus consultas."""
+        ReAct acotado con el cerebro y guarda la respuesta con sus consultas.
+        El cuerpo se lee con tope (la pregunta se recorta a 2000 caracteres) y
+        la autoría es la sesión, no lo que mande el navegador (M-29)."""
         from rosa import herramientas as H
         from rosa.bucle.pasos import _texto_mision
         from rosa.gateway import modelos as cargar_modelos
 
+        if "application/json" not in request.headers.get("content-type", ""):
+            raise HTTPException(415, "La pregunta va como application/json")
+        cuerpo = await leer_json_acotado(request, MAX_CUERPO_PREGUNTA)
+        if not isinstance(cuerpo, dict):
+            raise HTTPException(400, "Se espera un objeto JSON con la pregunta")
         inv = next((i for i in almacen.estado["investigaciones"] if i["id"] == investigacion_id), None)
         pregunta = str(cuerpo.get("pregunta", "")).strip()
         if not inv or not pregunta:
             raise HTTPException(400, "Falta la pregunta o la investigación")
-        quien = str(cuerpo.get("quien", "persona"))[:80]
+        quien = str(request.state.usuario or "servidor")[:80]
         hoy = time.strftime("%Y-%m-%d")
         cont = app.state.preguntas_hoy
         if cont["dia"] != hoy:
@@ -687,7 +777,8 @@ def crear_app(almacen: Almacen) -> FastAPI:
 
     @app.get("/api/salud")
     async def salud() -> dict[str, Any]:
-        return {"ok": True, "version": almacen.version}
+        # `obsoleto`: otro proceso escribió sobre la base y este ya no guarda (S-01).
+        return {"ok": not almacen.obsoleto, "version": almacen.version, "obsoleto": almacen.obsoleto}
 
     if config.FRONTEND_DIST.exists():
         app.mount("/assets", StaticFiles(directory=config.FRONTEND_DIST / "assets"), name="assets")

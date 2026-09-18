@@ -209,7 +209,9 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
             if cmp["resultado"] in ("falla", "no_comprobable"):
                 L.append(f"    - {cmp['comprobacion']}: {cmp['resultado']}. {cmp['detalle'][:200]}")
         if d.get("auditoria"):
-            L.append(f"    Auditoría ({d['auditoria']['quien']}): {'de acuerdo' if d['auditoria']['acuerdo'] else 'EN DESACUERDO'}. {d['auditoria']['motivo'][:200]}")
+            acuerdo = d["auditoria"].get("acuerdo")
+            veredicto_aud = "sin respuesta del auditor" if acuerdo is None else ("de acuerdo" if acuerdo else "EN DESACUERDO")
+            L.append(f"    Auditoría ({d['auditoria'].get('quien', '?')}): {veredicto_aud}. {str(d['auditoria'].get('motivo') or '')[:200]}")
     if h.get("revisionesHumanas"):
         L.append("Revisiones escritas por personas:")
         for r in h["revisionesHumanas"]:

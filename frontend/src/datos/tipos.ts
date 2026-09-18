@@ -382,8 +382,14 @@ export interface Gasto {
   segundos: number;
   /** Articulos leidos en toda la corrida. */
   articulosLeidos: number;
-  /** Dolares estimados a partir de los tokens y la tabla de precios de Rosa. */
+  /** Dólares estimados a partir de los tokens y la tabla de precios de Rosa. */
   usd?: number;
+  /** Dólares facturados por el AI Gateway (campo `cost` de cada llamada, sumado
+   *  por el servidor). Es la cifra real; `usd` queda como estimación al lado.
+   *  Ausente en corridas anteriores a que el servidor lo guardara. */
+  usdReal?: number;
+  /** Alguna llamada de la corrida vino sin coste del gateway y se estimó por tokens. */
+  usdEsEstimado?: boolean;
 }
 
 /** Tope duro de la corrida completa, con alarmas antes del tope. Al llegar
@@ -394,6 +400,8 @@ export interface PresupuestoGlobal {
   alertas: number[];
   /** Alertas ya avisadas (fracciones), para no repetir. */
   avisadas: number[];
+  /** Por qué se pausó por presupuesto (llamadas, dinero, horas), escrito por el servidor. */
+  motivoPausa?: string;
 }
 
 /** Ocupacion del contexto del cerebro del bucle y compactaciones hechas. */
@@ -830,9 +838,13 @@ export interface Afirmacion {
   sintetico?: boolean;
   /** Cohorte o estudio del que salen los datos, tal como lo dice la fuente. */
   cohorte?: string;
-  /** El fragmento contenia texto que parece una instruccion para el modelo.
-   *  No se bloquea (los clasificadores fallan en texto tecnico): se ensena. */
+  /** El fragmento contenía texto que parece una instrucción para el modelo.
+   *  No se bloquea (los clasificadores fallan en texto técnico): se enseña. */
   sospechosoInyeccion?: boolean;
+  /** La afirmación sale de la introducción, los antecedentes o la discusión
+   *  del artículo (o sus equivalentes en castellano): es lo que los autores
+   *  cuentan de otros, no lo que midieron. Pesa menos como evidencia. */
+  deFondo?: boolean;
   /** Id de la afirmacion en el almacen compartido de la corrida: una
    *  observacion no pertenece a una hipotesis, se enlaza a todas las
    *  compatibles (plan completo, seccion 8). */
@@ -1131,8 +1143,15 @@ export interface Experimento {
   puenteAlBeneficio?: string;
   /** Lo que le falta al contrato, en castellano, por regla (rosa/experimento.py validar_contrato). */
   problemasContrato?: string[];
-  /** SHA-256 de las lecturas en orden canónico, congelado al prerregistrar (rosa/experimento.py hash_lecturas). */
+  /** SHA-256 de las lecturas en orden canónico (rosa/experimento.py hash_lecturas).
+   *  Se congela al prerregistrar y el servidor lo recalcula en cada enmienda;
+   *  el congelado de verdad es `enmiendas[0].hashAntes` cuando hay enmiendas,
+   *  y este mismo valor cuando no las hay (misma regla en los dos lados). */
   hashLecturas?: string;
+  /** La persona declaró que el fichero de datos del laboratorio es sintético o
+   *  de prueba. Sus afirmaciones nunca cuentan como observación ni suben el
+   *  techo GRADE; el servidor lo fuerza también si el nombre del fichero dice "sintético". */
+  datosSinteticos?: boolean;
 }
 
 export interface CondicionAutomatizada {
@@ -1210,15 +1229,21 @@ export type CampoLecturaEnmendable = 'queConfirma' | 'queRefuta' | 'control' | '
 export interface EnmiendaPrerregistro {
   fecha: number;
   quien: string;
-  campo: CampoEnmendable;
+  /** El campo de texto enmendado, o, en la enmienda de una lectura del contrato,
+   *  "lecturas[i].campo" (misma forma en rosa/estado/acciones.py enmendar_lectura
+   *  y en el reducer enmendarLectura de acciones.ts). */
+  campo: CampoEnmendable | `lecturas[${number}].${CampoLecturaEnmendable}` | string;
   antes: string;
   despues: string;
   motivo: string;
-  /** Solo en la enmienda de una lectura del contrato: qué lectura (índice y
-   *  nombre) y qué campo suyo cambió. En esas enmiendas `campo` vale 'ensayo',
-   *  porque las lecturas son los criterios del ensayo fijados de antemano. */
-  lectura?: { indice: number; nombre: string; campo: CampoLecturaEnmendable } | null;
-  /** Huella SHA-256 de las lecturas antes y después de la enmienda (rosa/estado/acciones.py enmendar_lectura y enmendar_experimento). Si `hashDespues` no coincide con `experimento.hashLecturas` del prerregistro congelado, el contrato cambió después de congelarse. Solo las escribe el servidor. */
+  /** Solo en la enmienda de una lectura del contrato: el nombre de la lectura
+   *  (forma del servidor y del reducer actual). Registros anteriores de la
+   *  interfaz guardaban un objeto {indice, nombre, campo}; se sigue leyendo. */
+  lectura?: string | { indice: number; nombre: string; campo: CampoLecturaEnmendable } | null;
+  /** Huella SHA-256 de las lecturas antes y después de la enmienda (los dos
+   *  reducers, misma regla). `hashAntes` de la primera enmienda es el hash
+   *  congelado al prerregistrar; `experimento.hashLecturas` pasa a ser el
+   *  vigente. Si difieren, el contrato cambió después de congelarse. */
   hashAntes?: string;
   hashDespues?: string;
 }
@@ -1436,6 +1461,15 @@ export interface Hipotesis {
   versiones?: VersionHipotesis[];
   /** La ultima decision del Killer sobre esta version. */
   decisionKiller?: DecisionKiller | null;
+  /** El Killer tiene una revisión pendiente porque el modelo no respondió (o
+   *  su respuesta no se pudo leer): la decisión que se ve es la anterior, no un
+   *  juicio nuevo. La escribe el servidor (rosa/bucle/pasos.py); puede traer
+   *  el número de intentos y el motivo técnico. */
+  killerPendiente?: boolean | { intentos?: number; motivo?: string } | null;
+  /** Cohortes distintas entre las fuentes, contadas por el servidor con el
+   *  catálogo canónico (rosa/metodos.py) al marcar candidatas y al concluir.
+   *  La interfaz la lee tal cual; solo recalcula si falta (registro antiguo). */
+  cohortesDistintas?: string[];
   /** Los bloqueos no compensables que hoy la sacan de los candidatos. */
   bloqueos?: Bloqueo[];
   /** Si la priorizacion la marco candidata al laboratorio en este ciclo. */
@@ -1641,6 +1675,9 @@ export interface ConclusionHipotesis {
   techo?: { nivel: CertezaEvidencia; motivo: string; acotada: boolean; certezaDelJuez: CertezaEvidencia } | null;
   /** Qué le falta para cada nivel por encima del actual, por regla. */
   escalera?: { de: CertezaEvidencia; a: CertezaEvidencia; falta: string }[];
+  /** Las cohortes distintas que la regla del techo contó (rosa/certeza.py, con
+   *  el catálogo de rosa/metodos.py) al escribir esta conclusión. */
+  cohortesDistintas?: string[];
   direccion: DireccionEvidencia;
   conclusion: string;
   /** Por que este grado: los factores GRADE que lo bajaron o subieron. */

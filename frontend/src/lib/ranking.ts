@@ -14,7 +14,7 @@
 // Sin React: lo prueba vitest en ranking.test.ts.
 
 import type { Bloqueo, CertezaEvidencia, DecisionKiller, DireccionEvidencia, EstadoRosa, Hipotesis, PasoRutaTerapeutica } from '../datos/tipos';
-import { CERTEZA_EVIDENCIA } from './etiquetas';
+import { CERTEZA_EVIDENCIA, VEREDICTO } from './etiquetas';
 import { bloqueosDe, cohortesDe } from './priorizacion';
 
 /** La novedad de la hipótesis resumida a un estado: si nadie la propuso antes
@@ -40,9 +40,13 @@ export interface CertezaRanking {
 export interface ComponentesRanking {
   certeza: CertezaRanking | null;
   direccion: DireccionEvidencia | null;
-  /** Cohortes distintas entre las fuentes, con el nombre tal como lo dio la
-   *  primera fuente que la nombró. Dos artículos de la misma cohorte son una. */
+  /** Cohortes distintas entre las fuentes, con su etiqueta canónica (ADNI,
+   *  BioFINDER) o el nombre tal como lo dio la primera fuente si no está en el
+   *  catálogo. Dos artículos de la misma cohorte son una. */
   cohortesDistintas: string[];
+  /** De dónde salió la cuenta: del servidor (la misma que usó el techo GRADE)
+   *  o de la regla espejada aquí porque el registro no la traía. */
+  cohortesOrigen: 'servidor' | 'regla';
   /** Afirmaciones sostenidas o parciales que apoyan (de origen, directas o
    *  indirectas) y no están socavadas. Misma regla que rosa/certeza.py. */
   aFavor: number;
@@ -159,18 +163,36 @@ export function recuentoEvidencia(h: Pick<Hipotesis, 'afirmaciones'>): { aFavor:
   return { aFavor, enContra, socavan, socavadas };
 }
 
-/** Las cohortes distintas (regla de rosa/priorizacion.py espejada en
- *  `cohortesDe`) con el nombre original de la primera fuente que las nombró,
- *  para no enseñar "adni" donde la fuente decía "ADNI". */
-export function cohortesConNombre(h: Pick<Hipotesis, 'procedencia'>): string[] {
-  // Solo fuentes que son objetos, con la cohorte como texto: un registro raro
-  // (una fuente nula, una cohorte numérica) no puede tumbar la regla.
-  const fuentes = objetos<Hipotesis['procedencia']['fuentes'][number]>(h.procedencia?.fuentes).map((f) => ({ ...f, cohorte: texto(f.cohorte) }));
-  const claves = cohortesDe({ procedencia: { ...(h.procedencia ?? ({} as Hipotesis['procedencia'])), fuentes } });
-  return claves.map((c) => {
-    const f = fuentes.find((x) => clave(x.cohorte) === c);
-    return texto(f?.cohorte).trim() || c;
-  });
+/** La lista de cohortes que guardó el servidor, si la hay y es una lista de
+ *  textos: primero la de la hipótesis (rosa/priorizacion.py al marcar
+ *  candidatas), si no la de la conclusión (rosa/certeza.py al concluir). */
+function cohortesDelServidor(h: Pick<Hipotesis, 'cohortesDistintas' | 'conclusion'>): string[] | null {
+  for (const candidata of [h.cohortesDistintas, (h.conclusion && typeof h.conclusion === 'object' ? h.conclusion : ({} as NonNullable<Hipotesis['conclusion']>)).cohortesDistintas]) {
+    if (!Array.isArray(candidata)) continue;
+    // Solo textos: un número o un nulo colado en la lista no es una cohorte.
+    const limpias = candidata.filter((c): c is string => typeof c === 'string').map((c) => c.trim()).filter(Boolean);
+    return [...new Set(limpias)];
+  }
+  return null;
+}
+
+/** Las cohortes distintas de la hipótesis: la cuenta del servidor cuando
+ *  viene (es la misma que usó el techo GRADE, así el chip y el motivo del
+ *  techo nunca se contradicen), y si no la regla espejada en `cohortesDe`
+ *  (catálogo canónico de rosa/metodos.py) sobre las fuentes. */
+export function cohortesConNombre(h: Pick<Hipotesis, 'procedencia'> & Partial<Pick<Hipotesis, 'cohortesDistintas' | 'conclusion'>>): string[] {
+  return cohortesDelServidor(h) ?? cohortesPorRegla(h);
+}
+
+/** Solo la regla espejada, sobre fuentes que son objetos (un registro raro,
+ *  con una fuente nula o una cohorte numérica, no puede tumbarla). */
+export function cohortesPorRegla(h: Pick<Hipotesis, 'procedencia'>): string[] {
+  const fuentes = objetos<Hipotesis['procedencia']['fuentes'][number]>(h.procedencia?.fuentes);
+  try {
+    return cohortesDe({ procedencia: { ...(h.procedencia ?? ({} as Hipotesis['procedencia'])), fuentes } });
+  } catch {
+    return [];
+  }
 }
 
 /** El detalle de una comprobación que dice que no se hizo: "No comprobado
@@ -222,12 +244,23 @@ function btDe(h: Pick<Hipotesis, 'bt'>): { fuerza: number; ic95: [number, number
   return { fuerza: bt.fuerza, ic95: [ic[0], ic[1]] };
 }
 
+/** Lo que guardó el servidor como bloqueos, sin repetidos ni basura; origen
+ *  "no comprobado" si no guardó nada (que no es lo mismo que sin bloqueos). */
+function bloqueosDelServidor(h: Hipotesis): { bloqueos: Bloqueo[]; origen: OrigenBloqueos } {
+  if (!Array.isArray(h.bloqueos)) return { bloqueos: [], origen: 'no_comprobado' };
+  return { bloqueos: [...new Set(h.bloqueos.filter((b): b is Bloqueo => typeof b === 'string' && b.length > 0))], origen: 'servidor' };
+}
+
 /** Los bloqueos por la regla espejada (la misma que pinta la pantalla del
- *  ranking y la lista de candidatas). Si un registro raro la hace fallar (un
- *  veredicto que esta interfaz no conoce), se usa lo que guardó el servidor,
- *  sin repetidos, y se dice de dónde salió; si el servidor tampoco guardó
- *  nada, el origen es "no comprobado", que no es lo mismo que sin bloqueos. */
+ *  ranking y la lista de candidatas). La regla canónica vive en el servidor
+ *  (rosa/priorizacion.py): si una afirmación trae un veredicto que esta
+ *  versión no conoce, la copia de aquí no puede pretender evaluarla y se usa
+ *  lo que guardó el servidor, diciendo de dónde salió (la ficha y la cola, que
+ *  llaman a `bloqueosDe` directamente, tratan ese veredicto como bloqueante:
+ *  ninguna de las dos lecturas lo da por bueno). Si un registro raro hace
+ *  fallar la regla, igual: servidor o "no comprobado". */
 function bloqueosSeguros(estado: EstadoParaRanking, h: Hipotesis): { bloqueos: Bloqueo[]; origen: OrigenBloqueos } {
+  if (objetos<{ veredicto?: unknown }>(h.afirmaciones).some((a) => typeof a.veredicto !== 'string' || !Object.hasOwn(VEREDICTO, a.veredicto))) return bloqueosDelServidor(h);
   try {
     const base = {
       investigaciones: objetos(estado.investigaciones),
@@ -240,8 +273,7 @@ function bloqueosSeguros(estado: EstadoParaRanking, h: Hipotesis): { bloqueos: B
     } as Parameters<typeof bloqueosDe>[0];
     return { bloqueos: bloqueosDe(base, h), origen: 'regla' };
   } catch {
-    if (!Array.isArray(h.bloqueos)) return { bloqueos: [], origen: 'no_comprobado' };
-    return { bloqueos: [...new Set(h.bloqueos.filter((b): b is Bloqueo => typeof b === 'string' && b.length > 0))], origen: 'servidor' };
+    return bloqueosDelServidor(h);
   }
 }
 
@@ -277,6 +309,7 @@ export function componentesDe(estado: EstadoParaRanking, hipotesis: Hipotesis): 
     certeza: certezaDe(h),
     direccion: direccion ? (direccion as DireccionEvidencia) : null,
     cohortesDistintas: cohortesConNombre(h),
+    cohortesOrigen: cohortesDelServidor(h) ? 'servidor' : 'regla',
     aFavor: evidencia.aFavor,
     enContra: evidencia.enContra,
     socavan: evidencia.socavan,

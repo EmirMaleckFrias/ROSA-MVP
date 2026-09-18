@@ -1,7 +1,9 @@
 // Las decisiones con peso (aceptar, descartar, refinar una hipotesis) se
 // aplican al instante en pantalla pero viajan al servidor unos segundos
-// despues: mientras, este aviso con su barra de tiempo permite deshacer. El
-// gesto ensena que la decision cuenta y que hay un margen para el error.
+// después: mientras, este aviso con su barra de tiempo permite deshacer. El
+// gesto enseña que la decisión cuenta y que hay un margen para el error. Si
+// llega un estado del servidor entre medias, el almacén reaplica la decisión
+// pendiente sobre él, así la tarjeta no retrocede mientras este aviso vive.
 
 import { AnimatePresence, motion } from 'motion/react';
 import { useAccionesPendientes, type AccionPendiente } from '../datos/almacen';
@@ -16,7 +18,7 @@ function Aviso({ a, ahora }: { a: AccionPendiente; ahora: number }) {
     <motion.div className="deshacer" role="status" layout initial={reducido ? { opacity: 0 } : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reducido ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}>
       <div className="deshacer-texto">
         <strong>{a.etiqueta}</strong>
-        <span className="meta">Se envia en {Math.ceil(restante / 1000)} s</span>
+        <span className="meta">Se envía en {Math.ceil(restante / 1000)} s</span>
       </div>
       <div className="acciones">
         <button type="button" className="btn btn-s" onClick={a.deshacer}>

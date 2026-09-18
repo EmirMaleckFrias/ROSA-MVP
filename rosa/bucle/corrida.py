@@ -3,24 +3,25 @@
 `Supervisor.correr()` es una tarea que vive mientras el servidor:
 - Cada dos segundos mira el estado. Para cada corrida viva sin tarea, lanza
   `correr_corrida`. Autoaprueba planes si la corrida lo pide. Atiende lo que
-  la investigadora dejo marcado: hipotesis "no puedo juzgar" (las aclara),
+  la investigadora dejó marcado: hipótesis "no puedo juzgar" (las aclara),
   comentarios enviados (los responde), revisiones pedidas, retractaciones a
   recomprobar, replicaciones en curso.
-- Al arrancar, lo que quedo a medias por un reinicio se marca (pistas
-  fallidas con motivo) y la iteracion retoma en el primer paso pendiente.
+- Al arrancar, lo que quedó a medias por un reinicio se marca (pistas
+  fallidas con motivo) y la iteración retoma en el primer paso pendiente.
 
 `correr_corrida` es el bucle de una corrida:
-  sin iteracion o iteracion cerrada -> proponer plan -> esperando_plan
+  sin iteración o iteración cerrada -> proponer plan -> esperando_plan
   plan aprobado -> ejecutar pasos en orden (cada paso, sus pistas)
-  sin pasos -> cerrar iteracion (resumen, informe, evento, condicion de parada)
+  sin pasos -> cerrar iteración (resumen, informe, evento, condición de parada)
 Se detiene cuando la corrida pasa a detenida o terminada. Pausada, pausada
-por presupuesto o esperando aprobacion: espera sin gastar.
+por presupuesto o esperando aprobación: espera sin gastar.
 """
 
 from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import contextlib
 from datetime import datetime, timezone
@@ -48,13 +49,13 @@ from rosa.estado.almacen import Almacen
 from rosa.fuentes import crossref
 from rosa.fuentes.base import FuenteNoDisponible
 from rosa.gateway import Modelos
-from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual
+from rosa.modulos.contador import ContextoLlamada, PresupuestoAgotado, contexto_actual, tope_agotado_en
 from rosa.modulos.firmas import Programas
 
 # Lo que cuesta de verdad cada tipo de paso, en llamadas al modelo, medido en
 # la primera corrida real (10 de septiembre de 2026): el cribado de relevancia
-# es una llamada por articulo, la extraccion una por fragmento, el juez una
-# por afirmacion. El modelo que propone el plan no conoce este coste, asi que
+# es una llamada por artículo, la extracción una por fragmento, el juez una
+# por afirmación. El modelo que propone el plan no conoce este coste, así que
 # su cifra se sustituye por esta.
 COSTE_POR_TIPO = {"literatura": 70, "ensayos": 4, "extraccion": 60, "verificacion": 80, "novedad": 25, "modelo": 4, "hipotesis": 90, "analisis": 14, "meta": 4, "indicacion": 0}
 
@@ -75,6 +76,13 @@ class Supervisor:
         self.modelos = modelos
         self.tareas: dict[str, asyncio.Task] = {}
         self._parar = asyncio.Event()
+        # Reloj de cada corrida viva en memoria (segundos de trabajo, espera humana,
+        # pausas): se vuelca al estado como mucho cada RELOJ_VOLCADO_MS o cuando la
+        # corrida cambia de estado, en vez de una mutación de 17 MB cada 5 s (S-17).
+        self._reloj: dict[str, dict[str, Any]] = {}
+        # Tareas de corrida que murieron con excepción: cuántas veces seguidas y
+        # cuándo, para relanzarlas con retroceso y no cada 2 s (S-14).
+        self._fallos: dict[str, dict[str, Any]] = {}
 
     # -- arranque -------------------------------------------------------------
 
@@ -96,8 +104,8 @@ class Supervisor:
                     if paso["estado"] == "en_curso":
                         paso["estado"] = "pendiente"
                         cambiado = True
-            # Una ejecucion in silico a medias no se repite sola (evitar ejecucion
-            # duplicada tras un reinicio): queda como error tecnico con motivo.
+            # Una ejecución in silico a medias no se repite sola (evitar ejecución
+            # duplicada tras un reinicio): queda como error técnico con motivo.
             for run in e.get("ejecuciones", []):
                 if run["estado"] == "en_curso":
                     run["estado"] = "error_tecnico"
@@ -109,6 +117,21 @@ class Supervisor:
                     r["estado"] = "error_tecnico"
                     r["_error"] = "Interrumpida por un reinicio"
                     cambiado = True
+            # Migración idempotente (S-16): la serie de progreso cuenta las hipótesis
+            # nuevas por ventana de fecha, no por número de iteración. Volver a
+            # pasarla no cambia nada, así que corre en cada arranque.
+            try:
+                if PROG.recalcular_progreso(e):
+                    cambiado = True
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+            # Saneamiento (S-08): toda hipótesis viva cuya evidencia cambió desde su
+            # última decisión del Killer vuelve a la cola de revisión.
+            try:
+                if pedir_revision_por_huella(e, ahora):
+                    cambiado = True
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
             return cambiado or False
 
         self.almacen.mutar(fn, "recuperacion")
@@ -134,9 +157,17 @@ class Supervisor:
         # antes de que main cierre SQLite.
         if self.tareas:
             await asyncio.gather(*self.tareas.values(), return_exceptions=True)
+        # El reloj que quedó en memoria se escribe antes de cerrar.
+        with contextlib.suppress(Exception):
+            self._volcar_reloj(P.ahora_ms(), todas=True)
 
     def parar(self) -> None:
+        """Pide parar: el bucle no arranca trabajo nuevo (peticiones, vigilancia,
+        índice) y main.py deja terminar lo que va en vuelo hasta su tope."""
         self._parar.set()
+
+    def _cerrando(self) -> bool:
+        return self._parar.is_set()
 
     async def _indexar_si_toca(self) -> None:
         """Índice semántico del registro (rosa/indice_semantico.py): incrusta lo
@@ -144,7 +175,7 @@ class Supervisor:
         from rosa import indice_semantico
 
         ahora = P.ahora_ms()
-        if ahora - getattr(self, "_ultima_indexacion", 0) < 10 * 60 * 1000:
+        if self._cerrando() or ahora - getattr(self, "_ultima_indexacion", 0) < 10 * 60 * 1000:
             return
         self._ultima_indexacion = ahora
         try:
@@ -162,7 +193,7 @@ class Supervisor:
 
         ahora = P.ahora_ms()
         ultima = getattr(self, "_ultima_vigilancia", 0)
-        if ahora - ultima < 3600 * 1000:
+        if self._cerrando() or ahora - ultima < 3600 * 1000:
             return
         self._ultima_vigilancia = ahora
         try:
@@ -174,34 +205,32 @@ class Supervisor:
 
     # -- por tick --------------------------------------------------------------
 
-    def _tick(self) -> None:
+    def _tick(self, ahora: int | None = None) -> None:
         e = self.almacen.estado
-        ahora = P.ahora_ms()
+        ahora = ahora if ahora is not None else P.ahora_ms()
         for c in e["corridas"]:
             if c["estado"] in ("detenida", "terminada"):
                 continue
             t = self.tareas.get(c["id"])
             if t is None or t.done():
-                if t is not None and t.done() and t.exception():
-                    traceback.print_exception(t.exception())
+                if not self._puede_relanzar(c, t, ahora):
+                    continue
                 self.tareas[c["id"]] = asyncio.create_task(self.correr_corrida(c["id"]), name=f"corrida-{c['id']}")
-        # Autoaprobacion de planes y segundos de reloj.
+        # El reloj se lleva en memoria; solo se escribe cuando toca volcarlo.
+        volcar = self._reloj_en_memoria(e, ahora)
+        # Autoaprobación de planes, reloj volcado y salida de "esperando aprobación".
 
         def fn(e2: dict[str, Any]) -> bool:
             cambiado = False
             for c in e2["corridas"]:
+                if c["id"] in volcar and self._escribir_reloj(c, ahora):
+                    cambiado = True
                 # Una corrida detenida por una persona también cierra con su métrica.
                 if c["estado"] in ("detenida", "terminada") and c.get("metrica") is None and c.get("progreso"):
                     c["metrica"] = PROG.metrica_de_corrida(e2, c["id"])
                     cambiado = True
                 if c["estado"] in ("detenida", "terminada"):
                     continue
-                if contabilizar_tiempo(c, ahora):
-                    cambiado = True
-                seg = round(tiempo_trabajo_ms(c, ahora) / 1000)
-                if seg != c["gasto"]["segundos"] and seg % 5 == 0:
-                    c["gasto"]["segundos"] = seg
-                    cambiado = True
                 if c["estado"] == "esperando_plan" and c["autoAprobarPlanSegundos"] is not None:
                     it = A.iteracion_actual_de(e2, c)
                     if it and not it["planAprobado"] and ahora - it["planPropuestoEn"] >= c["autoAprobarPlanSegundos"] * 1000 and c["estado"] not in ("detenida", "terminada"):
@@ -211,7 +240,7 @@ class Supervisor:
                         A.con_evento(e2, c["investigacionId"], "corrida_estado", f"Plan de la iteración {it['numero']} autoaprobado tras {c['autoAprobarPlanSegundos']} s sin respuesta", None, ahora)
                         cambiado = True
                 if c["estado"] == "esperando_aprobacion":
-                    pendientes = any(s["corridaId"] == c["id"] and s["estado"] == "pendiente" for s in e2["solicitudes"]) or any(i["corridaId"] == c["id"] and i["estado"] == "pendiente" and i["tipo"] != "modelo_bloqueado" for i in e2["incidencias"])
+                    pendientes = any(s["corridaId"] == c["id"] and s["estado"] == "pendiente" for s in e2["solicitudes"]) or any(i["corridaId"] == c["id"] and i["estado"] == "pendiente" and i["tipo"] not in INCIDENCIAS_QUE_NO_BLOQUEAN for i in e2["incidencias"])
                     if not pendientes:
                         c["estado"] = "en_marcha"
                         cambiado = True
@@ -219,10 +248,106 @@ class Supervisor:
 
         self.almacen.mutar(fn, "tick")
 
+    # -- reloj en memoria (S-17) ----------------------------------------------
+
+    def _reloj_en_memoria(self, e: dict[str, Any], ahora: int) -> set[str]:
+        """Acumula en `self._reloj` la espera humana, las pausas y los segundos de
+        trabajo de cada corrida viva, y devuelve los ids cuyo reloj toca volcar al
+        estado: han pasado RELOJ_VOLCADO_MS desde el último volcado, la corrida
+        cambió de estado, o acaba de terminar (para que su balance sea exacto)."""
+        volcar: set[str] = set()
+        vivos = {c["id"] for c in e["corridas"]}
+        for cid in list(self._reloj):
+            if cid not in vivos:
+                self._reloj.pop(cid, None)
+                self._fallos.pop(cid, None)
+        for c in e["corridas"]:
+            cid = c["id"]
+            r = self._reloj.get(cid)
+            if c["estado"] in ("detenida", "terminada"):
+                if r is not None:
+                    volcar.add(cid)
+                continue
+            if r is None:
+                r = self._reloj[cid] = {"estado": c["estado"], "esperaHumanaMs": int(c.get("esperaHumanaMs") or 0), "pausaMs": int(c.get("pausaMs") or 0), "_ultimoTic": None, "volcadoEn": ahora, "estadoVolcado": c["estado"]}
+            r["estado"] = c["estado"]
+            contabilizar_tiempo(r, ahora)
+            r["segundos"] = round(tiempo_trabajo_ms({**c, "esperaHumanaMs": r["esperaHumanaMs"], "pausaMs": r["pausaMs"]}, ahora) / 1000)
+            if ahora - int(r.get("volcadoEn") or 0) >= RELOJ_VOLCADO_MS or c["estado"] != r.get("estadoVolcado"):
+                volcar.add(cid)
+        return volcar
+
+    def _escribir_reloj(self, c: dict[str, Any], ahora: int) -> bool:
+        """Escribe en la corrida lo acumulado en memoria. Devuelve True si cambió algo."""
+        r = self._reloj.get(c["id"])
+        if r is None:
+            return False
+        cambiado = False
+        for clave in ("esperaHumanaMs", "pausaMs"):
+            if int(c.get(clave) or 0) != int(r.get(clave) or 0):
+                c[clave] = int(r.get(clave) or 0)
+                cambiado = True
+        seg = int(r.get("segundos") if r.get("segundos") is not None else round(tiempo_trabajo_ms({**c, "esperaHumanaMs": r["esperaHumanaMs"], "pausaMs": r["pausaMs"]}, ahora) / 1000))
+        if c["gasto"].get("segundos") != seg:
+            c["gasto"]["segundos"] = seg
+            cambiado = True
+        r["volcadoEn"] = ahora
+        r["estadoVolcado"] = c["estado"]
+        if c["estado"] in ("detenida", "terminada"):
+            self._reloj.pop(c["id"], None)
+        return cambiado
+
+    def _volcar_reloj(self, ahora: int, todas: bool = False) -> None:
+        """Vuelca el reloj de todas las corridas con registro en memoria (al parar)."""
+        ids = set(self._reloj) if todas else set()
+        if not ids:
+            return
+        self.almacen.mutar(lambda e2: any([self._escribir_reloj(c, ahora) for c in e2["corridas"] if c["id"] in ids]) or False, "reloj")
+
+    def _con_reloj(self, c: dict[str, Any]) -> dict[str, Any]:
+        """La corrida con la espera humana y las pausas que hay en memoria, para
+        que el tope en horas se compare con el valor al día y no con el volcado
+        de hace medio minuto. Copia superficial: no toca el estado."""
+        r = self._reloj.get(c["id"])
+        if r is None:
+            return c
+        return {**c, "esperaHumanaMs": int(r.get("esperaHumanaMs") or 0), "pausaMs": int(r.get("pausaMs") or 0)}
+
+    # -- relanzar con retroceso (S-14) -----------------------------------------
+
+    def _puede_relanzar(self, c: dict[str, Any], t: asyncio.Task | None, ahora: int) -> bool:
+        """Si la tarea de la corrida murió con una excepción, deja una incidencia
+        visible y espera con retroceso (30 s, 60 s, 5 min) antes de relanzarla.
+        Antes se relanzaba cada 2 s: la corrida decía "en marcha" para siempre,
+        con un traceback por vuelta y dos escrituras del estado entero cada vez."""
+        cid = c["id"]
+        if t is None:
+            return True
+        if t.cancelled() or t.exception() is None:
+            self._fallos.pop(cid, None)
+            return True
+        reg = self._fallos.get(cid)
+        if reg is None or reg.get("tarea") is not t:
+            ex = t.exception()
+            traceback.print_exception(ex)
+            n = 1 if reg is None or ahora - int(reg.get("relanzadaEn") or 0) > 10 * 60_000 else int(reg.get("n") or 0) + 1
+            espera = RETROCESO_MS[min(n, len(RETROCESO_MS)) - 1]
+            self._fallos[cid] = {"n": n, "en": ahora, "tarea": t, "espera": espera, "relanzadaEn": int((reg or {}).get("relanzadaEn") or 0)}
+            with contextlib.suppress(Exception):
+                self.almacen.mutar(lambda e2: _incidencia_bucle(e2, cid, ex, n, espera, ahora), "incidencia")
+            return False
+        if ahora - int(reg["en"]) < int(reg["espera"]):
+            return False
+        reg["relanzadaEn"] = ahora
+        reg["tarea"] = None
+        return True
+
     async def _atender_peticiones(self) -> None:
-        """Lo que la investigadora dejo marcado y no requiere corrida en marcha."""
+        """Lo que la investigadora dejó marcado y no requiere corrida en marcha."""
         e = self.almacen.estado
         for h in list(e["hipotesis"]):
+            if self._cerrando():
+                return  # Rosa está cerrando: nada nuevo al modelo
             corrida = A.ultima_corrida_de(e, h["investigacionId"])
             if not corrida:
                 continue
@@ -236,21 +361,38 @@ class Supervisor:
             if h.get("_reformularPedida") is not None and h["estado"] == "refinar":
                 await self._reformular_por_persona(ctx, h)
             if h.get("_revisionPedida") and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
-                # Una revision pedida con la corrida parada no espera al siguiente paso
-                # de hipotesis: revision inicial, supuestos y Killer ahora.
+                # Una revisión pedida con la corrida parada no espera al siguiente paso
+                # de hipótesis: revisión inicial, supuestos y Killer ahora.
+                # Sin presupuesto en la corrida no se abre pista ni se cuenta intento: la
+                # petición se cierra con una línea que dice qué pasó y cómo repetirla. Antes
+                # la excepción del contador contaba como "el juez no respondió" y en tres
+                # ticks (seis segundos) la revisión quedaba abandonada con el motivo falso.
+                if tope_agotado_en(e, corrida["id"], corrida.get("iteracionActual")) is not None:
+                    self.almacen.mutar(lambda e2: _abandonar_peticion_sin_presupuesto(e2, h["id"], corrida), "revision")
+                    return
                 texto_af, _ = T.afirmaciones_sostenidas(corrida.get("_afirmaciones", []))
                 pista = ctx.pista(None, "modelo", f"Revisión pedida: {h['titulo'][:60]}", "Opus 5 (Killer)")
+                decisiones_antes = _n_decisiones_killer(e, h["id"])
+                intentos_antes = int(h.get("_killerIntentos") or 0)
+                sin_presupuesto = False
                 try:
                     await PASOS._revisar_hipotesis(ctx, h, texto_af[:8000], pista)
                     pista.cerrar("Revisión y Killer terminados")
+                except PresupuestoAgotado:
+                    sin_presupuesto = True
+                    pista.fallar("Sin presupuesto en la corrida: la revisión pedida no se hizo")
+                    self.almacen.mutar(lambda e2: _abandonar_peticion_sin_presupuesto(e2, h["id"], corrida), "revision")
                 except Exception as ex:  # noqa: BLE001
                     traceback.print_exc()
-                    pista.fallar(f"La revisión fallo: {str(ex)[:160]}")
+                    pista.fallar(f"La revisión falló: {str(ex)[:160]}")
                 finally:
-                    self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).pop("_revisionPedida", None), True)[1], "revision")
+                    # La marca se quita solo si el Killer llegó a decidir; si falló, la
+                    # petición sigue viva hasta MAX_INTENTOS_KILLER intentos (S-08).
+                    if not sin_presupuesto:
+                        self.almacen.mutar(lambda e2: _cerrar_peticion_de_revision(e2, h["id"], decisiones_antes, intentos_antes), "revision")
                 return
             if h.get("_analisisPedido") and (corrida["estado"] in ("detenida", "terminada", "esperando_plan") or A.iteracion_actual_de(e, corrida) is None):
-                # Con la corrida parada, el analisis pedido no espera a un paso del plan.
+                # Con la corrida parada, el análisis pedido no espera a un paso del plan.
                 from rosa.bucle import analisis as AN
 
                 p = h["_analisisPedido"]
@@ -366,7 +508,7 @@ class Supervisor:
         pista = ctx.pista(None, "modelo", f"Reformular a petición: {h['titulo'][:60]}", "GPT-6 Astra + Opus 5")
         try:
             if not politicas.puede_reformular(h.get("version", 1)):
-                # A peticion de una persona no se descarta por agotar reformulaciones: se le dice.
+                # A petición de una persona no se descarta por agotar reformulaciones: se le dice.
                 pista.cerrar(f"La hipótesis ya está en la versión {h.get('version', 1)} y la política no permite más reformulaciones automáticas; editala o duplicala a mano")
                 self.almacen.mutar(lambda e2: (next((x for x in e2["hipotesis"] if x["id"] == h["id"]), {}).get("procedencia", {}).get("mensajes", []).append({"id": P.nuevo_id("m"), "de": "rosa", "texto": f"No se reformuló: versión {h.get('version', 1)}, tope de {politicas.MAX_REFORMULACIONES} reformulaciones. Nota de la persona: {nota[:200]}", "creadoEn": P.ahora_ms()}), True)[1], "reformular")
                 return
@@ -389,7 +531,7 @@ class Supervisor:
         la persona (avanzar = aceptar; descartar o reformular = descartar).
         La cifra va al registro; la promoción sigue siendo de la persona."""
         e = self.almacen.estado
-        # Conjunto reservado: solo hipotesis con decision de una PERSONA (registro de
+        # Conjunto reservado: solo hipótesis con decisión de una PERSONA (registro de
         # decisiones, etapa persona), nunca las que descarto el propio Killer.
         con_persona = {d["hipotesisId"] for d in e.get("decisiones", []) if d.get("etapa") == "persona" and d.get("decision") in ("aceptada", "descartada")}
         reservado = [h for h in e["hipotesis"] if h["estado"] in ("aceptada", "descartada") and h["id"] in con_persona][:6]
@@ -400,11 +542,27 @@ class Supervisor:
         corrida = A.ultima_corrida_de(e, cambio.get("investigacionId") or reservado[0]["investigacionId"]) or A.ultima_corrida_de(e, reservado[0]["investigacionId"])
         if not corrida:
             return
+        # Sin presupuesto en la corrida no hay cifra. Si la corrida sigue viva se
+        # pausa y la marca `_evaluar` espera a que lo amplíen; si ya terminó o está
+        # detenida nadie va a ampliarlo: la evaluación queda incompleta (el criterio
+        # sigue propuesto y el botón de evaluar, disponible). Antes la excepción del
+        # contador ponía una corrida terminada en "pausada por presupuesto" y se
+        # volvía a intentar en cada tick.
+        tope = tope_agotado_en(e, corrida["id"], corrida.get("iteracionActual"))
+        if tope is not None:
+            self._sin_presupuesto_para_evaluar(corrida, cambio, len(reservado), ahora, tope)
+            return
         ctx = self._ctx(corrida)
         from rosa import killer as K
 
-        async def acuerdo_con(criterios: list[str]) -> float:
-            aciertos = 0
+        async def acuerdo_con(criterios: list[str]) -> dict[str, Any]:
+            """El acuerdo del Killer con la persona, hipótesis por hipótesis:
+            `acuerdos` es un diccionario id -> True/False solo con las que el juez
+            llegó a juzgar; `fallos` cuenta las que no respondió. Un fallo del juez
+            no es un desacuerdo: antes contaba como tal y el registro medía cuántas
+            veces se cayó el gateway (S-24)."""
+            acuerdos: dict[str, bool] = {}
+            fallos = 0
             for h in reservado:
                 inv = next(i for i in e["investigaciones"] if i["id"] == h["investigacionId"])
                 deterministas = K.comprobaciones_deterministas(h, e)
@@ -412,21 +570,42 @@ class Supervisor:
                     pred = await ctx.llamar("juez", self.programas.killer, objetivo=inv["objetivo"], mision=PASOS._texto_mision(inv), hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h) + "\n" + DI.texto_perfil(h.get("perfilDiana")), afirmaciones="\n".join(f"- [{a['veredicto']}, {a['tipo']}] {a['texto']} {a['cita']}" for a in h["afirmaciones"]) or "Ninguna", supuestos="\n".join(f"- [{s['estado']}] {s['texto']}" for s in h["supuestos"]) or "Sin supuestos", modelo_de_mundo=T.modelo_de_mundo(e["hechos"], h["investigacionId"], maximo=30), comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas), criterios_revision="\n".join(criterios))
                     comprobaciones = K.fusionar(deterministas, [{"comprobacion": c.comprobacion, "resultado": c.resultado, "detalle": c.detalle} for c in pred.revision.comprobaciones])
                     decision, _ = K.decidir(comprobaciones, bool((h.get("tarjeta") or {}).get("prediccionFalsable")), 1)
+                except PresupuestoAgotado:
+                    raise
                 except Exception:  # noqa: BLE001
+                    traceback.print_exc()
+                    fallos += 1
                     continue
                 humana = h["estado"] == "aceptada"
-                if (decision == "avanzar") == humana:
-                    aciertos += 1
-            return round(aciertos / len(reservado), 3)
+                acuerdos[h["id"]] = (decision == "avanzar") == humana
+            return {"acuerdos": acuerdos, "fallos": fallos, "juzgadas": len(acuerdos)}
 
+        casos = len(reservado)
         try:
             sin = [c for c in e["criteriosRevision"] if c != cambio["descripcion"]]
-            antes = await acuerdo_con(sin)
-            despues = await acuerdo_con(sin + [cambio["descripcion"]])
-            nota = "Mejora el acuerdo con las decisiones humanas" if despues > antes else ("Empeora el acuerdo" if despues < antes else "No cambia el acuerdo")
+            r_antes = await acuerdo_con(sin)
+            # Si la primera pasada ya tuvo fallos, la cifra no va a ser comparable:
+            # no se gastan otras seis llamadas al juez en la segunda.
+            if r_antes["fallos"]:
+                evaluacion = {"conjunto": "hipótesis con decisión humana", "casos": casos, "juzgadas": r_antes["juzgadas"], "sinRespuesta": r_antes["fallos"], "antes": None, "despues": None, "nota": f"{r_antes['fallos']} de {casos} sin respuesta del juez en la pasada de referencia; la segunda pasada no se hizo. Vuelve a evaluar cuando el juez responda"}
+            else:
+                evaluacion = evaluacion_pareada(r_antes, await acuerdo_con(sin + [cambio["descripcion"]]), casos)
+        except PresupuestoAgotado:
+            self._sin_presupuesto_para_evaluar(corrida, cambio, casos, ahora, None)
+            return
         except Exception as ex:  # noqa: BLE001
-            antes, despues, nota = None, None, f"La evaluación fallo: {str(ex)[:120]}"
-        self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], {"conjunto": "hipótesis con decisión humana", "casos": len(reservado), "antes": antes, "despues": despues, "nota": nota}, ahora), "aprendizaje")
+            evaluacion = {"conjunto": "hipótesis con decisión humana", "casos": casos, "juzgadas": 0, "sinRespuesta": casos, "antes": None, "despues": None, "nota": f"La evaluación falló: {str(ex)[:120]}"}
+        self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], evaluacion, ahora), "aprendizaje")
+
+    def _sin_presupuesto_para_evaluar(self, corrida: dict[str, Any], cambio: dict[str, Any], casos: int, ahora: int, tope: str | None) -> None:
+        """Qué se hace con una evaluación de criterio que se queda sin presupuesto:
+        con la corrida viva, pausarla (la marca `_evaluar` se queda para cuando lo
+        amplíen); con la corrida detenida o terminada, dejar la evaluación como
+        incompleta, con su nota, para no reintentarla en cada tick."""
+        if corrida["estado"] in ("detenida", "terminada"):
+            self.almacen.mutar(lambda e2: _fijar_evaluacion(e2, cambio["id"], _evaluacion_sin_presupuesto(corrida, casos), ahora), "aprendizaje")
+        else:
+            self.almacen.mutar(lambda e2: _pausar_por_presupuesto(e2, corrida["id"], tope), "presupuesto")
 
     def _promover_programa(self, cambio: dict[str, Any]) -> None:
         """Un programa optimizado por GEPA promovido por una persona pasa de
@@ -460,13 +639,22 @@ class Supervisor:
 
         self.almacen.mutar(fn, "aprendizaje")
 
-    async def _explicar_en_llano(self, ctx: Ctx, inv: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], sin_comprobar: list[dict]) -> dict[str, Any] | None:
+    async def _explicar_en_llano(self, ctx: Ctx, inv: dict[str, Any], resumen: str, hechos: list[dict], hipotesis: list[dict], sin_comprobar: list[dict], cola: str | None = None) -> dict[str, Any] | None:
         """El resumen de la iteración en lenguaje llano, con la estructura de los
         Plain Language Summary de Cochrane. Si el modelo falla, se queda sin
-        resumen (la pantalla lo dice) y no se inventa nada."""
+        resumen (la pantalla lo dice) y no se inventa nada.
+
+        `hipotesis` son solo las nacidas en la iteración; `cola` es el listado
+        por regla de toda la cola (título, estado, decisión del Killer con su
+        motivo real y fecha de nacimiento). Antes el modelo solo veía las nuevas y
+        escribía "quedan en cola dos hipótesis" cuando había nueve, con un motivo
+        de suspensión inventado (S-16). La frase de recuento va aparte, en
+        `colaPorRegla`, y el modelo no la toca."""
         e = self.almacen.estado
         c = ctx.corrida()
         propias = [h for h in e["hipotesis"] if h["investigacionId"] == inv["id"]]
+        cola = cola if cola is not None else cola_de_hipotesis(e, inv["id"])
+        frase_cola = frase_de_la_cola(e, inv["id"], len(hipotesis))
         conclusiones = []
         for h in propias:
             k = h.get("conclusion")
@@ -492,13 +680,15 @@ class Supervisor:
                 resumen_tecnico=resumen,
                 hechos_nuevos="\n".join(f"- {h['enunciado']}" for h in hechos) or "Ninguno",
                 hipotesis_nuevas="\n".join(f"- {h['titulo']}: {h['enunciado']} Para que sirve: {h['relevancia']['justificacion']}" for h in hipotesis) or "Ninguna",
-                estado_hipotesis="\n".join(f"- {h['titulo']}: decisión del Killer «{h.get('decisionKiller') or 'sin decisión todavía'}», estado «{h.get('estado')}»" for h in hipotesis) or "Ninguna",
+                estado_hipotesis=estado_de_la_cola(e, inv["id"]),
+                cola=cola,
                 sin_comprobar="\n".join(f"- {x.get('texto') or x.get('titulo')}" for x in sin_comprobar) or "Nada",
                 conclusiones="\n".join(conclusiones) or "Ninguna hipótesis todavía",
                 busqueda=busqueda,
             )
             r = pred.resumen
             return {
+                "colaPorRegla": frase_cola,
                 "titulo": r.titulo.strip(),
                 "mensajesClave": list(r.mensajes_clave)[:3],
                 "queBuscaba": r.que_buscaba,
@@ -512,6 +702,8 @@ class Supervisor:
                 "alDia": {"fechaBusqueda": max((q["fecha"] for q in c["busqueda"]["consultas"]), default=None), "fuentesSinRespuesta": fallidas},
                 "terminos": [{"termino": t.termino, "explicacion": t.explicacion} for t in r.terminos],
             }
+        except PresupuestoAgotado:
+            raise  # el cierre pausa la corrida y retoma el llano al ampliar (S-14)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             return None
@@ -603,7 +795,11 @@ class Supervisor:
 
     async def _concluir_hipotesis(self, ctx: Ctx, h: dict[str, Any]) -> None:
         """La conclusión provisional de Rosa sobre la hipótesis con lo que hay.
-        La escribe el juez. Se rehace al cerrar cada iteración."""
+        La escribe el juez. Se rehace al cerrar una iteración solo si cambió la
+        huella de la evidencia contada (`huella_de_conclusion`), que se guarda en
+        `conclusion.huella`; la dirección la fija la regla (`direccion_por_regla`)
+        y la del juez queda aparte en `direccionDelJuez`."""
+        huella = huella_de_conclusion(h)
         try:
             pred = await ctx.llamar(
                 "juez",
@@ -615,10 +811,11 @@ class Supervisor:
                 novedad="; ".join(f"{k}: {v['detalle']}" for k, v in h["novedad"].items()) + f". Cohortes distintas entre las fuentes: {len(PR.cohortes_de(h))}" + (f" ({', '.join(PR.cohortes_de(h))})" if PR.cohortes_de(h) else "") + ". " + SESGO.texto_para_grade(h["procedencia"]["fuentes"]),
                 revisiones_humanas=T.revisiones_humanas(h) + (f"\nKiller: {h.get('decisionKiller')}" if h.get("decisionKiller") else ""),
                 resultado_experimental=T.resultado_experimental(h),
+                techo_por_regla=_texto_techo_por_regla(h),
             )
             c = pred.conclusion
             # La base se cuenta de forma determinista, no la estima el modelo. Lo
-            # sintetico no cuenta como evidencia.
+            # sintético no cuenta como evidencia.
             sostenidas = [a for a in h["afirmaciones"] if a["veredicto"] in ("sostenida", "parcial") and not a.get("sintetico")]
             fuentes = {f["referencia"] for f in h["procedencia"]["fuentes"]}
             anterior = h.get("conclusion")
@@ -627,8 +824,13 @@ class Supervisor:
             factores = [{"factor": f.factor, "efecto": f.efecto, "explicacion": f.explicacion.strip()} for f in c.factores][:8]
             acotada = CERTEZA.acotar(c.certeza, h, factores)
             certeza_final = acotada["certeza"]
+            # La dirección por regla (M-07): "mixta" o "en contra" solo con alguna
+            # afirmación sostenida en contra o un resultado que refuta; lo que dijo el
+            # juez se guarda aparte y, si discrepa, la frase lo dice.
+            direccion_juez = str(getattr(c, "direccion", "") or "")
+            direccion, supuesto_contradicho = direccion_por_regla(h, direccion_juez)
             cambio = None
-            if anterior and (anterior.get("certeza") != certeza_final or anterior.get("direccion") != c.direccion):
+            if anterior and (anterior.get("certeza") != certeza_final or anterior.get("direccion") != direccion):
                 cambio = {"de": {"certeza": anterior.get("certeza"), "direccion": anterior.get("direccion"), "iteracion": anterior.get("iteracion")}, "motivo": (c.factores[0].explicacion.strip() if c.factores else "")}
             no_comprobado = [f"{k}: {v['detalle']}" for k, v in h["novedad"].items() if str(v.get("detalle", "")).startswith("No comprobado") and k != "agora"]
             consultas = ctx.corrida()["busqueda"]["consultas"]
@@ -636,9 +838,10 @@ class Supervisor:
                 "certeza": certeza_final,
                 "techo": acotada["techo"],
                 "escalera": CERTEZA.escalera(h, certeza_final, factores),
-                "direccion": c.direccion,
+                "direccion": direccion,
+                "direccionDelJuez": direccion_juez,
                 "hipotesisBreve": c.hipotesis_breve.strip(),
-                "enunciado": frase_plantilla(c.direccion, certeza_final, c.hipotesis_breve.strip() or h["titulo"]),
+                "enunciado": frase_plantilla(direccion, certeza_final, c.hipotesis_breve.strip() or h["titulo"], supuesto_contradicho=supuesto_contradicho),
                 "conclusion": c.conclusion.strip(),
                 "factores": factores,
                 "base": {"afirmaciones": len(h["afirmaciones"]), "sostenidas": len(sostenidas), "fuentes": len(fuentes), "datos": sum(1 for a in sostenidas if a["tipo"] == "dato"), "interpretaciones": sum(1 for a in sostenidas if a["tipo"] == "interpretacion")},
@@ -652,6 +855,7 @@ class Supervisor:
                 "fechaBusqueda": max((q["fecha"] for q in consultas), default=None),
                 "fecha": P.ahora_ms(),
                 "iteracion": ctx.numero,
+                "huella": huella,
             }
         except PresupuestoAgotado:
             raise  # sin marcar la bandera: se reintenta cuando haya presupuesto
@@ -666,6 +870,8 @@ class Supervisor:
             y["_conclusionIntentada"] = ctx.numero
             if conclusion:
                 y["conclusion"] = conclusion
+                if conclusion.get("direccionDelJuez") and conclusion["direccionDelJuez"] != conclusion["direccion"]:
+                    y["procedencia"]["registro"].append(f"iteración {ctx.numero}: el juez propuso dirección «{conclusion['direccionDelJuez']}» y la regla la dejó en «{conclusion['direccion']}» (mixta o en contra solo con alguna afirmación en contra)")
                 # La ruta terapéutica se recalcula aquí porque es el momento en que
                 # cambia la evidencia contada (rosa/ruta.py, por regla, sin modelo).
                 y["ruta"] = _ruta_segura(e, y)
@@ -674,6 +880,10 @@ class Supervisor:
                 if y.get("pendienteRevision"):
                     DEP.atender_pendiente(e, "hipotesis", y["id"], config.QUIEN_ROSA, "conclusión rehecha con la evidencia actual", conclusion["fecha"])
                     A.recalcular_bloqueos(e, y)
+                # La huella se fija aquí, sobre la hipótesis ya atendida: calculada antes
+                # (con `pendienteRevision` todavía puesto) el siguiente cierre la veía
+                # distinta y pagaba otra conclusión sin evidencia nueva.
+                conclusion["huella"] = huella_de_conclusion(y)
                 escalera = conclusion.get("escalera") or []
                 if escalera and escalera[0].get("falta") and y["estado"] != "descartada":
                     CU.desde_escalera(e, y, escalera[0]["falta"], conclusion["fecha"])
@@ -699,11 +909,13 @@ class Supervisor:
         derivada_texto = None
         if ruta is None or not ruta.exists():
             resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "No se encontró el fichero de datos en el servidor.", "motivo": f"Se registro el nombre '{x.get('ficheroDatos')}' pero el fichero no se subio. Sube el fichero desde la ficha.", "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": x.get("ficheroDatos")}
-        else:
+        cabecera = ""
+        if ruta is not None and ruta.exists():
             resumen, muestra = await asyncio.to_thread(D.resumir, ruta)
+            cabecera = muestra.splitlines()[0] if muestra else ""
             # Los datos del laboratorio no salen al modelo fila a fila: el juez recibe el
             # resumen agregado y solo la cabecera de la muestra.
-            muestra = (muestra.splitlines()[0] if muestra else "") + "\n[filas omitidas: los datos individuales del laboratorio no se envian al modelo; el veredicto se apoya en el resumen agregado]"
+            muestra = cabecera + "\n[filas omitidas: los datos individuales del laboratorio no se envían al modelo; el veredicto se apoya en el resumen agregado]"
             try:
                 pred = await ctx.llamar(
                     "juez",
@@ -728,6 +940,11 @@ class Supervisor:
                 resultado = {"veredicto": "no_evaluable", "clasificacion": "fallo_tecnico", "resultado": "El juez no pudo evaluar los datos.", "motivo": str(ex)[:300], "limitaciones": "", "cifras": [], "exploratorio": "", "fecha": ahora, "fichero": ruta.name}
         clasificacion = resultado.get("clasificacion") or "inconcluso"
         resultado["accionTomada"] = APRENDIZAJE_POR_RESULTADO.get(clasificacion, "")
+        # Datos de prueba (S-18): si el experimento va marcado como ensayo en seco o
+        # sintético, la subida lo declaró, o el nombre o la cabecera del fichero dicen
+        # "sintético", el resultado nunca cuenta como observación original.
+        sintetico = es_resultado_sintetico(x, resultado.get("fichero"), cabecera)
+        resultado["sintetico"] = sintetico
         # Veredicto por lectura (rosa/experimento.py): cada lectura del contrato se
         # juzga por regla con la cifra que la nombra; sin cifra es "no pude comprobar".
         # Si el juez no llegó a responder (fichero ausente, fallo), no hay nada que
@@ -736,8 +953,8 @@ class Supervisor:
         vs = _veredictos_por_lectura(x, resultado) if juez_respondio else []
         resultado["veredictosPorLectura"] = vs
         resultado["lecturaDelNegativo"] = _lectura_del_negativo(vs)
-        # Un resultado prueba la version que se prerregistro; si la hipotesis cambio
-        # despues, se dice y la conclusion actual lo tiene en cuenta.
+        # Un resultado prueba la versión que se prerregistró; si la hipótesis cambió
+        # después, se dice y la conclusión actual lo tiene en cuenta.
         version_probada = x.get("versionPrerregistrada") or h.get("version", 1)
         resultado["versionProbada"] = version_probada
         resultado["compatibleConActual"] = version_probada == h.get("version", 1)
@@ -753,13 +970,14 @@ class Supervisor:
             y["_resultadoEvaluado"] = True
             fecha_txt = datetime.fromtimestamp(ahora / 1000).strftime("%d/%m/%Y")
             if clasificacion in ("apoyo_reproducido", "negativo_interpretable", "inconcluso", "correccion_contexto") and resultado["veredicto"] != "no_evaluable":
-                cita = f"[Datos del laboratorio: {resultado['fichero']}, {fecha_txt}]"
+                cita = f"[Datos de prueba, SINTÉTICOS: {resultado['fichero']}, {fecha_txt}]" if sintetico else f"[Datos del laboratorio: {resultado['fichero']}, {fecha_txt}]"
                 af_lab_id = P.nuevo_id("af")
-                y["afirmaciones"].append({"afirmacionId": af_lab_id, "texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos del laboratorio contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": False, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
-                y["evidenciaEstadistica"] = "fuerte" if clasificacion == "apoyo_reproducido" else ("moderada" if clasificacion == "negativo_interpretable" else "debil")
+                y["afirmaciones"].append({"afirmacionId": af_lab_id, "texto": resultado["resultado"], "cita": cita, "veredicto": "sostenida", "motivo": f"Cifra calculada de los datos {'de prueba (sintéticos, no cuentan como evidencia)' if sintetico else 'del laboratorio'} contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}).", "entidadDistinta": False, "tipo": "dato", "clase": "observacion_original", "sintetico": sintetico, "trayectoria": {"id": resultado["fichero"], "celda": 0}, "fragmento": resultado["motivo"]})
+                y["evidenciaEstadistica"] = "no_aplica" if sintetico else ("fuerte" if clasificacion == "apoyo_reproducido" else ("moderada" if clasificacion == "negativo_interpretable" else "debil"))
                 # El resultado del laboratorio entra al modelo de mundo como hecho (la ficha lo
                 # prometía y el registro no lo cumplía): frena una hipótesis nueva con la misma predicción.
-                if clasificacion in ("apoyo_reproducido", "negativo_interpretable"):
+                # Uno sintético nunca entra: al modelo de mundo solo llegan afirmaciones reales.
+                if clasificacion in ("apoyo_reproducido", "negativo_interpretable") and not sintetico:
                     hecho = P.nuevo_hecho(y["investigacionId"], "hecho", "Resultado de laboratorio", f"{resultado['resultado'][:500]} (ensayo sobre «{y['titulo'][:60]}»: {resultado['veredicto']})", "sabido", "laboratorio", [{"fuenteId": None, "referencia": cita, "pagina": None}], ahora, prioridad=1, motivo=f"Resultado del laboratorio contra el prerregistro: {clasificacion.replace('_', ' ')}",
                                           afirmacion_ids=[af_lab_id], citas=[{"referencia": cita, "seccion": "datos del laboratorio", "clasificacion": "apoya" if clasificacion == "apoyo_reproducido" else "contrasta", "fragmento": (resultado.get("motivo") or "")[:300]}])
                     hecho["hipotesisIds"] = [y["id"]]
@@ -791,7 +1009,7 @@ class Supervisor:
             A.registrar_decision(e, y, "retorno", "avanzar" if clasificacion == "apoyo_reproducido" else ("suspender" if clasificacion in ("toxicidad_inviabilidad", "correccion_contexto") else ("reformular" if clasificacion == "negativo_interpretable" else "avanzar")), f"Retorno del laboratorio: {clasificacion.replace('_', ' ')}. {resultado['resultado'][:200]}", quien, ahora)
             e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "creencia", f"Resultado del laboratorio ({clasificacion.replace('_', ' ')}) para '{y['titulo'][:60]}': {resultado['accionTomada'][:160]}", f"resultado:{y['id']}", "aplicado", quien, ahora))
             y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}). {resultado['resultado']} Que hace Rosa: {resultado['accionTomada']}", "creadoEn": ahora})
-            y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']} / {clasificacion}")
+            y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']} / {clasificacion}" + (" (SINTÉTICOS: datos de prueba, no cuentan como evidencia ni entran al modelo de mundo)" if sintetico else ""))
             y.pop("_conclusionIntentada", None)
             A.recalcular_bloqueos(e, y)
             A.con_evento(e, h["investigacionId"], "revision_automatica", f"Datos del laboratorio evaluados ({clasificacion.replace('_', ' ')}): {h['titulo'][:80]}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
@@ -864,7 +1082,7 @@ class Supervisor:
                     continue
                 ctx = Ctx(self.almacen, self.programas, self.modelos, c["id"], inv["id"], it["id"], it["numero"])
                 hechos = [h for h in e["hechos"] if h["investigacionId"] == inv["id"] and it["empezadaEn"] <= h["actualizadoEn"] <= it["terminadaEn"] and h["historial"] and h["historial"][0]["quien"] == config.QUIEN_ROSA]
-                hip = [h for h in e["hipotesis"] if h["investigacionId"] == inv["id"] and h["iteracion"] == it["numero"] and h["origen"] == "rosa"]
+                hip = PROG.hipotesis_nacidas_en(e, inv["id"], it, origen="rosa")
                 llano = await self._explicar_en_llano(ctx, inv, it["resumen"], hechos, hip, [p for p in it["plan"] if p["estado"] in ("fallido", "omitido")])
 
                 def fn(e2: dict[str, Any], it=it, llano=llano) -> bool:
@@ -918,22 +1136,26 @@ class Supervisor:
         self.almacen.mutar(fn, "responder_comentarios")
 
     async def _replicar_paso(self, ctx: Ctx, h: dict[str, Any]) -> None:
-        """Una trayectoria de replicacion: se vuelven a juzgar las afirmaciones
-        de la hipotesis con el juez (temperatura alta) y se cuenta si el
+        """Una trayectoria de replicación: se vuelven a juzgar las afirmaciones
+        de la hipótesis con el juez (temperatura alta) y se cuenta si el
         conjunto se sostiene (fidelidad >= 0,5 y nada bloqueante)."""
         from rosa import verificador as V
 
-        copias = [dict(a, fragmento="", localizador="", fuenteId="") for a in h["afirmaciones"]]
-        # Localizar fragmentos por cita.
+        # Las copias conservan `fuenteId`: la cita se resuelve primero por el id de la
+        # fuente y el localizador (S-04); dos fuentes homónimas ya no se cruzan.
+        copias = [dict(a, fragmento="", localizador="") for a in h["afirmaciones"]]
         frags = ctx.fragmentos_verificador()
         for a in copias:
-            fr = V.resolver_cita(a["cita"], frags)
+            fr = V.resolver_cita(a["cita"], frags, a.get("fuenteId") or None)
             if fr:
                 a["fragmento"], a["localizador"], a["fuenteId"], a["encabezado"] = fr.texto[:400], fr.localizador, fr.fuente_id, fr.encabezado
             a["veredicto"] = "sin_verificar"
+        trayectoria = int((h.get("replicacion") or {}).get("hechas") or 0)
         try:
-            # Rol "replica": el juez a temperatura 1.0, para que cada trayectoria sea una lectura distinta.
-            recuento = await PASOS.verificar_afirmaciones(ctx, copias, None, h["enunciado"], rol="replica") if copias else {}
+            # Rol "replica": el juez a temperatura alta y sin caché, para que cada
+            # trayectoria sea una lectura distinta; `rollout_id` la distingue además
+            # en la clave de la caché de DSPy (S-20).
+            recuento = await PASOS.verificar_afirmaciones(ctx, copias, None, h["enunciado"], rol="replica", rollout_id=trayectoria) if copias else {}
         except Exception:  # noqa: BLE001
             recuento = {}
         veredictos = [a["veredicto"] for a in copias]
@@ -993,7 +1215,7 @@ class Supervisor:
                     f["retraccionComprobadaEn"] = ahora
                 if tocada:
                     # Seguimiento de dependencias (plan completo, seccion 9): la fuente
-                    # cambio, asi que la conclusion que dependia de ella se marca para
+                    # cambio, así que la conclusión que dependía de ella se marca para
                     # recalcular; la anterior se guarda para el informe de diferencias.
                     h["_conclusionAnterior"] = h.get("conclusion")
                     h.pop("_conclusionIntentada", None)
@@ -1065,17 +1287,28 @@ class Supervisor:
                 continue
             paso = next((p for p in it["plan"] if p["estado"] in ("en_curso", "pendiente")), None)
             if paso is None:
-                await self._cerrar_iteracion(c, it)
+                await self._cerrar_con_presupuesto(c, it)
                 continue
             inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
-            motivo = _condicion_de_parada(inv["condicionParada"], it["numero"] - 1, c, mision=inv.get("mision"))
+            motivo = _condicion_de_parada(inv["condicionParada"], it["numero"] - 1, self._con_reloj(c), mision=inv.get("mision"))
             if motivo:
-                # El tiempo o las llamadas se cumplieron a mitad de iteracion: lo
-                # pendiente se omite con motivo y la iteracion se cierra ya.
+                # El tiempo o las llamadas se cumplieron a mitad de iteración: lo
+                # pendiente se omite con motivo y la iteración se cierra ya.
                 self.almacen.mutar(lambda e2: _omitir_pendientes(e2, it["id"], motivo), "parada")
-                await self._cerrar_iteracion(c, it)
+                await self._cerrar_con_presupuesto(c, it)
                 continue
             await self._ejecutar_paso(c, it, paso)
+
+    async def _cerrar_con_presupuesto(self, c: dict[str, Any], it: dict[str, Any]) -> None:
+        """`_cerrar_iteracion` con la misma puerta de presupuesto que los pasos: si
+        el tope salta dentro del cierre (conclusiones con Opus, acumulación de
+        evidencia), la corrida se pausa con su evento y la iteración queda abierta
+        para retomar el cierre al ampliar. Antes la excepción tumbaba la tarea y
+        el tick la relanzaba cada 2 s con la corrida "en marcha" (S-14)."""
+        try:
+            await self._cerrar_iteracion(c, it)
+        except PresupuestoAgotado:
+            self.almacen.mutar(lambda e2: _pausar_por_presupuesto(e2, c["id"]), "presupuesto")
 
     async def _proponer_mision(self, ctx: Ctx, inv: dict[str, Any]) -> None:
         """La misión estructurada (etapa 0 de ROSA2018) a partir del objetivo.
@@ -1086,7 +1319,7 @@ class Supervisor:
             m = pred.mision
             mision = {**P.mision_vacia(), "metaAmplia": inv["objetivo"], "poblacion": m.poblacion.strip(), "etapa": m.etapa.strip(), "celulaTejido": m.celula_tejido.strip(), "mecanismo": m.mecanismo.strip(), "tipoIntervencion": m.tipo_intervencion.strip(), "capacidadesLaboratorio": [c.strip() for c in m.capacidades_laboratorio if c.strip()][:6], "propuestaPorRosa": True}
             justificacion = m.justificacion.strip()
-            # El planificador del programa: areas de investigacion comparables, con
+            # El planificador del programa: areas de investigación comparables, con
             # familias de mecanismo distintas y las que quedan sin explorar.
             try:
                 from rosa import skills as SK
@@ -1148,7 +1381,7 @@ class Supervisor:
         e = self.almacen.estado
         inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
         numero = (anterior["numero"] + 1) if anterior else 1
-        motivo = _condicion_de_parada(inv["condicionParada"], numero - 1, c, mision=inv.get("mision")) if anterior else None
+        motivo = _condicion_de_parada(inv["condicionParada"], numero - 1, self._con_reloj(c), mision=inv.get("mision")) if anterior else None
         if motivo:
             self.almacen.mutar(lambda e2: _terminar_corrida(e2, c["id"], motivo), "parada")
             return
@@ -1159,6 +1392,7 @@ class Supervisor:
         if c.get("pregunta") is None and not c.get("_preguntaIntentada"):
             await self._formular_pregunta(ctx, c, inv)
         plan: list[dict[str, Any]] = []
+        analisis_omitidos: list[str] = []
         try:
             pregunta = (c.get("pregunta") or {}).get("enunciado") or (next((x for x in self.almacen.estado["corridas"] if x["id"] == c["id"]), {}).get("pregunta") or {}).get("enunciado")
             mundo = await T.modelo_de_mundo_para(self.almacen, inv["id"], inv["objetivo"] + (f" {pregunta}" if pregunta else ""))
@@ -1189,7 +1423,10 @@ class Supervisor:
             hay_datos = any(d["estado"] == "aprobado" and (d.get("procedencia") or {}).get("hash") for d in inv.get("datasets", []))
             for p in list(pred.plan)[:7]:
                 if p.tipo == "analisis" and not hay_datos:
-                    continue  # sin datasets aprobados no hay nada que analizar
+                    # Sin datasets aprobados no hay nada que analizar; se dice en un evento en
+                    # vez de borrar el paso en silencio (M-23).
+                    analisis_omitidos.append((p.titulo or "Análisis in silico")[:80])
+                    continue
                 coste = COSTE_POR_TIPO.get(p.tipo, 20)
                 if p.tipo == "literatura":
                     # La búsqueda en amplitud añade consultas al paso: su presupuesto crece con la fracción elegida.
@@ -1215,7 +1452,7 @@ class Supervisor:
                 paso = P.nuevo_paso(titulo, detalle, coste)
                 paso["tipo"] = tipo
                 plan.append(paso)
-        # Las indicaciones humanas pendientes de la iteracion anterior pasan a la nueva.
+        # Las indicaciones humanas pendientes de la iteración anterior pasan a la nueva.
         if anterior:
             for p in anterior["plan"]:
                 if p["indicacionHumana"] and p["estado"] == "pendiente":
@@ -1235,6 +1472,8 @@ class Supervisor:
             c2["iteracionActual"] = numero
             c2["estado"] = "esperando_plan"
             A.con_evento(e2, inv["id"], "corrida_estado", f"Plan de la iteración {numero} propuesto: {len(plan)} pasos. Espera tu aprobación.", f"#/investigaciones/{inv['id']}/corrida", ahora)
+            for titulo in analisis_omitidos:
+                A.con_evento(e2, inv["id"], "corrida_estado", f"El planificador proponía «{titulo}» y se dejó fuera del plan de la iteración {numero}: no hay ningún dataset aprobado con fichero en la investigación. Registra o aprueba un dataset en Objetivo y datos para que Rosa pueda analizar.", f"#/investigaciones/{inv['id']}/investigacion", ahora)
             return True
 
         self.almacen.mutar(fn, "plan_propuesto")
@@ -1277,13 +1516,14 @@ class Supervisor:
                 if ya["alcanceConcedido"] == "esta_corrida":
                     e2["autonomia"]["gastar_grande"] = e2["autonomia"]["gastar_grande"]  # el permiso queda registrado en `permisos`
             else:
-                # Denegado: la iteracion no puede gastar mas de lo ya usado y la
+                # Denegado: la iteración no puede gastar más de lo ya usado y la
                 # corrida se pausa hasta que alguien amplie el tope o la reanude.
                 it2["presupuesto"]["limite"] = it2["presupuesto"]["usado"]
                 it2["_presupuestoDenegado"] = True
                 c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
                 c2["estado"] = "pausada_por_presupuesto"
-                A.con_evento(e2, c["investigacionId"], "presupuesto", f"Permiso de gasto denegado: la iteración {it['numero']} queda sin presupuesto y la corrida se pauso. Amplia el tope o reanuda para seguir.", f"#/investigaciones/{c['investigacionId']}/corrida", P.ahora_ms())
+                c2["presupuesto"]["motivoPausa"] = f"Permiso de gasto denegado: la iteración {it['numero']} queda sin presupuesto"
+                A.con_evento(e2, c["investigacionId"], "presupuesto", f"Permiso de gasto denegado: la iteración {it['numero']} queda sin presupuesto y la corrida se pausó. Amplía el tope para seguir.", f"#/investigaciones/{c['investigacionId']}/corrida", P.ahora_ms())
             return True
 
         self.almacen.mutar(resolver, "presupuesto_autorizado")
@@ -1301,6 +1541,7 @@ class Supervisor:
         if ejecutor is None:
             self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "omitido", motivo=f"Rosa no tiene herramienta para '{tipo}'"), "paso")
             return
+        sin_trabajo_cls = getattr(PASOS, "SinTrabajo", None)
         try:
             gepa = getattr(self.almacen, "gepa_servicio", None)
             resumen = await gepa.ejecutar_paso(ctx, ejecutor, paso) if gepa else await ejecutor(ctx, paso)
@@ -1308,7 +1549,11 @@ class Supervisor:
             propias = [p for p in it_actual["pistas"] if p["pasoId"] == paso["id"]]
             todas_fallaron = bool(propias) and all(p["estado"] in ("fallida", "detenida") for p in propias)
             if todas_fallaron:
-                self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "fallido", motivo="Ninguna de sus pistas término: " + "; ".join(p["resumen"] for p in propias)[:300]), "paso")
+                self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "fallido", motivo="Ninguna de sus pistas terminó: " + "; ".join(p["resumen"] for p in propias)[:300]), "paso")
+            elif paso_sin_trabajo(resumen, propias):
+                # El paso corrió y no tenía nada sobre lo que trabajar (sin fuentes nuevas,
+                # nada que verificar): no es "hecho" ni un fallo, y el motivo queda a la vista (M-23).
+                self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "sin_trabajo", detalle=resumen, motivo=(resumen or "El paso no encontró nada sobre lo que trabajar")[:300]), "paso")
             else:
                 self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "hecho", detalle=resumen), "paso")
         except PresupuestoAgotado:
@@ -1317,6 +1562,10 @@ class Supervisor:
         except asyncio.CancelledError:
             raise
         except Exception as ex:  # noqa: BLE001
+            if sin_trabajo_cls is not None and isinstance(ex, sin_trabajo_cls):
+                motivo_sin = str(ex)[:300] or "El paso no encontró nada sobre lo que trabajar"
+                self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "sin_trabajo", detalle=motivo_sin, motivo=motivo_sin), "paso")
+                return
             traceback.print_exc()
 
             def fallar_paso(e: dict[str, Any]) -> bool:
@@ -1336,7 +1585,7 @@ class Supervisor:
         texto = resumen + ("\n\n" + " ".join(str(v) for v in (llano or {}).values() if isinstance(v, str)) if llano else "")
         corpus = RR.corpus_del_registro(e, inv["id"], it, c)
         runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("investigacionId") == inv["id"])
-        de_la_iteracion = [h for h in e.get("hipotesis", []) if h.get("investigacionId") == inv["id"] and h.get("iteracion") == it.get("numero")]
+        de_la_iteracion = PROG.hipotesis_nacidas_en(e, inv["id"], it, ahora=P.ahora_ms())
         regla = RR.comprobaciones_deterministas(texto, corpus, it, runs_ok, hipotesis=de_la_iteracion)
         hallazgos = list(regla)
         juez = None
@@ -1346,6 +1595,8 @@ class Supervisor:
             for hz in pred.revision.hallazgos:
                 hallazgos.append({"clase": hz.clase, "gravedad": hz.gravedad, "detalle": hz.detalle.strip()[:400], "origen": "juez"})
             resumen_j = pred.revision.resumen.strip()
+        except PresupuestoAgotado:
+            raise  # el cierre pausa la corrida; una iteración no se cierra sin revisor por falta de presupuesto
         except Exception as ex:  # noqa: BLE001
             resumen_j = f"El juez no respondió: {str(ex)[:120]}; solo comprobaciones por regla"
         for i, hz in enumerate(hallazgos):
@@ -1356,7 +1607,7 @@ class Supervisor:
     async def _cerrar_iteracion(self, c: dict[str, Any], it: dict[str, Any]) -> None:
         e = self.almacen.estado
         inv = next(i for i in e["investigaciones"] if i["id"] == c["investigacionId"])
-        if it["plan"] and not any(p["estado"] in ("hecho", "fallido") for p in it["plan"]):
+        if it["plan"] and not any(p["estado"] in ("hecho", "fallido", "sin_trabajo") for p in it["plan"]):
             # Ningún paso llegó a ejecutarse (el tope se cumplió antes de empezar):
             # no hay nada que resumir, revisar ni aprender. Antes corrían igual el
             # resumen, el resumen en llano, las lecciones, el revisor de registro y la
@@ -1374,63 +1625,113 @@ class Supervisor:
             self.almacen.mutar(vacio, "iteracion_vacia")
             return
         ctx = Ctx(self.almacen, self.programas, self.modelos, c["id"], inv["id"], it["id"], it["numero"])
+        # Lo ya calculado en un cierre anterior que se cortó por presupuesto (S-14):
+        # el resumen, la meta-revisión y el resumen en llano no se pagan dos veces.
+        parcial = dict(it.get("_cierre") or {}) if isinstance(it.get("_cierre"), dict) else {}
         hechos_nuevos = [h for h in e["hechos"] if h["investigacionId"] == inv["id"] and h["actualizadoEn"] >= it["empezadaEn"] and h["historial"] and h["historial"][0]["quien"] == config.QUIEN_ROSA]
-        hip_nuevas = [h for h in e["hipotesis"] if h["investigacionId"] == inv["id"] and h["iteracion"] == it["numero"] and h["origen"] == "rosa"]
+        # "Nuevas" son las nacidas en la ventana de esta iteración (rosa/progreso.py),
+        # no las que comparten número de iteración con ella (S-16).
+        hip_nuevas = PROG.hipotesis_nacidas_en(e, inv["id"], it, ahora=P.ahora_ms(), origen="rosa")
+        cola = cola_de_hipotesis(e, inv["id"])
         afs = [a for a in c.get("_afirmaciones", []) if a["iteracion"] == it["numero"]]
         sin_comprobar = [a for a in afs if a["veredicto"] == "sin_verificar"] + [p for p in it["plan"] if p["estado"] == "fallido"]
-        try:
-            pred = await ctx.llamar("cerebro", self.programas.resumir, plan_ejecutado=T.plan_ejecutado(it), cambios_modelo_de_mundo="\n".join(f"- {h['enunciado']}" for h in hechos_nuevos) or "Ninguno", hipotesis_nuevas="\n".join(f"- {h['titulo']}" for h in hip_nuevas) or "Ninguna", sin_comprobar="\n".join(f"- {x.get('texto') or x.get('titulo')}" for x in sin_comprobar) or "Nada")
-            resumen = pred.resumen.strip()
-        except Exception:  # noqa: BLE001
-            hechas = sum(1 for p in it["pistas"] if p["estado"] == "hecha")
-            resumen = f"{len(it['plan'])} pasos, {hechas} pistas completadas, {len(hechos_nuevos)} hechos y {len(hip_nuevas)} hipótesis nuevas"
-        # El panorama y las debilidades se sintetizan al cerrar cada iteracion
-        # con dos o mas hipotesis, aunque el plan no trajera un paso de meta.
+        if parcial.get("resumen"):
+            resumen = parcial["resumen"]
+        else:
+            try:
+                pred = await ctx.llamar("cerebro", self.programas.resumir, plan_ejecutado=T.plan_ejecutado(it), cambios_modelo_de_mundo="\n".join(f"- {h['enunciado']}" for h in hechos_nuevos) or "Ninguno", hipotesis_nuevas="\n".join(f"- {h['titulo']}" for h in hip_nuevas) or "Ninguna", cola=cola, sin_comprobar="\n".join(f"- {x.get('texto') or x.get('titulo')}" for x in sin_comprobar) or "Nada")
+                resumen = pred.resumen.strip()
+            except PresupuestoAgotado:
+                raise
+            except Exception:  # noqa: BLE001
+                hechas = sum(1 for p in it["pistas"] if p["estado"] == "hecha")
+                resumen = f"{len(it['plan'])} pasos, {hechas} pistas completadas, {len(hechos_nuevos)} hechos y {len(hip_nuevas)} hipótesis nuevas"
+            self.almacen.mutar(lambda e2: _guardar_cierre_parcial(e2, it["id"], resumen=resumen), "cierre_parcial")
+        # El panorama y las debilidades se sintetizan al cerrar cada iteración
+        # con dos o más hipótesis, aunque el plan no trajera un paso de meta.
         propias = [h for h in e["hipotesis"] if h["investigacionId"] == inv["id"]]
-        if len(propias) >= 2 and not any(T.inferir_tipo_paso(p) == "meta" and p["estado"] == "hecho" for p in it["plan"]):
+        if len(propias) >= 2 and not parcial.get("metaHecha") and not any(T.inferir_tipo_paso(p) == "meta" and p["estado"] == "hecho" for p in it["plan"]):
             try:
                 await PASOS.paso_meta(ctx, {"id": None, "titulo": "Meta-revisión al cierre", "detalle": ""})
+            except PresupuestoAgotado:
+                raise
             except Exception as ex:  # noqa: BLE001
                 traceback.print_exc()
-        llano = await self._explicar_en_llano(ctx, inv, resumen, hechos_nuevos, hip_nuevas, sin_comprobar)
+            self.almacen.mutar(lambda e2: _guardar_cierre_parcial(e2, it["id"], metaHecha=True), "cierre_parcial")
+        if isinstance(parcial.get("llano"), dict):
+            llano = parcial["llano"]
+        else:
+            llano = await self._explicar_en_llano(ctx, inv, resumen, hechos_nuevos, hip_nuevas, sin_comprobar, cola=cola)
+            if llano:
+                self.almacen.mutar(lambda e2: _guardar_cierre_parcial(e2, it["id"], llano=llano), "cierre_parcial")
         # Acumulación de evidencia: lo leído en esta iteración vuelve a las hipótesis
         # vivas (a favor, indirecto o en contra) antes de rehacer sus conclusiones.
         con_evidencia: set[str] = set()
+        pista_ev = ctx.pista(None, "modelo", "Evidencia nueva para las hipótesis vivas", "Sonnet 5")
         try:
-            pista_ev = ctx.pista(None, "modelo", "Evidencia nueva para las hipótesis vivas", "Sonnet 5")
             acumulado = await EV.acumular(ctx, it["numero"], pista_ev)
             con_evidencia = set(acumulado.get("ids", []))
             vivero_res = await EV.acumular_vivero(ctx, it["numero"], pista_ev)
             con_evidencia |= set(vivero_res.get("nacidas", []))
         except PresupuestoAgotado:
+            pista_ev.fallar("Sin presupuesto: la evidencia nueva se enlaza al retomar el cierre")
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as ex:  # noqa: BLE001
             traceback.print_exc()
+            pista_ev.fallar(f"La acumulación de evidencia falló: {str(ex)[:160]}")
         e = self.almacen.estado
+        # Reconcluir solo lo que cambió (S-13): la huella de la evidencia contada de
+        # cada hipótesis viva frente a la que guarda su conclusión; las demás la
+        # conservan con una nota. Las que sí, en paralelo de tres en tres.
         vivas = [x for x in e["hipotesis"] if x["investigacionId"] == inv["id"] and x["estado"] not in ("descartada",)]
-        vivas.sort(key=lambda x: (x["id"] not in con_evidencia, -x.get("elo", 0)))
-        for h in vivas[: max(8, len(con_evidencia))]:
-            if h.get("_conclusionIntentada") != it["numero"]:
-                await self._concluir_hipotesis(ctx, h)
+        a_concluir: list[dict[str, Any]] = []
+        conservadas: list[tuple[str, str]] = []
+        for h in vivas:
+            motivo_rc = motivo_para_reconcluir(h, con_evidencia)
+            if motivo_rc:
+                a_concluir.append(h)
+            else:
+                conservadas.append((h["id"], f"iteración {it['numero']}: sin cambios en la evidencia contada; se conserva la conclusión de la iteración {(h.get('conclusion') or {}).get('iteracion')}"))
+        if conservadas:
+            self.almacen.mutar(lambda e2: _anotar_conservadas(e2, conservadas), "conclusion_conservada")
+        if a_concluir:
+            sem = asyncio.Semaphore(3)
+
+            async def concluir_una(h: dict[str, Any]) -> None:
+                async with sem:
+                    await self._concluir_hipotesis(ctx, h)
+
+            resultados = await asyncio.gather(*(concluir_una(h) for h in a_concluir), return_exceptions=True)
+            for r in resultados:
+                if isinstance(r, (PresupuestoAgotado, asyncio.CancelledError)):
+                    raise r
+                if isinstance(r, BaseException):
+                    traceback.print_exception(r)
         ahora = P.ahora_ms()
         bloqueadas = [a for a in afs if a["veredicto"] in ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutada")]
+        e = self.almacen.estado
+        hip_nuevas = PROG.hipotesis_nacidas_en(e, inv["id"], it, ahora=ahora, origen="rosa")
         informe = _informe(inv, it, resumen, hechos_nuevos, hip_nuevas, afs, bloqueadas, [q for q in c["busqueda"].get("consultas", []) if q.get("iteracion") in (None, it["numero"])])
         # Revisor de registro: lo que el resumen y el resumen en llano dicen, contra
-        # lo que el registro prueba. Por regla y despues con el juez.
+        # lo que el registro prueba. Por regla y después con el juez.
         revision = await self._revisar_registro(ctx, inv, it, c, resumen, llano)
-        terminar = _condicion_de_parada(inv["condicionParada"], it["numero"], c, mision=inv.get("mision"))
+        terminar = _condicion_de_parada(inv["condicionParada"], it["numero"], self._con_reloj(c), mision=inv.get("mision"))
 
         def fn(e2: dict[str, Any]) -> bool:
             it2 = next(x for x in e2["iteraciones"] if x["id"] == it["id"])
             it2["terminadaEn"] = ahora
             it2["resumen"] = resumen
+            it2.pop("_cierre", None)
             if llano:
                 it2["resumenLlano"] = llano
             it2["revisionRegistro"] = revision
             # Instantánea de progreso: certeza de cada hipótesis, peldaños subidos o
-            # bajados, hechos nuevos y fallidos de la iteración (rosa/progreso.py).
+            # bajados, hechos nuevos y fallidos de la iteración (rosa/progreso.py). Las
+            # hipótesis nuevas se cuentan aquí, sobre e2, para que las nacidas del
+            # vivero en este mismo cierre cuenten.
             c_prog = next(x for x in e2["corridas"] if x["id"] == c["id"])
-            c_prog.setdefault("progreso", []).append(PROG.instantanea(e2, c_prog, it2, len(hechos_nuevos), len(hip_nuevas), len(bloqueadas), ahora))
+            nacidas = len(PROG.hipotesis_nacidas_en(e2, inv["id"], it2, ahora=ahora, origen="rosa"))
+            c_prog.setdefault("progreso", []).append(PROG.instantanea(e2, c_prog, it2, len(hechos_nuevos), nacidas, len(bloqueadas), ahora))
             # Vistas de programa por regla (ROSA2018): dónde está la evidencia por
             # estadio, región y célula (mapa de la enfermedad), qué pasos de la ruta
             # terapéutica cubre cada diana (mapa de ruta) y las tres cifras de
@@ -1473,6 +1774,10 @@ class Supervisor:
                 },
             )
             A.con_evento(e2, inv["id"], "iteracion_terminada", f"Iteración {it['numero']} terminada: {resumen[:160]}", f"#/investigaciones/{inv['id']}/corrida", ahora)
+            # Toda hipótesis viva cuya evidencia cambió desde su última decisión del
+            # Killer vuelve a la cola de revisión (S-08).
+            with contextlib.suppress(Exception):
+                pedir_revision_por_huella(e2, ahora, inv["id"])
             c2 = next(x for x in e2["corridas"] if x["id"] == c["id"])
             if terminar:
                 c2["estado"] = "terminada"
@@ -1490,6 +1795,408 @@ class Supervisor:
 # ---------------------------------------------------------------------------
 # Ayudantes puros
 # ---------------------------------------------------------------------------
+
+# Cada cuánto se escribe el reloj de una corrida viva al estado (S-17). El resto
+# del tiempo vive en memoria del supervisor y el tope en horas lo lee de ahí.
+RELOJ_VOLCADO_MS = 30_000
+# Espera antes de relanzar una tarea de corrida que murió con excepción: 30 s la
+# primera vez, 60 s la segunda, 5 minutos a partir de la tercera (S-14).
+RETROCESO_MS = (30_000, 60_000, 300_000)
+# Incidencias que no retienen a la corrida en "esperando aprobación".
+INCIDENCIAS_QUE_NO_BLOQUEAN = ("modelo_bloqueado", "bucle_reventado")
+# Veces que se intenta una revisión pedida cuando el Killer no llega a decidir.
+MAX_INTENTOS_KILLER = 3
+_SINTETICO = re.compile(r"sint[eé]tic", re.IGNORECASE)
+# Lo que devuelven los ejecutores cuando corren y no había nada sobre lo que trabajar.
+_SIN_TRABAJO = re.compile(r"^(no hay fuentes nuevas|nada pendiente de verificar|sin afirmaciones sostenidas nuevas|sin datasets aprobados|0 ensayos encontrados|0 hipótesis nuevas en la cola, 0 revisadas, 0 partidos|todas las hipótesis tienen la novedad comprobada)", re.IGNORECASE)
+
+
+def _incidencia_bucle(e: dict[str, Any], corrida_id: str, ex: BaseException, n: int, espera_ms: int, ahora: int) -> bool:
+    """La incidencia visible de una tarea de corrida que murió con excepción: qué
+    excepción, cuántas veces seguidas y cuándo se reintenta. Una pendiente del
+    mismo tipo se actualiza en vez de duplicarse."""
+    c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
+    if not c:
+        return False
+    espera = f"{espera_ms // 1000} s" if espera_ms < 120_000 else f"{espera_ms // 60_000} min"
+    titulo = f"El bucle de la corrida {c['numero']} se cayó ({type(ex).__name__}); se reintenta en {espera}" + (f" (fallo {n} seguido)" if n > 1 else "")
+    detalle = f"{type(ex).__name__}: {str(ex)[:400]}"
+    for inc in e["incidencias"]:
+        if inc["corridaId"] == corrida_id and inc["estado"] == "pendiente" and inc["tipo"] == "bucle_reventado":
+            inc["titulo"] = titulo
+            inc["detalle"] = detalle
+            inc["creadaEn"] = ahora
+            A.con_evento(e, c["investigacionId"], "incidencia", f"Incidencia: {titulo}", f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
+            return True
+    e["incidencias"].append({"id": P.nuevo_id("inc"), "corridaId": corrida_id, "tipo": "bucle_reventado", "titulo": titulo, "detalle": detalle, "recurso": "bucle", "alternativa": "Si se repite, detén la corrida y abre otra; el error queda en la consola del servidor.", "estado": "pendiente", "creadaEn": ahora, "resueltaEn": None, "resolucion": None})
+    A.con_evento(e, c["investigacionId"], "incidencia", f"Incidencia: {titulo}", f"#/investigaciones/{c['investigacionId']}/corrida", ahora)
+    return True
+
+
+def _guardar_cierre_parcial(e: dict[str, Any], iteracion_id: str, **partes: Any) -> bool:
+    """Guarda en `it._cierre` lo ya calculado del cierre (resumen, meta hecha,
+    resumen en llano) para no pagarlo otra vez si el cierre se corta."""
+    it = next((x for x in e["iteraciones"] if x["id"] == iteracion_id), None)
+    if not it:
+        return False
+    parcial = it.get("_cierre") if isinstance(it.get("_cierre"), dict) else {}
+    parcial.update(partes)
+    it["_cierre"] = parcial
+    return True
+
+
+def _anotar_conservadas(e: dict[str, Any], notas: list[tuple[str, str]]) -> bool:
+    cambiado = False
+    for hid, nota in notas:
+        h = next((x for x in e["hipotesis"] if x["id"] == hid), None)
+        if h is None:
+            continue
+        registro = (h.get("procedencia") or {}).get("registro")
+        if isinstance(registro, list) and (not registro or registro[-1] != nota):
+            registro.append(nota)
+            cambiado = True
+    return cambiado
+
+
+def _texto_techo_por_regla(h: dict[str, Any]) -> str:
+    """El techo GRADE por regla (rosa/certeza.py) como una línea para el juez
+    de la conclusión: 'baja: solo literatura, pero de dos cohortes distintas'.
+    Si la regla no puede calcularse (registro raro), lo dice en vez de romper."""
+    try:
+        nivel, motivo = CERTEZA.techo(h)
+        return f"{str(nivel).replace('_', ' ')}: {motivo}"
+    except Exception as ex:  # noqa: BLE001
+        return f"sin techo calculable ({type(ex).__name__})"
+
+
+def _n_decisiones_killer(e: dict[str, Any], hipotesis_id: str) -> int:
+    return sum(1 for d in e.get("decisiones", []) if d.get("hipotesisId") == hipotesis_id and str(d.get("etapa", "")).startswith("killer"))
+
+
+def _cerrar_peticion_de_revision(e: dict[str, Any], hipotesis_id: str, decisiones_antes: int, intentos_antes: int | None = None) -> bool:
+    """Quita `_revisionPedida` solo si el Killer escribió una decisión nueva; si
+    no, cuenta el intento y a partir de MAX_INTENTOS_KILLER deja de insistir con
+    una línea en el registro (S-08). Si el propio Killer ya contó el intento
+    durante la llamada (`_registrar_juez_sin_respuesta` en pasos.py sube
+    `_killerIntentos` cuando el juez no responde), aquí no se cuenta otra vez:
+    con la doble cuenta el tope de tres llegaba al segundo fallo real."""
+    h = next((x for x in e["hipotesis"] if x["id"] == hipotesis_id), None)
+    if h is None:
+        return False
+    if _n_decisiones_killer(e, hipotesis_id) > decisiones_antes:
+        h.pop("_revisionPedida", None)
+        h.pop("_killerIntentos", None)
+        h.pop("killerPendiente", None)
+        return True
+    actuales = int(h.get("_killerIntentos") or 0)
+    ya_contado = intentos_antes is not None and actuales > int(intentos_antes)
+    intentos = actuales if ya_contado else actuales + 1
+    h["_killerIntentos"] = intentos
+    if intentos >= MAX_INTENTOS_KILLER:
+        h.pop("_revisionPedida", None)
+        h.pop("killerPendiente", None)
+        registro = (h.get("procedencia") or {}).get("registro")
+        if isinstance(registro, list):
+            registro.append(f"revisión pedida abandonada tras {intentos} intentos sin decisión del Killer (el juez no respondió); vuelve a pedirla desde la ficha")
+    return True
+
+
+def _abandonar_peticion_sin_presupuesto(e: dict[str, Any], hipotesis_id: str, corrida: dict[str, Any]) -> bool:
+    """Cierra una revisión pedida que no se puede atender porque la corrida no
+    tiene presupuesto: quita la marca sin contar intento, deja la línea en el
+    registro de la hipótesis y un evento que dice cómo repetirla."""
+    h = next((x for x in e["hipotesis"] if x["id"] == hipotesis_id), None)
+    if h is None:
+        return False
+    h.pop("_revisionPedida", None)
+    h.pop("_killerIntentos", None)
+    h.pop("killerPendiente", None)
+    nota = f"revisión pedida no atendida: la corrida {corrida.get('numero')} ({str(corrida.get('estado', '')).replace('_', ' ')}) no tiene presupuesto; amplíalo o abre otra corrida y vuelve a pedirla"
+    registro = (h.get("procedencia") or {}).get("registro")
+    if isinstance(registro, list):
+        registro.append(nota)
+    A.con_evento(e, h["investigacionId"], "presupuesto", f"No se pudo revisar «{str(h.get('titulo') or '')[:70]}»: la corrida {corrida.get('numero')} no tiene presupuesto. Amplíalo o abre otra corrida y vuelve a pedir la revisión.", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", P.ahora_ms())
+    return True
+
+
+def _verdadero(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    return str(v or "").strip().lower() in ("1", "true", "si", "sí", "yes", "sintetico", "sintético")
+
+
+def es_resultado_sintetico(experimento: dict[str, Any] | None, fichero: Any, cabecera: str = "") -> bool:
+    """Un resultado de laboratorio es de prueba si el experimento lo declara
+    (`ensayoEnSeco`, `sintetico`, `datosSinteticos`, que escribe la subida con la
+    casilla marcada) o si el nombre del fichero o su cabecera dicen "sintético".
+    Nunca cuenta como observación original (S-18)."""
+    x = experimento if isinstance(experimento, dict) else {}
+    if any(_verdadero(x.get(k)) for k in ("ensayoEnSeco", "sintetico", "datosSinteticos")):
+        return True
+    return bool(_SINTETICO.search(str(fichero or ""))) or bool(_SINTETICO.search(str(cabecera or "")))
+
+
+def paso_sin_trabajo(resumen: Any, pistas_propias: list[dict[str, Any]]) -> bool:
+    """Un paso corrió sin nada que hacer si no abrió ninguna pista o si devolvió
+    una de las frases de "nada que hacer" de los ejecutores (M-23)."""
+    if not pistas_propias:
+        return True
+    return bool(_SIN_TRABAJO.match(str(resumen or "").strip()))
+
+
+def _huella_evidencia_local(h: dict[str, Any]) -> str:
+    """La huella de la evidencia con el mismo contrato que `rosa.killer.huella_evidencia`
+    (ids, veredictos, relaciones y socavadaPor de las afirmaciones, ids de fuentes,
+    versión, textos de supuestos, estado de novedad), por si el Killer aún no la trae."""
+    afs = []
+    for a in h.get("afirmaciones") or []:
+        if not isinstance(a, dict):
+            continue
+        afs.append([str(a.get("afirmacionId") or f"{a.get('texto', '')[:80]}|{a.get('cita', '')}"), str(a.get("veredicto")), str(a.get("relacion")), sorted(str(x) for x in (a.get("socavadaPor") or []))])
+    fuentes = sorted(str(f.get("id") or f.get("doi") or f.get("referencia")) for f in ((h.get("procedencia") or {}).get("fuentes") or []) if isinstance(f, dict))
+    supuestos = sorted(str(s.get("texto")) for s in (h.get("supuestos") or []) if isinstance(s, dict))
+    novedad = sorted((str(k), str((v or {}).get("estado"))) for k, v in (h.get("novedad") or {}).items() if isinstance(v, dict))
+    cuerpo = json.dumps([sorted(afs), fuentes, h.get("version", 1), supuestos, novedad], ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha1(cuerpo.encode("utf-8")).hexdigest()
+
+
+def huella_evidencia(h: dict[str, Any]) -> str:
+    """`rosa.killer.huella_evidencia` si existe (grupo D); si no, la local con el mismo contrato."""
+    try:
+        from rosa import killer as K
+
+        fn = getattr(K, "huella_evidencia", None)
+        if callable(fn):
+            v = fn(h)
+            if isinstance(v, str) and v:
+                return v
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    return _huella_evidencia_local(h)
+
+
+def huella_de_conclusion(h: dict[str, Any]) -> str:
+    """Lo que de verdad mueve una conclusión GRADE: la huella de la evidencia más
+    la decisión del Killer, el estado de los supuestos, las revisiones humanas, el
+    resultado experimental y lo pendiente de revisar. Los partidos del torneo se
+    dejan fuera a propósito: mueven el Elo, no la certeza (S-13)."""
+    supuestos = sorted((str(s.get("texto")), str(s.get("estado"))) for s in (h.get("supuestos") or []) if isinstance(s, dict))
+    resultado = ((h.get("experimento") or {}) if isinstance(h.get("experimento"), dict) else {}).get("resultado")
+    resultado_clave = [resultado.get("fecha"), resultado.get("veredicto"), resultado.get("clasificacion")] if isinstance(resultado, dict) else None
+    try:
+        humanas = T.revisiones_humanas(h)
+    except Exception:  # noqa: BLE001
+        humanas = ""
+    novedad = sorted((str(k), str((v or {}).get("detalle"))[:200]) for k, v in (h.get("novedad") or {}).items() if isinstance(v, dict))
+    cuerpo = json.dumps([huella_evidencia(h), h.get("decisionKiller"), supuestos, humanas, resultado_clave, bool(h.get("pendienteRevision")), novedad], ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha1(cuerpo.encode("utf-8")).hexdigest()
+
+
+def motivo_para_reconcluir(h: dict[str, Any], con_evidencia: set[str] | None = None) -> str | None:
+    """Por qué hay que rehacer la conclusión de `h` al cerrar, o None si se
+    conserva: sin conclusión previa, evidencia nueva en esta iteración, cambio
+    editorial de una fuente, pendiente de revisar, marca quitada por un resultado
+    (laboratorio, in silico), o la huella de la evidencia contada cambió."""
+    conclusion = h.get("conclusion")
+    if not isinstance(conclusion, dict):
+        return "sin conclusión previa"
+    if con_evidencia and h.get("id") in con_evidencia:
+        return "evidencia nueva en esta iteración"
+    if h.get("_recalcularPorFuente"):
+        return "cambio editorial de una fuente"
+    if h.get("pendienteRevision"):
+        return "pendiente de revisar"
+    if "_conclusionIntentada" not in h:
+        return "resultado o evidencia nueva marcada"
+    if conclusion.get("huella") != huella_de_conclusion(h):
+        return "la evidencia contada cambió"
+    return None
+
+
+def _ultima_decision_killer(e: dict[str, Any], h: dict[str, Any]) -> dict[str, Any] | None:
+    propias = [d for d in e.get("decisiones", []) if isinstance(d, dict) and d.get("hipotesisId") == h.get("id") and str(d.get("etapa", "")).startswith("killer")]
+    return max(propias, key=lambda d: int(d.get("fecha") or 0)) if propias else None
+
+
+def _hubo_evidencia_despues(e: dict[str, Any], h: dict[str, Any], fecha: int) -> bool:
+    """Para decisiones anteriores a la huella: hubo un evento de evidencia nueva
+    (o un resultado de laboratorio) para esta hipótesis después de la decisión."""
+    sufijo = f"/hipotesis/{h.get('id')}"
+    for ev in e.get("eventos", []) or []:
+        if not isinstance(ev, dict) or ev.get("tipo") != "revision_automatica" or int(ev.get("t") or 0) <= fecha:
+            continue
+        if str(ev.get("ruta") or "").endswith(sufijo) and str(ev.get("texto") or "").startswith("Evidencia nueva para"):
+            return True
+    resultado = ((h.get("experimento") or {}) if isinstance(h.get("experimento"), dict) else {}).get("resultado")
+    return isinstance(resultado, dict) and int(resultado.get("fecha") or 0) > fecha
+
+
+def pedir_revision_por_huella(e: dict[str, Any], ahora: int, investigacion_id: str | None = None) -> int:
+    """Marca `_revisionPedida` en toda hipótesis viva (propuesta o en revisión) que
+    ya pasó por el Killer y cuya huella de evidencia difiere de la que el Killer
+    vio al decidir (`decision.huella`, o `_huellaKiller`; para decisiones sin
+    huella, un evento de evidencia nueva posterior). Cada huella se pide una sola
+    vez (`_huellaRevisionPedida`) y se respeta el tope de intentos. Devuelve
+    cuántas peticiones nuevas dejó (S-08)."""
+    n = 0
+    for h in e.get("hipotesis", []) or []:
+        if not isinstance(h, dict) or h.get("estado") not in ("propuesta", "en_revision") or h.get("fusionadaEn"):
+            continue
+        if investigacion_id is not None and h.get("investigacionId") != investigacion_id:
+            continue
+        d = _ultima_decision_killer(e, h)
+        if d is None:
+            continue  # nunca juzgada: la juzga el paso de hipótesis como nueva
+        if int(h.get("_killerIntentos") or 0) >= MAX_INTENTOS_KILLER:
+            continue
+        actual = huella_evidencia(h)
+        guardada = d.get("huella") or h.get("_huellaKiller")
+        cambio = (guardada != actual) if guardada else _hubo_evidencia_despues(e, h, int(d.get("fecha") or 0))
+        if not cambio or h.get("_huellaRevisionPedida") == actual:
+            continue
+        h["_huellaRevisionPedida"] = actual
+        if h.get("_revisionPedida"):
+            continue
+        h["_revisionPedida"] = True
+        registro = (h.get("procedencia") or {}).get("registro")
+        if isinstance(registro, list):
+            registro.append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} revisión pedida: la evidencia cambió desde la última decisión del Killer")
+        n += 1
+    return n
+
+
+def _direccion_por_regla_local(h: dict[str, Any], direccion_juez: str) -> tuple[str, bool]:
+    """Dirección de la conclusión por regla (M-07): "en_contra" o "mixta" solo si
+    hay alguna afirmación sostenida en contra (relación contradice, no sintética)
+    o un resultado experimental que refuta; "sin_evidencia_directa" si no hay
+    apoyos o el juez lo dijo y no hay apoyos directos; "apoya" en el resto.
+    Devuelve también si el juez apoyaba su "mixta" en un supuesto contradicho."""
+    sostenidas = [a for a in (h.get("afirmaciones") or []) if isinstance(a, dict) and a.get("veredicto") in ("sostenida", "parcial") and not a.get("sintetico")]
+    contras = sum(1 for a in sostenidas if a.get("relacion") == "contradice")
+    apoyos = sum(1 for a in sostenidas if a.get("relacion") in (None, "apoya", "apoya_indirecta"))
+    resultado = ((h.get("experimento") or {}) if isinstance(h.get("experimento"), dict) else {}).get("resultado")
+    refuta = isinstance(resultado, dict) and resultado.get("veredicto") == "refuta" and not resultado.get("sintetico")
+    if refuta or (contras and not apoyos):
+        return "en_contra", False
+    if contras:
+        return "mixta", False
+    if apoyos == 0 or direccion_juez == "sin_evidencia_directa":
+        return "sin_evidencia_directa", False
+    return "apoya", False
+
+
+def direccion_por_regla(h: dict[str, Any], direccion_juez: str) -> tuple[str, bool]:
+    """La dirección por regla del grupo B1 (`T.direccion_por_regla(afirmaciones,
+    propuesta, experimento)`, rosa/bucle/contexto.py) si existe; si no, la local
+    con la misma regla. Devuelve (dirección, supuesto_contradicho): lo segundo es
+    True cuando el juez apoyaba su "mixta" o "en contra" en un supuesto
+    contradicho y la regla la dejó en "apoya"; la frase plantilla lo dice."""
+    direccion = None
+    fn = getattr(T, "direccion_por_regla", None)
+    if callable(fn):
+        try:
+            v = fn(h.get("afirmaciones"), direccion_juez, h.get("experimento") if isinstance(h.get("experimento"), dict) else None)
+            if isinstance(v, str) and v:
+                direccion = v
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+    if direccion is None:
+        direccion, _ = _direccion_por_regla_local(h, direccion_juez)
+    hay_supuesto_contradicho = any(isinstance(s_, dict) and s_.get("estado") == "contradicho" for s_ in (h.get("supuestos") or []))
+    return direccion, bool(direccion == "apoya" and hay_supuesto_contradicho and direccion_juez in ("mixta", "en_contra"))
+
+
+ESTADOS_EN_COLA = ("propuesta", "en_revision")
+_ETIQUETA_KILLER = {"descartar_en_contexto": "descarte propuesto por el Killer", "descartar": "descarte propuesto por el Killer", "suspender": "suspendida por el Killer", "reformular": "reformular", "avanzar": "avanzar"}
+
+
+def _motivo_killer(e: dict[str, Any], h: dict[str, Any]) -> str:
+    d = _ultima_decision_killer(e, h)
+    motivo = str((d or {}).get("motivo") or "").strip()
+    return motivo[:200] if motivo else "sin motivo registrado"
+
+
+def _cola_de_hipotesis_local(e: dict[str, Any], investigacion_id: str) -> str:
+    """El listado por regla de la cola: cada hipótesis viva con título, estado,
+    decisión del Killer con su motivo real y fecha de nacimiento, más la línea de
+    recuento. Es lo que leen el resumen técnico y el llano en vez de inventarlo."""
+    vivas = [h for h in e.get("hipotesis", []) if isinstance(h, dict) and h.get("investigacionId") == investigacion_id and h.get("estado") != "descartada" and not h.get("fusionadaEn")]
+    lineas = []
+    for h in sorted(vivas, key=lambda x: int(x.get("creadaEn") or 0)):
+        creada = int(h.get("creadaEn") or 0)
+        fecha = datetime.fromtimestamp(creada / 1000).strftime("%d/%m/%Y") if creada else "fecha desconocida"
+        decision = h.get("decisionKiller")
+        killer = f"{_ETIQUETA_KILLER.get(str(decision), str(decision))}: {_motivo_killer(e, h)}" if decision else "sin juzgar todavía"
+        lineas.append(f"- {str(h.get('titulo') or '')[:100]} [estado {h.get('estado')}; Killer: {killer}; nació el {fecha}]")
+    return (frase_de_la_cola(e, investigacion_id) + "\n" + "\n".join(lineas)) if lineas else "Ninguna hipótesis viva en la cola"
+
+
+def cola_de_hipotesis(e: dict[str, Any], investigacion_id: str) -> str:
+    """`T.cola_de_hipotesis` (grupo B) si existe; si no, la local con el mismo contrato."""
+    fn = getattr(T, "cola_de_hipotesis", None)
+    if callable(fn):
+        try:
+            v = fn(e, investigacion_id)
+            if isinstance(v, str) and v:
+                return v
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+    return _cola_de_hipotesis_local(e, investigacion_id)
+
+
+def frase_de_la_cola(e: dict[str, Any], investigacion_id: str, nacidas: int | None = None) -> str:
+    """La frase de recuento de la cola, generada por regla y que el modelo no toca:
+    "9 hipótesis en cola: 5 con descarte propuesto por el Killer, 4 suspendidas,
+    0 sin juzgar; 0 nacieron en esta iteración"."""
+    en_cola = [h for h in e.get("hipotesis", []) if isinstance(h, dict) and h.get("investigacionId") == investigacion_id and h.get("estado") in ESTADOS_EN_COLA and not h.get("fusionadaEn")]
+    descarte = sum(1 for h in en_cola if h.get("decisionKiller") in ("descartar_en_contexto", "descartar"))
+    suspendidas = sum(1 for h in en_cola if h.get("decisionKiller") == "suspender")
+    sin_juzgar = sum(1 for h in en_cola if not h.get("decisionKiller"))
+    otras = len(en_cola) - descarte - suspendidas - sin_juzgar
+    n = len(en_cola)
+    frase = f"{n} hipótesis en cola: {descarte} con descarte propuesto por el Killer, {suspendidas} {'suspendida' if suspendidas == 1 else 'suspendidas'}, {sin_juzgar} sin juzgar" + (f", {otras} con otra decisión" if otras else "")
+    if nacidas is not None:
+        frase += f"; {nacidas} {'nació' if nacidas == 1 else 'nacieron'} en esta iteración"
+    return frase
+
+
+def estado_de_la_cola(e: dict[str, Any], investigacion_id: str) -> str:
+    """Una línea por hipótesis viva con la decisión del Killer y su motivo real
+    (última decisión registrada), para que el resumen en llano no invente el
+    motivo de una suspensión."""
+    vivas = [h for h in e.get("hipotesis", []) if isinstance(h, dict) and h.get("investigacionId") == investigacion_id and h.get("estado") != "descartada" and not h.get("fusionadaEn")]
+    if not vivas:
+        return "Ninguna"
+    return "\n".join(f"- {str(h.get('titulo') or '')[:100]}: decisión del Killer «{h.get('decisionKiller') or 'sin decisión todavía'}» ({_motivo_killer(e, h) if h.get('decisionKiller') else 'aún no juzgada'}), estado «{h.get('estado')}»" for h in vivas)
+
+
+def _evaluacion_sin_presupuesto(corrida: dict[str, Any], casos: int) -> dict[str, Any]:
+    """La evaluación que queda cuando la corrida no tiene presupuesto: incompleta
+    (0 juzgadas de N), con la nota de qué hacer."""
+    return {"conjunto": "hipótesis con decisión humana", "casos": casos, "juzgadas": 0, "sinRespuesta": casos, "antes": None, "despues": None, "nota": f"Sin presupuesto en la corrida {corrida.get('numero')} ({str(corrida.get('estado', '')).replace('_', ' ')}): la evaluación no se hizo. Amplía el presupuesto de una corrida viva o abre otra y vuelve a evaluar"}
+
+
+def evaluacion_pareada(r_antes: dict[str, Any], r_despues: dict[str, Any], casos: int) -> dict[str, Any]:
+    """La evaluación de un criterio a partir de las dos pasadas del Killer: el
+    acuerdo antes y después se calcula solo sobre las hipótesis juzgadas en las
+    dos (comparación pareada). Si el juez no respondió en alguna, `juzgadas` <
+    `casos`, la nota lo dice y `_fijar_evaluacion` no da por evaluado nada."""
+    pareadas = [hid for hid in r_antes.get("acuerdos", {}) if hid in r_despues.get("acuerdos", {})]
+    juzgadas = len(pareadas)
+    sin_respuesta = casos - juzgadas
+    antes = round(sum(1 for hid in pareadas if r_antes["acuerdos"][hid]) / juzgadas, 3) if juzgadas else None
+    despues = round(sum(1 for hid in pareadas if r_despues["acuerdos"][hid]) / juzgadas, 3) if juzgadas else None
+    if sin_respuesta > 0:
+        nota = f"{sin_respuesta} de {casos} sin respuesta del juez: la cifra no se da por medida. Vuelve a evaluar cuando el juez responda" + (f" (sobre las {juzgadas} juzgadas: {antes} antes, {despues} después)" if juzgadas else "")
+    elif despues is not None and antes is not None and despues > antes:
+        nota = "Mejora el acuerdo con las decisiones humanas"
+    elif despues is not None and antes is not None and despues < antes:
+        nota = "Empeora el acuerdo"
+    else:
+        nota = "No cambia el acuerdo"
+    return {"conjunto": "hipótesis con decisión humana", "casos": casos, "juzgadas": juzgadas, "sinRespuesta": sin_respuesta, "antes": antes, "despues": despues, "nota": nota}
 
 
 def _ruta_segura(e: dict[str, Any], h: dict[str, Any]) -> dict[str, Any] | None:
@@ -1648,8 +2355,8 @@ def _ordenar_plan(plan: list[dict[str, Any]], hay_novedad_pendiente: bool) -> li
         n = plan.pop(tipos.index("novedad"))
         plan.insert([p.get("tipo") for p in plan].index("hipotesis") + 1, n)
         tipos = [p.get("tipo") for p in plan]
-    # El analisis con datos va despues de las hipotesis (necesita su prediccion
-    # falsable y la decision del Killer) y antes de la meta-revision.
+    # El análisis con datos va después de las hipótesis (necesita su predicción
+    # falsable y la decisión del Killer) y antes de la meta-revisión.
     if "analisis" in tipos and "hipotesis" in tipos and tipos.index("analisis") < tipos.index("hipotesis"):
         a = plan.pop(tipos.index("analisis"))
         plan.insert([p.get("tipo") for p in plan].index("hipotesis") + 1, a)
@@ -1662,6 +2369,12 @@ def _fijar_evaluacion(e: dict[str, Any], cambio_id: str, evaluacion: dict[str, A
         return False
     c.pop("_evaluar", None)
     c["evaluacion"] = evaluacion
+    # Una evaluación incompleta (el juez no respondió en alguna hipótesis) no da
+    # por medido nada: el criterio sigue propuesto y el botón de evaluar sigue ahí (S-24).
+    completa = evaluacion.get("juzgadas") is None or int(evaluacion.get("juzgadas") or 0) >= int(evaluacion.get("casos") or 0)
+    if not completa:
+        A.con_evento(e, c.get("investigacionId"), "aprendizaje", f"Criterio sin evaluar: {evaluacion.get('nota', '')}", "#/ajustes", ahora)
+        return True
     if c["estado"] == "propuesto" and evaluacion.get("casos"):
         c["estado"] = "evaluado"
     # Lo que propuso la meta-campaña se revierte solo si empeora: nadie tiene que
@@ -1754,11 +2467,13 @@ VERBO_CERTEZA = {"alta": "La evidencia reunida sostiene que", "moderada": "La ev
 VERBO_CONTRA = {"alta": "La evidencia reunida contradice que", "moderada": "La evidencia reunida probablemente contradice que", "baja": "La evidencia sugiere, con limitaciones, que no se cumple que", "muy_baja": "La evidencia es muy incierta sobre si"}
 
 
-def frase_plantilla(direccion: str, certeza: str, titulo: str) -> str:
+def frase_plantilla(direccion: str, certeza: str, titulo: str, supuesto_contradicho: bool = False) -> str:
     """La frase calibrada de (dirección, certeza), como las tablas de Santesso
     2020 y Cochrane Iberoamerica. El modelo no la escribe: se genera aquí para
     que 'probablemente' signifique siempre lo mismo. El título de la hipótesis
-    hace de H con la inicial en minúscula."""
+    hace de H con la inicial en minúscula. `supuesto_contradicho`: la dirección
+    es a favor por las afirmaciones, pero un supuesto del que depende está
+    contradicho; se dice, en vez de llamar "contradictoria" a la evidencia."""
     h = titulo.strip().rstrip(".")
     h = h[:1].lower() + h[1:] if h and not h[:2].isupper() else h
     if direccion == "sin_evidencia_directa":
@@ -1767,6 +2482,8 @@ def frase_plantilla(direccion: str, certeza: str, titulo: str) -> str:
         return f"La evidencia es contradictoria sobre si {h}; la certeza es {certeza.replace('_', ' ')}."
     if direccion == "en_contra":
         return f"{VERBO_CONTRA[certeza]} {h}."
+    if supuesto_contradicho:
+        return f"{VERBO_CERTEZA[certeza]} {h}, aunque un supuesto del que depende está contradicho por las fuentes."
     return f"{VERBO_CERTEZA[certeza]} {h}."
 
 
@@ -1786,13 +2503,34 @@ def _fijar_estado(e: dict[str, Any], corrida_id: str, estado: str) -> bool:
     return True
 
 
-def _pausar_por_presupuesto(e: dict[str, Any], corrida_id: str) -> bool:
+def motivo_de_pausa_por_presupuesto(e: dict[str, Any], c: dict[str, Any], tope: str | None = None) -> str:
+    """El texto que dice qué tope saltó de verdad. Antes siempre culpaba al tope
+    global aunque el que cortó fuera el de la iteración (447 con 400 de 1500
+    gastadas), y "ampliar" no lo levantaba (S-15)."""
+    it = A.iteracion_actual_de(e, c)
+    tope = tope or tope_agotado_en(e, c["id"], (it or {}).get("numero")) or "corrida"
+    gasto = int(c["gasto"].get("llamadas") or 0)
+    limite = int(c["presupuesto"].get("limiteLlamadas") or 0)
+    if tope == "iteracion" and it is not None:
+        pres = it.get("presupuesto") or {}
+        return f"La iteración {it['numero']} gastó las {int(pres.get('limite') or 0)} llamadas que le tocaban (la corrida lleva {gasto} de {limite}): la corrida se pausó. Amplía el tope para seguir."
+    return f"La corrida agotó su tope de {limite} llamadas ({gasto} gastadas): se pausó. Amplía el tope para seguir."
+
+
+def _pausar_por_presupuesto(e: dict[str, Any], corrida_id: str, tope: str | None = None) -> bool:
+    """Pausa la corrida por presupuesto con el motivo real. Una corrida detenida o
+    terminada no se toca: la evaluación de un criterio o una revisión pedida
+    sobre una corrida ya cerrada sin presupuesto la ponía en "pausada por
+    presupuesto" y el tick la relanzaba como si siguiera viva (adversario de la
+    tanda 1, 17 de septiembre de 2026)."""
     c = next((x for x in e["corridas"] if x["id"] == corrida_id), None)
-    if not c or c["estado"] == "pausada_por_presupuesto":
+    if not c or c["estado"] in ("pausada_por_presupuesto", "detenida", "terminada"):
         return False
-    pendientes = any(s["corridaId"] == corrida_id and s["estado"] == "pendiente" for s in e["solicitudes"]) or any(i["corridaId"] == corrida_id and i["estado"] == "pendiente" for i in e["incidencias"])
+    pendientes = any(s["corridaId"] == corrida_id and s["estado"] == "pendiente" for s in e["solicitudes"]) or any(i["corridaId"] == corrida_id and i["estado"] == "pendiente" and i["tipo"] not in INCIDENCIAS_QUE_NO_BLOQUEAN for i in e["incidencias"])
     c["estado"] = "esperando_aprobacion" if pendientes else "pausada_por_presupuesto"
-    A.con_evento(e, c["investigacionId"], "presupuesto", f"Presupuesto global agotado ({c['presupuesto']['limiteLlamadas']} llamadas): la corrida se pauso. Amplia el tope para seguir.", f"#/investigaciones/{c['investigacionId']}/corrida", P.ahora_ms())
+    motivo = motivo_de_pausa_por_presupuesto(e, c, tope)
+    c["presupuesto"]["motivoPausa"] = motivo
+    A.con_evento(e, c["investigacionId"], "presupuesto", motivo, f"#/investigaciones/{c['investigacionId']}/corrida", P.ahora_ms())
     return True
 
 
@@ -1814,7 +2552,10 @@ def _estado_paso(e: dict[str, Any], iteracion_id: str, paso_id: str, estado: str
 # el proceso estuvo suspendido (el equipo dormido, el portátil cerrado) y ese
 # hueco no es tiempo de trabajo de la corrida.
 UMBRAL_SUSPENSION_MS = 120_000
-ESTADOS_DE_ESPERA_HUMANA = ("esperando_plan", "esperando_aprobacion", "pausada")
+# Estados en los que la corrida espera a una persona: el plan sin aprobar, un
+# permiso pendiente, la pausa a mano y la pausa por presupuesto (alguien tiene
+# que ampliarlo). Ese tiempo no cuenta contra el tope en horas.
+ESTADOS_DE_ESPERA_HUMANA = ("esperando_plan", "esperando_aprobacion", "pausada", "pausada_por_presupuesto")
 
 
 def tiempo_trabajo_ms(c: dict[str, Any], ahora: int) -> int:

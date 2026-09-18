@@ -12,6 +12,8 @@ mlartifacts/
 rosa.db
 rosa.db-wal
 rosa.db-shm
+# cerrojo de instancia del almacén (S-01)
+rosa.db.lock
 pdfs/
 *.log
 node_modules/

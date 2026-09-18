@@ -182,7 +182,10 @@ def juzgar_dominio(dominio: dict[str, Any], respuestas: dict[str, str]) -> tuple
 
 def juicio_global(juicios: list[str]) -> str:
     """Regla de RoB 2 (Tabla 3): bajo si todos bajos; alto si alguno alto o si
-    hay dudas en varios dominios (aquí, tres o más); algunas dudas en lo demás."""
+    hay dudas en varios dominios (aquí, tres o más); algunas dudas en lo demás.
+    Trabaja solo con los juicios; `juicio_global_por_dominios` es la que usa
+    `evaluar`, porque distingue una duda con respuestas de una duda por falta
+    de texto (M-01)."""
     reales = [j for j in juicios if j != "no_aplica"]
     if not reales:
         return "no_aplica"
@@ -191,6 +194,75 @@ def juicio_global(juicios: list[str]) -> str:
     if any(j == "alto" for j in reales) or sum(1 for j in reales if j == "algunas_dudas") >= 3:
         return "alto"
     return "algunas_dudas"
+
+
+def dominio_solo_sin_informacion(dominio: dict[str, Any]) -> bool:
+    """Un dominio "algunas dudas" cuyo único motivo es que las preguntas no
+    tienen respuesta en el texto (ninguna respuesta en el sentido del riesgo).
+    Es "sin información", no una duda sobre el estudio."""
+    if not isinstance(dominio, dict) or str(dominio.get("juicio") or "").strip().lower() != "algunas_dudas":
+        return False
+    motivo = str(dominio.get("motivo") or "").lower().replace("ó", "o")
+    return "sin informacion" in motivo and "sentido del riesgo" not in motivo
+
+
+def juicio_global_por_dominios(dominios: list[dict[str, Any]]) -> str:
+    """El juicio global leyendo los dominios, no solo sus etiquetas (M-01, 17 de
+    septiembre de 2026). Igual que `juicio_global` salvo en una cosa: la
+    escalada "tres dominios con dudas suben a alto" solo cuenta las dudas con
+    alguna respuesta en el sentido del riesgo; un dominio sin información en
+    el texto sigue siendo "algunas dudas" por sí mismo pero no suma para
+    escalar. Antes, un juez que no encontraba nada en el texto (todo NI)
+    dejaba la fuente en "alto" y el Killer suspendía por sesgo."""
+    reales = [d for d in dominios if isinstance(d, dict) and str(d.get("juicio") or "") not in ("", "no_aplica")]
+    if not reales:
+        return "no_aplica"
+    juicios = [str(d.get("juicio")) for d in reales]
+    if all(j == "bajo" for j in juicios):
+        return "bajo"
+    dudas_con_respuestas = sum(1 for d in reales if str(d.get("juicio")) == "algunas_dudas" and not dominio_solo_sin_informacion(d))
+    if "alto" in juicios or dudas_con_respuestas >= 3:
+        return "alto"
+    return "algunas_dudas"
+
+
+def juicio_util(riesgo: Any) -> tuple[str | None, str]:
+    """(juicio que cuenta, motivo) releyendo una evaluación guardada por
+    dominios. Es la regla única para el peso GRADE (rosa/certeza.py
+    `juicio_sesgo_util` delega aquí) y para la comprobación del Killer
+    (`comprobacion_sesgo`):
+
+    - un dominio cuyo motivo es solo "preguntas sin información" no cuenta;
+    - si algún dominio informado es "alto", el juicio es "alto";
+    - si no, si alguno informado es "algunas dudas", es "algunas dudas" (sin
+      escalar a alto por acumulación);
+    - si todo lo informado es "bajo" y hay dominios sin información, queda
+      sin evaluar (None): ni se penaliza ni se afirma bajo;
+    - sin dominios (registro compacto o antiguo), vale el `global` guardado.
+    Solo puede rebajar la penalización, nunca subirla."""
+    r = riesgo if isinstance(riesgo, dict) else {}
+    global_ = str(r.get("global") or "").strip().lower() or None
+    dominios = [d for d in (r.get("dominios") if isinstance(r.get("dominios"), (list, tuple)) else []) if isinstance(d, dict) and str(d.get("juicio") or "").strip()]
+    conocidos = ("alto", "algunas_dudas", "bajo")
+    if not dominios:
+        return (global_ if global_ in conocidos else None), (f"juicio global {global_}" if global_ in conocidos else "riesgo de sesgo sin evaluar")
+    informados: list[str] = []
+    sin_info = 0
+    for d in dominios:
+        j = str(d.get("juicio") or "").strip().lower()
+        if j == "no_aplica":
+            continue
+        if dominio_solo_sin_informacion(d):
+            sin_info += 1
+            continue
+        informados.append(j)
+    if "alto" in informados:
+        return "alto", "algún dominio con riesgo alto por respuestas en el sentido del riesgo"
+    if "algunas_dudas" in informados:
+        return "algunas_dudas", f"algunas dudas en {informados.count('algunas_dudas')} dominios informados" + (f"; {sin_info} dominios sin información no cuentan" if sin_info else "")
+    if sin_info:
+        return None, f"{sin_info} dominios sin información en el texto y ninguno con riesgo: sin evaluar, no se penaliza"
+    return ("bajo" if informados else None), ("todos los dominios informados con riesgo bajo" if informados else "sin dominios informados")
 
 
 def evaluar(clave: str, respuestas: list[dict[str, str]], modelo: str, ahora: int) -> dict[str, Any]:
@@ -209,7 +281,7 @@ def evaluar(clave: str, respuestas: list[dict[str, str]], modelo: str, ahora: in
             "motivo": motivo,
             "respuestas": [{"id": p["id"], "pregunta": p["texto"], "respuesta": resp[p["id"]], "cita": str(por_id.get(p["id"], {}).get("cita", "") or "")[:300]} for p in d["preguntas"]],
         })
-    glob = juicio_global([d["juicio"] for d in dominios])
+    glob = juicio_global_por_dominios(dominios)
     return {"instrumento": ins["nombre"], "clave": clave, "version": ins["version"], "fuenteInstrumento": ins["fuente"], "modelo": modelo, "fecha": ahora, "dominios": dominios, "global": glob, "resumen": f"{ins['nombre']}: riesgo global {glob.replace('_', ' ')}; " + ", ".join(f"{d['id']} {d['juicio'].replace('_', ' ')}" for d in dominios)}
 
 
@@ -219,16 +291,27 @@ def comprobacion_sesgo(fuentes: list[dict[str, Any]]) -> dict[str, str]:
     Falla si TODA la evidencia primaria evaluada tiene riesgo alto; pasa si
     alguna fuente primaria tiene riesgo bajo o algunas dudas; no comprobable
     si no hay ninguna evaluada."""
-    evaluadas = [f for f in fuentes if isinstance(f.get("riesgoSesgo"), dict) and f["riesgoSesgo"].get("global") not in (None, "no_aplica")]
+    evaluadas = [f for f in fuentes if isinstance(f, dict) and isinstance(f.get("riesgoSesgo"), dict) and f["riesgoSesgo"].get("global") not in (None, "no_aplica")]
     if not evaluadas:
         return {"comprobacion": "sesgo_evidencia", "resultado": "no_comprobable", "detalle": "Ninguna fuente primaria tiene todavía riesgo de sesgo evaluado por instrumento (RoB 2, ROBINS-I, QUADAS-2, ROBIS, SYRCLE)."}
+    # M-01: se relee cada evaluación por dominios con `juicio_util`, la misma regla
+    # que el peso GRADE. Una fuente cuyo "alto" viene solo de dominios sin
+    # información en el texto no es una fuente sesgada: es una fuente sin evaluar.
+    util: dict[str, str | None] = {str(f.get("id")): juicio_util(f["riesgoSesgo"])[0] for f in evaluadas}
+    informadas = [f for f in evaluadas if util[str(f.get("id"))] is not None]
+    sin_info = len(evaluadas) - len(informadas)
+    if not informadas:
+        return {"comprobacion": "sesgo_evidencia", "resultado": "no_comprobable", "detalle": f"{len(evaluadas)} fuentes primarias evaluadas por instrumento, pero el texto no daba información para juzgar el sesgo en ninguna: sin evaluar, no cuenta como riesgo alto."}
     cuenta = {"bajo": 0, "algunas_dudas": 0, "alto": 0}
-    for f in evaluadas:
-        cuenta[f["riesgoSesgo"]["global"]] = cuenta.get(f["riesgoSesgo"]["global"], 0) + 1
+    for f in informadas:
+        j = util[str(f.get("id"))] or ""
+        cuenta[j] = cuenta.get(j, 0) + 1
     resumen = ", ".join(f"{v} con riesgo {k.replace('_', ' ')}" for k, v in cuenta.items() if v)
-    detalle_fuentes = "; ".join(f"{f.get('referencia', f.get('id'))}: {f['riesgoSesgo']['instrumento']} {f['riesgoSesgo']['global'].replace('_', ' ')}" for f in evaluadas[:6])
-    if cuenta["alto"] == len(evaluadas):
-        return {"comprobacion": "sesgo_evidencia", "resultado": "falla", "detalle": f"Toda la evidencia primaria evaluada ({len(evaluadas)} fuentes) tiene riesgo de sesgo alto por instrumento: {detalle_fuentes}"}
+    if sin_info:
+        resumen += f"; {sin_info} sin información suficiente en el texto, que no cuentan"
+    detalle_fuentes = "; ".join(f"{f.get('referencia', f.get('id'))}: {f['riesgoSesgo'].get('instrumento', 'instrumento')} {str(util[str(f.get('id'))] or 'sin información').replace('_', ' ')}" for f in evaluadas[:6])
+    if cuenta["alto"] == len(informadas):
+        return {"comprobacion": "sesgo_evidencia", "resultado": "falla", "detalle": f"Toda la evidencia primaria evaluada con información ({len(informadas)} fuentes) tiene riesgo de sesgo alto por instrumento: {detalle_fuentes}"}
     return {"comprobacion": "sesgo_evidencia", "resultado": "pasa", "detalle": f"{len(evaluadas)} fuentes primarias evaluadas por instrumento ({resumen}): {detalle_fuentes}"}
 
 

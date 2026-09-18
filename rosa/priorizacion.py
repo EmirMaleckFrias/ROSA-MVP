@@ -1,18 +1,18 @@
-"""Priorizacion con bloqueos no compensables y diversidad (ROSA2018, etapa 8).
+"""Priorización con bloqueos no compensables y diversidad (ROSA2018, etapa 8).
 
 Dos reglas, las dos deterministas y las dos repetidas en
 `frontend/src/lib/priorizacion.ts` para que la pantalla y el servidor digan
 lo mismo:
 
-1. Bloqueos. Antes de mirar el Elo, cada hipotesis pasa por una lista de
+1. Bloqueos. Antes de mirar el Elo, cada hipótesis pasa por una lista de
    condiciones que, si se cumple una sola, la sacan de los candidatos. No se
-   compensan con puntos: una hipotesis con evidencia no trazable no va al
+   compensan con puntos: una hipótesis con evidencia no trazable no va al
    laboratorio por mucho que gane debates.
-2. Candidatos. Entre las que no tienen bloqueos y el Killer dejo avanzar, se
+2. Candidatos. Entre las que no tienen bloqueos y el Killer dejó avanzar, se
    eligen hasta N por Elo, con diversidad: no dos del mismo cluster mientras
    haya otros clusters disponibles (la idea del grafo de proximidad de
-   Co-Scientist y de la seleccion por maxima relevancia marginal). Cero
-   candidatos es un resultado valido.
+   Co-Scientist y de la selección por máxima relevancia marginal). Cero
+   candidatos es un resultado válido.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
     if auditadas and auditadas[-1]["auditoria"]["veredicto"] == "no_valido":
         b.append(_bloqueo("analisis_invalido"))
     x = h.get("experimento")
-    # Interpretable: criterios de confirmacion y refutacion separados, o un
+    # Interpretable: criterios de confirmación y refutación separados, o un
     # prerregistro congelado con el esquema anterior (criterios dentro del ensayo).
     if not x or not ((x.get("confirma") or "").strip() and (x.get("refuta") or "").strip()) and not (x.get("prerregistradoEn") and (x.get("ensayo") or "").strip()):
         b.append(_bloqueo("sin_experimento_interpretable"))
@@ -98,8 +98,8 @@ def revision_registro_abierta(e: dict[str, Any], h: dict[str, Any]) -> bool:
 
 
 def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = None) -> list[dict[str, Any]]:
-    """Las hipótesis que hoy irian al laboratorio, en orden. Solo las que el
-    Killer dejo avanzar, sin bloqueos, con diversidad por cluster."""
+    """Las hipótesis que hoy irían al laboratorio, en orden. Solo las que el
+    Killer dejó avanzar, sin bloqueos, con diversidad por cluster."""
     maximo = maximo if maximo is not None else politicas.MAX_CANDIDATOS_LABORATORIO
     vivas = [h for h in e["hipotesis"] if h["investigacionId"] == investigacion_id and h["estado"] not in ("descartada",) and h.get("decisionKiller") == "avanzar" and not bloqueos_de(e, h)]
     # Orden por Bradley-Terry cuando hay partidos suficientes; si no, por Elo.
@@ -124,6 +124,7 @@ def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
         if h["investigacionId"] == investigacion_id:
             h["bloqueos"] = bloqueos_de(e, h)
             h["candidata"] = False
+            anotar_cohortes(h)
     ids = [h["id"] for h in candidatos(e, investigacion_id)]
     for h in e["hipotesis"]:
         if h["id"] in ids:
@@ -132,10 +133,28 @@ def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
 
 
 def cohortes_de(h: dict[str, Any]) -> list[str]:
-    """Cohortes distintas entre las fuentes de la hipótesis, por el catálogo
-    canónico de rosa/metodos.py (alias y nombres largos resuelven a la misma):
-    dos artículos de la misma cohorte son una sola evidencia. Devuelve la
-    etiqueta canónica (o el nombre dado si no está en el catálogo), una por grupo."""
-    from rosa import metodos as METODOS
+    """Cohortes distintas entre las fuentes de la hipótesis que aportan apoyo:
+    la misma cuenta que usa el techo GRADE (`rosa/certeza.py`), que a su vez
+    agrupa por el catálogo canónico de rosa/metodos.py (`cohortes_distintas`:
+    alias, NCT y ensayos resuelven a la misma). Una sola regla para el Killer,
+    el juez, el dossier y la pantalla (17 de septiembre de 2026, hallazgo M-04:
+    antes había tres cuentas y la franja del ranking decía 7 donde el techo
+    contaba 6). Devuelve la etiqueta canónica (o el nombre dado si no está en
+    el catálogo), una por grupo; una fuente que solo contradice o socava, o
+    cuyos apoyos son todos de introducción, no aporta cohorte."""
+    from rosa import certeza as CERTEZA
 
-    return METODOS.cohortes_distintas(h)
+    return CERTEZA.cohortes_distintas(h)
+
+
+def anotar_cohortes(h: dict[str, Any]) -> list[str]:
+    """Escribe la lista canónica que da `cohortes_de` en
+    `h["cohortesDistintas"]` (siempre, es lo que la interfaz lee primero) y en
+    `h["conclusion"]["cohortesDistintas"]` si la hipótesis ya tiene conclusión,
+    para que el frontend la lea en vez de recalcularla con otra regla.
+    Devuelve la lista."""
+    cohortes = cohortes_de(h)
+    h["cohortesDistintas"] = list(cohortes)
+    if isinstance(h.get("conclusion"), dict):
+        h["conclusion"]["cohortesDistintas"] = list(cohortes)
+    return cohortes

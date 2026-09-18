@@ -11,19 +11,29 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import signal
 import sys
+from typing import Any
 
 import dspy
 import uvicorn
 
 from rosa import config
 from rosa.bucle.corrida import Supervisor
-from rosa.estado.almacen import Almacen
+from rosa.estado.almacen import Almacen, AlmacenOcupado
 from rosa.gateway import modelos as cargar_modelos
 from rosa.modulos.contador import Contador
 from rosa.modulos.firmas import Programas
 from rosa.servidor import crear_app
+
+# Cuánto espera una Rosa nueva a que la anterior suelte rosa.db (S-01): más que
+# la llamada al Killer más lenta vista (113 s), con margen para dos seguidas.
+ESPERA_CERROJO_S = 600.0
+# Cuánto se deja al supervisor terminar el paso en vuelo al apagar antes de
+# cortarlo: lo que va en vuelo (una revisión del Killer ya pagada) vale más que
+# apagar rápido, pero no puede colgar el cierre para siempre.
+TOPE_APAGADO_S = 300.0
 
 
 def configurar_mlflow() -> None:
@@ -37,11 +47,50 @@ def configurar_mlflow() -> None:
         print(f"MLflow no disponible ({ex}); Rosa sigue sin trazas.", file=sys.stderr)
 
 
+async def correr_con_tope(servidor: Any, supervisor: Any, tope_s: float = TOPE_APAGADO_S) -> None:
+    """Corre el servidor HTTP y el supervisor del bucle a la vez. Cuando uno de
+    los dos termina (la señal de parada cierra el servidor; un fallo tumba el
+    supervisor), al otro se le pide parar y se le deja terminar lo que tenga en
+    vuelo hasta `tope_s` segundos; pasado el tope se cancela. Así el Killer que
+    está a medias escribe su decisión (que ya se pagó) antes de que este proceso
+    suelte la base, y una Rosa nueva la encuentra en vez de repetirla (S-01)."""
+    t_servidor = asyncio.ensure_future(servidor.serve())
+    t_supervisor = asyncio.ensure_future(supervisor.correr())
+    hechas, pendientes = await asyncio.wait({t_servidor, t_supervisor}, return_when=asyncio.FIRST_COMPLETED)
+    for t in hechas:
+        # Una tarea cancelada no tiene excepción que leer (`exception()` lanzaría).
+        if t is t_supervisor and not t.cancelled() and t.exception() is not None:
+            print(f"El supervisor del bucle terminó con error: {t.exception()!r}; se apaga el servidor", file=sys.stderr, flush=True)
+    supervisor.parar()
+    servidor.should_exit = True
+    if pendientes:
+        try:
+            await asyncio.wait_for(asyncio.gather(*pendientes, return_exceptions=True), timeout=tope_s)
+        except asyncio.TimeoutError:
+            print(f"El paso en vuelo no terminó en {int(tope_s)} s; se cancela y se cierra sin él (quedará como interrumpido al reiniciar).", file=sys.stderr, flush=True)
+            for t in pendientes:
+                t.cancel()
+            await asyncio.gather(*pendientes, return_exceptions=True)
+    for t in hechas:
+        # Un fallo del servidor se relanza para que quede en el registro del arranque.
+        if t is t_servidor and not t.cancelled() and t.exception() is not None:
+            raise t.exception()
+
+
 async def principal() -> None:
     if config.HOST not in ("127.0.0.1", "localhost", "::1") and not config.ROSA_TOKEN:
-        print(f"Rosa no arranca escuchando en {config.HOST} sin ROSA_TOKEN en .env: cualquier equipo de la red podria gastar en el gateway y alterar el estado.", file=sys.stderr)
+        print(f"Rosa no arranca escuchando en {config.HOST} sin ROSA_TOKEN en .env: es la llave de red que toda la API exige (con o sin sesión, también en las rutas de acceso); sin ella cualquier equipo de la red podría gastar en el gateway y alterar el estado.", file=sys.stderr)
         raise SystemExit(2)
-    almacen = Almacen()
+    try:
+        # El cerrojo se toma aquí, antes de cargar modelos y antes de que el
+        # supervisor toque nada: si otra Rosa sigue cerrando, esta espera y, si no
+        # suelta, no arranca sobre la misma base.
+        almacen = Almacen(espera_cerrojo=ESPERA_CERROJO_S)
+    except AlmacenOcupado as ex:
+        print(f"Rosa no arranca: {ex}", file=sys.stderr)
+        raise SystemExit(3) from None
+    if not (getattr(config, "ROSA_ADMIN", None) or os.environ.get("ROSA_ADMIN")):
+        print("Aviso: sin ROSA_ADMIN en .env, administra la primera cuenta confirmada por enlace de correo; las cuentas que entran sin verificar no administran.", file=sys.stderr)
     modelos = cargar_modelos()
     programas = Programas()
     cargados = programas.cargar_optimizados(config.RAIZ / "mlruns" / "optimizados")
@@ -78,6 +127,7 @@ async def principal() -> None:
         print(f"Espejo en Convex activo: {config.CONVEX_URL}")
 
     def parar(*_: object) -> None:
+        print(f"Rosa está cerrando: deja terminar el paso en curso (hasta {int(TOPE_APAGADO_S)} s) y suelta la base al salir. No arranques otra Rosa hasta que este proceso termine.", file=sys.stderr, flush=True)
         supervisor.parar()
         servidor.should_exit = True
 
@@ -85,10 +135,20 @@ async def principal() -> None:
         with contextlib.suppress(NotImplementedError):
             bucle.add_signal_handler(s, parar)
 
+    def parar_por_obsoleto() -> None:
+        # Otro proceso escribió sobre rosa.db (S-01): este ya no puede guardar nada,
+        # así que se cierra igual que con Ctrl+C en vez de seguir pagando llamadas
+        # al modelo cuyo resultado no se puede escribir. El almacén lo avisa desde
+        # el hilo que detectó el fallo (puede ser uno de DSPy): se salta al bucle.
+        print("Otra Rosa escribió sobre la base: este proceso queda obsoleto y se cierra. Deja una sola Rosa arrancada.", file=sys.stderr, flush=True)
+        parar()
+
+    almacen.al_quedar_obsoleto(lambda: bucle.call_soon_threadsafe(parar_por_obsoleto))
+
     print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
     tarea_gepa = asyncio.create_task(gepa.correr(), name="gepa-continuo") if gepa else None
     try:
-        await asyncio.gather(servidor.serve(), supervisor.correr())
+        await correr_con_tope(servidor, supervisor)
     finally:
         if gepa and tarea_gepa:
             gepa.parar.set()

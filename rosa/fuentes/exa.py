@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 
 from rosa import config
 from rosa.fuentes.base import FuenteNoDisponible, Limitador, json_de, pedir, referencia_corta
@@ -122,7 +122,9 @@ def _articulo(r: dict[str, Any]) -> dict[str, Any]:
         "pmcid": pmc.group(1) if pmc else None,
         "titulo": (r.get("title") or "").strip(),
         "autores": autores,
-        "referencia": referencia_corta(autores, anio),
+        # Sin autores (FDA, registros, PDF sueltos) la referencia lleva el
+        # dominio: "Sin autor (fda.gov), 2024" en vez de treinta "Sin autor".
+        "referencia": referencia_corta(autores, anio, dominio=urlparse(url).hostname if url else None, identificador=doi or (pm.group(1) if pm else None)),
         "anio": anio,
         "fecha": fecha[:10] or None,
         "tipo": "publication",

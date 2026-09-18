@@ -6,6 +6,7 @@ import {
   asignarExperimento,
   cambiarEstadoArea,
   enmendarExperimento,
+  FICHERO_SINTETICO,
   enmendarLectura,
   bloquePrerregistro,
   hashLecturas,
@@ -44,6 +45,7 @@ import {
   resolverIncidencia,
   resolverSolicitud,
   resolverSolicitudes,
+  registrarDatosExperimento,
   revisarHipotesis,
   revocarPermiso,
   volverAIteracion,
@@ -90,6 +92,52 @@ describe('corrida', () => {
     expect(c.presupuesto.limiteLlamadas).toBe(4500);
     // Con el tope nuevo ya no se ha cruzado el 80 %, asi que esa alerta volvera a avisar.
     expect(c.presupuesto.avisadas).toEqual([0.5]);
+  });
+  it('ampliar el presupuesto sube también el tope de la iteración en curso con el mismo margen (misma regla que rosa/estado/acciones.py)', () => {
+    let e = estadoDeMuestra();
+    // La iteración en curso agotó su tope: 120 de 120. Antes, ampliar solo tocaba la corrida y
+    // la primera llamada volvía a pausar por el tope de la iteración.
+    e = {
+      ...e,
+      corridas: e.corridas.map((c) => (c.id === 'cor-3' ? { ...c, estado: 'pausada_por_presupuesto' as const } : c)),
+      iteraciones: e.iteraciones.map((i) => (i.id === 'it-14' ? { ...i, presupuesto: { limite: 120, usado: 120 } } : i)),
+    };
+    const antes = e.corridas.find((c) => c.id === 'cor-3')!.presupuesto.limiteLlamadas;
+    const e2 = ampliarPresupuesto(e, 'cor-3', antes + 300, T);
+    const it = e2.iteraciones.find((i) => i.id === 'it-14')!;
+    expect(it.presupuesto.limite).toBe(120 + 300);
+    expect(it.presupuesto.usado).toBe(120);
+    expect(e2.corridas.find((c) => c.id === 'cor-3')!.estado).toBe('en_marcha');
+    expect(e2.eventos.at(-1)?.texto).toContain(`la iteración ${it.numero} puede gastar hasta 420`);
+    // Las otras iteraciones no se tocan y el estado anterior no muta.
+    expect(e2.iteraciones.filter((i) => i.id !== 'it-14')).toEqual(e.iteraciones.filter((i) => i.id !== 'it-14'));
+    expect(e.iteraciones.find((i) => i.id === 'it-14')!.presupuesto.limite).toBe(120);
+    // Sin margen (tope igual al anterior) la iteración se queda como estaba.
+    const e3 = ampliarPresupuesto(e, 'cor-3', antes, T);
+    expect(e3.iteraciones.find((i) => i.id === 'it-14')!.presupuesto.limite).toBe(120);
+    // Una iteración con margen de sobra no baja: max(limite, usado + margen).
+    const e4 = ampliarPresupuesto({ ...e, iteraciones: e.iteraciones.map((i) => (i.id === 'it-14' ? { ...i, presupuesto: { limite: 5000, usado: 10 } } : i)) }, 'cor-3', antes + 300, T);
+    expect(e4.iteraciones.find((i) => i.id === 'it-14')!.presupuesto.limite).toBe(5000);
+  });
+  it('ampliar el presupuesto limpia el motivo de la pausa y no rompe con una iteración antigua sin presupuesto (misma regla que el servidor)', () => {
+    let e = estadoDeMuestra();
+    const corrida = e.corridas.find((c) => c.id === 'cor-3')!;
+    e = {
+      ...e,
+      corridas: e.corridas.map((c) => (c.id === 'cor-3' ? { ...c, estado: 'pausada_por_presupuesto' as const, presupuesto: { ...c.presupuesto, motivoPausa: 'la iteración 14 gastó sus 120 llamadas' } } : c)),
+      // Registro antiguo: la iteración en curso no trae `presupuesto`.
+      iteraciones: e.iteraciones.map((i) => (i.id === 'it-14' ? ({ ...i, presupuesto: undefined } as unknown as typeof i) : i)),
+    };
+    const e2 = ampliarPresupuesto(e, 'cor-3', corrida.presupuesto.limiteLlamadas + 300, T);
+    const c2 = e2.corridas.find((c) => c.id === 'cor-3')!;
+    expect(c2.estado).toBe('en_marcha');
+    expect(c2.presupuesto.motivoPausa).toBe('');
+    expect(e2.iteraciones.find((i) => i.id === 'it-14')!.presupuesto).toBeUndefined();
+    expect(e2.eventos.at(-1)?.texto).toBe(`Presupuesto ampliado a ${corrida.presupuesto.limiteLlamadas + 300} llamadas`);
+    // Un tope no finito o no mayor que lo gastado no cambia nada.
+    expect(ampliarPresupuesto(e, 'cor-3', Number.POSITIVE_INFINITY, T)).toBe(e);
+    expect(ampliarPresupuesto(e, 'cor-3', Number.NaN, T)).toBe(e);
+    expect(ampliarPresupuesto(e, 'cor-3', corrida.gasto.llamadas, T)).toBe(e);
   });
   it('detener una pista la marca detenida con la indicacion y deja la corrida en marcha', () => {
     const e1 = detenerPista(estadoDeMuestra(), 'pi-4', 'usa menos memoria');
@@ -299,8 +347,8 @@ describe('meta-revision y modelo de mundo', () => {
     const e = estadoDeMuestra();
     const r = preguntarAlModeloDeMundo(e.hechos, 'inv-1', 'que se sabe del cociente p-tau217/Abeta42');
     expect(r.respuesta).toMatch(/^Se sabe: /);
-    expect(r.respuesta).toContain('Cohorte clínica, 2025, pag. 7');
-    expect(r.respuesta).toContain('Se descarto:');
+    expect(r.respuesta).toContain('Cohorte clínica, 2025, pág. 7');
+    expect(r.respuesta).toContain('Se descartó:');
     expect(r.nodos.length).toBeGreaterThan(0);
     expect(preguntarAlModeloDeMundo(e.hechos, 'inv-1', 'unicornios').nodos).toEqual([]);
     expect(preguntarAlModeloDeMundo(e.hechos, 'inv-1', 'a b').respuesta).toMatch(/palabra del dominio/);
@@ -668,7 +716,7 @@ describe('enmendarLectura', () => {
     const evaluado = { ...asignado, hipotesis: asignado.hipotesis.map((h) => (h.id === id ? { ...h, experimento: { ...h.experimento!, resultado: { veredicto: 'confirma', resultado: '', motivo: '', limitaciones: '', cifras: [], exploratorio: '', fecha: T, fichero: null } as never } } : h)) };
     expect(enmendarLectura(evaluado, id, 0, 'queConfirma', 'sube 30 %', 'm', 'p', T)).toBe(evaluado);
   });
-  it('guarda antes y después con la lectura y el campo, deja rastro y no toca el hash congelado ni el estado anterior', () => {
+  it('guarda antes y después con la lectura y el campo en la forma del servidor, recalcula el hash vigente y conserva el congelado en hashAntes (misma regla que rosa/estado/acciones.py enmendar_lectura)', () => {
     const { e, id } = conLecturas();
     const asignado = asignarExperimento(e, id, 'Lab X', T);
     const hash = asignado.hipotesis.find((y) => y.id === id)!.experimento!.hashLecturas;
@@ -679,15 +727,40 @@ describe('enmendarLectura', () => {
     expect(x.lecturas![0]!.queConfirma).toBe('sube al menos 30 %');
     expect(x.lecturas![0]!.queRefuta).toBe('no sube');
     expect(x.enmiendas).toHaveLength(1);
-    expect(x.enmiendas![0]).toMatchObject({ campo: 'ensayo', antes: 'sube 20 %', despues: 'sube al menos 30 %', quien: 'Allegri', motivo: 'potencia recalculada', lectura: { indice: 0, nombre: 'GFAP en plasma', campo: 'queConfirma' } });
-    expect(x.hashLecturas).toBe(hash);
-    expect(hashLecturas(x)).not.toBe(hash);
+    // Forma del servidor: campo "lecturas[i].campo" y lectura con el nombre.
+    expect(x.enmiendas![0]).toMatchObject({ campo: 'lecturas[0].queConfirma', lectura: 'GFAP en plasma', antes: 'sube 20 %', despues: 'sube al menos 30 %', quien: 'Allegri', motivo: 'potencia recalculada', hashAntes: hash });
+    // El hash vigente cambia y queda en el experimento y en la enmienda; el congelado sobrevive en hashAntes.
+    expect(x.hashLecturas).not.toBe(hash);
+    expect(x.hashLecturas).toBe(hashLecturas(x));
+    expect(x.enmiendas![0]!.hashDespues).toBe(x.hashLecturas);
     expect(h1.procedencia.registro.at(-1)).toContain('lectura «GFAP en plasma», queConfirma');
     expect(e1.eventos.at(-1)?.texto).toContain('Enmienda 1 del prerregistro (lectura «GFAP en plasma», queConfirma)');
     expect(asignado.hipotesis.find((y) => y.id === id)!.experimento!.lecturas![0]!.queConfirma).toBe('sube 20 %');
     const e2 = enmendarLectura(e1, id, 0, 'unidad', 'ng/mL', 'unidad corregida', 'Allegri', T + 2);
-    expect(e2.hipotesis.find((y) => y.id === id)!.experimento!.enmiendas).toHaveLength(2);
-    expect(e2.hipotesis.find((y) => y.id === id)!.experimento!.lecturas![0]!.unidad).toBe('ng/mL');
+    const x2 = e2.hipotesis.find((y) => y.id === id)!.experimento!;
+    expect(x2.enmiendas).toHaveLength(2);
+    expect(x2.lecturas![0]!.unidad).toBe('ng/mL');
+    // La segunda enmienda parte del vigente, no del congelado: la cadena de hashes se sigue.
+    expect(x2.enmiendas![1]!.hashAntes).toBe(x.hashLecturas);
+    expect(x2.enmiendas![1]!.hashDespues).toBe(x2.hashLecturas);
+    expect(x2.enmiendas![0]!.hashAntes).toBe(hash);
+  });
+  it('adversario: un texto guardado con espacios de más se compara recortado, como en el servidor, y "antes" queda recortado en la enmienda', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    const lecturas = [{ nombre: 'GFAP', tipo: 'biomarcador' as const, queConfirma: '  sube 20 %  ', queRefuta: 'no sube', control: '', unidad: '' }];
+    const e = { ...e0, hipotesis: e0.hipotesis.map((x) => (x.id === h.id ? { ...x, experimento: { ...x.experimento!, lecturas } } : x)) };
+    const asignado = asignarExperimento(e, h.id, 'Lab X', T);
+    // Mismo texto salvo los espacios: el servidor (`.strip()`) no lo da por cambio; aquí tampoco.
+    expect(enmendarLectura(asignado, h.id, 0, 'queConfirma', 'sube 20 %', 'm', 'p', T)).toBe(asignado);
+    const e1 = enmendarLectura(asignado, h.id, 0, 'queConfirma', 'sube 30 %', 'm', 'p', T);
+    expect(e1.hipotesis.find((y) => y.id === h.id)!.experimento!.enmiendas![0]).toMatchObject({ antes: 'sube 20 %', despues: 'sube 30 %' });
+  });
+  it('adversario: el hash de un registro antiguo (solo ensayo, confirma y refuta) y de lecturas con valores raros es el de rosa/experimento.py', () => {
+    // Vectores calculados con PYTHONPATH=. ./.venv/bin/python (hash_lecturas) el 17 de septiembre de 2026.
+    expect(hashLecturas({ ensayo: 'ELISA de GFAP en plasma', confirma: 'GFAP sube 30 %', refuta: 'GFAP no cambia', protocolo: 'p' })).toBe('6fee532d4786932e5a741e7a31cdab976abc8207a290e3a2cf44e7c2f731606d');
+    expect(hashLecturas({ lecturas: [{ nombre: ' GFAP ', tipo: 'biomarcador', queConfirma: 'sube', queRefuta: 'baja', control: '', unidad: 'pg/mL' }] })).toBe('2341476cc291956bc4057ce65a9fa45c7c17bc0db2532d3294db98fbd736a07b');
+    expect(hashLecturas({ lecturas: [{ nombre: 'ñandú «x»', tipo: 'raro', queConfirma: 'a  b', queRefuta: 'c/d', control: null, unidad: 5 }] })).toBe('3417fd8038ead6f1fbce5973745f3a151dee34c67fedd0a88248f1456f3c1423');
   });
 });
 
@@ -704,5 +777,78 @@ describe('investigación nueva con los campos de ROSA2018', () => {
     const rama = bifurcarInvestigacion(conMapa, id!, 'rama de prueba', T);
     expect(rama.estado.investigaciones.find((i) => i.id === rama.id)!.mapaRuta).toBeNull();
     expect(rama.estado.investigaciones.find((i) => i.id === id)!.mapaRuta?.filas).toEqual([]);
+  });
+});
+
+// 17 de septiembre de 2026: idempotencia de la decisión humana (S-23), bandera
+// de datos sintéticos del laboratorio (S-18) y hash recalculado también al
+// enmendar un campo de texto (M-32), como hace el servidor.
+describe('revisarHipotesis es idempotente', () => {
+  it('aceptar sobre una aceptada (o descartar sobre una descartada) devuelve el mismo estado: ni segunda revisión ni segundo hecho', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis.find((x) => x.estado === 'propuesta')!;
+    const e1 = revisarHipotesis(e0, h.id, 'aceptar', '', 'Allegri', T);
+    expect(e1.hipotesis.find((x) => x.id === h.id)!.estado).toBe('aceptada');
+    const revisiones = e1.hipotesis.find((x) => x.id === h.id)!.revisiones.length;
+    // El segundo clic (o la reaplicación de una pendiente sobre el estado del servidor que ya la trae) no cambia nada.
+    expect(revisarHipotesis(e1, h.id, 'aceptar', '', 'Allegri', T + 1)).toBe(e1);
+    expect(e1.hipotesis.find((x) => x.id === h.id)!.revisiones.length).toBe(revisiones);
+    expect(e1.hechos.filter((x) => x.id === `he-${h.id}`)).toHaveLength(1);
+    // Cambiar de decisión sí se aplica (descartar una aceptada exige motivo).
+    const e2 = revisarHipotesis(e1, h.id, 'descartar', 'no reproducible', 'Allegri', T + 2);
+    expect(e2).not.toBe(e1);
+    expect(e2.hipotesis.find((x) => x.id === h.id)!.estado).toBe('descartada');
+    expect(revisarHipotesis(e2, h.id, 'descartar', 'otra vez', 'Allegri', T + 3)).toBe(e2);
+  });
+});
+
+describe('registrarDatosExperimento con la bandera de sintético', () => {
+  const conExperimento = () => {
+    const e = estadoDeMuestra();
+    const h = e.hipotesis.find((x) => x.experimento)!;
+    return { e, id: h.id };
+  };
+  it('guarda datosSinteticos cuando la persona lo marca, lo fuerza si el nombre del fichero lo dice, y borra el resultado anterior para que Rosa reevalúe', () => {
+    const { e, id } = conExperimento();
+    const real = registrarDatosExperimento(e, id, 'datos_gfap.csv', 'tiempo hasta alteración');
+    expect(real.hipotesis.find((x) => x.id === id)!.experimento).toMatchObject({ ficheroDatos: 'datos_gfap.csv', analisisPedido: 'tiempo hasta alteración', estado: 'datos_recibidos', datosSinteticos: false, resultado: null });
+    const marcado = registrarDatosExperimento(e, id, 'datos_gfap.csv', '', true);
+    expect(marcado.hipotesis.find((x) => x.id === id)!.experimento!.datosSinteticos).toBe(true);
+    // El caso real del 11 de septiembre: datos_gfap_nfl_sintetico.csv sin casilla.
+    const porNombre = registrarDatosExperimento(e, id, 'datos_gfap_nfl_sintetico.csv', '');
+    expect(porNombre.hipotesis.find((x) => x.id === id)!.experimento!.datosSinteticos).toBe(true);
+    expect(registrarDatosExperimento(e, id, 'SINTÉTICO-humo.csv', '').hipotesis.find((x) => x.id === id)!.experimento!.datosSinteticos).toBe(true);
+    expect(registrarDatosExperimento(e, id, '   ', '', true)).toBe(e);
+    // Misma regla que rosa/certeza.py NOMBRE_SINTETICO: delatan "synthetic", "dummy", "fake", "mock", "datos de prueba" y "prueba.csv"; "prueba" suelta y "humo" no.
+    for (const nombre of ['synthetic.csv', 'dummy_gfap.csv', 'fake.tsv', 'mock-datos.json', 'datos_de_prueba.csv', 'data prueba.csv', 'gfap_de_prueba.csv', 'prueba.csv', 'prueba_2.csv']) expect(FICHERO_SINTETICO.test(nombre)).toBe(true);
+    for (const nombre of ['prueba_cognitiva_MMSE.csv', 'resultados_prueba_ELISA.csv', 'exposicion_humo_tabaco.csv', 'datos_gfap.csv', 'faker.csv']) expect(FICHERO_SINTETICO.test(nombre)).toBe(false);
+  });
+});
+
+describe('enmendarExperimento recalcula el hash como el servidor', () => {
+  it('con hash congelado y un campo que cambia las lecturas derivadas, guarda hashAntes y hashDespues y actualiza el vigente; sin hash previo no lo inventa', () => {
+    const e0 = estadoDeMuestra();
+    const h = e0.hipotesis.find((x) => x.experimento && x.experimento.estado === 'propuesto')!;
+    const asignado = asignarExperimento(e0, h.id, 'Lab X', T);
+    const x0 = asignado.hipotesis.find((y) => y.id === h.id)!.experimento!;
+    expect(x0.hashLecturas).toMatch(/^[0-9a-f]{64}$/);
+    const e1 = enmendarExperimento(asignado, h.id, 'confirma', 'sube al menos un 30 %', 'potencia recalculada', 'Allegri', T + 1);
+    const x1 = e1.hipotesis.find((y) => y.id === h.id)!.experimento!;
+    const en = x1.enmiendas![0]!;
+    if (en.hashAntes) {
+      // La lectura derivada del par confirma/refuta cambió: el hash también.
+      expect(en.hashAntes).toBe(x0.hashLecturas);
+      expect(en.hashDespues).toBe(x1.hashLecturas);
+      expect(x1.hashLecturas).not.toBe(x0.hashLecturas);
+    } else {
+      // Las lecturas declaradas no dependen de "confirma": el hash sigue igual y no se anota.
+      expect(x1.hashLecturas).toBe(x0.hashLecturas);
+    }
+    // Sin hash congelado (registro anterior) no se inventa ninguno.
+    const sinHash = { ...asignado, hipotesis: asignado.hipotesis.map((y) => (y.id === h.id ? { ...y, experimento: { ...y.experimento!, hashLecturas: undefined } } : y)) };
+    const e2 = enmendarExperimento(sinHash, h.id, 'protocolo', 'otro protocolo', 'motivo', 'Allegri', T + 2);
+    const x2 = e2.hipotesis.find((y) => y.id === h.id)!.experimento!;
+    expect(x2.hashLecturas).toBeUndefined();
+    expect(x2.enmiendas![0]!.hashAntes).toBeUndefined();
   });
 });

@@ -150,9 +150,13 @@ def nueva_corrida(investigacion_id: str, numero: int, ahora: int, limite: int | 
         "empezadaEn": ahora,
         "terminadaEn": None,
         "iteracionActual": 1,
-        "gasto": {"tokensEntrada": 0, "tokensSalida": 0, "llamadas": 0, "segundos": 0, "articulosLeidos": 0},
+        # `usd` es la estimación por tokens con la tabla de respaldo; `usdReal` acumula
+        # aparte lo que el gateway facturó (`usage.cost`), para poder compararlos (S-19).
+        "gasto": {"tokensEntrada": 0, "tokensSalida": 0, "llamadas": 0, "segundos": 0, "articulosLeidos": 0, "usd": 0.0, "usdReal": 0.0},
         "motivoCierre": None,
-        "presupuesto": {"limiteLlamadas": limite or config.PRESUPUESTO_CORRIDA, "alertas": list(config.ALERTAS_PRESUPUESTO), "avisadas": []},
+        # `motivoPausa`: qué tope cortó cuando la corrida se pausó por presupuesto (el
+        # de la corrida o el de la iteración N), para que el aviso no culpe al global.
+        "presupuesto": {"limiteLlamadas": limite or config.PRESUPUESTO_CORRIDA, "alertas": list(config.ALERTAS_PRESUPUESTO), "avisadas": [], "motivoPausa": ""},
         "contexto": {"tokensUsados": 0, "tokensLimite": 400_000, "compactaciones": 0, "ultimaCompactacion": None},
         "busqueda": {"identificados": 0, "cribados": 0, "textoCompleto": 0, "usados": 0, "consultas": [], "excluidos": [], "traidos": 0},
         "coberturas": [],
@@ -270,6 +274,25 @@ def novedad_pendiente() -> dict[str, Any]:
     }
 
 
+def novedad_no_comprobada(version: int, motivo: str = "reformulacion") -> dict[str, Any]:
+    """Estado "no comprobado" de una consulta de novedad tras reformular: la
+    versión N cambió el título o el enunciado y el precedente, las patentes y
+    la financiación de la versión anterior ya no valen. `detalle` empieza por
+    "No comprobado" porque `paso_novedad` (rosa/bucle/pasos.py) y el Killer
+    detectan así lo pendiente; `estado` "no_comprobado" es la clave nueva del
+    contrato del 17 de septiembre de 2026."""
+    return {"estado": "no_comprobado", "detalle": f"No comprobado todavía para la versión {version}: el enunciado cambió", "motivo": motivo, "url": None}
+
+
+def experimento_con_datos(x: dict[str, Any]) -> dict[str, Any]:
+    """Completa en sitio un experimento con las claves de la subida de datos
+    del laboratorio que un registro antiguo no trae: `datosSinteticos` (la
+    persona declaró que el fichero es de prueba, o su nombre lo dice; nunca
+    cuenta como evidencia, S-18). Devuelve el mismo diccionario."""
+    x.setdefault("datosSinteticos", False)
+    return x
+
+
 def revisiones_automaticas_pendientes() -> list[dict[str, Any]]:
     return [{"tipo": t, "estado": "pendiente", "resumen": "", "fecha": None} for t in TIPOS_REVISION]
 
@@ -307,7 +330,7 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "coste": {"literatura": 0, "analisis": 0},
         "experimento": None,
         "prerregistradaEn": ahora,
-        # ROSA2018: contrato minimo, versiones, decisiones, bloqueos.
+        # ROSA2018: contrato mínimo, versiones, decisiones, bloqueos.
         "tarjeta": None,
         "version": 1,
         "versiones": [],
@@ -374,7 +397,7 @@ def nuevo_evento(investigacion_id: str, tipo: str, texto: str, ruta: str | None,
 
 
 # ---------------------------------------------------------------------------
-# ROSA2018: mision, tarjeta, decisiones, analisis, aprendizaje
+# ROSA2018: misión, tarjeta, decisiones, análisis, aprendizaje
 # ---------------------------------------------------------------------------
 
 
@@ -466,7 +489,7 @@ def tarjeta_vacia() -> dict[str, Any]:
 
 
 def version_de(h: dict[str, Any], ahora: int, quien: str, motivo: str) -> dict[str, Any]:
-    """Instantanea de la hipótesis tal como esta, para guardarla antes de reformular."""
+    """Instantánea de la hipótesis tal como está, para guardarla antes de reformular."""
     return {
         "n": h.get("version", 1),
         "fecha": ahora,

@@ -73,4 +73,24 @@ describe('la pantalla de la corrida', () => {
     const conHooks = errores.filter((e) => JSON.stringify(e).includes('hooks'));
     expect(conHooks).toEqual([]);
   });
+
+  it('mientras espera a una persona lo dice junto al reloj y no cuenta el tiempo de pared; con factura del gateway la enseña', async () => {
+    const base = estadoDeMuestra();
+    const inv = base.investigaciones[0]!;
+    const corrida = base.corridas.find((c) => c.investigacionId === inv.id)!;
+    const esperando = { ...base, corridas: base.corridas.map((c) => (c.id === corrida.id ? { ...c, estado: 'esperando_plan' as const, empezadaEn: Date.now() - 3_600_000, gasto: { ...c.gasto, segundos: 90, usd: 26.79, usdReal: 12.71 } } : c)) };
+    await act(async () => root.render(<Corrida inv={inv} estado={esperando} ahora={Date.now()} irA={() => undefined} />));
+    expect(nodo.textContent).toContain('en espera de una persona');
+    expect(nodo.textContent).toContain('1 min 30 s de trabajo');
+    expect(nodo.textContent).not.toContain('1 h de trabajo');
+    expect(nodo.textContent).toContain('12,71 USD');
+    expect(nodo.textContent).toMatch(/facturados? por el gateway/);
+    expect(nodo.textContent).toContain('26,79 USD');
+    const enMarcha = { ...esperando, corridas: esperando.corridas.map((c) => (c.id === corrida.id ? { ...c, estado: 'en_marcha' as const, esperaHumanaMs: 3_500_000, gasto: { ...c.gasto, usdReal: undefined } } : c)) };
+    await act(async () => root.render(<Corrida inv={inv} estado={enMarcha} ahora={Date.now()} irA={() => undefined} />));
+    expect(nodo.textContent).not.toContain('en espera de una persona');
+    // 1 h de pared menos 3500 s de espera: unos 100 s de trabajo, no una hora.
+    expect(nodo.textContent).toMatch(/1 min 4\d s de trabajo/);
+    expect(nodo.textContent).toContain('estimados por tokens');
+  });
 });

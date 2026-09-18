@@ -69,11 +69,21 @@ describe('candidatos con diversidad', () => {
 });
 
 describe('cohortes', () => {
-  it('cuenta cohortes distintas, no articulos', () => {
+  it('cuenta cohortes distintas, no artículos, y devuelve la etiqueta canónica del catálogo', () => {
     const estado = estadoDeMuestra();
     const h = estado.hipotesis[0]!;
     const fuentes = h.procedencia.fuentes.map((f, i) => ({ ...f, cohorte: i % 2 === 0 ? 'ADNI' : 'adni ' }));
-    expect(cohortesDe({ procedencia: { ...h.procedencia, fuentes } })).toEqual(['adni']);
+    expect(cohortesDe({ procedencia: { ...h.procedencia, fuentes } })).toEqual(['ADNI']);
+  });
+  it('un alias y un nombre largo resuelven a la misma cohorte; un nombre libre que contiene una del catálogo se une a ella (casos reales del estado del 17 de septiembre)', () => {
+    const fuentes = (nombres: (string | null)[]) => nombres.map((c, i) => ({ id: `f${i}`, cohorte: c }));
+    expect(cohortesDe(fuentes(["Alzheimer's Disease Neuroimaging Initiative", 'ADNI-3', 'ADNI y A4/LEARN']))).toEqual(['ADNI']);
+    expect(cohortesDe(fuentes(['study 201 (lecanemab)', 'Study 201 core']))).toEqual(['Study 201']);
+    expect(cohortesDe(fuentes(['ADAD (portadores PSEN1/APP) - cohorte Belder et al.', 'ADAD']))).toEqual(['ADAD (portadores PSEN1/APP) - cohorte Belder et al.']);
+    expect(cohortesDe(fuentes(['ADNI; Penn-ADRC', 'ADNI']))).toEqual(['ADNI']);
+    expect(cohortesDe(fuentes(['TRAILBLAZER-ALZ 2', 'TRAILBLAZER-ALZ', 'TRAILBLAZER-ALZ (NCT03367403) y TRAILBLAZER-ALZ 2 (NCT04437511)']))).toEqual(['TRAILBLAZER-ALZ 2', 'TRAILBLAZER-ALZ']);
+    // Sin cohorte no se cuenta: no se puede afirmar independencia ni lo contrario.
+    expect(cohortesDe(fuentes([null, '', '   ']))).toEqual([]);
   });
 });
 

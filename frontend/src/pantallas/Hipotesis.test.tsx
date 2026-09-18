@@ -200,3 +200,81 @@ describe('adversario: la ficha con las claves nuevas corruptas', () => {
     expect(nodo.querySelector('[data-ruta-resumen]')).toBeNull();
   });
 });
+
+// 17 de septiembre de 2026: S-18 (casilla de datos sintéticos), S-09 (juicio
+// pendiente por avería del modelo) y M-19 (un descarte que el Killer propuso
+// y después retiró no sigue bloqueando la aceptación).
+describe('la ficha con las reglas del 17 de septiembre', () => {
+  it('la subida de datos del laboratorio lleva la casilla "sintéticos o de prueba" y enseña el chip cuando ya se marcó', async () => {
+    const e = structuredClone(estadoDeMuestra());
+    const h = e.hipotesis.find((x) => x.experimento)!;
+    h.experimento = { ...h.experimento!, estado: 'asignado', laboratorio: 'FLENI', ficheroDatos: null, datosSinteticos: false };
+    await montar(e, h.id);
+    const casilla = [...nodo.querySelectorAll('label.interruptor')].find((l) => l.textContent?.includes('sintéticos o de prueba'))!;
+    expect(casilla).toBeDefined();
+    expect(casilla.querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(nodo.textContent).not.toContain('Datos sintéticos o de prueba: no cuentan como evidencia');
+    h.experimento = { ...h.experimento, estado: 'datos_recibidos', ficheroDatos: 'datos_gfap_nfl_sintetico.csv', datosSinteticos: true };
+    await montar(structuredClone(e), h.id);
+    expect(nodo.textContent).toContain('Datos sintéticos o de prueba: no cuentan como evidencia');
+  });
+
+  it('una suspensión técnica ("El juez no respondió") se enseña como pendiente de juicio en la cola y en la ficha', async () => {
+    const e = structuredClone(estadoDeMuestra());
+    const inv = e.investigaciones[0]!;
+    const h = e.hipotesis.find((x) => x.investigacionId === inv.id && x.estado === 'propuesta')!;
+    h.decisionKiller = 'suspender';
+    h.revisiones = [...h.revisiones, { fecha: Date.now(), quien: 'Rosa', accion: 'killer', nota: 'suspender: El juez no respondió: no se puede dar por revisada', aCiegas: false }];
+    await montar(e, '');
+    const fila = [...nodo.querySelectorAll('.hip-fila')].find((f) => f.textContent?.includes(h.titulo))!;
+    expect(fila.textContent).toContain('Pendiente de juicio: el modelo no respondió');
+    await montar(e, h.id);
+    expect(nodo.textContent).toContain('Pendiente de juicio: el modelo no respondió');
+    // Con la clave pública del servidor, igual, aunque la nota no lo diga.
+    h.revisiones = h.revisiones.slice(0, -1);
+    h.killerPendiente = { intentos: 2, motivo: 'la respuesta no se pudo leer' };
+    await montar(structuredClone(e), h.id);
+    expect(nodo.textContent).toContain('Pendiente de juicio: la respuesta no se pudo leer');
+  });
+
+  it('un hallazgo "El Killer propone descartarla" abierto se enseña atendido si la decisión vigente ya no es descartar, y deja de bloquear la aceptación', async () => {
+    const { hallazgosVigentes } = await import('./Hipotesis');
+    const abierto = { id: 'x1', tipo: 'conclusion_no_sigue' as const, resumen: 'El Killer propone descartarla en este contexto', razonamiento: 'citas', estado: 'abierto' as const, respuestaDeRosa: null };
+    const otro = { ...abierto, id: 'x2', resumen: 'Cita que no resuelve' };
+    // Con descarte vigente, nada cambia.
+    expect(hallazgosVigentes({ hallazgos: [abierto, otro], decisionKiller: 'descartar_en_contexto', version: 3 })).toEqual([abierto, otro]);
+    // Con avanzar (o suspender) después, el de descarte pasa a atendido con su nota; el otro sigue abierto.
+    const v = hallazgosVigentes({ hallazgos: [abierto, otro], decisionKiller: 'avanzar', version: 3 });
+    expect(v[0]).toMatchObject({ id: 'x1', estado: 'atendido' });
+    expect(v[0]!.respuestaDeRosa).toContain('versión 3');
+    expect(v[0]!.respuestaDeRosa).toContain('avanza');
+    expect(v[1]).toEqual(otro);
+    // Sin decisión (la versión nueva aún no pasó por el Killer) o con "reformular" el
+    // servidor no atiende el hallazgo (rosa/bucle/pasos.py solo lo hace con avanzar o
+    // suspender): la ausencia de juicio no retira un descarte propuesto.
+    expect(hallazgosVigentes({ hallazgos: [abierto], decisionKiller: null, version: 1 })[0]!.estado).toBe('abierto');
+    expect(hallazgosVigentes({ hallazgos: [abierto], decisionKiller: undefined, version: 2 })[0]!.estado).toBe('abierto');
+    expect(hallazgosVigentes({ hallazgos: [abierto], decisionKiller: 'reformular', version: 2 })[0]!.estado).toBe('abierto');
+    expect(hallazgosVigentes({ hallazgos: [abierto], decisionKiller: 'suspender', version: 2 })[0]!.estado).toBe('atendido');
+    // Un hallazgo ya atendido o descartado no se toca, y uno con respuesta propia la conserva.
+    const atendido = { ...abierto, estado: 'atendido' as const, respuestaDeRosa: 'ya respondido' };
+    expect(hallazgosVigentes({ hallazgos: [atendido], decisionKiller: 'avanzar', version: 2 })[0]).toEqual(atendido);
+    // Registros raros: sin hallazgos, hallazgos que no son lista, entradas nulas.
+    expect(hallazgosVigentes({ hallazgos: undefined as never, decisionKiller: 'avanzar' })).toEqual([]);
+    expect(hallazgosVigentes({ hallazgos: [null as never, abierto], decisionKiller: 'avanzar' })[0]).toBeNull();
+    // En la ficha: la sección Decisión ya no dice que un hallazgo bloquea, y la cola no lo cuenta como abierto.
+    const e = structuredClone(estadoDeMuestra());
+    const inv = e.investigaciones[0]!;
+    const h = e.hipotesis.find((x) => x.investigacionId === inv.id && x.estado === 'propuesta' && x.hallazgos.every((y) => y.estado !== 'abierto'))!;
+    h.hallazgos = [abierto];
+    h.decisionKiller = 'avanzar';
+    await montar(e, '');
+    const fila = [...nodo.querySelectorAll('.hip-fila')].find((f) => f.textContent?.includes(h.titulo))!;
+    expect(fila.textContent).not.toContain('hallazgo abierto');
+    await montar(e, h.id);
+    expect(nodo.textContent).not.toContain('hallazgo del revisor sigue abierto');
+    // El Revisor lo pinta como atendido (plegado, tono ok), no como abierto.
+    const tarjetas = [...nodo.querySelectorAll('.hallazgo, .hallazgo-abierto, [data-hallazgo]')];
+    expect(tarjetas.length === 0 || tarjetas.every((t) => !t.className.includes('mal'))).toBe(true);
+  });
+});
