@@ -800,7 +800,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               {nodoSel.sub && <p className="meta">{nodoSel.sub}</p>}
               {nodoSel.alerta && <p className="tono-mal" style={{ fontSize: 13 }}>{nodoSel.alerta}</p>}
               {nodoSel.alias && nodoSel.alias.length > 1 && <p className="meta">Alias: {nodoSel.alias.slice(0, 8).join(', ')}</p>}
-              <p className="meta">Aparece desde la iteración {nodoSel.iteracion || 1}.</p>
+              <p className="meta">Aparece desde la iteración {nodoSel.iteracion || 1} de {grafo.iteracionMax} (contando seguidas todas las corridas).</p>
               {!SIN_DISTANCIA.has(nodoSel.tipo) && <p className="meta">{fraseProfundidad(nodoSel)}</p>}
               <h4>Conectado con</h4>
               <ul className="grafo-vecinos">

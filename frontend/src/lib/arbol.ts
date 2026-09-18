@@ -13,7 +13,7 @@
 // de la MEDICIÓN PROPIA más cercana y de la fuente leída más cercana. Es lo
 // que colorea el modo "Color por distancia al dato" de la pantalla.
 
-import type { Afirmacion, Ejecucion, EstadoRosa, Hipotesis, Investigacion, Iteracion } from '../datos/tipos';
+import type { Afirmacion, Corrida, Ejecucion, EstadoRosa, Hipotesis, Investigacion, Iteracion } from '../datos/tipos';
 import { rutaDe } from './ruta';
 
 export type TipoNodo = 'objetivo' | 'rama' | 'area' | 'hipotesis' | 'hecho' | 'pregunta' | 'fuente' | 'entidad' | 'experimento' | 'afirmacion' | 'ejecucion' | 'dataset' | 'laboratorio';
@@ -112,10 +112,14 @@ export const SIN_DISTANCIA: ReadonlySet<TipoNodo> = new Set<TipoNodo>([...ESTRUC
  *  varias candidatas gana la que empezó más tarde, sea cual sea el orden de la
  *  lista, para que el resultado no dependa de cómo llegó el estado. undefined
  *  si no hay iteraciones fechadas antes de `t` (registro antiguo). */
-export function iteracionEn(iteraciones: readonly Pick<Iteracion, 'numero' | 'empezadaEn' | 'terminadaEn'>[], t: number | null | undefined): number | undefined {
+type IteracionMinima = Pick<Iteracion, 'id' | 'corridaId' | 'numero' | 'empezadaEn' | 'terminadaEn'>;
+
+/** La iteración que contiene el instante `t`; si cae entre dos (esperando la
+ * aprobación de un plan), la anterior. `undefined` si no hay ninguna antes. */
+export function iteracionObjEn<T extends Pick<Iteracion, 'numero' | 'empezadaEn' | 'terminadaEn'>>(iteraciones: readonly T[], t: number | null | undefined): T | undefined {
   if (typeof t !== 'number' || !Number.isFinite(t)) return undefined;
-  let contiene: Pick<Iteracion, 'numero' | 'empezadaEn' | 'terminadaEn'> | undefined;
-  let previa: Pick<Iteracion, 'numero' | 'empezadaEn' | 'terminadaEn'> | undefined;
+  let contiene: T | undefined;
+  let previa: T | undefined;
   for (const it of iteraciones) {
     if (typeof it.empezadaEn !== 'number' || it.empezadaEn > t) continue;
     const abierta = it.terminadaEn == null || t <= it.terminadaEn;
@@ -125,7 +129,44 @@ export function iteracionEn(iteraciones: readonly Pick<Iteracion, 'numero' | 'em
       else previa = it;
     }
   }
-  return (contiene ?? previa)?.numero;
+  return contiene ?? previa;
+}
+
+export function iteracionEn(iteraciones: readonly Pick<Iteracion, 'numero' | 'empezadaEn' | 'terminadaEn'>[], t: number | null | undefined): number | undefined {
+  return iteracionObjEn(iteraciones, t)?.numero;
+}
+
+/** Numeración seguida de las iteraciones de una investigación (M-20 de la
+ * revisión). El backend numera las iteraciones por corrida (1, 2, 3 y otra vez
+ * 1 en la corrida siguiente), así que con trece corridas el deslizador "Cómo
+ * creció" decía "iteración 4 de 4". Aquí cada iteración recibe un ordinal
+ * acumulado: la corrida más antigua aporta sus números tal cual y cada corrida
+ * siguiente empieza donde acabó la anterior (su desplazamiento es la suma de
+ * los máximos previos). Con una sola corrida el ordinal coincide con el número,
+ * así que los registros antiguos y los tests no cambian. */
+export function ordinalesDeIteraciones(iteraciones: readonly IteracionMinima[], corridas: readonly Pick<Corrida, 'id' | 'empezadaEn'>[]): { deIteracion: Map<string, number>; deCorrida: Map<string, number>; total: number } {
+  const porCorrida = new Map<string, IteracionMinima[]>();
+  for (const it of iteraciones) {
+    const lista = porCorrida.get(it.corridaId) ?? [];
+    lista.push(it);
+    porCorrida.set(it.corridaId, lista);
+  }
+  const inicioDe = (cid: string): number => {
+    const c = corridas.find((x) => x.id === cid);
+    if (c && typeof c.empezadaEn === 'number') return c.empezadaEn;
+    return Math.min(...(porCorrida.get(cid) ?? []).map((i) => (typeof i.empezadaEn === 'number' ? i.empezadaEn : Number.POSITIVE_INFINITY)));
+  };
+  const orden = [...porCorrida.keys()].sort((a, b) => inicioDe(a) - inicioDe(b) || a.localeCompare(b));
+  const deIteracion = new Map<string, number>();
+  const deCorrida = new Map<string, number>();
+  let desplazamiento = 0;
+  for (const cid of orden) {
+    deCorrida.set(cid, desplazamiento);
+    const lista = porCorrida.get(cid) ?? [];
+    for (const it of lista) deIteracion.set(it.id, desplazamiento + it.numero);
+    desplazamiento += Math.max(0, ...lista.map((i) => i.numero));
+  }
+  return { deIteracion, deCorrida, total: desplazamiento };
 }
 
 const ESTADO_EJECUCION_LEGIBLE: Record<string, string> = { no_ejecutado: 'no ejecutado', en_curso: 'en curso', error_tecnico: 'error técnico', completado: 'completado', tiempo_agotado: 'tiempo agotado' };
@@ -267,7 +308,28 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   const hechos = (estado.hechos ?? []).filter((h) => h.investigacionId === inv.id);
   const corridasInv = new Set((estado.corridas ?? []).filter((c) => c.investigacionId === inv.id).map((c) => c.id));
   const iteracionesInv = (estado.iteraciones ?? []).filter((i) => corridasInv.has(i.corridaId));
-  const iteracionMax = Math.max(1, ...hip.map((h) => h.iteracion), ...iteracionesInv.map((i) => i.numero));
+  const corridasDeInv = (estado.corridas ?? []).filter((c) => c.investigacionId === inv.id);
+  // Numeración seguida de las iteraciones (ver ordinalesDeIteraciones): todo lo
+  // que abajo se fecha en una iteración usa el ordinal, nunca el número por corrida.
+  const ordinales = ordinalesDeIteraciones(iteracionesInv, corridasDeInv);
+  const ordinalEn = (t: number | null | undefined): number | undefined => {
+    const it = iteracionObjEn(iteracionesInv, t);
+    return it ? ordinales.deIteracion.get(it.id) : undefined;
+  };
+  // La hipótesis guarda su iteración por corrida; la corrida en la que nació
+  // (por fecha) da el desplazamiento. Si no cae en ninguna, la iteración que
+  // contenía ese instante; y sin fechas, el número tal cual.
+  const ordinalHip = (h: Hipotesis): number => {
+    const t = typeof h.creadaEn === 'number' ? h.creadaEn : undefined;
+    const corrida = t == null ? undefined : corridasDeInv.find((c) => typeof c.empezadaEn === 'number' && c.empezadaEn <= t && (c.terminadaEn == null || t <= c.terminadaEn));
+    const desplazamiento = corrida ? ordinales.deCorrida.get(corrida.id) : undefined;
+    if (desplazamiento != null) return desplazamiento + h.iteracion;
+    return ordinalEn(t) ?? h.iteracion;
+  };
+  const ordinalHipDe = new Map(hip.map((h) => [h.id, ordinalHip(h)] as const));
+  const ordinalDe = (h: Hipotesis): number => ordinalHipDe.get(h.id) ?? h.iteracion;
+  const desplazamientoDe = (h: Hipotesis): number => ordinalDe(h) - h.iteracion;
+  const iteracionMax = Math.max(1, ordinales.total, ...hip.map((h) => h.iteracion), ...ordinalHipDe.values());
 
   anadir({ id: 'objetivo', tipo: 'objetivo', etiqueta: inv.titulo, sub: inv.objetivo, peso: 4, iteracion: 0, href: rutaDe(inv.id, 'investigacion') });
   for (const a of inv.mision?.areas ?? []) {
@@ -283,7 +345,7 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
     const n = hip.filter((h) => (h.cluster || 'Sin cluster') === c);
     if (n.length < 2) continue;
     conRama.add(c);
-    anadir({ id: `rama-${c}`, tipo: 'rama', etiqueta: c, sub: `${n.length} hipótesis`, peso: 2 + Math.min(3, n.length) * 0.4, iteracion: Math.min(...n.map((h) => h.iteracion)), href: rutaDe(inv.id, 'ranking') });
+    anadir({ id: `rama-${c}`, tipo: 'rama', etiqueta: c, sub: `${n.length} hipótesis`, peso: 2 + Math.min(3, n.length) * 0.4, iteracion: Math.min(...n.map((h) => ordinalDe(h))), href: rutaDe(inv.id, 'ranking') });
     enlazar('objetivo', `rama-${c}`, 'rama');
     // Un área cuyo título o familia coincide con el cluster lo adopta.
     const area = (inv.mision?.areas ?? []).find((a) => a.titulo.toLowerCase() === c.toLowerCase() || a.familiaMecanismo.toLowerCase() === c.toLowerCase());
@@ -295,10 +357,10 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
     // Sin Elo (registro anterior al torneo) vale el de salida, 1500: un peso NaN
     // dejaría el círculo sin radio y la disposición por fuerzas sin posición.
     const elo = typeof h.elo === 'number' && Number.isFinite(h.elo) ? h.elo : 1500;
-    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo ?? h.id, sub: `${h.cluster || 'Sin cluster'} · Elo ${elo}${h.candidata ? ' · candidata' : ''}`, peso: pesoHipotesis(h, elo), iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
+    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo ?? h.id, sub: `${h.cluster || 'Sin cluster'} · Elo ${elo}${h.candidata ? ' · candidata' : ''}`, peso: pesoHipotesis(h, elo), iteracion: ordinalDe(h), href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
     enlazar(conRama.has(h.cluster || 'Sin cluster') ? `rama-${h.cluster || 'Sin cluster'}` : 'objetivo', h.id, 'rama');
     if (h.experimento && h.experimento.estado !== 'propuesto') {
-      anadir({ id: `ex-${h.id}`, tipo: 'experimento', etiqueta: h.experimento.laboratorio ? `Experimento en ${h.experimento.laboratorio}` : 'Experimento', sub: h.experimento.estado.replace('_', ' ') + (h.experimento.prerregistradoEn ? ' · prerregistrado' : ''), peso: 2, iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.experimento.estado });
+      anadir({ id: `ex-${h.id}`, tipo: 'experimento', etiqueta: h.experimento.laboratorio ? `Experimento en ${h.experimento.laboratorio}` : 'Experimento', sub: h.experimento.estado.replace('_', ' ') + (h.experimento.prerregistradoEn ? ' · prerregistrado' : ''), peso: 2, iteracion: ordinalDe(h), href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.experimento.estado });
       enlazar(h.id, `ex-${h.id}`, 'experimento');
     }
   }
@@ -312,13 +374,14 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
     }
     return id;
   };
-  for (const h of hip) for (const x of h.entidades ?? []) enlazar(h.id, entidad(x, h.iteracion), 'entidad');
+  for (const h of hip) for (const x of h.entidades ?? []) enlazar(h.id, entidad(x, ordinalDe(h)), 'entidad');
   // Hechos y preguntas del modelo de mundo, unidos a las hipótesis que comparten fuente o entidad.
   const fuentesDe = new Map(hip.map((h) => [h.id, new Set((h.procedencia?.fuentes ?? []).map((f) => f.id))]));
   for (const he of hechos) {
     const tipo: TipoNodo = he.tipo === 'pregunta' || he.estado === 'abierto' ? 'pregunta' : 'hecho';
     const relacionadas = hip.filter((h) => he.id === `he-${h.id}` || (he.procedencia ?? []).some((p) => fuentesDe.get(h.id)?.has(p.fuenteId)));
-    const iteracion = relacionadas.length ? Math.min(...relacionadas.map((h) => h.iteracion)) : iteracionMax;
+    const nacido = he as { historial?: { fecha?: number }[]; actualizadoEn?: number };
+    const iteracion = ordinalEn(nacido.historial?.[0]?.fecha ?? nacido.actualizadoEn) ?? (relacionadas.length ? Math.min(...relacionadas.map((h) => ordinalDe(h))) : iteracionMax);
     anadir({ id: `he-${he.id}`, tipo, etiqueta: he.enunciado.length > 90 ? `${he.enunciado.slice(0, 87)}...` : he.enunciado, sub: `${he.tema} · ${he.estado}`, peso: 1 + Math.min(2, relacionadas.length * 0.3), iteracion, href: rutaDe(inv.id, 'mundo'), estado: he.estado });
     for (const h of relacionadas) enlazar(`he-${he.id}`, h.id, 'respalda');
     for (const x of he.entidades ?? []) enlazar(`he-${he.id}`, entidad(x, iteracion), 'entidad');
@@ -330,7 +393,7 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   for (const h of hip) {
     for (const f of h.procedencia?.fuentes ?? []) {
       const id = `fu-${f.id}`;
-      if (!vistos.has(id)) anadir({ id, tipo: 'fuente', etiqueta: f.referencia, sub: f.titulo, peso: 1, iteracion: h.iteracion, alerta: f.retraccion ? `marca editorial: ${f.retraccion}` : undefined, estado: f.retraccion ?? undefined });
+      if (!vistos.has(id)) anadir({ id, tipo: 'fuente', etiqueta: f.referencia, sub: f.titulo, peso: 1, iteracion: ordinalDe(h), alerta: f.retraccion ? `marca editorial: ${f.retraccion}` : undefined, estado: f.retraccion ?? undefined });
       if (f.textoCompleto || (f.fragmento ?? '').trim()) fuentesLeidas.add(id);
       enlazar(h.id, id, 'cita');
     }
@@ -393,14 +456,14 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   // Cuándo corrió un análisis, para el deslizador de iteraciones: la iteración
   // en marcha en su instante de inicio, nunca antes de que naciera la hipótesis;
   // sin iteraciones fechadas (registro antiguo), la de la hipótesis.
-  const iteracionDeEjecucion = (h: Hipotesis, run: Ejecucion | undefined): number => Math.max(h.iteracion, (run ? iteracionEn(iteracionesInv, run.inicio) : undefined) ?? h.iteracion);
+  const iteracionDeEjecucion = (h: Hipotesis, run: Ejecucion | undefined): number => Math.max(ordinalDe(h), (run ? ordinalEn(run.inicio) : undefined) ?? ordinalDe(h));
   const idAfirmacion = (h: Hipotesis, a: Afirmacion, i: number) => `af-${a.afirmacionId || `${h.id}-${i}`}`;
   for (const h of hip) {
     (h.afirmaciones ?? []).forEach((a, i) => {
       if (a.tipo !== 'dato') return;
       const id = idAfirmacion(h, a, i);
       // Una afirmación derivada de un análisis no trae iteración propia: es la del análisis.
-      const iteracion = a.iteracion ?? (a.trayectoria?.id ? iteracionDeEjecucion(h, ejecucionPorId.get(a.trayectoria.id)) : h.iteracion);
+      const iteracion = a.iteracion != null ? desplazamientoDe(h) + a.iteracion : (a.trayectoria?.id ? iteracionDeEjecucion(h, ejecucionPorId.get(a.trayectoria.id)) : ordinalDe(h));
       if (!vistos.has(id)) {
         const medicion = medicionDeAfirmacion(a) ?? undefined;
         const alerta = a.sintetico ? 'dato sintético: no cuenta como observación' : NO_SOSTENIDOS.has(a.veredicto) ? 'el verificador no la sostiene' : undefined;
@@ -440,7 +503,7 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
       const id = `lab-${h.id}`;
       const r = h.experimento.resultado;
       // El resultado llega fechado: aparece en la iteración en que llegó, como los análisis.
-      const iteracion = Math.max(h.iteracion, iteracionEn(iteracionesInv, r.fecha) ?? h.iteracion);
+      const iteracion = Math.max(ordinalDe(h), ordinalEn(r.fecha) ?? ordinalDe(h));
       anadir({ id, tipo: 'laboratorio', etiqueta: 'Resultado del laboratorio', sub: `${legible(RESULTADO_LEGIBLE, r.veredicto)}${h.experimento.laboratorio ? ` · ${h.experimento.laboratorio}` : ''}`, peso: 2, iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: r.veredicto, medicion: 'resultado del laboratorio sobre el prerregistro' });
       enlazar(vistos.has(`ex-${h.id}`) ? `ex-${h.id}` : h.id, id, 'dato');
     }
