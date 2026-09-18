@@ -755,3 +755,36 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
   `acentuar.py --comprobar` marca `reintento` (sustantivo) en
   VigilanteModelos.tsx: falso positivo. (8) Commit y push del bloque con la
   suite pasando y el escaneo de secretos limpio.
+
+- **El resumen en llano de la iteración se escribe antes de reconcluir (18 sep,
+  visto por Emir en la corrida 13):** en `_cerrar_iteracion` el orden es resumen,
+  meta-revisión, `_explicar_en_llano`, acumular evidencia y después reconcluir
+  (rosa/bucle/corrida.py, ~2099 frente a ~2125). Si una hipótesis sube de nivel
+  en ese cierre, el texto dice "todas mantienen una certeza muy baja" mientras
+  el estado ya dice "baja". Arreglo pendiente: añadir por regla, tras reconcluir,
+  una frase al llano y al resumen con los cambios de certeza del cierre
+  ("Subió: X, de muy baja a baja"), sin volver a pagar al modelo; o mover el
+  llano detrás de la reconclusión.
+- **Sala de control en vivo (candidata a la siguiente sección impactante, elegida
+  por Emir como segunda opción tras el atlas):** panel de misión para la corrida
+  en marcha: pulso de los tres modelos (se apoya en `saludModelos` del vigilante),
+  artículos entrando al cribado como partículas, veredictos del verificador
+  cayendo, comprobaciones del Killer encendiéndose, coste real y reloj de trabajo
+  frente al tope. Necesita un canal de eventos más fino en el servidor.
+- **Ajustes del atlas acordados con Emir (a aplicar al integrar el dibujo
+  ganador del concurso):** bandeja de "no localizados" fuera del contorno (los
+  registros en `cerebro_sin_region` y `neocorteza` son localizaciones fallidas,
+  no lugares); color por cohortes distintas y número por registros; extremos
+  numéricos en la barra de la leyenda; línea honesta bajo el mapa (cuántos
+  registros en fluidos, cuántos en tejido localizado, cuántos sin localizar);
+  marca de discordia donde un hecho tenga `contradiceA`; dos rayados distintos
+  para "no buscado" y "buscado sin hallazgo"; ventrículos finos; "se recalcula al
+  cerrar cada iteración"; y ninguna puntuación compuesta ni porcentaje de
+  confianza inventado.
+- **Definición de beta acordada con Emir (18 sep):** una hipótesis puede subir a
+  "moderada" con datos públicos sin terminal; ningún fallo transitorio deja la
+  corrida esperando a una persona; arnés de paridad Python/TypeScript en la
+  suite; el Killer medido con al menos cien etiquetas humanas por comprobación;
+  y nada de lo pagado se pierde (afirmaciones bloqueadas reverificadas,
+  novedades de la vigilancia entrando al bucle). Los pendientes se marcan contra
+  esa lista. Ver INVESTIGACION-FEATURES-2026-09-18.md.
