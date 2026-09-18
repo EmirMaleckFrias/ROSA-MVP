@@ -508,6 +508,21 @@ configuración de 512 GB). Lo acordado como flujo:
    casos humanos, con la misma métrica que todo lo demás. Los modelos del
    gateway siguen como maestros y jueces de última instancia.
 
+
+### 7.4 Sonnet nunca es el cerebro (regla de Emir, 18 de septiembre de 2026)
+
+Cuando GPT-6 Astra no responde, ROSA2018 espera y reintenta con Astra (espera
+creciente, sondeos al gateway) el tiempo que haga falta; nunca degrada el rol
+de cerebro a Claude Sonnet 5 ni a otro modelo menor. Palabras de Emir: "nunca
+dejes que Sonnet sea el cerebro, Sonnet no es para investigaciones de ese
+nivel; que siga intentando con Astra hasta que vuelva". Esto deroga el respaldo
+que hoy tiene `Ctx.llamar` en rosa/bucle/pasos.py ("si el modelo devuelve
+vacío o lo bloquea un filtro, reintenta una vez con el modelo de volumen"):
+para el cerebro, un filtro o una respuesta vacía se reintenta con Astra
+variando `rollout_id` y, si persiste, el paso falla con incidencia clara. El
+juez (Opus 5) tampoco se sustituye por Sonnet por defecto. Sonnet queda para el
+rol de volumen. Pendiente de aplicar en el bloque del vigilante de modelos.
+
 ## 8. Skills instaladas para ROSA2018 (9 sep 2026)
 
 Instaladas a nivel de usuario en `~/.claude/skills/` con el instalador
