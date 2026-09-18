@@ -1,8 +1,8 @@
-// Ajustes: permisos concedidos (revocables), dial de autonomia por clase de
-// accion, politica de esperas (que pasa con una decision que nadie toma),
-// memoria de ROSA2018 sobre la investigadora, criterios propios de revision,
-// planes guardados, avisos por Slack o correo con el resumen diario, y
-// apariencia.
+// Ajustes: la sesión (correo, si administra la instalación, cerrar sesión),
+// permisos concedidos (revocables), dial de autonomia por clase de accion,
+// politica de esperas (que pasa con una decision que nadie toma), memoria de
+// ROSA2018 sobre la investigadora, criterios propios de revision, planes
+// guardados, avisos por Slack o correo con el resumen diario, y apariencia.
 
 import { useEffect, useState } from 'react';
 import { acciones } from '../datos/almacen';
@@ -15,6 +15,7 @@ import { digest, digestComoTexto } from '../lib/digest';
 import { ACCION_ESPERA, ALCANCE, CLASE_ACCION, NIVEL_AUTONOMIA, TIPO_PERMISO } from '../lib/etiquetas';
 import { useTema, type Tema } from '../lib/theme';
 import { Correo } from '../componentes/Correo';
+import { CuentaActual, useSesion } from '../componentes/Acceso';
 
 const CRITERIOS_INTEGRADOS = [
   'Toda afirmación lleva una cita que resuelve a la página exacta del dato.',
@@ -72,6 +73,7 @@ function Recuerdo({ id, texto }: { id: string; texto: string }) {
 }
 
 export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }) {
+  const sesion = useSesion();
   const [tema, setTema] = useTema();
   const [criterio, setCriterio] = useState('');
   const [politica, setPolitica] = useState<PoliticaEsperas>(estado.politicaEsperas);
@@ -95,6 +97,14 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           <p>Todo lo que ROSA2018 tiene concedido o recuerda, en un sitio, y revocable.</p>
         </div>
       </div>
+
+      {sesion && (
+        <Seccion titulo="Sesión" nota="La cuenta con la que has entrado en ROSA2018. Cerrar la sesión te devuelve a la pantalla de acceso; las investigaciones y sus corridas quedan en el servidor.">
+          <div className="tarjeta">
+            <CuentaActual />
+          </div>
+        </Seccion>
+      )}
 
       <Seccion titulo="Autonomía por clase de acción" nota="Qué puede hacer ROSA2018 sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea fricción sin seguridad.">
         <table className="tabla">

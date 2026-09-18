@@ -19,7 +19,14 @@ type Sesion = {
   instalacionLocal: boolean;
   avisoInstalacion?: string | null;
 };
-const Cuenta = createContext<string | null>(null);
+/** Lo que la interfaz sabe de la persona que ha entrado: su correo y si
+ *  administra esta instalación. Lo lee la sección "Sesión" de Ajustes. */
+export type SesionActual = { correo: string; administrador: boolean };
+const Cuenta = createContext<SesionActual | null>(null);
+
+export function useSesion(): SesionActual | null {
+  return useContext(Cuenta);
+}
 
 const DOMINIO = 'alzheimerproject.com';
 
@@ -35,13 +42,19 @@ async function api(ruta: string, datos?: object) {
   return json;
 }
 
+/** El bloque de sesión: el correo, si la cuenta administra la instalación y
+ *  el botón de salir. Vive en la sección "Sesión" de Ajustes. Salir llama a
+ *  /api/acceso/salir y recarga en la raíz, que vuelve a la puerta de acceso. */
 export function CuentaActual() {
-  const correo = useContext(Cuenta);
+  const sesion = useSesion();
   const [error, setError] = useState('');
-  return correo ? (
+  if (!sesion) return null;
+  return (
     <div className="cuenta-actual">
-      <small>{correo}</small>
+      <strong>{sesion.correo}</strong>
+      <small>{sesion.administrador ? 'Cuenta administradora: puede conectar el correo de esta instalación.' : 'Cuenta del equipo, sin permisos de administración.'}</small>
       <button
+        type="button"
         className="btn btn-fantasma btn-s"
         onClick={async () => {
           try {
@@ -56,7 +69,7 @@ export function CuentaActual() {
       </button>
       {error && <p role="alert">{error}</p>}
     </div>
-  ) : null;
+  );
 }
 
 /* Iconos pequeños, en línea, para no depender de la hoja de iconos general. */
@@ -126,7 +139,7 @@ export function Acceso({ children }: { children: ReactNode }) {
       setOcupado(false);
     }
   }
-  if (sesion?.correo) return <Cuenta.Provider value={sesion.correo}>{children}</Cuenta.Provider>;
+  if (sesion?.correo) return <Cuenta.Provider value={{ correo: sesion.correo, administrador: Boolean(sesion.administrador) }}>{children}</Cuenta.Provider>;
   // Una sesión todavía desconocida no equivale a haber cerrado sesión.
   // No montar el formulario ni datos privados mientras se valida el acceso.
   if (!sesion) return (
