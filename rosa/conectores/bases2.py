@@ -1,7 +1,7 @@
 """Segundo bloque de conectores: el resto de los grupos destacados de Claude
 Science (regulacion, genomica clinica, cancer, quimica, regulatorio,
 literatura, recursos), las herramientas de enriquecimiento, las bases
-especificas del Alzheimer y las entradas inertes de lo que Rosa no puede
+especificas del Alzheimer y las entradas inertes de lo que ROSA2018 no puede
 usar hoy y por que. Donde una fuente no tiene API JSON propia se usa EBI
 Search (`ebi.ac.uk/ebisearch`), que indexa ChEBI, Rhea, EMDB, PRIDE,
 MetaboLights, MGnify, ArrayExpress y Rfam con un unico contrato.
@@ -38,37 +38,37 @@ async def _ebisearch(dominio: str, consulta: str, campos: str, n: int = 8) -> Re
     return Resultado({"total": total, "entradas": datos}, total, [e.get("id") for e in ent if e.get("id")], None, (True, f"{total} resultados en {dominio}"))
 
 
-@conector("chebi_buscar", "ChEBI (vía EBI Search)", "Entidades químicas de interés biológico por nombre", "Identificador y nombre canónico de un compuesto que la hipótesis nombra", _esq(consulta="Nombre del compuesto"), "CC BY 4.0", "5 por segundo en Rosa", "https://www.ebi.ac.uk/ebisearch/documentation", grupo="quimica")
+@conector("chebi_buscar", "ChEBI (vía EBI Search)", "Entidades químicas de interés biológico por nombre", "Identificador y nombre canónico de un compuesto que la hipótesis nombra", _esq(consulta="Nombre del compuesto"), "CC BY 4.0", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/ebisearch/documentation", grupo="quimica")
 async def chebi_buscar(consulta: str) -> Resultado:
     return await _ebisearch("chebi", consulta, "name,description")
 
 
-@conector("rhea_reacciones", "Rhea (vía EBI Search)", "Reacciones bioquimicas en las que participa una proteína o un compuesto", "La reacción exacta detrás de un mecanismo enzimatico", _esq(consulta="Accession UniProt o nombre de compuesto"), "CC BY 4.0", "5 por segundo en Rosa", "https://www.rhea-db.org/help/rest-api", grupo="quimica")
+@conector("rhea_reacciones", "Rhea (vía EBI Search)", "Reacciones bioquimicas en las que participa una proteína o un compuesto", "La reacción exacta detrás de un mecanismo enzimatico", _esq(consulta="Accession UniProt o nombre de compuesto"), "CC BY 4.0", "5 por segundo en ROSA2018", "https://www.rhea-db.org/help/rest-api", grupo="quimica")
 async def rhea_reacciones(consulta: str) -> Resultado:
     return await _ebisearch("rhea", consulta, "name,description")
 
 
-@conector("emdb_mapas", "EMDB (vía EBI Search)", "Mapas de crio-microscopia electrónica de una proteína o complejo", "Estructura experimental de complejos grandes (fibrillas de amiloide y tau)", _esq(consulta="Nombre de proteína o accession"), "CC0", "5 por segundo en Rosa", "https://www.ebi.ac.uk/emdb/api", grupo="estructuras")
+@conector("emdb_mapas", "EMDB (vía EBI Search)", "Mapas de crio-microscopia electrónica de una proteína o complejo", "Estructura experimental de complejos grandes (fibrillas de amiloide y tau)", _esq(consulta="Nombre de proteína o accession"), "CC0", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/emdb/api", grupo="estructuras")
 async def emdb_mapas(consulta: str) -> Resultado:
     return await _ebisearch("emdb", consulta, "title,resolution")
 
 
-@conector("pride_proyectos", "PRIDE (vía EBI Search)", "Proyectos de proteómica por término", "Datasets proteomicos públicos para comprobar una hipótesis a nivel de proteína", _esq(consulta="Terminos"), "Por proyecto", "5 por segundo en Rosa", "https://www.ebi.ac.uk/pride/ws/archive/v2/", grupo="omicas")
+@conector("pride_proyectos", "PRIDE (vía EBI Search)", "Proyectos de proteómica por término", "Datasets proteomicos públicos para comprobar una hipótesis a nivel de proteína", _esq(consulta="Terminos"), "Por proyecto", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/pride/ws/archive/v2/", grupo="omicas")
 async def pride_proyectos(consulta: str) -> Resultado:
     return await _ebisearch("pride", consulta, "name,description")
 
 
-@conector("metabolights_estudios", "MetaboLights (vía EBI Search)", "Estudios de metabolómica por término", "Datasets metabolomicos públicos", _esq(consulta="Terminos"), "Por estudio", "5 por segundo en Rosa", "https://www.ebi.ac.uk/metabolights/", grupo="omicas")
+@conector("metabolights_estudios", "MetaboLights (vía EBI Search)", "Estudios de metabolómica por término", "Datasets metabolomicos públicos", _esq(consulta="Terminos"), "Por estudio", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/metabolights/", grupo="omicas")
 async def metabolights_estudios(consulta: str) -> Resultado:
     return await _ebisearch("metabolights", consulta, "name,description")
 
 
-@conector("mgnify_estudios", "MGnify (vía EBI Search)", "Estudios de metagenomica por término", "Microbioma (eje intestino-cerebro) si una hipótesis lo toca", _esq(consulta="Terminos"), "Por estudio", "5 por segundo en Rosa", "https://www.ebi.ac.uk/metagenomics/api/", grupo="omicas")
+@conector("mgnify_estudios", "MGnify (vía EBI Search)", "Estudios de metagenomica por término", "Microbioma (eje intestino-cerebro) si una hipótesis lo toca", _esq(consulta="Terminos"), "Por estudio", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/metagenomics/api/", grupo="omicas")
 async def mgnify_estudios(consulta: str) -> Resultado:
     return await _ebisearch("metagenomics_projects", consulta, "name,description")
 
 
-@conector("arrayexpress_experimentos", "ArrayExpress y BioStudies", "Experimentos de expresión por término", "Datasets de expresión que no están en GEO", _esq(consulta="Terminos"), "Por experimento", "5 por segundo en Rosa", "https://www.ebi.ac.uk/biostudies/help", grupo="omicas")
+@conector("arrayexpress_experimentos", "ArrayExpress y BioStudies", "Experimentos de expresión por término", "Datasets de expresión que no están en GEO", _esq(consulta="Terminos"), "Por experimento", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/biostudies/help", grupo="omicas")
 async def arrayexpress_experimentos(consulta: str) -> Resultado:
     r = await pedir("GET", "https://www.ebi.ac.uk/biostudies/api/v1/search", _lim["ebi"], params={"query": consulta, "collection": "arrayexpress", "pageSize": 8})
     d = r.json()
@@ -77,7 +77,7 @@ async def arrayexpress_experimentos(consulta: str) -> Resultado:
     return Resultado({"total": d.get("totalHits", len(hits)), "experimentos": datos}, d.get("totalHits", len(hits)), [h.get("accession") for h in hits if h.get("accession")], None, (True, f"{d.get('totalHits', 0)} experimentos"))
 
 
-@conector("rfam_familia", "Rfam (vía EBI Search)", "Familias de RNA no codificante por término", "Si la hipótesis toca un RNA no codificante", _esq(consulta="Nombre o accession"), "CC0", "5 por segundo en Rosa", "https://rfam.org/", grupo="rna")
+@conector("rfam_familia", "Rfam (vía EBI Search)", "Familias de RNA no codificante por término", "Si la hipótesis toca un RNA no codificante", _esq(consulta="Nombre o accession"), "CC0", "5 por segundo en ROSA2018", "https://rfam.org/", grupo="rna")
 async def rfam_familia(consulta: str) -> Resultado:
     return await _ebisearch("rfam", consulta, "name,description")
 
@@ -87,7 +87,7 @@ async def rfam_familia(consulta: str) -> Resultado:
 # ---------------------------------------------------------------------------
 
 
-@conector("quickgo_anotaciones", "Gene Ontology (QuickGO)", "Anotaciones GO de proceso biológico de una proteína", "Qué hace la proteína según la ontología, con identificadores GO", _esq(uniprot="Accession UniProt"), "CC BY 4.0", "5 por segundo en Rosa", "https://www.ebi.ac.uk/QuickGO/api/index.html", grupo="genes_ontologias")
+@conector("quickgo_anotaciones", "Gene Ontology (QuickGO)", "Anotaciones GO de proceso biológico de una proteína", "Qué hace la proteína según la ontología, con identificadores GO", _esq(uniprot="Accession UniProt"), "CC BY 4.0", "5 por segundo en ROSA2018", "https://www.ebi.ac.uk/QuickGO/api/index.html", grupo="genes_ontologias")
 async def quickgo_anotaciones(uniprot: str) -> Resultado:
     r = await pedir("GET", "https://www.ebi.ac.uk/QuickGO/services/annotation/search", _lim["quickgo"], params={"geneProductId": uniprot, "aspect": "biological_process", "limit": 25}, headers={"Accept": "application/json"})
     d = r.json()
@@ -99,7 +99,7 @@ async def quickgo_anotaciones(uniprot: str) -> Resultado:
     return Resultado(datos, d.get("numberOfHits", len(res)), list(vistos)[:20], None, (True, f"{len(vistos)} términos distintos"))
 
 
-@conector("interpro_dominios", "InterPro y Pfam", "Dominios y familias de una proteína", "La arquitectura de dominios que sostiene o refuta un mecanismo de unión", _esq(uniprot="Accession UniProt"), "CC0", "3 por segundo en Rosa", "https://interpro-documentation.readthedocs.io/", grupo="proteinas")
+@conector("interpro_dominios", "InterPro y Pfam", "Dominios y familias de una proteína", "La arquitectura de dominios que sostiene o refuta un mecanismo de unión", _esq(uniprot="Accession UniProt"), "CC0", "3 por segundo en ROSA2018", "https://interpro-documentation.readthedocs.io/", grupo="proteinas")
 async def interpro_dominios(uniprot: str) -> Resultado:
     r = await pedir("GET", f"https://www.ebi.ac.uk/interpro/api/entry/interpro/protein/uniprot/{quote(uniprot)}", _lim["interpro"], headers={"Accept": "application/json"})
     if r.status_code == 204 or not r.text.strip():
@@ -110,7 +110,7 @@ async def interpro_dominios(uniprot: str) -> Resultado:
     return Resultado(datos, d.get("count", len(res)), [x["id"] for x in datos if x["id"]], None, (True, f"{len(datos)} entradas InterPro"))
 
 
-@conector("biomart_gen", "Ensembl BioMart", "Identificadores cruzados de un gen (HGNC, Entrez, UniProt) por consulta BioMart", "Mapeo de identificadores en bloque cuando MyGene no baste", _esq(ensembl="Identificador Ensembl"), "Sin restricciones", "0,5 por segundo en Rosa (servicio lento)", "https://www.ensembl.org/info/data/biomart/biomart_restful.html", grupo="genes_ontologias")
+@conector("biomart_gen", "Ensembl BioMart", "Identificadores cruzados de un gen (HGNC, Entrez, UniProt) por consulta BioMart", "Mapeo de identificadores en bloque cuando MyGene no baste", _esq(ensembl="Identificador Ensembl"), "Sin restricciones", "0,5 por segundo en ROSA2018 (servicio lento)", "https://www.ensembl.org/info/data/biomart/biomart_restful.html", grupo="genes_ontologias")
 async def biomart_gen(ensembl: str) -> Resultado:
     from xml.sax.saxutils import quoteattr
 
@@ -136,7 +136,7 @@ async def clinvar_gen(simbolo: str, enfermedad: str = "Alzheimer") -> Resultado:
 # ---------------------------------------------------------------------------
 
 
-@conector("finngen_gen", "FinnGen (PheWeb R12)", "Asociaciones de fenotipos con un gen en la cohorte finlandesa", "Replicación genética independiente en otra población", _esq(simbolo="Símbolo HGNC"), "Términos FinnGen (resumenes públicos)", "1 por segundo en Rosa", "https://r12.finngen.fi/", grupo="genetica_humana")
+@conector("finngen_gen", "FinnGen (PheWeb R12)", "Asociaciones de fenotipos con un gen en la cohorte finlandesa", "Replicación genética independiente en otra población", _esq(simbolo="Símbolo HGNC"), "Términos FinnGen (resumenes públicos)", "1 por segundo en ROSA2018", "https://r12.finngen.fi/", grupo="genetica_humana")
 async def finngen_gen(simbolo: str) -> Resultado:
     r = await pedir("GET", f"https://r12.finngen.fi/api/gene_phenos/{quote(simbolo)}", _lim["pheweb"])
     d = r.json()
@@ -171,7 +171,7 @@ async def clingen_gen(simbolo: str) -> Resultado:
     return Resultado(datos, len(hits), [f[3] for f in hits], None, (True, f"{len(hits)} curaciones de {len(_cache_clingen['filas'])}"))
 
 
-@conector("civic_gen", "CIViC (GraphQL)", "Interpretaciones clínicas de variantes de un gen (oncologia)", "Contexto oncologico del gen; poco relevante salvo genes compartidos", _esq(simbolo="Símbolo HGNC"), "CC0", "2 por segundo en Rosa", "https://griffithlab.github.io/civic-v2/", grupo="genomica_clinica")
+@conector("civic_gen", "CIViC (GraphQL)", "Interpretaciones clínicas de variantes de un gen (oncologia)", "Contexto oncologico del gen; poco relevante salvo genes compartidos", _esq(simbolo="Símbolo HGNC"), "CC0", "2 por segundo en ROSA2018", "https://griffithlab.github.io/civic-v2/", grupo="genomica_clinica")
 async def civic_gen(simbolo: str) -> Resultado:
     q = "query($n: String!) { genes(name: $n) { nodes { id name description variants { totalCount } } } }"
     r = await pedir("POST", "https://civicdb.org/api/graphql", _lim["civic"], json={"query": q, "variables": {"n": simbolo}})
@@ -180,7 +180,7 @@ async def civic_gen(simbolo: str) -> Resultado:
     return Resultado(datos, len(nodos), [str(n["id"]) for n in datos if n.get("id")], None, (True, f"{len(nodos)} genes"))
 
 
-@conector("opentargets_graphql", "Open Targets Platform (GraphQL; MCP oficial equivalente)", "Consulta GraphQL libre a Open Targets, para lo que la consulta fija de asociación no cubre (tractabilidad, seguridad, fármacos, credible sets)", "Lo que el MCP oficial de Open Targets ofrece: query_open_targets_graphql", _esq(consulta="Consulta GraphQL", variables="JSON con las variables"), "CC0", "No publicado; 2 por segundo en Rosa", "https://platform-docs.opentargets.org/data-access/graphql-api", grupo="genomica_clinica")
+@conector("opentargets_graphql", "Open Targets Platform (GraphQL; MCP oficial equivalente)", "Consulta GraphQL libre a Open Targets, para lo que la consulta fija de asociación no cubre (tractabilidad, seguridad, fármacos, credible sets)", "Lo que el MCP oficial de Open Targets ofrece: query_open_targets_graphql", _esq(consulta="Consulta GraphQL", variables="JSON con las variables"), "CC0", "No publicado; 2 por segundo en ROSA2018", "https://platform-docs.opentargets.org/data-access/graphql-api", grupo="genomica_clinica")
 async def opentargets_graphql(consulta: str, variables: str = "{}") -> Resultado:
     import json as _json
 
@@ -203,7 +203,7 @@ async def niagads_gen(ensembl: str) -> Resultado:
 # ---------------------------------------------------------------------------
 
 
-@conector("encode_experimentos", "ENCODE", "Experimentos de ENCODE cuya diana es un gen (ChIP-seq y otros)", "Regulación: quien se une al gen y donde", _esq(simbolo="Símbolo HGNC"), "CC BY 4.0", "2 por segundo en Rosa", "https://www.encodeproject.org/help/rest-api/", grupo="regulacion")
+@conector("encode_experimentos", "ENCODE", "Experimentos de ENCODE cuya diana es un gen (ChIP-seq y otros)", "Regulación: quien se une al gen y donde", _esq(simbolo="Símbolo HGNC"), "CC BY 4.0", "2 por segundo en ROSA2018", "https://www.encodeproject.org/help/rest-api/", grupo="regulacion")
 async def encode_experimentos(simbolo: str) -> Resultado:
     r = await pedir("GET", "https://www.encodeproject.org/search/", _lim["encode"], params={"type": "Experiment", "target.label": simbolo, "format": "json", "limit": 8}, headers={"Accept": "application/json"})
     d = r.json()
@@ -212,7 +212,7 @@ async def encode_experimentos(simbolo: str) -> Resultado:
     return Resultado({"total": d.get("total", len(g)), "experimentos": datos}, d.get("total", len(g)), [x["accession"] for x in datos if x["accession"]], None, (True, f"{d.get('total', 0)} experimentos"))
 
 
-@conector("jaspar_motivos", "JASPAR", "Matrices de motivos de unión de un factor de transcripción", "Si el factor que la hipótesis nombra tiene motivo conocido", _esq(nombre="Nombre del factor de transcripción"), "CC BY 4.0", "2 por segundo en Rosa", "https://jaspar.elixir.no/api/v1/docs/", grupo="regulacion")
+@conector("jaspar_motivos", "JASPAR", "Matrices de motivos de unión de un factor de transcripción", "Si el factor que la hipótesis nombra tiene motivo conocido", _esq(nombre="Nombre del factor de transcripción"), "CC BY 4.0", "2 por segundo en ROSA2018", "https://jaspar.elixir.no/api/v1/docs/", grupo="regulacion")
 async def jaspar_motivos(nombre: str) -> Resultado:
     r = await pedir("GET", "https://jaspar.elixir.no/api/v1/matrix/", _lim["jaspar"], params={"search": nombre, "format": "json", "page_size": 8, "collection": "CORE", "tax_group": "vertebrates"})
     d = r.json()
@@ -221,7 +221,7 @@ async def jaspar_motivos(nombre: str) -> Resultado:
     return Resultado({"total": d.get("count", len(res)), "motivos": datos}, d.get("count", len(res)), [x["matriz"] for x in datos if x["matriz"]], None, (True, f"{d.get('count', 0)} matrices"))
 
 
-@conector("unibind_sitios", "UniBind", "Conjuntos de sitios de unión directos de un factor de transcripción", "Sitios de unión con soporte experimental", _esq(nombre="Nombre del factor"), "CC BY 4.0", "2 por segundo en Rosa", "https://unibind.uio.no/api/", grupo="regulacion")
+@conector("unibind_sitios", "UniBind", "Conjuntos de sitios de unión directos de un factor de transcripción", "Sitios de unión con soporte experimental", _esq(nombre="Nombre del factor"), "CC BY 4.0", "2 por segundo en ROSA2018", "https://unibind.uio.no/api/", grupo="regulacion")
 async def unibind_sitios(nombre: str) -> Resultado:
     r = await pedir("GET", "https://unibind.uio.no/api/v1/datasets/", _lim["jaspar"], params={"tf": nombre, "format": "json", "page_size": 8})
     d = r.json()
@@ -229,7 +229,7 @@ async def unibind_sitios(nombre: str) -> Resultado:
     return Resultado({"total": d.get("count", len(res)), "datasets": [{"id": x.get("id"), "celula": x.get("cell_line"), "tf": x.get("tf_name")} for x in res]}, d.get("count", len(res)), [str(x.get("id")) for x in res if x.get("id")], None, (True, f"{d.get('count', 0)} datasets"))
 
 
-@conector("intact_interacciones", "IntAct", "Interacciones moleculares con evidencia experimental de una proteína", "Interactores con experimento detrás, no solo predichos", _esq(uniprot="Accession UniProt"), "CC BY 4.0", "2 por segundo en Rosa", "https://www.ebi.ac.uk/intact/documentation", grupo="estructuras")
+@conector("intact_interacciones", "IntAct", "Interacciones moleculares con evidencia experimental de una proteína", "Interactores con experimento detrás, no solo predichos", _esq(uniprot="Accession UniProt"), "CC BY 4.0", "2 por segundo en ROSA2018", "https://www.ebi.ac.uk/intact/documentation", grupo="estructuras")
 async def intact_interacciones(uniprot: str) -> Resultado:
     r = await pedir("POST", "https://www.ebi.ac.uk/intact/ws/interaction/findInteractionWithFacet", _lim["intact"], data={"query": uniprot, "page": 0, "pageSize": 10})
     d = r.json().get("data") or {}
@@ -239,7 +239,7 @@ async def intact_interacciones(uniprot: str) -> Resultado:
     return Resultado({"total": total, "interacciones": datos}, total, [], None, (True, f"{total} interacciones con evidencia experimental"))
 
 
-@conector("complexportal_complejos", "Complex Portal", "Complejos macromoleculares curados que contienen una proteína", "Con quien forma complejo la diana", _esq(uniprot="Accession UniProt"), "CC0", "2 por segundo en Rosa", "https://www.ebi.ac.uk/intact/complex-ws/", grupo="estructuras")
+@conector("complexportal_complejos", "Complex Portal", "Complejos macromoleculares curados que contienen una proteína", "Con quien forma complejo la diana", _esq(uniprot="Accession UniProt"), "CC0", "2 por segundo en ROSA2018", "https://www.ebi.ac.uk/intact/complex-ws/", grupo="estructuras")
 async def complexportal_complejos(uniprot: str) -> Resultado:
     r = await pedir("GET", f"https://www.ebi.ac.uk/intact/complex-ws/search/{quote(uniprot)}", _lim["intact"], params={"format": "json"})
     d = r.json()
@@ -248,14 +248,14 @@ async def complexportal_complejos(uniprot: str) -> Resultado:
     return Resultado({"total": d.get("size", len(el)), "complejos": datos}, d.get("size", len(el)), [x["id"] for x in datos if x["id"]], None, (True, f"{d.get('size', 0)} complejos"))
 
 
-@conector("cbioportal_gen", "cBioPortal", "Ficha de un gen en cBioPortal (identificadores) y número de estudios", "Contexto oncologico; útil solo para genes compartidos con cáncer", _esq(simbolo="Símbolo HGNC"), "Por estudio (mayoría abiertos)", "2 por segundo en Rosa", "https://www.cbioportal.org/api", grupo="cancer")
+@conector("cbioportal_gen", "cBioPortal", "Ficha de un gen en cBioPortal (identificadores) y número de estudios", "Contexto oncologico; útil solo para genes compartidos con cáncer", _esq(simbolo="Símbolo HGNC"), "Por estudio (mayoría abiertos)", "2 por segundo en ROSA2018", "https://www.cbioportal.org/api", grupo="cancer")
 async def cbioportal_gen(simbolo: str) -> Resultado:
     r = await pedir("GET", f"https://www.cbioportal.org/api/genes/{quote(simbolo)}", _lim["cbio"], headers={"Accept": "application/json"})
     d = r.json()
     return Resultado({"entrez": d.get("entrezGeneId"), "simbolo": d.get("hugoGeneSymbol"), "tipo": d.get("type")}, 1 if d.get("entrezGeneId") else 0, [str(d.get("entrezGeneId"))] if d.get("entrezGeneId") else [], None, (bool(d.get("entrezGeneId")), "gen resuelto"))
 
 
-@conector("ucsc_genes_region", "UCSC Genome Browser", "Genes anotados (knownGene) en una región de hg38", "Qué hay alrededor de un locus GWAS", _esq(cromosoma="chr19", inicio="posición inicial", fin="posición final"), "Sin restricciones", "2 por segundo en Rosa", "https://api.genome.ucsc.edu/", grupo="genomas")
+@conector("ucsc_genes_region", "UCSC Genome Browser", "Genes anotados (knownGene) en una región de hg38", "Qué hay alrededor de un locus GWAS", _esq(cromosoma="chr19", inicio="posición inicial", fin="posición final"), "Sin restricciones", "2 por segundo en ROSA2018", "https://api.genome.ucsc.edu/", grupo="genomas")
 async def ucsc_genes_region(cromosoma: str, inicio: str, fin: str) -> Resultado:
     r = await pedir("GET", "https://api.genome.ucsc.edu/getData/track", _lim["ucsc"], params={"genome": "hg38", "track": "knownGene", "chrom": cromosoma, "start": int(inicio), "end": int(fin)})
     d = r.json()
@@ -277,7 +277,7 @@ async def pubchem_compuesto(nombre: str) -> Resultado:
     return Resultado(datos, len(datos), [str(p["cid"]) for p in datos if p.get("cid")], None, (len(datos) == 1, f"{len(datos)} compuestos con ese nombre"))
 
 
-@conector("bindingdb_ligandos", "BindingDB", "Ligandos con afinidad medida contra una proteína (por UniProt), con corte de afinidad", "Cuantos compuestos se unen a la diana y con que afinidad", _esq(uniprot="Accession UniProt", corte_nM="Afinidad máxima en nM, por ejemplo 1000"), "CC BY 3.0 US", "1 por segundo en Rosa", "https://www.bindingdb.org/rwd/bind/BindingDBRESTfulAPI.jsp", grupo="quimica")
+@conector("bindingdb_ligandos", "BindingDB", "Ligandos con afinidad medida contra una proteína (por UniProt), con corte de afinidad", "Cuantos compuestos se unen a la diana y con que afinidad", _esq(uniprot="Accession UniProt", corte_nM="Afinidad máxima en nM, por ejemplo 1000"), "CC BY 3.0 US", "1 por segundo en ROSA2018", "https://www.bindingdb.org/rwd/bind/BindingDBRESTfulAPI.jsp", grupo="quimica")
 async def bindingdb_ligandos(uniprot: str, corte_nM: str = "1000") -> Resultado:
     r = await pedir("GET", "https://bindingdb.org/axis2/services/BDBService/getLigandsByUniprots", _lim["bindingdb"], params={"uniprot": uniprot, "cutoff": corte_nM, "response": "application/json"})
     d = r.json()
@@ -309,7 +309,7 @@ async def openfda_etiquetas(termino: str) -> Resultado:
 # ---------------------------------------------------------------------------
 
 
-@conector("enrichr_enriquecer", "Enrichr", "Sobre representación de una lista de genes en una libreria (GO, KEGG, Reactome, tipos celulares)", "Qué proceso o tipo celular comparte una lista de genes de un análisis", _esq(genes="Símbolos separados por coma", libreria="Por ejemplo GO_Biological_Process_2023 o Reactome_2022"), "Uso libre con cita; algunas librerias con licencia propia", "1 por segundo en Rosa", "https://maayanlab.cloud/Enrichr/help#api", grupo="enriquecimiento")
+@conector("enrichr_enriquecer", "Enrichr", "Sobre representación de una lista de genes en una libreria (GO, KEGG, Reactome, tipos celulares)", "Qué proceso o tipo celular comparte una lista de genes de un análisis", _esq(genes="Símbolos separados por coma", libreria="Por ejemplo GO_Biological_Process_2023 o Reactome_2022"), "Uso libre con cita; algunas librerias con licencia propia", "1 por segundo en ROSA2018", "https://maayanlab.cloud/Enrichr/help#api", grupo="enriquecimiento")
 async def enrichr_enriquecer(genes: str, libreria: str = "GO_Biological_Process_2023") -> Resultado:
     lista = [g.strip() for g in genes.replace(";", ",").split(",") if g.strip()]
     r = await pedir("POST", "https://maayanlab.cloud/Enrichr/addList", _lim["enrichr"], files={"list": (None, "\n".join(lista)), "description": (None, "rosa")})
@@ -320,7 +320,7 @@ async def enrichr_enriquecer(genes: str, libreria: str = "GO_Biological_Process_
     return Resultado({"libreria": libreria, "n_genes": len(lista), "terminos": datos}, len(filas), [], None, (len(lista) >= 3, f"{len(lista)} genes enviados; {len(filas)} términos"))
 
 
-@conector("gprofiler_enriquecer", "g:Profiler", "Sobre representación multi fuente (GO, Reactome, WikiPathways, HP) de una lista de genes", "Enriquecimiento con corrección g:SCS y varias fuentes a la vez", _esq(genes="Símbolos separados por coma"), "Uso libre con cita", "1 por segundo en Rosa", "https://biit.cs.ut.ee/gprofiler/page/apis", grupo="enriquecimiento")
+@conector("gprofiler_enriquecer", "g:Profiler", "Sobre representación multi fuente (GO, Reactome, WikiPathways, HP) de una lista de genes", "Enriquecimiento con corrección g:SCS y varias fuentes a la vez", _esq(genes="Símbolos separados por coma"), "Uso libre con cita", "1 por segundo en ROSA2018", "https://biit.cs.ut.ee/gprofiler/page/apis", grupo="enriquecimiento")
 async def gprofiler_enriquecer(genes: str) -> Resultado:
     lista = [g.strip() for g in genes.replace(";", ",").split(",") if g.strip()]
     r = await pedir("POST", "https://biit.cs.ut.ee/gprofiler/api/gost/profile/", _lim["gprofiler"], json={"organism": "hsapiens", "query": lista, "sources": ["GO:BP", "REAC", "HP"], "no_evidences": True})
@@ -330,7 +330,7 @@ async def gprofiler_enriquecer(genes: str) -> Resultado:
     return Resultado({"n_genes": len(lista), "terminos": datos}, len(res), [x["id"] for x in datos if x["id"]], None, (len(lista) >= 3, f"{len(res)} términos significativos"))
 
 
-@conector("dgidb_gen", "DGIdb 5 (GraphQL)", "Interacciones fármaco-gen agregadas de más de 40 fuentes", "Qué fármacos tocan el gen y con que tipo de interacción", _esq(simbolo="Símbolo HGNC"), "Por fuente (software MIT)", "2 por segundo en Rosa", "https://dgidb.org/api", grupo="farmacos")
+@conector("dgidb_gen", "DGIdb 5 (GraphQL)", "Interacciones fármaco-gen agregadas de más de 40 fuentes", "Qué fármacos tocan el gen y con que tipo de interacción", _esq(simbolo="Símbolo HGNC"), "Por fuente (software MIT)", "2 por segundo en ROSA2018", "https://dgidb.org/api", grupo="farmacos")
 async def dgidb_gen(simbolo: str) -> Resultado:
     q = "query($n: [String!]!) { genes(names: $n) { nodes { name interactions { drug { name approved } interactionTypes { type } interactionScore } } } }"
     r = await pedir("POST", "https://dgidb.org/api/graphql", _lim["dgidb"], json={"query": q, "variables": {"n": [simbolo]}})
@@ -365,7 +365,7 @@ async def epmc_anotaciones(pmid: str) -> Resultado:
 _cache_gxa: dict[str, Any] = {"t": 0.0, "exps": []}
 
 
-@conector("expression_atlas_experimentos", "Expression Atlas (EMBL-EBI)", "Experimentos curados de expresión basal y diferencial cuyo título menciona un término", "Datasets ya curados y reanalizados, con contraste enfermedad frente a control", _esq(termino="Texto a buscar"), "Términos EMBL-EBI", "1 por segundo en Rosa; el catálogo se cachea una hora", "https://www.ebi.ac.uk/gxa/help/index.html", grupo="expresion")
+@conector("expression_atlas_experimentos", "Expression Atlas (EMBL-EBI)", "Experimentos curados de expresión basal y diferencial cuyo título menciona un término", "Datasets ya curados y reanalizados, con contraste enfermedad frente a control", _esq(termino="Texto a buscar"), "Términos EMBL-EBI", "1 por segundo en ROSA2018; el catálogo se cachea una hora", "https://www.ebi.ac.uk/gxa/help/index.html", grupo="expresion")
 async def expression_atlas_experimentos(termino: str) -> Resultado:
     if time.time() - _cache_gxa["t"] > 3600 or not _cache_gxa["exps"]:
         r = await pedir("GET", "https://www.ebi.ac.uk/gxa/json/experiments", _lim["gxa"])
@@ -377,7 +377,7 @@ async def expression_atlas_experimentos(termino: str) -> Resultado:
     return Resultado(datos, len(hits), [e["accession"] for e in datos if e["accession"]], None, (True, f"{len(hits)} experimentos de {len(_cache_gxa['exps'])}"))
 
 
-@conector("arxiv_buscar", "arXiv", "Preprints de arXiv por término (métodos, estadística, aprendizaje automático aplicado)", "Métodos nuevos de análisis antes de que salgan en revista", _esq(consulta="Terminos"), "Por artículo (licencias arXiv)", "1 cada 3 segundos recomendado; 0,5 por segundo en Rosa", "https://info.arxiv.org/help/api/", grupo="literatura")
+@conector("arxiv_buscar", "arXiv", "Preprints de arXiv por término (métodos, estadística, aprendizaje automático aplicado)", "Métodos nuevos de análisis antes de que salgan en revista", _esq(consulta="Terminos"), "Por artículo (licencias arXiv)", "1 cada 3 segundos recomendado; 0,5 por segundo en ROSA2018", "https://info.arxiv.org/help/api/", grupo="literatura")
 async def arxiv_buscar(consulta: str) -> Resultado:
     r = await pedir("GET", "https://export.arxiv.org/api/query", _lim["arxiv"], params={"search_query": f"all:{consulta}", "max_results": 6})
     ns = {"a": "http://www.w3.org/2005/Atom", "o": "http://a9.com/-/spec/opensearch/1.1/"}
@@ -388,7 +388,7 @@ async def arxiv_buscar(consulta: str) -> Resultado:
     return Resultado({"total": total, "articulos": datos}, total, [d["id"] for d in datos if d["id"]], None, (True, f"{total} resultados"))
 
 
-@conector("grants_buscar", "Grants.gov", "Convocatorias federales de EE. UU. por palabra clave", "Financiación abierta para la línea de trabajo", _esq(palabra="Palabra clave"), "Dominio publico", "1 por segundo en Rosa", "https://www.grants.gov/api/", grupo="recursos")
+@conector("grants_buscar", "Grants.gov", "Convocatorias federales de EE. UU. por palabra clave", "Financiación abierta para la línea de trabajo", _esq(palabra="Palabra clave"), "Dominio publico", "1 por segundo en ROSA2018", "https://www.grants.gov/api/", grupo="recursos")
 async def grants_buscar(palabra: str) -> Resultado:
     r = await pedir("POST", "https://api.grants.gov/v1/api/search2", _lim["grants"], json={"keyword": palabra, "rows": 8, "oppStatuses": "forecasted|posted"})
     d = (r.json().get("data") or {})
@@ -397,7 +397,7 @@ async def grants_buscar(palabra: str) -> Resultado:
     return Resultado({"total": d.get("hitCount", len(hits)), "convocatorias": datos}, d.get("hitCount", len(hits)), [h["numero"] for h in datos if h["numero"]], None, (True, f"{d.get('hitCount', 0)} convocatorias"))
 
 
-@conector("antibodyregistry_buscar", "Antibody Registry", "Anticuerpos registrados (RRID) contra una diana", "Reactivos con identificador para el protocolo del experimento", _esq(diana="Nombre de la proteína diana"), "CC BY 4.0", "1 por segundo en Rosa", "https://www.antibodyregistry.org/", grupo="recursos")
+@conector("antibodyregistry_buscar", "Antibody Registry", "Anticuerpos registrados (RRID) contra una diana", "Reactivos con identificador para el protocolo del experimento", _esq(diana="Nombre de la proteína diana"), "CC BY 4.0", "1 por segundo en ROSA2018", "https://www.antibodyregistry.org/", grupo="recursos")
 async def antibodyregistry_buscar(diana: str) -> Resultado:
     r = await pedir("GET", "https://www.antibodyregistry.org/api/antibodies", _lim["antibody"], params={"search": diana, "page": 1, "size": 8}, headers={"Accept": "application/json"})
     d = r.json()
@@ -407,7 +407,7 @@ async def antibodyregistry_buscar(diana: str) -> Resultado:
     return Resultado({"total": total, "anticuerpos": datos}, total, [str(x["rrid"]) for x in datos if x["rrid"]], None, (any((x.get("diana") or "").upper().startswith(diana.upper()) for x in datos), f"{total} resultados; la búsqueda es de texto libre, revisar la diana de cada uno"))
 
 
-@conector("cellguide_tipo_celular", "CellGuide (vía Cell Ontology en OLS4)", "Resuelve un tipo celular a su identificador de Cell Ontology con definición", "Que Rosa nombre los tipos celulares (microglía, astrocito) con identificador, como hace CellGuide", _esq(termino="Nombre del tipo celular"), "CL: CC BY 4.0", "5 por segundo en Rosa", "https://cellxgene.cziscience.com/cellguide", grupo="socios")
+@conector("cellguide_tipo_celular", "CellGuide (vía Cell Ontology en OLS4)", "Resuelve un tipo celular a su identificador de Cell Ontology con definición", "Que ROSA2018 nombre los tipos celulares (microglía, astrocito) con identificador, como hace CellGuide", _esq(termino="Nombre del tipo celular"), "CL: CC BY 4.0", "5 por segundo en ROSA2018", "https://cellxgene.cziscience.com/cellguide", grupo="socios")
 async def cellguide_tipo_celular(termino: str) -> Resultado:
     r = await pedir("GET", "https://www.ebi.ac.uk/ols4/api/search", _lim["ebi"], params={"q": termino, "ontology": "cl", "rows": 5})
     docs = r.json().get("response", {}).get("docs", [])
@@ -416,17 +416,17 @@ async def cellguide_tipo_celular(termino: str) -> Resultado:
 
 
 # ---------------------------------------------------------------------------
-# Lo que existe en Claude Science y Rosa no puede usar hoy, con su motivo
+# Lo que existe en Claude Science y ROSA2018 no puede usar hoy, con su motivo
 # ---------------------------------------------------------------------------
 
 inerte("benchling", "Benchling", "Cuaderno electrónico y registros de experimentos del laboratorio", "Preguntas sobre experimentos propios", "requiere_cuenta", "Tenant Enterprise de pago con clave de API; el programa no tiene Benchling. Cuando lo tenga: SDK benchling-sdk, 60 peticiones por 30 s", "https://docs.benchling.com", "socios")
 inerte("biorender", "BioRender", "Búsqueda y generación de figuras científicas", "Figuras para el dossier", "requiere_cuenta", "Servidor MCP cerrado autenticado por usuario de BioRender; sin API pública", "https://www.biorender.com", "socios")
-inerte("tenx_cloud", "10x Genomics Cloud Analysis", "Cell Ranger y Space Ranger en la nube de 10x (30 tools MCP, MIT)", "Procesar FASTQ de célula única propios", "requiere_cuenta", "Cuenta 10x y token; Rosa trabaja con matrices ya procesadas (GEO, CELLxGENE, SEA-AD)", "https://github.com/10XGenomics/txg-mcp", "socios")
+inerte("tenx_cloud", "10x Genomics Cloud Analysis", "Cell Ranger y Space Ranger en la nube de 10x (30 tools MCP, MIT)", "Procesar FASTQ de célula única propios", "requiere_cuenta", "Cuenta 10x y token; ROSA2018 trabaja con matrices ya procesadas (GEO, CELLxGENE, SEA-AD)", "https://github.com/10XGenomics/txg-mcp", "socios")
 inerte("owkin", "Owkin (Pathology Explorer)", "Laminas de patología de TCGA convertidas en datos consultables", "Patología digital oncologica", "requiere_cuenta", "MCP cerrado de Owkin; dominio oncologico", "https://www.owkin.com", "socios")
 inerte("medidata", "Medidata", "Ranking predictivo de centros de ensayo y ayuda de plataforma", "Reclutamiento de centros para un ensayo propio", "requiere_cuenta", "Plataforma comercial de ensayos clínicos", "https://www.medidata.com", "socios")
-inerte("wiley_scholar_gateway", "Wiley Scholar Gateway", "Búsqueda semántica en revistas Wiley con DOI verificable", "Texto completo de Wiley con licencia institucional", "requiere_cuenta", "OAuth institucional; Rosa usa Unpaywall y Europe PMC para el texto abierto", "https://docs.scholargateway.ai/", "socios")
-inerte("consensus", "Consensus", "Síntesis sobre 220 millones de artículos", "Segunda opinión de literatura", "requiere_cuenta", "MCP cerrado con cuenta; Rosa ya tiene PubMed, Europe PMC, OpenAlex, Crossref y Semantic Scholar", "https://consensus.app", "socios")
-inerte("tooluniverse", "ToolUniverse (Harvard MIMS)", "Mas de 1000 herramientas cientificas con servidor MCP (Apache-2.0)", "Un agregador en vez de clientes propios", "fichero_local", "Se puede montar como servidor MCP local con `uv pip install tooluniverse`; Rosa implementa directamente las bases que necesita para conservar el registro de consultas e invariantes", "https://github.com/mims-harvard/ToolUniverse", "socios")
+inerte("wiley_scholar_gateway", "Wiley Scholar Gateway", "Búsqueda semántica en revistas Wiley con DOI verificable", "Texto completo de Wiley con licencia institucional", "requiere_cuenta", "OAuth institucional; ROSA2018 usa Unpaywall y Europe PMC para el texto abierto", "https://docs.scholargateway.ai/", "socios")
+inerte("consensus", "Consensus", "Síntesis sobre 220 millones de artículos", "Segunda opinión de literatura", "requiere_cuenta", "MCP cerrado con cuenta; ROSA2018 ya tiene PubMed, Europe PMC, OpenAlex, Crossref y Semantic Scholar", "https://consensus.app", "socios")
+inerte("tooluniverse", "ToolUniverse (Harvard MIMS)", "Mas de 1000 herramientas cientificas con servidor MCP (Apache-2.0)", "Un agregador en vez de clientes propios", "fichero_local", "Se puede montar como servidor MCP local con `uv pip install tooluniverse`; ROSA2018 implementa directamente las bases que necesita para conservar el registro de consultas e invariantes", "https://github.com/mims-harvard/ToolUniverse", "socios")
 inerte("cortellis", "Cortellis (Clarivate)", "Inteligencia regulatoria", "Sumisiones y aprobaciones", "requiere_cuenta", "Suscripción comercial", "https://clarivate.com", "socios")
 inerte("adisinsight", "AdisInsight (Springer Nature)", "Pipelines de fármacos y ensayos", "Estado de desarrollo de fármacos", "requiere_cuenta", "Suscripcion comercial; ChEMBL, DGIdb, openFDA y ClinicalTrials.gov cubren lo publico", "https://adisinsight.springer.com", "socios")
 inerte("kegg", "KEGG", "Ruta hsa05010 Alzheimer disease y genes, compuestos, fármacos", "Rutas curadas", "licencia", "Solo uso académico por usuarios academicos; una empresa necesita licencia de Pathway Solutions; 3 peticiones por segundo o bloqueo de IP. Reactome (CC0) lo sustituye", "https://www.kegg.jp/kegg/legal.html", "genes_ontologias")

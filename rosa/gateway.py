@@ -1,4 +1,4 @@
-"""Los modelos de Rosa, todos por el AI Gateway de Vercel.
+"""Los modelos de ROSA2018, todos por el AI Gateway de Vercel.
 
 Decidido por la persona responsable el 9 y 10 de septiembre de 2026 (TRASPASO.md 2.2 y 2.3):
 GPT-6 Astra de cerebro, Claude Opus 5 de juez, Claude Sonnet 5 en alto

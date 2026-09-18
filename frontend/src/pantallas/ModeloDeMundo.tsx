@@ -13,7 +13,7 @@ import { IconChevronDown } from '../componentes/icons';
 import { Entidades, PreguntarALasBases, RelacionesCausales } from '../componentes/Rosa2018';
 import { ElementoAnimado, ListaAnimada } from '../componentes/Animado';
 import { COBERTURA_MINIMA, faltanParaCobertura } from '../lib/cobertura';
-import { CLASIFICACION_CITA, ESTADO_HECHO, TIPO_HECHO } from '../lib/etiquetas';
+import { CLASIFICACION_CITA, ESTADO_HECHO, TIPO_HECHO, nombreActor } from '../lib/etiquetas';
 import { formatearPorcentaje } from '../lib/formato';
 
 function CitasDelHecho({ h }: { h: HechoMundo }) {
@@ -53,8 +53,8 @@ function TarjetaHecho({ h, ahora, fuentes, porId }: { h: HechoMundo; ahora: numb
       <div className="hecho-cabecera">
         <Chip tono={h.tipo === 'hipotesis' ? 'acento' : undefined}>{TIPO_HECHO[h.tipo]}</Chip>
         {h.tema !== TIPO_HECHO[h.tipo] && <Chip tono="borde">{h.tema}</Chip>}
-        <Chip tono={h.origen === 'fuente' ? undefined : 'aviso'} title={h.origen === 'fuente' ? 'Lo dice la fuente citada' : 'Lo infiere Rosa; no es una cita'}>
-          {h.origen === 'fuente' ? 'Dice la fuente' : 'Inferencia de Rosa'}
+        <Chip tono={h.origen === 'fuente' ? undefined : 'aviso'} title={h.origen === 'fuente' ? 'Lo dice la fuente citada' : 'Lo infiere ROSA2018; no es una cita'}>
+          {h.origen === 'fuente' ? 'Dice la fuente' : 'Inferencia de ROSA2018'}
         </Chip>
       </div>
       <p>{h.enunciado}</p>
@@ -66,7 +66,7 @@ function TarjetaHecho({ h, ahora, fuentes, porId }: { h: HechoMundo; ahora: numb
             const texto = `[${p.referencia}${p.pagina !== null ? `, pag. ${p.pagina}` : ''}]`;
             const href = f?.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${f.pmid}/` : f?.doi ? `https://doi.org/${f.doi}` : null;
             return href ? (
-              <a key={i} className="enlace" href={href} target="_blank" rel="noreferrer" title={`${f?.titulo ?? ''}${f?.pmid ? ` · PMID ${f.pmid}` : ''}${f?.doi ? ` · doi:${f.doi}` : ''}. Se abre en PubMed o en el DOI: comprobable fuera de Rosa.`}>
+              <a key={i} className="enlace" href={href} target="_blank" rel="noreferrer" title={`${f?.titulo ?? ''}${f?.pmid ? ` · PMID ${f.pmid}` : ''}${f?.doi ? ` · doi:${f.doi}` : ''}. Se abre en PubMed o en el DOI: comprobable fuera de ROSA2018.`}>
                 <code>{texto}</code>
               </a>
             ) : (
@@ -82,7 +82,7 @@ function TarjetaHecho({ h, ahora, fuentes, porId }: { h: HechoMundo; ahora: numb
       <EnlacesDelHecho h={h} porId={porId} />
       {h.pendienteRevision && (
         <p className="hecho-pendiente">
-          <Chip tono="aviso" title="Algo de lo que este hecho depende cambió (una fuente se retractó, otro hecho lo sustituyó o lo contradijo). Rosa lo marca; una persona lo revisa.">
+          <Chip tono="aviso" title="Algo de lo que este hecho depende cambió (una fuente se retractó, otro hecho lo sustituyó o lo contradijo). ROSA2018 lo marca; una persona lo revisa.">
             Pendiente de revisar
           </Chip>{' '}
           {h.pendienteRevision.detalle}{' '}
@@ -130,7 +130,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
   const [vista, setVista] = useState<'columnas' | 'cambios'>('columnas');
   const [pregunta, setPregunta] = useState('');
   const [respuesta, setRespuesta] = useState<{ respuesta: string; nodos: HechoMundo[]; citas: CitaComprobable[] } | null>(null);
-  // Las fuentes con su PMID y DOI, por id, para que cada cita se pueda comprobar fuera de Rosa.
+  // Las fuentes con su PMID y DOI, por id, para que cada cita se pueda comprobar fuera de ROSA2018.
   const fuentesPorId = useMemo(() => {
     const m = new Map<string, Fuente>();
     for (const h of estado.hipotesis) if (h.investigacionId === inv.id) for (const f of h.procedencia.fuentes) if (!m.has(f.id)) m.set(f.id, f);
@@ -293,7 +293,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                       {x.m.de !== null && <Chip>{ESTADO_HECHO[x.m.de]}</Chip>}
                       <span className="meta">{x.m.de !== null ? 'a' : 'nuevo en'}</span>
                       <Chip tono={x.m.a === 'sabido' ? 'ok' : x.m.a === 'descartado' ? 'mal' : 'acento'}>{ESTADO_HECHO[x.m.a]}</Chip>
-                      <Chip tono={x.m.quien === 'Rosa' ? undefined : 'borde'}>{x.m.quien}</Chip>
+                      <Chip tono={x.m.quien === 'Rosa' ? undefined : 'borde'}>{nombreActor(x.m.quien)}</Chip>
                     </div>
                     <p style={{ fontSize: 13.5, marginTop: 4 }}>{x.h.enunciado}</p>
                     <p className="meta">{x.m.motivo}</p>

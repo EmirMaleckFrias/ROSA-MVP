@@ -102,7 +102,7 @@ SEGUNDOS_MAX_LLAMADA = 600  # una llamada al gateway que tarda mas de esto es un
 
 
 def _pregunta_de(ctx: "Ctx") -> str | None:
-    """El enunciado de la pregunta de la corrida, si Rosa ya la formuló."""
+    """El enunciado de la pregunta de la corrida, si ROSA2018 ya la formuló."""
     return ((ctx.corrida().get("pregunta") or {}).get("enunciado")) or None
 
 
@@ -850,7 +850,7 @@ def estado_por_puntuacion(mejor: int, alto: str, parcial: str, ninguno: str) -> 
 async def _novedad_exa_dominios(ctx: Ctx, h: dict[str, Any], pista: Pista, novedad: dict[str, Any], clave: str, dominios: list[str], pregunta: str, estados: tuple[str, str, str], etiqueta: str) -> None:
     """Una comprobación de novedad sobre un conjunto de dominios de Exa
     (patentes, financiación): búsqueda semántica del enunciado, acotada a lo
-    publicado antes de que Rosa propusiera la hipótesis, y cribado de los tres
+    publicado antes de que ROSA2018 propusiera la hipótesis, y cribado de los tres
     mejores con el programa de relevancia. Sin Exa queda "no comprobado" con
     el motivo, nunca "no hay"."""
     if not exa.disponible():
@@ -916,7 +916,7 @@ def _contar_fallo_fuente(ctx: Ctx, base: str, error: str) -> None:
 
     ctx.mutar(fn, "fallo_fuente")
     if ctx.corrida().get("_fallosFuente", {}).get(base, 0) >= 3:
-        ctx.incidencia("fuente_sin_respuesta", f"{base} lleva 3 fallos seguidos", error[:400], base, "Comprobar la conexión o esperar; Rosa sigue con las demás fuentes.")
+        ctx.incidencia("fuente_sin_respuesta", f"{base} lleva 3 fallos seguidos", error[:400], base, "Comprobar la conexión o esperar; ROSA2018 sigue con las demás fuentes.")
 
 
 async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
@@ -1568,7 +1568,7 @@ def _fuentes_de_hipotesis(ctx: Ctx, h: dict[str, Any]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 # Cuántas veces puede fallar el juez del Killer sobre una hipótesis antes de que
-# Rosa deje constancia de una suspensión explícita y espere a una persona (S-09).
+# ROSA2018 deje constancia de una suspensión explícita y espere a una persona (S-09).
 # Mismo valor que MAX_INTENTOS_KILLER en rosa/bucle/corrida.py.
 MAX_INTENTOS_JUEZ = 3
 _ORDEN_RELACION = {None: 0, "": 0, "apoya": 0, "apoya_indirecta": 1, "socava": 2, "contradice": 3}
@@ -1869,12 +1869,12 @@ def _hubo_accion_humana_despues(e: dict[str, Any], x: dict[str, Any], excluir_id
     return ultima_persona > ultima_killer
 
 
-# Revisiones que escribe la propia Rosa sin que medie una persona: no cuentan
+# Revisiones que escribe la propia ROSA2018 sin que medie una persona: no cuentan
 # como "última palabra" de nadie al decidir si el Killer puede cambiar el estado.
 _REVISIONES_AUTOMATICAS = ("killer", "suspendida", "propuesta", "reformulada")
 # Revisiones que señalan un diálogo abierto con una persona: un comentario suyo
 # (acciones.enviar_comentarios deja la hipótesis en_revision), un "no puedo
-# juzgar" y la aclaración de Rosa que lo responde. Mientras duren, el estado lo
+# juzgar" y la aclaración de ROSA2018 que lo responde. Mientras duren, el estado lo
 # cambia la persona, no el Killer.
 _REVISIONES_DIALOGO = ("comentada", "aclarada", "no_puedo_juzgar")
 
@@ -1894,7 +1894,7 @@ def _sacar_de_revision_si_toca(e2: dict[str, Any], x: dict[str, Any], anterior: 
     if x.get("estado") != "en_revision" or decision not in ("avanzar", "suspender", "reformular"):
         return None
     hallazgo_abierto = _hallazgo_abierto(x, "El Killer propone descartarla en este contexto") is not None
-    # La última revisión que no escribió la propia Rosa por su cuenta.
+    # La última revisión que no escribió la propia ROSA2018 por su cuenta.
     ultima_ajena = next((r for r in reversed(x.get("revisiones") or []) if isinstance(r, dict) and r.get("accion") not in _REVISIONES_AUTOMATICAS), None)
     accion_ajena = ultima_ajena.get("accion") if ultima_ajena else None
     reabierta = accion_ajena == "reabierta"
@@ -2227,7 +2227,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
         contradice_a = []
     comprobaciones = K.fusionar(deterministas, del_juez)
     if juez_fallo is not None:
-        # S-09: sin juez no hay juicio. Solo las comprobaciones que Rosa hace sola
+        # S-09: sin juez no hay juicio. Solo las comprobaciones que ROSA2018 hace sola
         # contra el texto (citas que resuelven, fidelidad al pasaje) pueden
         # descartar sin él; todo lo demás (avanzar, suspender, reformular) espera
         # a que el juez responda, y el intento se cuenta.
@@ -2243,7 +2243,7 @@ async def _killer(ctx: Ctx, h: dict[str, Any], texto_afirmaciones: str, pista: P
     tiene_prediccion = bool((h.get("tarjeta") or {}).get("prediccionFalsable")) and "no falsable" not in (h.get("tarjeta") or {}).get("prediccionFalsable", "").lower()
     decision, motivo = K.decidir(comprobaciones, tiene_prediccion, h.get("version", 1))
     if juez_fallo is not None:
-        motivo = f"[Sin juez: {juez_fallo[:80]}; deciden las comprobaciones que Rosa hace sola contra el texto] {motivo}"
+        motivo = f"[Sin juez: {juez_fallo[:80]}; deciden las comprobaciones que ROSA2018 hace sola contra el texto] {motivo}"
     # Regresión entre versiones: la versión n+1 solo avanza si no falla lo que la n pasaba.
     regresion = regresion_de_comprobaciones(e, h, comprobaciones)
     if regresion and decision == "avanzar":
@@ -2712,7 +2712,7 @@ async def _torneo(ctx: Ctx, pista: Pista) -> int:
                     A.fusionar_hipotesis(e, ganadora["id"], absorbida["id"], motivo, config.QUIEN_ROSA, ahora)
                 else:
                     absorbida["fusionPropuesta"] = {"con": ganadora["id"], "relacion": relacion, "motivo": motivo, "propuestaEn": ahora}
-                    A.con_evento(e, x["investigacionId"], "revision_automatica", f"Rosa propone fusionar '{absorbida['titulo'][:60]}' en '{ganadora['titulo'][:60]}' ({relacion.replace('_', ' ')}); decide la persona", f"#/investigaciones/{x['investigacionId']}/hipotesis/{absorbida['id']}", ahora)
+                    A.con_evento(e, x["investigacionId"], "revision_automatica", f"ROSA2018 propone fusionar '{absorbida['titulo'][:60]}' en '{ganadora['titulo'][:60]}' ({relacion.replace('_', ' ')}); decide la persona", f"#/investigaciones/{x['investigacionId']}/hipotesis/{absorbida['id']}", ahora)
             elif relacion == "incompatibles":
                 # Ataque declarado en las dos direcciones (rosa/argumentacion.py lo lee).
                 for de, hacia in ((x, y_), (y_, x)):
@@ -3228,7 +3228,7 @@ async def paso_novedad(ctx: Ctx, paso: dict[str, Any]) -> str:
                 # Por significado, con el enunciado entero: la pregunta de novedad
                 # difícil es "¿alguien ya propuso esto con otras palabras?".
                 try:
-                    # Solo lo publicado antes de que Rosa propusiera la hipótesis: la
+                    # Solo lo publicado antes de que ROSA2018 propusiera la hipótesis: la
                     # novedad honesta, también cuando se vuelve a juzgar meses después.
                     obras_exa, n_exa, coste_exa = await exa.buscar(h["enunciado"][:600], maximo=6, pregunta_pasajes=h["enunciado"][:500], hasta_fecha=fecha_iso_de_ms(h.get("creadaEn")))
                     pista.accion("Exa: enunciado completo", {"base": "Exa", "parametros": "category=publication&numResults=6&endPublishedDate=creación de la hipótesis&highlights.query=enunciado", "resultados": f"{n_exa} documentos, {coste_exa:.4f} USD"})
@@ -3335,7 +3335,7 @@ async def paso_meta(ctx: Ctx, paso: dict[str, Any]) -> str:
         c["metaRevisiones"].append({"iteracion": ctx.numero, "fecha": ahora, "debilidades": debilidades})
         c["panorama"] = [{"titulo": d.titulo, "razon": d.razon, "hallazgosRecientes": d.hallazgos[:5], "queInvestigar": d.que_investigar[:5], "ideaEjemplo": d.idea_ejemplo, "inesperada": d.inesperada, "hipotesisIds": [x for x in d.hipotesis if x in ids]} for d in pred.direcciones[:4]]
         # Cada debilidad es un cambio de nivel 2 propuesto: cambiaria como razona
-        # Rosa. Queda en el registro de aprendizaje hasta que una persona lo promueva.
+        # ROSA2018. Queda en el registro de aprendizaje hasta que una persona lo promueva.
         existentes = {a["descripcion"] for a in e2.get("aprendizaje", [])}
         for d in debilidades:
             if d["texto"] not in existentes and d["texto"] not in e2["criteriosRevision"]:

@@ -25,7 +25,7 @@ describe('acceso corporativo', () => {
     let resolver!: (valor: unknown) => void;
     vi.stubGlobal('fetch', vi.fn(() => new Promise(r => { resolver = r; })));
     await montar();
-    expect(nodo.textContent).toContain('Cargando Rosa');
+    expect(nodo.textContent).toContain('Cargando ROSA2018');
     expect(nodo.querySelector('form')).toBeNull();
     expect(nodo.textContent).not.toContain('Investigaciones privadas');
     await act(async () => resolver({ ok: true, json: async () => ({ ...estado, correo: 'equipo@alzheimerproject.com' }) }));
@@ -40,7 +40,7 @@ describe('acceso corporativo', () => {
     expect(nodo.querySelector('img')?.getAttribute('src')).toBe('/arbol-marca.png');
     expect((nodo.querySelector('.acceso-continuar') as HTMLButtonElement).disabled).toBe(false);
     expect(nodo.textContent).toContain('Contraseña');
-    expect(nodo.textContent).not.toContain('Rosa aún no está conectado');
+    expect(nodo.textContent).not.toContain('ROSA2018 aún no está conectado');
     expect(nodo.textContent).not.toContain('Entrar sin verificación');
     expect(nodo.textContent).not.toContain('Registrarse');
   });

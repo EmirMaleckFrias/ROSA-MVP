@@ -1,11 +1,11 @@
 // El registro de datasets del programa (plan completo, etapa B;
-// rosa/datasets_programa.py): cada conjunto de datos público que Rosa
+// rosa/datasets_programa.py): cada conjunto de datos público que ROSA2018
 // encontró al consultar GEO, CELLxGENE, Synapse, ArrayExpress o Expression
 // Atlas, o que una persona subió, con lo que se pudo inferir por regla
 // (tipo, tejido, fase, tamaño, acceso) y la explicación de cada inferencia
 // plegada. Por defecto se ven los usados en esta investigación; un botón
 // muestra todo el registro. Un dataset de acceso controlado se marca con la
-// nota "el proyecto no lo pide": Rosa trabaja solo con datos públicos.
+// nota "el proyecto no lo pide": ROSA2018 trabaja solo con datos públicos.
 
 import { useState } from 'react';
 import type { AccesoDatasetPrograma, DatasetPrograma, FuenteDatasetPrograma, Id, TipoDatasetPrograma } from '../datos/tipos';
@@ -46,7 +46,7 @@ const DEFINICION_FUENTE: Record<FuenteDatasetPrograma, string> = {
   synapse: 'Synapse (Sage Bionetworks): plataforma que aloja, entre otros, los datos del AD Knowledge Portal; parte es de acceso controlado.',
   arrayexpress: 'ArrayExpress (EMBL-EBI): archivo europeo de experimentos de expresión.',
   expression_atlas: 'Expression Atlas (EMBL-EBI): expresión por gen y condición, reprocesada de forma uniforme.',
-  manual: 'Subido por una persona a esta instalación de Rosa.',
+  manual: 'Subido por una persona a esta instalación de ROSA2018.',
 };
 
 const TONO_ACCESO: Record<AccesoDatasetPrograma, 'ok' | 'aviso' | 'mal' | 'borde'> = {
@@ -59,7 +59,7 @@ const TONO_ACCESO: Record<AccesoDatasetPrograma, 'ok' | 'aviso' | 'mal' | 'borde
 const DEFINICION_ACCESO: Record<AccesoDatasetPrograma, string> = {
   abierto: 'Se descarga sin pedir permiso a nadie.',
   registro: 'Hace falta una cuenta gratuita, sin comité ni acuerdo de uso.',
-  controlado: 'Exige un acuerdo de uso de datos y a menudo un comité. Rosa trabaja solo con datos públicos: este conjunto se registra para que conste que existe, no se propone para análisis con datos individuales.',
+  controlado: 'Exige un acuerdo de uso de datos y a menudo un comité. ROSA2018 trabaja solo con datos públicos: este conjunto se registra para que conste que existe, no se propone para análisis con datos individuales.',
   desconocido: 'La regla no encontró en la ficha ninguna palabra que dijera cómo se accede: no pude comprobar, que no es lo mismo que abierto.',
 };
 
@@ -161,7 +161,7 @@ function Fila({ d, investigacionId }: { d: DatasetPrograma; investigacionId: Id 
       </dl>
       {acceso === 'controlado' && (
         <p className="meta dsp-nota">
-          Acceso controlado: el proyecto no lo pide. Rosa trabaja solo con datos públicos; este conjunto queda registrado para que conste, no se propone para análisis con datos individuales.
+          Acceso controlado: el proyecto no lo pide. ROSA2018 trabaja solo con datos públicos; este conjunto queda registrado para que conste, no se propone para análisis con datos individuales.
         </p>
       )}
       {compartidas.length > 0 && (
@@ -199,7 +199,7 @@ export function DatasetsPrograma({ datasets, investigacionId }: { datasets: Data
         <div>
           <h3>Datasets del programa</h3>
           <p className="meta">
-            Cada conjunto de datos público que Rosa encontró al buscar datos (GEO, CELLxGENE, Synapse, ArrayExpress, Expression Atlas) o que una persona subió, con lo que se dedujo por regla de su ficha. Lo que no se pudo deducir dice "sin comprobar", nunca se inventa.
+            Cada conjunto de datos público que ROSA2018 encontró al buscar datos (GEO, CELLxGENE, Synapse, ArrayExpress, Expression Atlas) o que una persona subió, con lo que se dedujo por regla de su ficha. Lo que no se pudo deducir dice "sin comprobar", nunca se inventa.
           </p>
         </div>
         {todos.length > propios.length && (
@@ -209,7 +209,7 @@ export function DatasetsPrograma({ datasets, investigacionId }: { datasets: Data
         )}
       </div>
       {todos.length === 0 ? (
-        <p className="meta">El registro está vacío: se llena cuando Rosa consulta bases de datos al buscar datos para una hipótesis o cuando alguien sube un fichero.</p>
+        <p className="meta">El registro está vacío: se llena cuando ROSA2018 consulta bases de datos al buscar datos para una hipótesis o cuando alguien sube un fichero.</p>
       ) : visibles.length === 0 ? (
         <p className="meta">Ninguna corrida de esta investigación ha usado todavía un dataset del registro. El botón de arriba muestra los {todos.length} del programa.</p>
       ) : (

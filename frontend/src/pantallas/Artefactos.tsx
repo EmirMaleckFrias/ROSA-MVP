@@ -127,7 +127,7 @@ export function Artefactos({ inv, estado, ahora, detalleId }: { inv: Investigaci
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Artefactos</h2>
-          <p>Lo que Rosa guarda en cada iteración: informes, tablas, el estado del modelo de mundo. Cada guardado con el mismo nombre es una versión nueva.</p>
+          <p>Lo que ROSA2018 guarda en cada iteración: informes, tablas, el estado del modelo de mundo. Cada guardado con el mismo nombre es una versión nueva.</p>
         </div>
         <input className="entrada" style={{ maxWidth: 300 }} value={busqueda} placeholder="Buscar artefactos" onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar artefactos" />
       </div>

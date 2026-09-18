@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { estadoDeMuestra } from '../datos/muestra';
 import type { Afirmacion, Ejecucion, PlanAnalisis } from '../datos/tipos';
-import { alternar, buscar, construirArbol, distancias, ENLACES_EVIDENCIA, ESTRUCTURA, fraseProfundidad, incorporarNovedades, medicionDeAfirmacion, medicionDeEjecucion, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, recortar, visiblesIniciales, type EnlaceArbol, type Grafo, type NodoArbol, type Posicion } from './arbol';
+import { alternar, buscar, construirArbol, pesoHipotesis, distancias, ENLACES_EVIDENCIA, ESTRUCTURA, fraseProfundidad, incorporarNovedades, medicionDeAfirmacion, medicionDeEjecucion, NOMBRE_ENLACE, NOMBRE_TIPO, paso, posicionInicial, recortar, visiblesIniciales, type EnlaceArbol, type Grafo, type NodoArbol, type Posicion } from './arbol';
 
 describe('el arbol de la investigacion', () => {
   const e = estadoDeMuestra();
@@ -397,5 +397,28 @@ describe('profundidad hasta el dato', () => {
     expect(d.get('b')).toBe(0);
     const grafoMinimo: Grafo = { nodos, enlaces: [], vecinos: new Map(), porId: new Map(nodos.map((n) => [n.id, n])), iteracionMax: 1 };
     expect(grafoMinimo.profundidadDato).toBeUndefined();
+  });
+});
+
+describe('el peso de una hipótesis dice cuánto vale', () => {
+  const base = { estado: 'propuesta', candidata: false, conclusion: null } as unknown as Parameters<typeof pesoHipotesis>[0];
+  const con = (certeza: string | null, elo: number, extra: Record<string, unknown> = {}) => pesoHipotesis({ ...base, ...(certeza ? { conclusion: { certeza } } : {}), ...extra } as unknown as Parameters<typeof pesoHipotesis>[0], elo);
+  it('crece con la certeza GRADE por encima de cualquier diferencia de Elo', () => {
+    expect(con('muy_baja', 1800)).toBeLessThan(con('baja', 1200));
+    expect(con('baja', 1800)).toBeLessThan(con('moderada', 1200));
+    expect(con('moderada', 1800)).toBeLessThan(con('alta', 1200));
+  });
+  it('dentro del mismo nivel, el torneo mueve hasta 0,3 y la candidatura suma 0,15', () => {
+    expect(con('muy_baja', 1500)).toBe(1);
+    expect(con('muy_baja', 1800)).toBe(1.3);
+    expect(con('muy_baja', 2400)).toBe(1.3);
+    expect(con('muy_baja', 1200)).toBe(0.7);
+    expect(con('muy_baja', 1500, { candidata: true })).toBe(1.15);
+  });
+  it('sin conclusión vale como muy baja; una descartada va al mínimo; un Elo roto no rompe', () => {
+    expect(con(null, 1500)).toBe(1);
+    expect(con('alta', 1900, { estado: 'descartada' })).toBe(0.8);
+    expect(Number.isFinite(con('baja', Number.NaN))).toBe(true);
+    expect(con('inventada', 1500)).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-// Datos de muestra de Rosa. Sirven para construir y juzgar la interfaz antes
+// Datos de muestra de ROSA2018. Sirven para construir y juzgar la interfaz antes
 // de que exista el bucle: una investigacion sobre biomarcadores plasmaticos y
 // progresion, una corrida en marcha, cinco hipotesis en la cola, un modelo
 // de mundo con hechos, preguntas abiertas y descartes, artefactos con
@@ -7,7 +7,7 @@
 // Todo lo que hay aqui es ilustrativo: los fragmentos citados resumen lo que
 // dicen las fuentes de GUIA-ROSA.md, pero no son citas literales de las
 // paginas indicadas. La interfaz lo marca como "datos de muestra" mientras
-// el almacen no este conectado a Rosa de verdad.
+// el almacen no este conectado a ROSA2018 de verdad.
 
 import type {
   Artefacto,
@@ -472,7 +472,7 @@ export const SOLICITUDES: SolicitudPermiso[] = [
     tipo: 'presupuesto_grande',
     titulo: 'Gastar un presupuesto grande en una hipótesis',
     detalle:
-      'Rosa quiere dedicar 400 llamadas al modelo (unas 3 iteraciones) a perseguir la hipótesis "NLRP3 como puente entre amiloide y propagación de tau". Supera el límite de 120 por iteración.',
+      'ROSA2018 quiere dedicar 400 llamadas al modelo (unas 3 iteraciones) a perseguir la hipótesis "NLRP3 como puente entre amiloide y propagación de tau". Supera el límite de 120 por iteración.',
     recurso: '400 llamadas al modelo para hip-2',
     alcances: ['una_vez', 'esta_corrida'],
     estado: 'pendiente',
@@ -491,7 +491,7 @@ export const SOLICITUDES: SolicitudPermiso[] = [
     corridaId: 'cor-3',
     tipo: 'fuente_externa',
     titulo: 'Consultar una fuente externa nueva',
-    detalle: 'Rosa quiere consultar la API REST de NIAGADS GenomicsDB para estadísticas GWAS de TREM2 y APOE. No está entre las fuentes concedidas.',
+    detalle: 'ROSA2018 quiere consultar la API REST de NIAGADS GenomicsDB para estadísticas GWAS de TREM2 y APOE. No está entre las fuentes concedidas.',
     recurso: 'api.niagads.org',
     alcances: ['una_vez', 'esta_corrida', 'esta_investigacion', 'siempre'],
     estado: 'pendiente',
@@ -510,7 +510,7 @@ export const SOLICITUDES: SolicitudPermiso[] = [
     corridaId: 'cor-3',
     tipo: 'fuente_externa',
     titulo: 'Consultar una fuente externa nueva',
-    detalle: 'Rosa quiere descargar estadísticas GWAS del GWAS Catalog (NHGRI-EBI) para 15 publicaciones de Alzheimer.',
+    detalle: 'ROSA2018 quiere descargar estadísticas GWAS del GWAS Catalog (NHGRI-EBI) para 15 publicaciones de Alzheimer.',
     recurso: 'www.ebi.ac.uk/gwas',
     alcances: ['una_vez', 'esta_corrida', 'esta_investigacion', 'siempre'],
     estado: 'pendiente',
@@ -545,7 +545,7 @@ export const INCIDENCIAS: Incidencia[] = [
     corridaId: 'cor-3',
     tipo: 'conector_caducado',
     titulo: 'La clave de Semantic Scholar caduco',
-    detalle: 'Las llamadas al grafo académico de Semantic Scholar devuelven 401 desde hace 2 horas. Rosa sigue con PubMed, Europe PMC y OpenAlex, pero sin el grafo de citas.',
+    detalle: 'Las llamadas al grafo académico de Semantic Scholar devuelven 401 desde hace 2 horas. ROSA2018 sigue con PubMed, Europe PMC y OpenAlex, pero sin el grafo de citas.',
     recurso: 'api.semanticscholar.org',
     alternativa: 'Reconectar con una clave nueva (gratuita, se pide en su web)',
     estado: 'pendiente',
@@ -927,7 +927,7 @@ const HIPOTESIS_BASE: HipotesisParcial[] = [
       { iteracion: 12, rivalId: 'hip-1', resultado: 'perdio', resumenDebate: 'Ya está en ensayo; el cociente en autosómico dominante no.', ejeDecisivo: 'novedad' },
     ],
     revisionesHumanas: [
-      { fecha: hace(4 * HORA), quien: 'Compañero', supuestosCuestionados: 'Que el efecto sea independiente del amiloide: los ensayos no miden PET de amiloide como desenlace.', literaturaQueFalta: 'Los resultados de evoke y evoke+ cuando se publiquen; los análisis de GFAP en ensayos de GLP-1 en diabetes.', problemaExperimental: 'Un análisis secundario de un ensayo ajeno no es una comprobación que Rosa pueda lanzar; hay que reformular como pregunta.' },
+      { fecha: hace(4 * HORA), quien: 'Compañero', supuestosCuestionados: 'Que el efecto sea independiente del amiloide: los ensayos no miden PET de amiloide como desenlace.', literaturaQueFalta: 'Los resultados de evoke y evoke+ cuando se publiquen; los análisis de GFAP en ensayos de GLP-1 en diabetes.', problemaExperimental: 'Un análisis secundario de un ensayo ajeno no es una comprobación que ROSA2018 pueda lanzar; hay que reformular como pregunta.' },
     ],
     coste: { literatura: 1.9, analisis: 0 },
   },
@@ -1244,10 +1244,10 @@ export const CRITERIOS: string[] = [
 /** Eventos de las ultimas horas, para el resumen "mientras no estabas". */
 export const EVENTOS: Evento[] = [
   { id: 'ev-1', investigacionId: 'inv-1', t: hace(14 * HORA), tipo: 'iteracion_terminada', texto: 'Iteración 10 terminada: 3 búsquedas, 19 artículos, 1 hecho nuevo', ruta: '#/investigaciones/inv-1/corrida' },
-  { id: 'ev-2', investigacionId: 'inv-1', t: hace(9 * HORA), tipo: 'permiso_pendiente', texto: 'Rosa pide gastar 400 llamadas en la hipótesis de NLRP3', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-2', investigacionId: 'inv-1', t: hace(9 * HORA), tipo: 'permiso_pendiente', texto: 'ROSA2018 pide gastar 400 llamadas en la hipótesis de NLRP3', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-3', investigacionId: 'inv-1', t: hace(8 * HORA), tipo: 'iteracion_terminada', texto: 'Iteración 11 terminada: 1 hipótesis nueva (NLRP3), 2 hallazgos abiertos del revisor', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-4', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'hipotesis_nueva', texto: 'Hipótesis nueva en la cola: NLRP3 como puente entre amiloide y tau', ruta: '#/investigaciones/inv-1/hipotesis/hip-2' },
-  { id: 'ev-5', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'incidencia', texto: 'La clave de Semantic Scholar caduco; Rosa sigue sin el grafo de citas', ruta: '#/investigaciones/inv-1/corrida' },
+  { id: 'ev-5', investigacionId: 'inv-1', t: hace(2 * HORA), tipo: 'incidencia', texto: 'La clave de Semantic Scholar caduco; ROSA2018 sigue sin el grafo de citas', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-6', investigacionId: 'inv-1', t: hace(1.5 * HORA), tipo: 'presupuesto', texto: 'La corrida paso del 50 % del presupuesto global (1.500 de 3.000 llamadas)', ruta: '#/investigaciones/inv-1/corrida' },
   { id: 'ev-7', investigacionId: 'inv-1', t: hace(58 * MIN), tipo: 'hipotesis_nueva', texto: 'Hipotesis nueva en la cola: el cociente p-tau217/Abeta42 en autosomico dominante', ruta: '#/investigaciones/inv-1/hipotesis/hip-1' },
   { id: 'ev-8', investigacionId: 'inv-1', t: hace(50 * MIN), tipo: 'ranking_cambio', texto: 'NLRP3 subio al primer puesto del ranking (Elo 1701) tras ganar a la hipótesis del cociente', ruta: '#/investigaciones/inv-1/ranking' },

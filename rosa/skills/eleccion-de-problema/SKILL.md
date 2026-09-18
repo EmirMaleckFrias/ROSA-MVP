@@ -25,5 +25,5 @@ responder por escrito:
 7. Que se haria si el primer resultado sale nulo (plan de adversidad) y
    como se invertiria el problema (que se aprende del fracaso).
 
-Rosa lo usa como lista de comprobacion en `ProponerAreas`: un area sin
+ROSA2018 lo usa como lista de comprobacion en `ProponerAreas`: un area sin
 respuesta a 3 y 4 no se marca como elegida.

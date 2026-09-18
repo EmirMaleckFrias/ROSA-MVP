@@ -1,5 +1,5 @@
 """Panel de prueba del Hypothesis Killer (plan completo, etapa E; ROSA2018,
-etapa 6): hipótesis reales de Rosa a las que se les planta un fallo conocido
+etapa 6): hipótesis reales de ROSA2018 a las que se les planta un fallo conocido
 y se mide si el Killer lo detecta, si lo detecta la comprobación correcta,
 y cuánto se abstiene (suspender) o mata de más en un conjunto gris.
 

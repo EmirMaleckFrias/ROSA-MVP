@@ -837,7 +837,7 @@ def test_el_revisor_no_se_contradice_con_la_frase_de_la_cola_por_regla():
     assert corpus["recuentos"]["cola"] == {6} and corpus["recuentos"]["colaDesglose"] == {3, 2, 1} and corpus["recuentos"]["hipotesis"] == {7, 0}
     frase = CO.frase_de_la_cola(e, "inv", 0)
     assert frase.startswith("6 hipótesis en cola: 3 con descarte propuesto por el Killer, 2 suspendidas, 1 sin juzgar")
-    # La frase que Rosa genera por regla no puede salir como contradicción del propio revisor
+    # La frase que ROSA2018 genera por regla no puede salir como contradicción del propio revisor
     # (antes: «6 hipótesis» frente a "el registro admite 7, 0").
     assert RR.comprobaciones_deterministas(frase, corpus, it, 0) == []
     # Los desgloses también son verdad; el total falso sigue saltando.

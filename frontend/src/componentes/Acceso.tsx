@@ -1,4 +1,4 @@
-// La puerta de Rosa. A la izquierda, el árbol vivo cuenta qué hace Rosa
+// La puerta de ROSA2018. A la izquierda, el árbol vivo cuenta qué hace ROSA2018
 // mientras se ilumina etapa a etapa; a la derecha, una tarjeta tranquila con
 // dos campos: correo corporativo y contraseña. La lógica (estado de sesión,
 // entrada, salida y configuración de la instalación) es la de Codex; aquí se
@@ -103,7 +103,7 @@ export function Acceso({ children }: { children: ReactNode }) {
         }
         if (vivo) setSesion(s);
       } catch {
-        if (vivo) setMensaje('No se puede conectar con Rosa. Comprueba que el servidor está encendido y recarga esta página.');
+        if (vivo) setMensaje('No se puede conectar con ROSA2018. Comprueba que el servidor está encendido y recarga esta página.');
       }
     };
     void cargar();
@@ -131,7 +131,7 @@ export function Acceso({ children }: { children: ReactNode }) {
   // No montar el formulario ni datos privados mientras se valida el acceso.
   if (!sesion) return (
     <main className="contenido" aria-busy={!mensaje}>
-      <p role="status">{mensaje || 'Cargando Rosa…'}</p>
+      <p role="status">{mensaje || 'Cargando ROSA2018…'}</p>
       {mensaje && <button type="button" className="btn" onClick={() => window.location.reload()}>Reintentar</button>}
     </main>
   );
@@ -154,14 +154,14 @@ export function Acceso({ children }: { children: ReactNode }) {
           <br />
           Conocimiento que crece.
         </h1>
-        <p className="acceso-descripcion">Rosa lee, verifica y propone. Tu equipo decide el siguiente paso, y cada decisión queda con su procedencia.</p>
+        <p className="acceso-descripcion">ROSA2018 lee, verifica y propone. Tu equipo decide el siguiente paso, y cada decisión queda con su procedencia.</p>
         <ArbolVivo />
       </section>
 
-      <section className="acceso-lado" aria-label="Acceso a Rosa">
+      <section className="acceso-lado" aria-label="Acceso a ROSA2018">
         <motion.div className="acceso-tarjeta" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
           <div className="acceso-marca">
-            Rosa
+            ROSA2018
           </div>
 
           <motion.div key="formulario" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
@@ -221,7 +221,7 @@ export function Acceso({ children }: { children: ReactNode }) {
             </p>
           )}
         </motion.div>
-        <p className="acceso-pie">Rosa investiga; la persona decide.</p>
+        <p className="acceso-pie">ROSA2018 investiga; la persona decide.</p>
       </section>
     </main>
   );
@@ -241,7 +241,7 @@ export function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
   return (
     <details className="acceso-instalacion" open>
       <summary>Configurar correo de esta instalación</summary>
-      <p>Disponible solo en el equipo de Rosa, antes de registrar la primera cuenta. Esa primera cuenta verificada administrará la conexión de correo.</p>
+      <p>Disponible solo en el equipo de ROSA2018, antes de registrar la primera cuenta. Esa primera cuenta verificada administrará la conexión de correo.</p>
       <div className="acceso-opciones acceso-opciones-proveedor" role="group" aria-label="Proveedor de correo">
         <button type="button" aria-pressed={smtp} onClick={() => setProveedor('smtp')}>
           <span>Google Workspace</span>
@@ -312,7 +312,7 @@ export function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
             <input id="instalacion-clave" type="password" autoComplete="new-password" required value={clave} onChange={(e) => setClave(e.target.value)} />
           </>
         )}
-        <label htmlFor="instalacion-url">Dirección web de Rosa</label>
+        <label htmlFor="instalacion-url">Dirección web de ROSA2018</label>
         <input id="instalacion-url" type="url" required value={url} onChange={(e) => setUrl(e.target.value)} />
         <small>Localhost sirve solo en este equipo. Para acceso desde otros equipos necesitas un despliegue HTTPS.</small>
         <button className="btn" disabled={ocupado}>

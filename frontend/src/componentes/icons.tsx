@@ -329,7 +329,7 @@ export function IconMinus({ size = 14, ...props }: IconProps) {
   );
 }
 
-/* ---- Iconos propios de Rosa ---- */
+/* ---- Iconos propios de ROSA2018 ---- */
 
 export function IconPause({ size = 14, ...props }: IconProps) {
   return (

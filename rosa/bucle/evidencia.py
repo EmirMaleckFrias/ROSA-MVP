@@ -1,4 +1,4 @@
-"""Acumulación de evidencia: lo que Rosa lee en cada iteración vuelve a las
+"""Acumulación de evidencia: lo que ROSA2018 lee en cada iteración vuelve a las
 hipótesis que ya existen.
 
 Hasta el 15 de septiembre de 2026 una hipótesis nacía con las afirmaciones y

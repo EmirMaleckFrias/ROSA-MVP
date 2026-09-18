@@ -1,4 +1,4 @@
-# Guía de referencia para Rosa: lo que hay que saber antes de construirla
+# Guía de referencia para ROSA2018: lo que hay que saber antes de construirla
 
 Compilada el 10 de septiembre de 2026 a partir de fuentes públicas (listadas al
 final). Complementa a `TRASPASO.md`, que recoge las decisiones y el estado del
@@ -27,7 +27,7 @@ las que se abren al escribir código; la 7 es la que evita un problema legal.
    se estudian como pista terapéutica.
 4. **Un modelo multimecanismo.** El campo ha pasado de la hipótesis única del
    amiloide a reconocer al menos 17 aspectos de la fisiopatología con algún
-   fármaco en ensayo. Para Rosa esto significa que "relevante" no es solo
+   fármaco en ensayo. Para ROSA2018 esto significa que "relevante" no es solo
    amiloide y tau.
 
 ### 1.2 Biomarcadores: por qué p-tau217 aparece en todo
@@ -61,7 +61,7 @@ el ARNm de MAPT, el gen de tau), etalanetug (E2814, anti-tau en combinación con
 lecanemab), AR1001 (inhibidor oral de PDE5 en fase 3), semaglutida (agonista
 GLP-1, varios ensayos incluida una fase 3).
 
-**Lo que esto implica para Rosa**: la literatura de 2026 está llena de
+**Lo que esto implica para ROSA2018**: la literatura de 2026 está llena de
 resultados de fase 2 y 3 con cifras exactas, y el error clásico es atribuir la
 cifra de un fármaco a otro. La comprobación de entidad del verificador (dato de
 otra entidad presentado como propio) es aquí crítica, no cosmética.
@@ -88,10 +88,10 @@ mayor cohorte del mundo de Alzheimer familiar por la mutación presenilina 1
 E280A (esto último es conocimiento general del campo, no salió en las
 fuentes de esta búsqueda).
 
-**Lo que esto implica para Rosa** (inferencia mía): la persona que va a
+**Lo que esto implica para ROSA2018** (inferencia mía): la persona que va a
 validar las hipótesis piensa en términos de biomarcadores, cohortes
 longitudinales, Alzheimer familiar como modelo del esporádico, y acceso
-diagnóstico en Latinoamérica. Cuando Rosa priorice preguntas abiertas,
+diagnóstico en Latinoamérica. Cuando ROSA2018 priorice preguntas abiertas,
 conviene que sepa expresarlas en ese lenguaje, y que las hipótesis lleven
 siempre qué biomarcador o qué cohorte permitiría comprobarlas.
 
@@ -120,7 +120,7 @@ Crossref en `retracciones.ts`.
 ### 3.2 Ensayos clínicos
 
 **ClinicalTrials.gov, API v2** (la v1 se retiró): búsqueda estructurada,
-unos 50 peticiones por minuto por IP, sin clave. Para Rosa es la fuente de
+unos 50 peticiones por minuto por IP, sin clave. Para ROSA2018 es la fuente de
 qué se está probando en humanos, con qué diana y en qué fase, y el contraste
 natural para una hipótesis "nueva": si ya hay un ensayo, no es nueva.
 
@@ -175,7 +175,7 @@ nominada como diana?). Tres consultas baratas que ahorran una corrida de horas.
   grandes o sensibles no salen de donde están (corre en el portátil, en una
   máquina Linux o en un nodo de HPC; solo se envía a Claude el contexto de cada
   paso) y cada salida lleva un historial auditable con el código exacto. Es
-  la referencia comercial más cercana a lo que Rosa quiere ser en la parte de
+  la referencia comercial más cercana a lo que ROSA2018 quiere ser en la parte de
   análisis; lo que no tiene es el bucle de investigación autónomo de días ni
   el modelo de mundo.
 - **Conectores de Claude for Life Sciences** (2026): Benchling, 10x Genomics,
@@ -187,7 +187,7 @@ nominada como diana?). Tres consultas baratas que ahorran una corrida de horas.
   Fable 5.1, con salvaguardas de biología reducidas). Hoy restringido a
   organizaciones de Estados Unidos; Anthropic dice trabajar en abrirlo
   internacionalmente. Es la única vía por la que Fable o Mythos podrían entrar
-  en Rosa, y hoy AI Robotix (República Dominicana) no cumple el requisito.
+  en ROSA2018, y hoy AI Robotix (República Dominicana) no cumple el requisito.
 - **AI for Science Program**: hasta 20.000 dólares en créditos de API por seis
   meses para investigadores adscritos a instituciones de investigación
   (académicas y sin ánimo de lucro; no menciona empresas), con cribado de
@@ -202,7 +202,7 @@ nominada como diana?). Tres consultas baratas que ahorran una corrida de horas.
   veces más uso), y hasta 50.000 dólares en créditos por proyecto en
   convocatoria continua con revisión por mérito.
 
-## 5. Ingeniería de Rosa
+## 5. Ingeniería de ROSA2018
 
 ### 5.1 El bucle
 
@@ -252,7 +252,7 @@ y Python, Temporal es el estándar.
 - **La métrica** tiene esta firma: `metric(gold, pred, trace, pred_name,
   pred_trace, program_trace=None)` y devuelve `dspy.Prediction(score=float,
   feedback=str)` (o un diccionario con `score` y `feedback`). El `feedback`
-  textual es lo que GEPA lee. En Rosa, ese texto es la crítica del verificador.
+  textual es lo que GEPA lee. En ROSA2018, ese texto es la crítica del verificador.
 - `gepa.compile(student, trainset=..., valset=...)`: `trainset` obligatorio y
   no vacío; `valset` opcional pero recomendado y de unos 35 ejemplos como
   máximo para explorar dentro del presupuesto. Reutilizar "logs, pruebas
@@ -276,7 +276,7 @@ y Python, Temporal es el estándar.
   lote), con pase opcional de refinamiento por modelo.
 - Tendencia de 2026: las capas de maquetación y OCR se han fundido en modelos
   de visión y lenguaje dentro de las tres herramientas.
-- Inferencia mía para Rosa: GROBID para referencias y estructura, y Docling o
+- Inferencia mía para ROSA2018: GROBID para referencias y estructura, y Docling o
   MinerU para el texto por página, manteniendo la regla del RAG de que un
   fragmento no cruce de página y la cita lleve la página exacta.
 
@@ -286,7 +286,7 @@ y Python, Temporal es el estándar.
   vectores, sobre Postgres, que además sirve para el modelo de mundo
   relacional); **Qdrant** cuando mande el filtrado complejo y la búsqueda
   híbrida con vectores dispersos; **LanceDB** o **Chroma** para local y
-  prototipos. Inferencia mía: pgvector, porque Rosa necesita tablas normales
+  prototipos. Inferencia mía: pgvector, porque ROSA2018 necesita tablas normales
   (hechos, hipótesis, revisiones) tanto como vectores.
 - Embeddings en el gateway: `openai/text-embedding-3-large` (el del RAG),
   `voyage/voyage-4-large` (mejor calidad general y multilingüe según el
@@ -320,8 +320,8 @@ preentrenamiento; tres máquinas independientes, no una memoria sumada.
   contradicción, información faltante, premisa falsa, desajuste de
   granularidad, desajuste epistémico. Los modelos usan "falta información"
   como comodín y la precisión de rechazo cae del 73 % al 36 % en contextos
-  multidocumento: Rosa lee multidocumento siempre.
-- **Benchmarks de agentes científicos** para situar a Rosa: LAB-Bench 2,
+  multidocumento: ROSA2018 lee multidocumento siempre.
+- **Benchmarks de agentes científicos** para situar a ROSA2018: LAB-Bench 2,
   BixBench (los modelos de frontera de 2025 sacaban 17 % en respuesta abierta),
   BiomniBench (evaluación a nivel de proceso), BioVerge (hipótesis),
   HeurekaBench.
@@ -347,7 +347,7 @@ preentrenamiento; tres máquinas independientes, no una memoria sumada.
   Resolución 03-25, no se aceptan protocolos cuya evaluación ética inicial la
   haya hecho un comité no certificado.** Publica un manual de normas y
   procedimientos operativos.
-- Implicación: mientras Rosa trabaje solo con literatura publicada, no toca
+- Implicación: mientras ROSA2018 trabaje solo con literatura publicada, no toca
   datos de pacientes. En cuanto entren cohortes, historias clínicas o
   biomarcadores de personas, hay que anonimizar antes (skill `deidentify`,
   que corre en local sin red), y la fase preclínica y clínica del proyecto pasa
@@ -359,7 +359,7 @@ preentrenamiento; tres máquinas independientes, no una memoria sumada.
   sobre IA generativa e integridad; SciELO y otros insisten en la agencia
   humana: la IA propone, la persona responde. En 2026 miles de artículos han
   sido sometidos a verificación automatizada de reproducibilidad.
-- Traducido a Rosa: cada hipótesis lleva procedencia hasta el pasaje, se
+- Traducido a ROSA2018: cada hipótesis lleva procedencia hasta el pasaje, se
   distingue lo que dice la fuente de lo que infiere el modelo, las hipótesis
   se preregistran antes de probarlas (la skill `hypothesis-generation` genera
   planes preparados para preregistro), y las decisiones quedan auditadas.
@@ -387,7 +387,7 @@ procedencia; preregistro.
 4. Qué datos entran además de literatura: ¿RNA-Seq de GEO, cohortes propias,
    datos de FLENI? Si hay personas, cuándo pasa por CONABIOS.
 5. Cuándo se para una corrida y qué se guarda entre iteraciones.
-6. Qué tienen las tres Mac exactamente (chip y memoria) y si Rosa debe poder
+6. Qué tienen las tres Mac exactamente (chip y memoria) y si ROSA2018 debe poder
    correr entera sin salir de la empresa.
 
 ## 10. Fuentes

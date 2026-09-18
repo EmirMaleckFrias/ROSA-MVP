@@ -1,4 +1,4 @@
-"""Ejemplo minimo de GEPA sobre un programa de Rosa: extraer afirmaciones con cita.
+"""Ejemplo minimo de GEPA sobre un programa de ROSA2018: extraer afirmaciones con cita.
 
 Es el punto 4 del plan del primer dia (TRASPASO.md 6): un programa DSPy que
 extrae afirmaciones a partir de un fragmento con su localizador, con una

@@ -1,11 +1,11 @@
-"""Sello de tiempo de un tercero (RFC 3161) para lo que Rosa congela.
+"""Sello de tiempo de un tercero (RFC 3161) para lo que ROSA2018 congela.
 
 El prerregistro de un experimento y el plan de un analisis quedan congelados
-en el estado de Rosa con fecha. Pero esa fecha la pone Rosa: quien dude puede
+en el estado de ROSA2018 con fecha. Pero esa fecha la pone ROSA2018: quien dude puede
 decir que se cambio despues. Un sello RFC 3161 resuelve eso: se manda el
 hash SHA-256 del contenido a una autoridad de sellado de tiempo (TSA) y ella
-devuelve un token firmado con la hora en que lo vio. Rosa guarda el token;
-cualquiera lo verifica con OpenSSL sin confiar en Rosa:
+devuelve un token firmado con la hora en que lo vio. ROSA2018 guarda el token;
+cualquiera lo verifica con OpenSSL sin confiar en ROSA2018:
 
     openssl ts -verify -digest <hash> -in sello.tsr -CAfile cacert.pem
 
@@ -151,7 +151,7 @@ def verificar_token(tsr_base64: str, hash_hex: str) -> dict[str, Any]:
 
 
 def comando_verificacion(hash_hex: str, fichero_tsr: str = "sello.tsr", ca: str = "cacert.pem") -> str:
-    """Lo que una persona ejecuta para comprobar el sello sin Rosa."""
+    """Lo que una persona ejecuta para comprobar el sello sin ROSA2018."""
     return f"openssl ts -verify -digest {hash_hex} -in {fichero_tsr} -CAfile {ca}"
 
 

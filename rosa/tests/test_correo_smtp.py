@@ -1,4 +1,4 @@
-"""El transporte SMTP del correo de Rosa (Google Workspace u otro servidor),
+"""El transporte SMTP del correo de ROSA2018 (Google Workspace u otro servidor),
 con un servidor SMTP falso: sin red, sin contraseñas reales."""
 import asyncio
 import json
@@ -15,7 +15,7 @@ SMTP = {'proveedor': 'smtp', 'smtpServidor': 'smtp.gmail.com', 'smtpPuerto': 587
 
 
 class ServidorFalso:
-    """Registra lo que Rosa hace con el servidor y falla como se le pida."""
+    """Registra lo que ROSA2018 hace con el servidor y falla como se le pida."""
     enviados = []
     fallo = None
 
@@ -99,7 +99,7 @@ def test_envia_por_starttls_con_message_id_y_marca_aceptado(servicio, smtp_falso
     assert servidor.host == 'smtp.gmail.com' and servidor.port == 587
     assert servidor.pasos == ['ehlo', 'starttls', 'ehlo', 'login', 'send', 'quit']
     assert mensaje['To'] == 'persona@alzheimerproject.com' and mensaje['From'] == SMTP['remitente']
-    assert mensaje['Subject'].startswith('Rosa: ') and 'No ha utilizado ningún modelo de IA' in mensaje.get_content()
+    assert mensaje['Subject'].startswith('ROSA2018: ') and 'No ha utilizado ningún modelo de IA' in mensaje.get_content()
 
 
 def test_puerto_465_usa_tls_implicito(servicio, smtp_falso):

@@ -22,7 +22,7 @@ Actualizado el 14 de septiembre de 2026. El plan completo por etapas esta en
 - Opcional con cuenta: prerregistro en OSF (token en `.env` como `OSF_TOKEN`)
   ademas de los sellos RFC 3161.
 
-## Hecho el 14 de septiembre: auditoria de bugs de todo Rosa
+## Hecho el 14 de septiembre: auditoria de bugs de todo ROSA2018
 
 Cinco revisores en paralelo (servidor y estado, bucle, conectores y fuentes,
 sandbox y datos, frontend) mas los nueve hallazgos de Codex. Se corrigio todo
@@ -30,7 +30,7 @@ en cuatro lotes, cada uno con tests y commit (`2bf90d5`, `97b3668`,
 `327a2e4`, `6565fdb`).
 
 - Servidor y estado: ruta estatica sin salida del directorio; acciones solo
-  con JSON, cabecera `X-Rosa: 1`, token opcional `ROSA_TOKEN`, cuerpo de 1 MB,
+  con JSON, cabecera `X-ROSA2018: 1`, token opcional `ROSA_TOKEN`, cuerpo de 1 MB,
   subidas por trozos; acciones internas del bucle fuera del alcance del
   navegador; una accion que falla a medias no deja el estado a medias (se
   recarga del disco); Convex con funciones internas y recorte garantizado.
@@ -76,7 +76,7 @@ el chat) en el panel de Convex y poner la nueva en `.env`.
 ## Datos: solo publicos por ahora
 
 Decision de la persona responsable del programa (11 de septiembre): no se
-piden accesos controlados (ADNI, AD Knowledge Portal, dbGaP). Rosa trabaja
+piden accesos controlados (ADNI, AD Knowledge Portal, dbGaP). ROSA2018 trabaja
 con datos publicos: GEO, SEA-AD procesado (abierto) y OASIS (registro
 gratuito). El libro de procedencia y la regla de no enviar filas al modelo
 siguen activos para cuando entren datos controlados.
@@ -105,7 +105,7 @@ siguen activos para cuando entren datos controlados.
   datos publicos, contexto de la diana, preguntar a las bases (ReAct),
   permisos por conector, memoria del proyecto, revisor de registro,
   artefactos con cinco pestanas de procedencia, siete skills, imagen de
-  celula unica. Ver README, seccion "Lo que Rosa tomo de Claude Science".
+  celula unica. Ver README, seccion "Lo que ROSA2018 tomo de Claude Science".
 
 ## Bases de datos: SQLite en el bucle, Convex para las personas (decisión del 15 de septiembre de 2026)
 
@@ -167,7 +167,7 @@ PubTator 3, banco de objetivos (ver README). Queda, por orden de valor:
    panel reducido para medir el efecto; repetir el panel completo tras cada
    cambio del prompt del Killer.
 3. SEA-AD procesado: agregar por donante (los ficheros pesan de 1 a 33 GB;
-   Rosa admite 200 MB) antes de subirlo.
+   ROSA2018 admite 200 MB) antes de subirlo.
 4. Alinear con la persona responsable del documento de concepto los nombres
    de los registros (ver `PLAN-ROSA2018.md`, introduccion) y los responsables
    de la mision.

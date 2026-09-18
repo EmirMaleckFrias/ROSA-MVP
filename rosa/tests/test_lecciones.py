@@ -112,7 +112,7 @@ def test_traspaso_de_iteracion_y_de_corrida():
     t2 = T.traspaso_de_corrida(e, "inv")
     assert t2.startswith("- Corrida 2 (terminada): Se cumplió el tiempo") and "Balance: 2 peldaños netos" in t2 and "Pregunta que trabajó: ¿La caída de tau-PET" in t2
     assert "Última iteración (2): Se leyeron 40 fuentes." in t2 and "«GFAP antes que NfL en BIOCARD» por independencia cohortes" in t2
-    assert "Consultas hechas: 4" in t2 and "Debilidades del panorama no atendidas: Confunde cohortes" in t2 and "Corrió con Rosa abc1234" in t2
+    assert "Consultas hechas: 4" in t2 and "Debilidades del panorama no atendidas: Confunde cohortes" in t2 and "Corrió con ROSA2018 abc1234" in t2
 
 
 def test_hipotesis_existentes_ensena_el_descarte_pendiente_del_killer():

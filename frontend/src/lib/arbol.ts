@@ -144,7 +144,7 @@ export function recortar(texto: string, maximo: number): string {
   return t.length > maximo ? `${t.slice(0, maximo - 3).trimEnd()}...` : t;
 }
 
-/* MEDICIÓN PROPIA: un nodo cuya cifra la produjo Rosa o el laboratorio, no la
+/* MEDICIÓN PROPIA: un nodo cuya cifra la produjo ROSA2018 o el laboratorio, no la
    literatura. Son tres casos, y solo tres:
    1. un nodo 'ejecucion' con estado 'completado' y auditoría 'valido' (el
       código corrió hasta el final y el Killer II dio el análisis por bueno);
@@ -223,6 +223,23 @@ export function fraseProfundidad(n: Pick<NodoArbol, 'profundidadDato' | 'profund
   return 'Sin medición propia detrás ni fuente leída que la sostenga.';
 }
 
+/** Peso de una hipótesis (de él sale el tamaño de su círculo): cuanto mejor la
+ *  considera ROSA2018, más grande. Manda la certeza GRADE de su conclusión (muy
+ *  baja 1, baja 1,8, moderada 2,6, alta 3,4); dentro del mismo nivel, la fuerza
+ *  en el torneo mueve hasta 0,3 arriba o abajo (Elo 1500 es neutro, 1800 el
+ *  tope), menos que el salto entre niveles, así la certeza manda siempre; ser
+ *  candidata al laboratorio suma 0,15; una descartada baja al mínimo.
+ *  Petición del director del proyecto, 17 de septiembre de 2026: que en el
+ *  árbol se vea a simple vista qué hipótesis van mejor. */
+export const PESO_POR_CERTEZA: Record<string, number> = { muy_baja: 1, baja: 1.8, moderada: 2.6, alta: 3.4 };
+export function pesoHipotesis(h: Pick<Hipotesis, 'conclusion' | 'candidata' | 'estado'>, elo: number): number {
+  if (h.estado === 'descartada') return 0.8;
+  const certeza = h.conclusion?.certeza;
+  const base = (typeof certeza === 'string' && PESO_POR_CERTEZA[certeza]) || 1;
+  const torneo = Math.max(-0.3, Math.min(0.3, ((Number.isFinite(elo) ? elo : 1500) - 1500) / 300 * 0.3));
+  return Math.round((base + torneo + (h.candidata ? 0.15 : 0)) * 100) / 100;
+}
+
 export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
   const nodos: NodoArbol[] = [];
   const enlaces: EnlaceArbol[] = [];
@@ -278,7 +295,7 @@ export function construirArbol(estado: EstadoRosa, inv: Investigacion): Grafo {
     // Sin Elo (registro anterior al torneo) vale el de salida, 1500: un peso NaN
     // dejaría el círculo sin radio y la disposición por fuerzas sin posición.
     const elo = typeof h.elo === 'number' && Number.isFinite(h.elo) ? h.elo : 1500;
-    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo ?? h.id, sub: `${h.cluster || 'Sin cluster'} · Elo ${elo}${h.candidata ? ' · candidata' : ''}`, peso: 1.5 + Math.max(0, (elo - 1300) / 200), iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
+    anadir({ id: h.id, tipo: 'hipotesis', etiqueta: h.titulo ?? h.id, sub: `${h.cluster || 'Sin cluster'} · Elo ${elo}${h.candidata ? ' · candidata' : ''}`, peso: pesoHipotesis(h, elo), iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.estado, alerta });
     enlazar(conRama.has(h.cluster || 'Sin cluster') ? `rama-${h.cluster || 'Sin cluster'}` : 'objetivo', h.id, 'rama');
     if (h.experimento && h.experimento.estado !== 'propuesto') {
       anadir({ id: `ex-${h.id}`, tipo: 'experimento', etiqueta: h.experimento.laboratorio ? `Experimento en ${h.experimento.laboratorio}` : 'Experimento', sub: h.experimento.estado.replace('_', ' ') + (h.experimento.prerregistradoEn ? ' · prerregistrado' : ''), peso: 2, iteracion: h.iteracion, href: rutaDe(inv.id, 'hipotesis', h.id), estado: h.experimento.estado });

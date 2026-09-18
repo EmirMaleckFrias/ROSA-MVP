@@ -119,7 +119,7 @@ function FilaCola({ h, ahora, href, horasEspera, estado }: { h: Hip; ahora: numb
             </Chip>
           )}
           {juicioPendiente && (
-            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas.">
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; ROSA2018 repite la revisión en el siguiente paso o cuando la pidas.">
               {juicioPendiente}
             </Chip>
           )}
@@ -199,7 +199,7 @@ function FormularioHipotesis({ inv, onCerrar, irA }: { inv: Investigacion; onCer
     >
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 600 }}>Proponer una hipótesis</h3>
-        <p className="meta">Entra al torneo con el mismo Elo inicial que las de Rosa, marcada como tuya. En Co-Scientist la conjetura del experto acabó superando a las generadas.</p>
+        <p className="meta">Entra al torneo con el mismo Elo inicial que las de ROSA2018, marcada como tuya. En Co-Scientist la conjetura del experto acabó superando a las generadas.</p>
       </div>
       {campo('titulo', 'Titulo', 1, 'La función renal sesga los umbrales de p-tau217 en cohortes latinoamericanas')}
       {campo('enunciado', 'Enunciado', 3)}
@@ -280,7 +280,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             </Chip>
           )}
           {juicioPendiente && (
-            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas con «Pedir revisión».">
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; ROSA2018 repite la revisión en el siguiente paso o cuando la pidas con «Pedir revisión».">
               {juicioPendiente}
             </Chip>
           )}
@@ -315,7 +315,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </label>
       </div>
 
-      <p className="meta">Selecciona un tramo del texto para comentarlo. Los comentarios se agrupan y salen juntos a Rosa. Los verbos en ámbar afirman más de lo que la evidencia suele dar.</p>
+      <p className="meta">Selecciona un tramo del texto para comentarlo. Los comentarios se agrupan y salen juntos a ROSA2018. Los verbos en ámbar afirman más de lo que la evidencia suele dar.</p>
 
       {ancla && (
         <NuevoComentario
@@ -350,7 +350,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         <TextoConFuertes texto={h.mecanismo} campo="mecanismo" />
       </Seccion>
 
-      <Seccion titulo="Explicaciones alternativas" nota="Lo que también explicaría lo observado sin que la hipótesis sea cierta (causa inversa, un confusor, cómo se eligió la muestra, un artefacto de la medida), y qué observación separaría cada alternativa de la hipótesis. Rosa las escribe al cerrar cada iteración; una alternativa sin forma de distinguirla no sirve para diseñar un experimento.">
+      <Seccion titulo="Explicaciones alternativas" nota="Lo que también explicaría lo observado sin que la hipótesis sea cierta (causa inversa, un confusor, cómo se eligió la muestra, un artefacto de la medida), y qué observación separaría cada alternativa de la hipótesis. ROSA2018 las escribe al cerrar cada iteración; una alternativa sin forma de distinguirla no sirve para diseñar un experimento.">
         <Alternativas h={h} />
       </Seccion>
 
@@ -365,7 +365,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </dl>
       </Seccion>
 
-      <Seccion titulo="Relevancia frente a significancia" nota="Kosmos confunde lo estadísticamente significativo con lo científicamente valioso. Aquí son dos escalas: Rosa justifica la relevancia para el objetivo y tu la votas.">
+      <Seccion titulo="Relevancia frente a significancia" nota="Kosmos confunde lo estadísticamente significativo con lo científicamente valioso. Aquí son dos escalas: ROSA2018 justifica la relevancia para el objetivo y tu la votas.">
         <div className="rejilla-2">
           <div className="tarjeta">
             <p className="campo-etiqueta">Evidencia estadística</p>
@@ -582,7 +582,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         </ul>
       </Seccion>
 
-      <Seccion detalle titulo="Revisor" nota="Rosa atiende cada hallazgo en su siguiente mensaje: corrige o explica por qué no aplica. Un descarte que el Killer propuso y después retiró se enseña como atendido.">
+      <Seccion detalle titulo="Revisor" nota="ROSA2018 atiende cada hallazgo en su siguiente mensaje: corrige o explica por qué no aplica. Un descarte que el Killer propuso y después retiró se enseña como atendido.">
         <Revisor hallazgos={vigentes} />
       </Seccion>
 
@@ -654,7 +654,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
       )}
 
       {h.experimento && (
-        <Seccion titulo="Experimento propuesto" nota="El traspaso al laboratorio: protocolo, ensayo y criterios de éxito y refutación fijados de antemano. Al asignarlo a un laboratorio queda prerregistrado: la hipótesis y el protocolo se congelan con fecha en un artefacto, antes de que exista ningún dato. Los datos vuelven para que Rosa actualice su conclusión.">
+        <Seccion titulo="Experimento propuesto" nota="El traspaso al laboratorio: protocolo, ensayo y criterios de éxito y refutación fijados de antemano. Al asignarlo a un laboratorio queda prerregistrado: la hipótesis y el protocolo se congelan con fecha en un artefacto, antes de que exista ningún dato. Los datos vuelven para que ROSA2018 actualice su conclusión.">
           <div className="tarjeta seccion">
             <div className="experimento-bloque">
               <h4>Protocolo</h4>
@@ -742,7 +742,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </div>
                 <Dimensiones d={h.experimento.resultado.dimensiones} />
                 <p>{h.experimento.resultado.resultado}</p>
-                {h.experimento.resultado.accionTomada && <p className="meta">Qué hizo Rosa: {h.experimento.resultado.accionTomada}</p>}
+                {h.experimento.resultado.accionTomada && <p className="meta">Qué hizo ROSA2018: {h.experimento.resultado.accionTomada}</p>}
                 {h.experimento.resultado.hipotesisDerivadaId && (
                   <p className="meta">
                     Hipótesis derivada:{' '}
@@ -775,7 +775,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                 </a>
               )}
               {h.experimento.prerregistradoEn && h.experimento.selloExterno?.ok && (
-                <Chip tono="ok" title={`sha256 ${h.experimento.selloExterno.hash}. Hora firmada por ${h.experimento.selloExterno.testigos.join(' y ')}: ${h.experimento.selloExterno.primeraHora}. Se verifica sin Rosa con openssl ts -verify sobre el token guardado.`}>
+                <Chip tono="ok" title={`sha256 ${h.experimento.selloExterno.hash}. Hora firmada por ${h.experimento.selloExterno.testigos.join(' y ')}: ${h.experimento.selloExterno.primeraHora}. Se verifica sin ROSA2018 con openssl ts -verify sobre el token guardado.`}>
                   Sellado por {h.experimento.selloExterno.testigos.join(' y ')} ({h.experimento.selloExterno.primeraHora?.slice(0, 16).replace('T', ' ')} UTC)
                 </Chip>
               )}
@@ -796,7 +796,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
             {(h.experimento.estado === 'asignado' || h.experimento.estado === 'datos_recibidos') && (
               <div className="seccion">
                 <p className="meta">
-                  Cuando lleguen los datos del laboratorio, súbelos aquí (CSV, TSV, JSON, texto o PDF, hasta 50 MB). Rosa los resume sin ningún modelo, el juez los compara con los criterios congelados en el prerregistro y la conclusión se rehace con esa evidencia.
+                  Cuando lleguen los datos del laboratorio, súbelos aquí (CSV, TSV, JSON, texto o PDF, hasta 50 MB). ROSA2018 los resume sin ningún modelo, el juez los compara con los criterios congelados en el prerregistro y la conclusión se rehace con esa evidencia.
                 </p>
                 {h.experimento.datosSinteticos && h.experimento.ficheroDatos && (
                   <Chip tono="aviso" title="La persona declaró al subirlos que son datos sintéticos o de prueba (o el nombre del fichero lo dice). Sirven para probar la pantalla y el flujo; nunca cuentan como observación ni suben el techo GRADE, y no entran al modelo de mundo.">
@@ -811,7 +811,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                   <label htmlFor="exp-analisis">Qué análisis quieres (además de los criterios prerregistrados)</label>
                   <input id="exp-analisis" className="entrada" value={analisis} placeholder="Tiempo hasta la primera alteración, por grupo genético" onChange={(e) => setAnalisis(e.target.value)} />
                 </div>
-                <label className="interruptor" title="Márcala si el fichero es inventado, simulado o de prueba. Rosa lo etiqueta como sintético: se evalúa contra el prerregistro para probar el flujo, pero nunca cuenta como observación real, no sube el techo GRADE ni entra al modelo de mundo. Si el nombre del fichero dice «sintético», se marca solo.">
+                <label className="interruptor" title="Márcala si el fichero es inventado, simulado o de prueba. ROSA2018 lo etiqueta como sintético: se evalúa contra el prerregistro para probar el flujo, pero nunca cuenta como observación real, no sube el techo GRADE ni entra al modelo de mundo. Si el nombre del fichero dice «sintético», se marca solo.">
                   <input type="checkbox" checked={datosSinteticos} onChange={(e) => setDatosSinteticos(e.target.checked)} />
                   Estos datos son sintéticos o de prueba (nunca cuentan como evidencia)
                 </label>
@@ -835,7 +835,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
                     {subiendo ? 'Subiendo...' : 'Subir datos y evaluar contra el prerregistro'}
                   </button>
                   {errorSubida && <span className="tono-mal">{errorSubida}</span>}
-                  {h.experimento.estado === 'datos_recibidos' && !h.experimento.resultado && <span className="meta">Datos recibidos; Rosa los está evaluando.</span>}
+                  {h.experimento.estado === 'datos_recibidos' && !h.experimento.resultado && <span className="meta">Datos recibidos; ROSA2018 los está evaluando.</span>}
                 </div>
               </div>
             )}
@@ -879,9 +879,9 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         )}
       </Seccion>
 
-      <Seccion titulo="Decisión" nota={cerrada ? 'Esta hipótesis ya se decidió. Se puede reabrir.' : aclarando ? 'Rosa está aclarando lo que marcaste. Volverá a la cola.' : motivo ?? 'Nada impide aceptarla. Tu lectura decide.'}>
+      <Seccion titulo="Decisión" nota={cerrada ? 'Esta hipótesis ya se decidió. Se puede reabrir.' : aclarando ? 'ROSA2018 está aclarando lo que marcaste. Volverá a la cola.' : motivo ?? 'Nada impide aceptarla. Tu lectura decide.'}>
         <div className="campo">
-          <label htmlFor="nota-decision">Nota para Rosa y para el historial</label>
+          <label htmlFor="nota-decision">Nota para ROSA2018 y para el historial</label>
           <textarea id="nota-decision" value={nota} rows={2} onChange={(e) => setNota(e.target.value)} placeholder="Comprobable en FLENI; pedir al investigador clínico principal si la cohorte tiene genotipo de TREM2" />
         </div>
         <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setRevisionAbierta((v) => !v)}>
@@ -914,14 +914,14 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
               </button>
               <Confirmar
                 etiqueta="No puedo juzgar"
-                pregunta="Di qué te impide juzgarla (ambigua, falta contexto, no reproducible). Rosa la aclara y vuelve a la cola marcada como aclarada."
+                pregunta="Di qué te impide juzgarla (ambigua, falta contexto, no reproducible). ROSA2018 la aclara y vuelve a la cola marcada como aclarada."
                 pedirTexto={{ etiqueta: 'Qué falta', marcador: 'No queda claro si habla de PSEN1 o de todo el Alzheimer familiar' }}
                 onConfirmar={(m) => decidir('no_puedo_juzgar', m)}
               />
               <Confirmar
                 etiqueta="Descartar"
                 peligro
-                pregunta="El motivo queda en el modelo de mundo para que Rosa no vuelva a proponer lo mismo."
+                pregunta="El motivo queda en el modelo de mundo para que ROSA2018 no vuelva a proponer lo mismo."
                 pedirTexto={{ etiqueta: 'Motivo', marcador: 'Se apoya en un artículo retractado' }}
                 onConfirmar={(m) => {
                   acciones.revisarHipotesis(h.id, 'descartar', m, aCiegas, revisionHumana, h.version ?? 1, segundosRevision());
@@ -960,10 +960,10 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
         )}
       </Seccion>
 
-      <Seccion detalle titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipótesis fuera de Rosa: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
+      <Seccion detalle titulo="Exportar expediente" nota="Todo lo que hace falta para auditar la hipótesis fuera de ROSA2018: versiones, decisiones con fecha, trazas, cuadernos, fuentes.">
         <div className="dirigir">
           <input className="entrada" value={aplicableA} placeholder="Aplicable a (cohorte, modelo, condición): por ejemplo portadores de APOE4 con genotipo de TREM2" onChange={(e) => setAplicableA(e.target.value)} aria-label="Aplicable a" />
-          <a className="btn" href={`/api/hipotesis/${encodeURIComponent(h.id)}/rocrate`} download={`rosa-${h.id}.crate.zip`} title="RO-Crate 1.2 (perfil Process Run Crate) con procedencia W3C PROV: la hipótesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el código y resultado de cada análisis, el prerregistro y sus sellos RFC 3161. Se verifica con herramientas de terceros, sin Rosa.">
+          <a className="btn" href={`/api/hipotesis/${encodeURIComponent(h.id)}/rocrate`} download={`rosa-${h.id}.crate.zip`} title="RO-Crate 1.2 (perfil Process Run Crate) con procedencia W3C PROV: la hipótesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el código y resultado de cada análisis, el prerregistro y sus sellos RFC 3161. Se verifica con herramientas de terceros, sin ROSA2018.">
             Exportar RO-Crate (PROV)
           </a>
           <button type="button" className="btn" onClick={() => descargar(`${h.id}-expediente.json`, expediente(h, estado.hechos, aplicableA.trim() || 'sin limite declarado'), 'application/json')}>
@@ -979,7 +979,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
 
 /** Una comprobación de novedad que todavía no se hizo: el estado por defecto de la
  *  plantilla parece una ausencia ('sin evidencia', 'sin ensayo', 'sin precedente') pero su
- *  detalle dice que no se comprobó. Rosa no afirma ausencia sin haber mirado. */
+ *  detalle dice que no se comprobó. ROSA2018 no afirma ausencia sin haber mirado. */
 function sinComprobar(x: { estado: string; detalle: string }): boolean {
   return x.estado === 'no_comprobado' || x.detalle.startsWith('No comprobado');
 }
@@ -1050,7 +1050,7 @@ export function Hipotesis({
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>{filtro === 'laboratorio' ? 'Laboratorio' : 'Cola de hipótesis'}</h2>
-          <p>{filtro === 'laboratorio' ? 'El tramo final: hipótesis con experimento asignado (prerregistrado y sellado), en curso o con datos recibidos, y las candidatas que esperan un laboratorio. Cuando vuelven los datos, Rosa los juzga contra el prerregistro.' : 'Lo que Rosa propone y espera tu lectura. Arriba lo pendiente, ordenado por Elo. Nada entra al modelo de mundo sin pasar por aquí.'}</p>
+          <p>{filtro === 'laboratorio' ? 'El tramo final: hipótesis con experimento asignado (prerregistrado y sellado), en curso o con datos recibidos, y las candidatas que esperan un laboratorio. Cuando vuelven los datos, ROSA2018 los juzga contra el prerregistro.' : 'Lo que ROSA2018 propone y espera tu lectura. Arriba lo pendiente, ordenado por Elo. Nada entra al modelo de mundo sin pasar por aquí.'}</p>
         </div>
         <div className="acciones">
           <div className="segmentos" role="group" aria-label="Filtro">
@@ -1072,12 +1072,12 @@ export function Hipotesis({
       {proponiendo && <FormularioHipotesis inv={inv} onCerrar={() => setProponiendo(false)} irA={irA} />}
       {visibles.length === 0 ? (
         filtro === 'laboratorio' ? (
-          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'Rosa le propone un experimento: protocolo, ensayo, controles y criterios de éxito y refutación.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y Rosa los juzga contra lo prerregistrado.']}>
+          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'ROSA2018 le propone un experimento: protocolo, ensayo, controles y criterios de éxito y refutación.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y ROSA2018 los juzga contra lo prerregistrado.']}>
             Aqui apareceran las hipotesis que lleguen a ese tramo.
           </Vacio>
         ) : (
-        <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavía no hay hipótesis'} pasos={propias.length === 0 ? ['Rosa busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, Rosa genera hipótesis y el Killer las juzga; las que quedan aparecen aquí, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
-          {propias.length > 0 ? 'Rosa no tiene hipótesis esperando tu revisión en esta investigación. Con "Todas" ves las ya decididas.' : 'También puedes proponer una tu con el botón de arriba: pasa por el mismo Killer.'}
+        <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavía no hay hipótesis'} pasos={propias.length === 0 ? ['ROSA2018 busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, ROSA2018 genera hipótesis y el Killer las juzga; las que quedan aparecen aquí, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
+          {propias.length > 0 ? 'ROSA2018 no tiene hipótesis esperando tu revisión en esta investigación. Con "Todas" ves las ya decididas.' : 'También puedes proponer una tu con el botón de arriba: pasa por el mismo Killer.'}
         </Vacio>
         )
       ) : (
@@ -1093,7 +1093,7 @@ export function Hipotesis({
         <Seccion
           detalle
           titulo={`Vivero de ideas (${inv.vivero!.length})`}
-          nota="Propuestas de Rosa que todavía no nacen como hipótesis: su evidencia viene de una sola cohorte y no da para certeza baja. En cada cierre de iteración Rosa les suma lo que lee; cuando llegan a dos cohortes distintas, nacen y entran en la cola. Si pasan seis iteraciones sin ganar nada, salen con su motivo."
+          nota="Propuestas de ROSA2018 que todavía no nacen como hipótesis: su evidencia viene de una sola cohorte y no da para certeza baja. En cada cierre de iteración ROSA2018 les suma lo que lee; cuando llegan a dos cohortes distintas, nacen y entran en la cola. Si pasan seis iteraciones sin ganar nada, salen con su motivo."
         >
           <div className="cola">
             {inv.vivero!.map((s) => (

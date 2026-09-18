@@ -36,7 +36,7 @@ def _esq(**props: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@conector("ols_resolver", "OLS4 (EMBL-EBI)", "Resuelve un término de enfermedad o fenotipo a su identificador de ontología (MONDO, EFO, HPO)", "El identificador que exigen Open Targets y GWAS Catalog; sinonimos y definición", _esq(termino="Texto libre, por ejemplo 'Alzheimer disease'", ontologia="mondo, efo o hp"), "Cada ontologia la suya: MONDO y HPO CC BY 4.0, EFO Apache-2.0", "No publicado; 5 por segundo en Rosa", "https://www.ebi.ac.uk/ols4/api-docs", grupo="genes_ontologias")
+@conector("ols_resolver", "OLS4 (EMBL-EBI)", "Resuelve un término de enfermedad o fenotipo a su identificador de ontología (MONDO, EFO, HPO)", "El identificador que exigen Open Targets y GWAS Catalog; sinonimos y definición", _esq(termino="Texto libre, por ejemplo 'Alzheimer disease'", ontologia="mondo, efo o hp"), "Cada ontologia la suya: MONDO y HPO CC BY 4.0, EFO Apache-2.0", "No publicado; 5 por segundo en ROSA2018", "https://www.ebi.ac.uk/ols4/api-docs", grupo="genes_ontologias")
 async def ols_resolver(termino: str, ontologia: str = "mondo") -> Resultado:
     r = await pedir("GET", "https://www.ebi.ac.uk/ols4/api/search", _lim["ols"], params={"q": termino, "ontology": ontologia, "rows": 5})
     docs = r.json().get("response", {}).get("docs", [])
@@ -45,7 +45,7 @@ async def ols_resolver(termino: str, ontologia: str = "mondo") -> Resultado:
     return Resultado(filas, len(filas), [f["id"] for f in filas if f["id"]], None, (bool(exacto), f"coincidencia exacta: {exacto[0]['id']}" if exacto else "sin coincidencia exacta; revisar el primer resultado"))
 
 
-@conector("mygene_gen", "MyGene.info (BioThings)", "Normaliza un símbolo de gen humano a Ensembl, UniProt y Entrez con su nombre", "Identificadores estables para la tarjeta y para consultar las demás bases", _esq(simbolo="Símbolo HGNC, por ejemplo APOE"), "Software Apache-2.0; los datos heredan la fuente", "5000 términos por POST; 5 por segundo en Rosa", "https://docs.mygene.info/", grupo="genes_ontologias")
+@conector("mygene_gen", "MyGene.info (BioThings)", "Normaliza un símbolo de gen humano a Ensembl, UniProt y Entrez con su nombre", "Identificadores estables para la tarjeta y para consultar las demás bases", _esq(simbolo="Símbolo HGNC, por ejemplo APOE"), "Software Apache-2.0; los datos heredan la fuente", "5000 términos por POST; 5 por segundo en ROSA2018", "https://docs.mygene.info/", grupo="genes_ontologias")
 async def mygene_gen(simbolo: str) -> Resultado:
     r = await pedir("GET", "https://mygene.info/v3/query", _lim["mygene"], params={"q": f"symbol:{simbolo}", "species": "human", "fields": "symbol,name,ensembl.gene,uniprot.Swiss-Prot,entrezgene,summary"})
     hits = r.json().get("hits", [])
@@ -91,7 +91,7 @@ async def myvariant_variante(rsid: str) -> Resultado:
 # ---------------------------------------------------------------------------
 
 
-@conector("uniprot_proteina", "UniProt REST", "Función y longitud de la proteína revisada (Swiss-Prot) de un gen humano", "La función en una frase para el resumen en llano y para la tarjeta", _esq(simbolo="Símbolo HGNC"), "CC BY 4.0", "Sin límite estricto; 5 por segundo en Rosa", "https://www.uniprot.org/help/programmatic_access", grupo="genes_ontologias")
+@conector("uniprot_proteina", "UniProt REST", "Función y longitud de la proteína revisada (Swiss-Prot) de un gen humano", "La función en una frase para el resumen en llano y para la tarjeta", _esq(simbolo="Símbolo HGNC"), "CC BY 4.0", "Sin límite estricto; 5 por segundo en ROSA2018", "https://www.uniprot.org/help/programmatic_access", grupo="genes_ontologias")
 async def uniprot_proteina(simbolo: str) -> Resultado:
     r = await pedir("GET", "https://rest.uniprot.org/uniprotkb/search", _lim["uniprot"], params={"query": f"gene_exact:{simbolo} AND organism_id:{HUMANO} AND reviewed:true", "fields": "accession,protein_name,gene_names,cc_function,length", "format": "json", "size": 3})
     res = r.json().get("results", [])
@@ -106,7 +106,7 @@ async def uniprot_proteina(simbolo: str) -> Resultado:
     return Resultado(datos, len(res), [x.get("primaryAccession") for x in res], r.headers.get("x-uniprot-release"), (len(res) == 1, f"{len(res)} entradas revisadas"))
 
 
-@conector("hpa_expresion", "Human Protein Atlas", "Expresión por tejido y región cerebral, especificidad y clase de proteína de un gen", "Donde se expresa lo que la hipótesis nombra: cerebro, tipo celular, sangre", _esq(ensembl="Identificador Ensembl, por ejemplo ENSG00000130203"), "CC BY 4.0 con cita de version", "No publicado; 3 por segundo en Rosa", "https://www.proteinatlas.org/about/help/dataaccess", grupo="proteinas")
+@conector("hpa_expresion", "Human Protein Atlas", "Expresión por tejido y región cerebral, especificidad y clase de proteína de un gen", "Donde se expresa lo que la hipótesis nombra: cerebro, tipo celular, sangre", _esq(ensembl="Identificador Ensembl, por ejemplo ENSG00000130203"), "CC BY 4.0 con cita de version", "No publicado; 3 por segundo en ROSA2018", "https://www.proteinatlas.org/about/help/dataaccess", grupo="proteinas")
 async def hpa_expresion(ensembl: str) -> Resultado:
     r = await pedir("GET", f"https://www.proteinatlas.org/{quote(ensembl)}.json", _lim["hpa"])
     d = r.json()
@@ -126,7 +126,7 @@ async def hpa_expresion(ensembl: str) -> Resultado:
     return Resultado(claves, 1 if d.get("Gene") else 0, [ensembl], None, (bool(d.get("Gene")), f"gen {d.get('Gene')}"))
 
 
-@conector("gtex_expresion", "GTEx v10", "Expresión mediana (TPM) de un gen en un tejido, por ejemplo hipocampo", "Si el gen se expresa en el tejido que la hipótesis dice", _esq(gencode="Identificador GENCODE con version, por ejemplo ENSG00000130203.10", tejido="tissueSiteDetailId, por ejemplo Brain_Hippocampus"), "Términos GTEx (datos abiertos del portal)", "No publicado; 3 por segundo en Rosa", "https://gtexportal.org/api/v2/redoc", grupo="expresion")
+@conector("gtex_expresion", "GTEx v10", "Expresión mediana (TPM) de un gen en un tejido, por ejemplo hipocampo", "Si el gen se expresa en el tejido que la hipótesis dice", _esq(gencode="Identificador GENCODE con version, por ejemplo ENSG00000130203.10", tejido="tissueSiteDetailId, por ejemplo Brain_Hippocampus"), "Términos GTEx (datos abiertos del portal)", "No publicado; 3 por segundo en ROSA2018", "https://gtexportal.org/api/v2/redoc", grupo="expresion")
 async def gtex_expresion(gencode: str, tejido: str = "Brain_Hippocampus") -> Resultado:
     r = await pedir("GET", "https://gtexportal.org/api/v2/expression/medianGeneExpression", _lim["gtex"], params={"gencodeId": gencode, "tissueSiteDetailId": tejido, "datasetId": "gtex_v10"})
     filas = r.json().get("data", [])
@@ -134,7 +134,7 @@ async def gtex_expresion(gencode: str, tejido: str = "Brain_Hippocampus") -> Res
     return Resultado(datos, len(datos), [gencode], "gtex_v10", (len(datos) == 1, f"{len(datos)} filas"))
 
 
-@conector("gtex_gen", "GTEx v10", "Resuelve un símbolo de gen al identificador GENCODE con versión (v39, GRCh38) que GTEx exige en sus consultas de expresión", "El gencodeId con versión (por ejemplo ENSG00000131095.14 para GFAP) que hace falta para preguntar a gtex_expresion; MyGene no lo da", _esq(simbolo="Símbolo HGNC, por ejemplo GFAP"), "Términos GTEx (datos abiertos del portal)", "No publicado; 3 por segundo en Rosa", "https://gtexportal.org/api/v2/redoc", grupo="expresion")
+@conector("gtex_gen", "GTEx v10", "Resuelve un símbolo de gen al identificador GENCODE con versión (v39, GRCh38) que GTEx exige en sus consultas de expresión", "El gencodeId con versión (por ejemplo ENSG00000131095.14 para GFAP) que hace falta para preguntar a gtex_expresion; MyGene no lo da", _esq(simbolo="Símbolo HGNC, por ejemplo GFAP"), "Términos GTEx (datos abiertos del portal)", "No publicado; 3 por segundo en ROSA2018", "https://gtexportal.org/api/v2/redoc", grupo="expresion")
 async def gtex_gen(simbolo: str) -> Resultado:
     # Comprobado en vivo el 16 de septiembre de 2026: data[0].gencodeId = 'ENSG00000131095.14' para GFAP; GTEx v10 usa GENCODE v39.
     r = await pedir("GET", "https://gtexportal.org/api/v2/reference/gene", _lim["gtex"], params={"geneId": simbolo, "gencodeVersion": "v39", "genomeBuild": "GRCh38/hg38"})
@@ -155,7 +155,7 @@ async def gtex_gen(simbolo: str) -> Resultado:
     return Resultado(datos, len(filas), [f["gencodeId"]], "v39", (len(exactas) == 1, f"{len(exactas)} coincidencia exacta de símbolo entre {len(filas)} filas; gencodeId {f['gencodeId']}"))
 
 
-@conector("alphafold_estructura", "AlphaFold DB", "Modelo predicho de una proteína con su confianza (pLDDT) y versión", "Si hay estructura para razonar sobre un sitio de unión", _esq(uniprot="Accession UniProt, por ejemplo P02649"), "CC BY 4.0", "No publicado; 3 por segundo en Rosa", "https://alphafold.ebi.ac.uk/api-docs", grupo="estructuras")
+@conector("alphafold_estructura", "AlphaFold DB", "Modelo predicho de una proteína con su confianza (pLDDT) y versión", "Si hay estructura para razonar sobre un sitio de unión", _esq(uniprot="Accession UniProt, por ejemplo P02649"), "CC BY 4.0", "No publicado; 3 por segundo en ROSA2018", "https://alphafold.ebi.ac.uk/api-docs", grupo="estructuras")
 async def alphafold_estructura(uniprot: str) -> Resultado:
     r = await pedir("GET", f"https://alphafold.ebi.ac.uk/api/prediction/{quote(uniprot)}", _lim["alphafold"])
     lst = r.json()
@@ -191,7 +191,7 @@ async def string_interactores(simbolo: str) -> Resultado:
     return Resultado(datos, len(datos), [f["interactor"] for f in datos if f["interactor"]], "12.0", (resolvio, "el símbolo resolvió a la proteína pedida" if resolvio else ("sin interactores: el símbolo no resolvió o no tiene red" if not filas else "STRING resolvió a otra proteína")))
 
 
-@conector("reactome_rutas", "Reactome ContentService", "Las rutas curadas en las que participa una proteína (por accession UniProt)", "La ruta biológica de la diana, con identificador estable", _esq(uniprot="Accession UniProt"), "CC0", "No publicado; 5 por segundo en Rosa", "https://reactome.org/dev/content-service", grupo="genes_ontologias")
+@conector("reactome_rutas", "Reactome ContentService", "Las rutas curadas en las que participa una proteína (por accession UniProt)", "La ruta biológica de la diana, con identificador estable", _esq(uniprot="Accession UniProt"), "CC0", "No publicado; 5 por segundo en ROSA2018", "https://reactome.org/dev/content-service", grupo="genes_ontologias")
 async def reactome_rutas(uniprot: str) -> Resultado:
     r = await pedir("GET", f"https://reactome.org/ContentService/data/mapping/UniProt/{quote(uniprot)}/pathways", _lim["reactome"], params={"species": HUMANO})
     if r.status_code == 204 or not r.text.strip():
@@ -216,7 +216,7 @@ async def gwas_asociaciones_gen(simbolo: str) -> Resultado:
     return Resultado(datos, total, [a.get("accession_id") for a in ad[:20] if a.get("accession_id")], None, (True, f"{len(ad)} de {len(filas)} asociaciones vistas son de Alzheimer"))
 
 
-@conector("chembl_diana", "ChEMBL REST", "La diana ChEMBL de una proteína (por accession UniProt) y los mecanismos de acción de fármacos que la tocan", "Si ya hay fármacos contra la diana, en que fase y con que acción: plausibilidad y reposicionamiento", _esq(uniprot="Accession UniProt"), "CC BY-SA 3.0 con atribucion de URL y version", "Sin cifra publicada; páginas de 20; 3 por segundo en Rosa", "https://www.ebi.ac.uk/chembl/api/data/docs", grupo="directorio")
+@conector("chembl_diana", "ChEMBL REST", "La diana ChEMBL de una proteína (por accession UniProt) y los mecanismos de acción de fármacos que la tocan", "Si ya hay fármacos contra la diana, en que fase y con que acción: plausibilidad y reposicionamiento", _esq(uniprot="Accession UniProt"), "CC BY-SA 3.0 con atribucion de URL y version", "Sin cifra publicada; páginas de 20; 3 por segundo en ROSA2018", "https://www.ebi.ac.uk/chembl/api/data/docs", grupo="directorio")
 async def chembl_diana(uniprot: str) -> Resultado:
     r = await pedir("GET", "https://www.ebi.ac.uk/chembl/api/data/target.json", _lim["chembl"], params={"target_components__accession": uniprot, "limit": 5})
     targets = r.json().get("targets", [])
@@ -286,7 +286,7 @@ async def cellxgene_colecciones(termino: str) -> Resultado:
     return Resultado(datos, len(hits), [d["id"] for d in datos if d["id"]], None, (True, f"{len(hits)} colecciones de {len(_cache_cellxgene['colecciones'])}"))
 
 
-@conector("synapse_buscar", "Synapse.org (AD Knowledge Portal)", "Busca entidades públicas en Synapse por términos (búsqueda anonima)", "Qué estudios del AD Knowledge Portal tocan la pregunta; el acceso a datos individuales requiere cuenta y acuerdo de uso", _esq(terminos="Términos separados por espacio"), "Por nivel; los datos individuales exigen certificado de uso", "No publicado; 2 por segundo en Rosa", "https://rest-docs.synapse.org/rest/", grupo="socios")
+@conector("synapse_buscar", "Synapse.org (AD Knowledge Portal)", "Busca entidades públicas en Synapse por términos (búsqueda anonima)", "Qué estudios del AD Knowledge Portal tocan la pregunta; el acceso a datos individuales requiere cuenta y acuerdo de uso", _esq(terminos="Términos separados por espacio"), "Por nivel; los datos individuales exigen certificado de uso", "No publicado; 2 por segundo en ROSA2018", "https://rest-docs.synapse.org/rest/", grupo="socios")
 async def synapse_buscar(terminos: str) -> Resultado:
     r = await pedir("POST", "https://repo-prod.prod.sagebase.org/repo/v1/search", _lim["synapse"], json={"queryTerm": terminos.split(), "size": 8})
     d = r.json()

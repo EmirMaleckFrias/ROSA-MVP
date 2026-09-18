@@ -1,6 +1,6 @@
 """Método como nodo: cohortes, plataformas de medida y muestras con identificador canónico.
 
-Hoy Rosa decide "misma cohorte" en tres sitios con tres reglas distintas:
+Hoy ROSA2018 decide "misma cohorte" en tres sitios con tres reglas distintas:
 `priorizacion.cohortes_de` compara la cadena exacta en minúsculas,
 `certeza.cohortes_distintas` compara tokens quitando paréntesis y palabras
 genéricas, y `killer.grupos_de_cohorte` compara la cadena exacta y añade la

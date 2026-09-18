@@ -1,4 +1,4 @@
-"""Pruebas del único acceso interactivo de Rosa: correo y contraseña."""
+"""Pruebas del único acceso interactivo de ROSA2018: correo y contraseña."""
 import hashlib
 
 import pytest

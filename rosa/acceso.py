@@ -104,7 +104,7 @@ class Acceso:
             token = secrets.token_urlsafe(32)
             self.db.execute("INSERT INTO enlaces VALUES (?,?,?)", (huella(token), email, ahora + 900))
             self.correo._encolar("acceso", email,
-                "Confirma tu acceso a Rosa con este enlace de un solo uso (caduca en 15 minutos):\n\n"
+                "Confirma tu acceso a ROSA2018 con este enlace de un solo uso (caduca en 15 minutos):\n\n"
                 + c["url"].rstrip("/") + "/#acceso=" + token + "\n\n"
                 "Si no lo has solicitado, no abras el enlace. Nadie puede entrar sin confirmar tu correo.", ahora)
 

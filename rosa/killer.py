@@ -1,6 +1,6 @@
 """El Hypothesis Killer (ROSA2018, etapa 4): la parte sin modelo.
 
-El Killer es una lista de comprobaciones fija. Unas las resuelve Rosa aquí,
+El Killer es una lista de comprobaciones fija. Unas las resuelve ROSA2018 aquí,
 de forma determinista, con lo que ya tiene (veredictos del verificador,
 cohortes de las fuentes, la comprobación de novedad con recuperación); las
 otras las hace el juez (Opus 5, de otra familia que el generador) con la
@@ -62,7 +62,7 @@ BLOQUEANTES = ("no_sostenida", "cita_no_resuelve", "sin_cita", "ausencia_refutad
 # `fusionar`. Un supuesto contradicho es "hace falta más o mejor evidencia" (o
 # un factor GRADE), no "la evidencia no sostiene la hipótesis": solo las citas y
 # la fidelidad hablan de la evidencia misma. Suspendida, la hipótesis se queda
-# en la cola como material que Rosa mejora y el bucle la rejuzga; descartada,
+# en la cola como material que ROSA2018 mejora y el bucle la rejuzga; descartada,
 # salía del bucle por el eslabón más barato y menos vigilado.
 DESCARTAN = ("citas_reales", "fidelidad_evidencia")
 REFORMULAN = ("direccion_causal", "falsabilidad", "factibilidad", "redundancia", "direccion_evidencia", "unidades", "novedad", "contexto_humano")
@@ -72,7 +72,7 @@ AVISAN = ("independencia_cohortes",)
 CRITICAS = ("citas_reales", "fidelidad_evidencia", "supuestos", "falsabilidad", "novedad")
 CONSECUENCIA = {**{c: "descartar" for c in DESCARTAN}, **{c: "reformular" for c in REFORMULAN}, **{c: "suspender" for c in SUSPENDEN}, **{c: "avisar" for c in AVISAN}}
 
-# Cohortes del Alzheimer que Rosa reconoce en títulos y resúmenes cuando el
+# Cohortes del Alzheimer que ROSA2018 reconoce en títulos y resúmenes cuando el
 # extractor no la dijo. Comparar por nombre es la regla de Cochrane 7.2.2
 # (misma cohorte = mismo estudio). El catálogo canónico con alias vive en
 # rosa/metodos.py ("método como nodo"); aquí solo se conserva la lista de
@@ -85,7 +85,7 @@ def cohorte_en_texto(texto: str) -> str:
 
 
 def comprobaciones_deterministas(h: dict[str, Any], e: dict[str, Any]) -> list[dict[str, str]]:
-    """Las comprobaciones que Rosa resuelve sin modelo."""
+    """Las comprobaciones que ROSA2018 resuelve sin modelo."""
     # Registros antiguos o rotos: `afirmaciones`, `procedencia` o `novedad` pueden
     # venir como None; se leen como vacíos en vez de tumbar el Killer entero.
     afs = [a for a in (h.get("afirmaciones") or []) if isinstance(a, dict)]
@@ -214,7 +214,7 @@ SOLO_POR_RECUPERACION = ("novedad",)
 
 
 def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Las deterministas mandan; el juez solo aporta las que Rosa no resolvió.
+    """Las deterministas mandan; el juez solo aporta las que ROSA2018 no resolvió.
     Excepción: en las comprobaciones DISCREPABLES, si la determinista dice
     pasa y el juez dice falla con detalle, el resultado es no_comprobable
     (los dos jueces discrepan: se abstiene, no mata)."""
@@ -261,7 +261,7 @@ def fusionar(deterministas: list[dict[str, str]], del_juez: list[dict[str, str]]
             continue
         if nombre in hechas:
             continue
-        # Si Rosa dejó una no_comprobable y el juez la resolvió, se sustituye.
+        # Si ROSA2018 dejó una no_comprobable y el juez la resolvió, se sustituye.
         salida = [x for x in salida if x["comprobacion"] != nombre]
         salida.append({"comprobacion": nombre, "resultado": c.get("resultado", "no_comprobable"), "detalle": str(c.get("detalle", ""))[:400]})
     return salida

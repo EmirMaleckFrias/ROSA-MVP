@@ -1,4 +1,4 @@
-// El recorrido de primera vez: cinco pasos que cuentan como funciona Rosa y
+// El recorrido de primera vez: cinco pasos que cuentan como funciona ROSA2018 y
 // donde se decide cada cosa. Aparece solo la primera vez que se abre la
 // aplicacion (queda anotado en el navegador) y se puede volver a ver desde
 // el boton de ayuda de la cabecera o desde Ajustes. Se mueve con las flechas
@@ -13,15 +13,15 @@ const CLAVE = 'rosa.recorrido.v1';
 
 export const PASOS: { titulo: string; texto: string; pista: string; etapa: number | null }[] = [
   {
-    titulo: 'Rosa investiga; tu decides',
-    texto: 'Rosa lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
+    titulo: 'ROSA2018 investiga; tu decides',
+    texto: 'ROSA2018 lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
     pista: 'El hilo de arriba muestra siempre en que etapa esta y que te espera.',
     etapa: null,
   },
   {
     titulo: 'La corrida en vivo',
-    texto: 'Cada iteración empieza con un plan que Rosa propone y tu apruebas (puedes reordenar, quitar o añadir pasos). Después ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
-    pista: 'Si algo va mal, Rosa abre una incidencia o pide permiso: se resuelven ahí mismo.',
+    texto: 'Cada iteración empieza con un plan que ROSA2018 propone y tu apruebas (puedes reordenar, quitar o añadir pasos). Después ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
+    pista: 'Si algo va mal, ROSA2018 abre una incidencia o pide permiso: se resuelven ahí mismo.',
     etapa: 1,
   },
   {
@@ -33,7 +33,7 @@ export const PASOS: { titulo: string; texto: string; pista: string; etapa: numbe
   {
     titulo: 'Candidatas, laboratorio y prerregistro',
     texto: 'El torneo entre hipótesis y los bloqueos no compensables deciden cuales son candidatas (hasta tres por ciclo). Al asignar una a un laboratorio, el protocolo y los criterios se congelan en un prerregistro sellado por un tercero, y el dossier sale listo.',
-    pista: 'Cuando vuelvan los datos, Rosa los juzga contra lo prerregistrado y actualiza la certeza GRADE.',
+    pista: 'Cuando vuelvan los datos, ROSA2018 los juzga contra lo prerregistrado y actualiza la certeza GRADE.',
     etapa: 5,
   },
   {

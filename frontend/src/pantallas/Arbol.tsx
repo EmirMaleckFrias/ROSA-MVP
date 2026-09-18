@@ -104,14 +104,14 @@ const DEFINICION_TIPO: Record<TipoNodo, string> = {
   objetivo: 'Objetivo (el tronco): la pregunta de la investigación. Es estructura, no evidencia.',
   rama: 'Rama: una familia de mecanismo; agrupa las hipótesis que hablan del mismo mecanismo biológico.',
   area: 'Área del programa: una línea de trabajo que agrupa investigaciones. Estructura, no evidencia.',
-  hipotesis: 'Hipótesis: cada una lleva el color de su familia de mecanismo. Si dos hojas comparten color, comparten mecanismo.',
+  hipotesis: 'Hipótesis: cada una lleva el color de su familia de mecanismo. Si dos hojas comparten color, comparten mecanismo. El tamaño dice cuánto vale: crece con la certeza GRADE de su conclusión y, dentro del mismo nivel, con su fuerza en el torneo; las candidatas al laboratorio son algo mayores.',
   hecho: 'Hecho: algo que el modelo de mundo ya da por sostenido.',
-  pregunta: 'Pregunta abierta: algo que Rosa todavía no ha podido resolver.',
-  fuente: 'Fuente: un artículo o una base de datos que Rosa leyó.',
+  pregunta: 'Pregunta abierta: algo que ROSA2018 todavía no ha podido resolver.',
+  fuente: 'Fuente: un artículo o una base de datos que ROSA2018 leyó.',
   entidad: 'Entidad: un gen, una proteína o un tipo de célula con su nombre canónico.',
   experimento: 'Experimento propuesto para el laboratorio.',
   afirmacion: 'Afirmación con dato: una frase de un artículo con su cifra, verificada por el juez.',
-  ejecucion: 'Análisis in silico: un análisis que Rosa corrió sobre datos públicos y pasó la auditoría.',
+  ejecucion: 'Análisis in silico: un análisis que ROSA2018 corrió sobre datos públicos y pasó la auditoría.',
   dataset: 'Conjunto de datos público usado en un análisis.',
   laboratorio: 'Resultado del laboratorio: lo que devolvió el experimento.',
 };
@@ -169,7 +169,7 @@ const MOTOR_3D: Motor<Posicion3> = { inicial: posicionInicial3d, paso: paso3d };
  *  junto a un vecino colocado, los que se van se olvidan. Devuelve si hubo cambio
  *  (o es la primera vez). Sin animación (`quieto`) asienta el árbol aquí mismo con
  *  240 pasos; con animación deja la energía (`alfa`) alta para que el bucle la gaste.
- *  El estado de Rosa cambia cada pocos segundos por SSE y reconstruye el grafo: si
+ *  El estado de ROSA2018 cambia cada pocos segundos por SSE y reconstruye el grafo: si
  *  el conjunto de nodos no cambió (misma firma), no se vuelve a agitar el árbol. */
 function sincronizar<P extends { fijo?: boolean }>(motor: Motor<P>, grafo: Grafo, visibles: Set<string>, posiciones: Map<string, P>, firma: { current: string }, alfa: { current: number }, semilla: { current: number }, quieto: boolean): boolean {
   let cambio = false;
@@ -728,7 +728,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
     return (
       <div className="contenido">
         <AvisoMuestra conexion={estado.conexion} />
-        <Vacio titulo="El árbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya está.', 'Cuando Rosa busque literatura y verifique afirmaciones, aparecerán los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
+        <Vacio titulo="El árbol todavía no tiene ramas" pasos={['El tronco es el objetivo; ya está.', 'Cuando ROSA2018 busque literatura y verifique afirmaciones, aparecerán los hechos y las fuentes.', 'Cada hipótesis será una hoja en la rama de su cluster de mecanismo, unida a lo que la sostiene.', 'El experimento que llegue al laboratorio será el fruto.']}>
           Aquí se ve toda la investigación conectada: qué sostiene a qué, qué comparte una entidad con qué, y qué rivaliza con qué.
         </Vacio>
       </div>
@@ -747,7 +747,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Árbol de la investigación</h2>
-          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Por defecto el relleno de cada nodo dice qué es (las hipótesis, el color de su familia de mecanismo) y el anillo cuánto lo sostiene: verde si está a un paso de una medición propia de Rosa (un análisis in silico validado, un resultado del laboratorio o una observación original), ámbar si solo hay literatura leída detrás, gris punteado si nada todavía. Con «Por distancia al dato» esa distancia pasa al relleno con una escala secuencial. Con «Vista 3D» el mismo árbol se despliega en tres dimensiones: arrastra el fondo para girarlo (en horizontal gira, en vertical se inclina), usa la rueda para acercar la cámara, y los nodos lejanos se ven más pequeños y tenues; si nadie lo toca durante unos segundos, gira solo. En 3D los nodos no se arrastran: el fondo gira el árbol.</p>
+          <p>El objetivo es el tronco; las ramas, los clusters con varias hipótesis; las hojas, las hipótesis; alrededor, lo que las sostiene. Pasa el ratón por un nodo para ver sus conexiones; pulsa para desplegar lo que toca; dos veces para abrir su ficha; arrastra un nodo para moverlo (los demás lo siguen). Las etiquetas pequeñas aparecen al acercar con la rueda. Escribe una palabra o un identificador (GFAP, HGNC:4235) para iluminar todo lo que lo nombra. Por defecto el relleno de cada nodo dice qué es (las hipótesis, el color de su familia de mecanismo) y el anillo cuánto lo sostiene: verde si está a un paso de una medición propia de ROSA2018 (un análisis in silico validado, un resultado del laboratorio o una observación original), ámbar si solo hay literatura leída detrás, gris punteado si nada todavía. Con «Por distancia al dato» esa distancia pasa al relleno con una escala secuencial. Con «Vista 3D» el mismo árbol se despliega en tres dimensiones: arrastra el fondo para girarlo (en horizontal gira, en vertical se inclina), usa la rueda para acercar la cámara, y los nodos lejanos se ven más pequeños y tenues; si nadie lo toca durante unos segundos, gira solo. En 3D los nodos no se arrastran: el fondo gira el árbol.</p>
         </div>
         <div className="acciones">
           <div className="segmentos" role="group" aria-label="Vista del árbol">
@@ -762,7 +762,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
             <button type="button" aria-pressed={modoColor === 'tipo'} onClick={() => setModoColor('tipo')} title="Relleno por tipo de nodo y por familia de mecanismo en las hipótesis; anillo por distancia al dato">
               Por tipo y mecanismo
             </button>
-            <button type="button" aria-pressed={modoColor === 'dato'} onClick={() => setModoColor('dato')} title="Cuanto más intenso, más cerca de una medición propia de Rosa; ámbar, solo literatura leída; gris punteado, nada">
+            <button type="button" aria-pressed={modoColor === 'dato'} onClick={() => setModoColor('dato')} title="Cuanto más intenso, más cerca de una medición propia de ROSA2018; ámbar, solo literatura leída; gris punteado, nada">
               Por distancia al dato
             </button>
           </div>
@@ -833,7 +833,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
               {modoColor === 'dato' ? (
                 <>
                   <h4 className="grafo-leyenda-titulo">El color de dentro: a qué distancia está del dato</h4>
-                  <p className="meta">En este modo el relleno cuenta los saltos que separan cada nodo de una medición propia de Rosa. Medición propia es un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original sostenida.</p>
+                  <p className="meta">En este modo el relleno cuenta los saltos que separan cada nodo de una medición propia de ROSA2018. Medición propia es un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original sostenida.</p>
                   <ul className="grafo-leyenda">
                     {ESCALA_DATO.map((c, i) => (
                       <li key={`d${i}`}>
@@ -842,7 +842,7 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                     ))}
                     {ESCALA_LIT.map((c, i) => (
                       <li key={`l${i}`}>
-                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA_LIT[i]}{i === 0 ? ': ámbar. Rosa lo sostiene con artículos, nunca lo ha medido; cuanto más intenso, más cerca de una fuente leída.' : '.'}
+                        <span className="grafo-punto" style={{ background: c }} aria-hidden="true" /> {NOMBRE_ESCALA_LIT[i]}{i === 0 ? ': ámbar. ROSA2018 lo sostiene con artículos, nunca lo ha medido; cuanto más intenso, más cerca de una fuente leída.' : '.'}
                       </li>
                     ))}
                     <li>
@@ -875,13 +875,13 @@ export function Arbol({ inv, estado }: { inv: Investigacion; estado: EstadoRosa 
                   </ul>
                   <h4 className="grafo-leyenda-titulo">El borde: cuánta evidencia lo sostiene</h4>
                   <ul className="grafo-leyenda">
-                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-dato-1)' }} aria-hidden="true" /> Anillo verde: a un paso de una medición propia de Rosa (un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original). Es lo más sólido.</li>
-                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-lit-1)' }} aria-hidden="true" /> Anillo ámbar: solo literatura leída detrás. Rosa lo sostiene con artículos, pero nunca lo ha medido ella.</li>
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-dato-1)' }} aria-hidden="true" /> Anillo verde: a un paso de una medición propia de ROSA2018 (un análisis in silico que pasó la auditoría, un resultado del laboratorio o una observación original). Es lo más sólido.</li>
+                    <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--grafo-lit-1)' }} aria-hidden="true" /> Anillo ámbar: solo literatura leída detrás. ROSA2018 lo sostiene con artículos, pero nunca lo ha medido ella.</li>
                     <li><span className="grafo-punto grafo-anillo grafo-anillo-nulo" aria-hidden="true" /> Anillo gris punteado: nada lo sostiene todavía.</li>
                     <li><span className="grafo-punto grafo-anillo" style={{ borderColor: 'var(--red)' }} aria-hidden="true" /> Anillo rojo: hay una alerta (una contradicción, un bloqueo o una marca editorial). Manda sobre los demás.</li>
                     <li><span className="grafo-punto grafo-anillo grafo-anillo-rayas" aria-hidden="true" /> A rayas: hipótesis descartada.</li>
                   </ul>
-                  <p className="meta">En resumen: dentro, qué es y a qué mecanismo pertenece; el borde, si Rosa lo midió (verde), solo lo leyó (ámbar) o aún no tiene nada (gris).</p>
+                  <p className="meta">En resumen: dentro, qué es y a qué mecanismo pertenece; el borde, si ROSA2018 lo midió (verde), solo lo leyó (ámbar) o aún no tiene nada (gris).</p>
                 </>
               )}
               <h4 className="grafo-leyenda-titulo">Las líneas: cómo se conectan</h4>

@@ -47,7 +47,7 @@ def _fecha(ms: int | None) -> str:
 
 def flujo_prisma2020(corrida: dict[str, Any], fuentes: dict[str, dict[str, Any]], hipotesis: list[dict[str, Any]]) -> dict[str, Any]:
     """Las cajas del diagrama de flujo PRISMA 2020 con los nombres del paquete
-    oficial. Rosa no hace busqueda manual ni "otros metodos": esas cajas van a
+    oficial. ROSA2018 no hace busqueda manual ni "otros metodos": esas cajas van a
     cero. El cribado lo hace un modelo, asi que `records_excluded` es tambien
     lo que excluyo una herramienta automatica (lo declara trAIce R1)."""
     b = corrida.get("busqueda", {})
@@ -139,7 +139,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
         "8_proceso_de_seleccion": {
             "quienCriba": "Un modelo de lenguaje (rol volumen) puntua de 0 a 10 cada título y resumen frente a las preguntas abiertas; se conserva lo que llega al umbral. Ninguna persona criba registro a registro; las personas revisan las hipótesis y sus afirmaciones después.",
             "revisoresIndependientes": 0,
-            "herramientasAutomatizacion": [f"Rosa {arnes.get('commit') if isinstance(arnes, dict) else ''} (cribado por relevancia con {', '.join(modelos_cribado) or 'modelo de volumen'}; umbral {politicas.RELEVANCIA_MINIMA} de 10{' en foco y ' + str(politicas.RELEVANCIA_MINIMA_AMPLITUD) + ' de 10 en las consultas de amplitud, que se puntúan con la firma PuntuarRelevanciaAmplitud' if hubo_amplitud else ''})"],
+            "herramientasAutomatizacion": [f"ROSA2018 {arnes.get('commit') if isinstance(arnes, dict) else ''} (cribado por relevancia con {', '.join(modelos_cribado) or 'modelo de volumen'}; umbral {politicas.RELEVANCIA_MINIMA} de 10{' en foco y ' + str(politicas.RELEVANCIA_MINIMA_AMPLITUD) + ' de 10 en las consultas de amplitud, que se puntúan con la firma PuntuarRelevanciaAmplitud' if hubo_amplitud else ''})"],
         },
         "16a_flujo": flujo,
         "16b_excluidos_con_motivo": excluidos[:300],
@@ -147,7 +147,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
     vigila = inv.get("vigilarLiteraturaHasta")
     lsr = {
         "esRevisionViva": bool(vigila and vigila > ahora),
-        "L1_calendario": ("Rosa vuelve a buscar en cada iteración de la corrida y, al cerrarla, vigila la literatura hasta " + _fecha(vigila)) if vigila else "Sin vigilancia programada: la búsqueda se repite en cada iteración mientras la corrida está viva.",
+        "L1_calendario": ("ROSA2018 vuelve a buscar en cada iteración de la corrida y, al cerrarla, vigila la literatura hasta " + _fecha(vigila)) if vigila else "Sin vigilancia programada: la búsqueda se repite en cada iteración mientras la corrida está viva.",
         "L2_cambios_de_metodos": [c for c in e.get("aprendizaje", []) if c.get("investigacionId") == inv.get("id") and c.get("nivel", 0) >= 2][-10:],
         "L3_cambios_de_resultados": {"iteraciones": len([it for it in e.get("iteraciones", []) if it.get("corridaId") == corrida["id"]]), "hechosNuevosUltimaIteracion": None},
         "L4_autores_por_version": {"personas": inv.get("revisores", []), "sistema": arnes},
@@ -155,7 +155,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
     traice = {
         "referencia": "PRISMA-trAIce (Holst y otros, JMIR AI 2025;4:e80247), propuesta no endosada por el ejecutivo PRISMA; se rellena por transparencia",
         "M2_modelos": {"cribado": modelos_cribado, "verificacion_y_killer": modelos_juez, "accesoPor": "AI Gateway de Vercel (endpoint compatible con OpenAI)", "versionDeRosa": arnes},
-        "M4_entrenamiento": "Modelos comerciales; datos de entrenamiento no públicos. Rosa no los ajusta; solo optimiza sus prompts con GEPA y registra cada compilación.",
+        "M4_entrenamiento": "Modelos comerciales; datos de entrenamiento no públicos. ROSA2018 no los ajusta; solo optimiza sus prompts con GEPA y registra cada compilación.",
         "M6_prompts": {"cribado": {"firma": "PuntuarRelevancia", "hash": _hash_prompt(F.PuntuarRelevancia)}, "cribado_amplitud": {"firma": "PuntuarRelevanciaAmplitud", "hash": _hash_prompt(getattr(F, "PuntuarRelevanciaAmplitud", None))}, "verificacion": {"firma": "JuzgarAfirmacion", "hash": _hash_prompt(getattr(F, "JuzgarAfirmacion", None))}, "killer": {"firma": "MatarHipotesis", "hash": _hash_prompt(F.MatarHipotesis)}, "nota": "El texto completo de cada firma esta en rosa/modulos/firmas.py en el commit indicado; el hash identifica la version."},
         "M7_umbrales": {"relevanciaMinima": politicas.RELEVANCIA_MINIMA, "relevanciaMinimaAmplitud": politicas.RELEVANCIA_MINIMA_AMPLITUD, "escala": "0 a 10", "nota": "Las consultas de amplitud exploran fuera de la pregunta y se puntúan con otra pregunta (qué podría cambiar); su listón es un punto más bajo"},
         "M8_revision_humana": {"decisionesDelKiller": len(de_killer), "decisionesDePersonas": len(de_persona), "proporcionRevisadaPorPersonas": round(len(de_persona) / len(de_killer), 3) if de_killer else None, "descartesAuditadosPorOtroModelo": politicas.FRACCION_DESCARTES_AUDITADOS},
@@ -167,7 +167,7 @@ def informe(e: dict[str, Any], corrida: dict[str, Any], llamadas: list[dict[str,
 
 
 def _markdown(inv: dict[str, Any], corrida: dict[str, Any], flujo: dict[str, Any], items: dict[str, Any], lsr: dict[str, Any], traice: dict[str, Any], ahora: int) -> str:
-    L = [f"# Flujo de búsqueda PRISMA 2020: {inv.get('titulo', '')}", "", f"Corrida {corrida['id']}, generado el {_fecha(ahora)} por Rosa desde su registro (sin ningún modelo). PRISMA 2020 (Page y otros, BMJ 2021); revisiones vivas según PRISMA-LSR (BMJ 2024); declaración de IA según la propuesta PRISMA-trAIce (JMIR AI 2025).", ""]
+    L = [f"# Flujo de búsqueda PRISMA 2020: {inv.get('titulo', '')}", "", f"Corrida {corrida['id']}, generado el {_fecha(ahora)} por ROSA2018 desde su registro (sin ningún modelo). PRISMA 2020 (Page y otros, BMJ 2021); revisiones vivas según PRISMA-LSR (BMJ 2024); declaración de IA según la propuesta PRISMA-trAIce (JMIR AI 2025).", ""]
     L += ["## Ítem 6. Fuentes de información y fecha de la última búsqueda", ""]
     L += [f"- {x['base']}: {x['consultas']} consultas, {x['resultados']} registros, última búsqueda {x['ultimaBusqueda']}" for x in items["6_fuentes_de_informacion"]] or ["- Sin consultas registradas"]
     L += ["", "## Ítem 7. Estrategias de búsqueda completas", ""]

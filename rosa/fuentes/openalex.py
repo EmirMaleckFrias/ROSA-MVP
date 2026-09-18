@@ -4,7 +4,7 @@ Desde febrero de 2026 cobra por uso: 1 USD al dia gratis con clave (que se
 pide en openalex.org/settings/api y va en `ROSA_OPENALEX_KEY`), 0,10 USD sin
 clave. Una busqueda (`search=`) cuesta 0,001 USD; un filtro
 (`filter=title_and_abstract.search:...`) 0,0001 USD; leer una obra por DOI es
-gratis. Rosa usa el filtro y lee `meta.cost_usd` para anotar el gasto.
+gratis. ROSA2018 usa el filtro y lee `meta.cost_usd` para anotar el gasto.
 """
 
 from __future__ import annotations

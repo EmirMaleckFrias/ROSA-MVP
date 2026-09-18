@@ -71,9 +71,9 @@ export const ESTADO_CORRIDA: Record<EstadoCorrida, string> = {
   terminada: 'Terminada',
 };
 
-/** Verdadero mientras Rosa escribe el plan: la corrida está en `esperando_plan`
+/** Verdadero mientras ROSA2018 escribe el plan: la corrida está en `esperando_plan`
  * pero todavía no hay un plan que aprobar (la iteración no existe, o la última
- * ya se aprobó o se cerró y Rosa propone la siguiente). El servidor deja la
+ * ya se aprobó o se cerró y ROSA2018 propone la siguiente). El servidor deja la
  * corrida en `esperando_plan` desde que se crea, y las llamadas al cerebro
  * para la misión, la pregunta y el plan tardan uno o dos minutos. */
 export function proponiendoPlan(corrida: Pick<Corrida, 'estado'>, iteracion: Pick<Iteracion, 'planAprobado' | 'terminadaEn'> | null): boolean {
@@ -81,9 +81,9 @@ export function proponiendoPlan(corrida: Pick<Corrida, 'estado'>, iteracion: Pic
 }
 
 /** La etiqueta del estado de una corrida tal como la ve la persona: distingue
- * "Rosa está proponiendo el plan" de "Esperando que apruebes el plan". */
+ * "ROSA2018 está proponiendo el plan" de "Esperando que apruebes el plan". */
 export function etiquetaCorrida(corrida: Pick<Corrida, 'estado'>, iteracion: Pick<Iteracion, 'planAprobado' | 'terminadaEn'> | null): string {
-  return proponiendoPlan(corrida, iteracion) ? 'Rosa está proponiendo el plan' : ESTADO_CORRIDA[corrida.estado];
+  return proponiendoPlan(corrida, iteracion) ? 'ROSA2018 está proponiendo el plan' : ESTADO_CORRIDA[corrida.estado];
 }
 
 export const AMPLITUD: Record<Amplitud, { etiqueta: string; nota: string; fraccion: string }> = {
@@ -187,7 +187,7 @@ export const ESTADO_HIPOTESIS: Record<EstadoHipotesis, string> = {
   aceptada: 'Aceptada',
   descartada: 'Descartada',
   refinar: 'Por refinar',
-  aclarando: 'Rosa la está aclarando',
+  aclarando: 'ROSA2018 la está aclarando',
 };
 
 /** Una tabla de etiquetas que responde también a una clave que no conoce:
@@ -212,7 +212,7 @@ function legible(clave: string): string {
 export type EtiquetaVeredicto = { etiqueta: string; tono: 'ok' | 'aviso' | 'mal'; bloquea: boolean };
 
 /** Un veredicto que esta versión no conoce se trata como bloqueante y "no
- *  comprobado": Rosa no da por buena una afirmación sin saber qué dice su
+ *  comprobado": ROSA2018 no da por buena una afirmación sin saber qué dice su
  *  veredicto (regla "no pude comprobar" no es "no hay"). */
 export function respaldoVeredicto(clave: string): EtiquetaVeredicto {
   return { etiqueta: `Veredicto que esta versión no conoce (${legible(clave)})`, tono: 'aviso', bloquea: true };
@@ -283,7 +283,7 @@ export const FACTOR_CERTEZA: Record<FactorCerteza, string> = {
 export const TIPO_AFIRMACION: Record<TipoAfirmacion, { etiqueta: string; nota: string }> = {
   dato: { etiqueta: 'Dato', nota: 'Sale de un análisis de datos (una celda de código).' },
   literatura: { etiqueta: 'Literatura', nota: 'Sale de una fuente publicada.' },
-  interpretacion: { etiqueta: 'Interpretación', nota: 'Es una inferencia de Rosa sobre datos o literatura. Es el tipo que más falla.' },
+  interpretacion: { etiqueta: 'Interpretación', nota: 'Es una inferencia de ROSA2018 sobre datos o literatura. Es el tipo que más falla.' },
 };
 
 /** Etiqueta de un tipo de afirmacion aunque el servidor mande uno que esta
@@ -302,7 +302,7 @@ export const TIPO_HALLAZGO: Record<TipoHallazgo, string> = {
   entidad_distinta: 'Dato de otra entidad',
   ausencia_refutada: 'Ausencia desmentida por las fuentes',
   sobreafirmacion: 'Afirma con más seguridad de la que da la evidencia',
-  metrica_inventada: 'Métrica definida por Rosa sin definición clara',
+  metrica_inventada: 'Métrica definida por ROSA2018 sin definición clara',
 };
 
 export const ESTADO_HALLAZGO: Record<EstadoHallazgo, string> = {
@@ -401,7 +401,7 @@ export const RELACION_TORNEO: Record<'distintas' | 'equivalentes' | 'a_subsume_b
 
 export const DECISION_KILLER: Record<DecisionKiller, { etiqueta: string; tono: 'ok' | 'aviso' | 'mal' | 'borde'; nota: string }> = {
   avanzar: { etiqueta: 'Avanza', tono: 'ok', nota: 'Pasa las comprobaciones críticas y tiene predicción falsable. Puede ser candidata al laboratorio.' },
-  reformular: { etiqueta: 'Reformular', tono: 'aviso', nota: 'Falla algo arreglable (causalidad, falsabilidad, factibilidad o redundancia). Rosa escribe una versión nueva y la vuelve a juzgar.' },
+  reformular: { etiqueta: 'Reformular', tono: 'aviso', nota: 'Falla algo arreglable (causalidad, falsabilidad, factibilidad o redundancia). ROSA2018 escribe una versión nueva y la vuelve a juzgar.' },
   suspender: { etiqueta: 'Suspendida', tono: 'borde', nota: 'Hace falta más o mejor evidencia antes de seguir: o falló una comprobación que suspende (riesgo de sesgo serio en toda la evidencia, sin fuente primaria, la diana no resuelve en las bases) o una comprobación crítica no se pudo hacer porque una fuente no respondió o falta el dato. El motivo exacto está en el registro de decisiones del Killer.' },
   descartar_en_contexto: { etiqueta: 'Descartar en este contexto', tono: 'mal', nota: 'La evidencia no la sostiene: citas que no resuelven, afirmaciones no sostenidas o un supuesto invalidante.' },
 };
@@ -545,8 +545,8 @@ export const RESULTADO_LABORATORIO: Record<ResultadoLaboratorio, { etiqueta: str
 };
 
 export const NIVEL_APRENDIZAJE: Record<NivelAprendizaje, { etiqueta: string; nota: string }> = {
-  1: { etiqueta: 'Nivel 1: creencias', nota: 'Qué cree Rosa de cada hipótesis. Automático y registrado; reversible reabriendo la hipótesis.' },
-  2: { etiqueta: 'Nivel 2: como razona', nota: 'Criterios de revisión y programas optimizados. Rosa propone, se evalua sobre el conjunto reservado y una persona promueve o revierte.' },
+  1: { etiqueta: 'Nivel 1: creencias', nota: 'Qué cree ROSA2018 de cada hipótesis. Automático y registrado; reversible reabriendo la hipótesis.' },
+  2: { etiqueta: 'Nivel 2: como razona', nota: 'Criterios de revisión y programas optimizados. ROSA2018 propone, se evalua sobre el conjunto reservado y una persona promueve o revierte.' },
   3: { etiqueta: 'Nivel 3: políticas', nota: 'Los límites del sistema. Solo los cambia una persona, en el código o eximiendo una puerta con motivo.' },
 };
 
@@ -656,7 +656,7 @@ export const NIVEL_MEDICION: Record<NonNullable<Afirmacion['nivelMedicion']>, st
   medida: 'Medida directa',
   resultado_analisis: 'Resultado de un análisis',
   interpretacion_autor: 'Interpretación de los autores',
-  interpretacion_rosa: 'Interpretación de Rosa',
+  interpretacion_rosa: 'Interpretación de ROSA2018',
 };
 
 export const DIMENSION_RESULTADO: Record<keyof Omit<DimensionesResultado, 'nota'>, string> = {
@@ -787,3 +787,12 @@ export const RAMA_NEGATIVO: Record<RamaNegativo, { etiqueta: string; definicion:
   diana_no_comprometida: { etiqueta: 'La diana no se tocó', definicion: 'El negativo cuestiona el ensayo, no la hipótesis: la intervención no llegó a la diana, así que el efecto no podía aparecer.' },
   sin_lecturas_separadas: { etiqueta: 'Sin lecturas separadas', definicion: 'El contrato no separó compromiso de diana y efecto, así que no se puede saber cuál de las dos ramas explica el negativo.' },
 };
+
+/** El nombre visible de quien firma una acción. En el estado el autor de la IA
+ *  se guarda como 'Rosa' (identificador de datos, con cientos de registros);
+ *  en pantalla el producto se llama ROSA2018 (petición de Emir, 18 de septiembre
+ *  de 2026). Las personas y los modelos se muestran tal cual. */
+export function nombreActor(quien: unknown): string {
+  const q = typeof quien === 'string' ? quien.trim() : '';
+  return q === 'Rosa' ? 'ROSA2018' : q;
+}

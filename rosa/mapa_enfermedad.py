@@ -4,7 +4,7 @@ El plan de ROSA2018 pide un "mapa del estado de la enfermedad": dónde está la
 evidencia reunida por estadio (la fase del Alzheimer en que se sitúa el dato),
 por región cerebral o compartimento (hipocampo, corteza entorrinal, plasma o
 LCR como compartimento periférico...), por tipo celular (astrocito, microglía,
-neurona...) y por nivel (molecular, celular, tisular, clínico). Rosa ya
+neurona...) y por nivel (molecular, celular, tisular, clínico). ROSA2018 ya
 guarda esos ejes, pero dispersos: en la misión de la investigación
 (`inv["mision"]`: población, etapa, célula o tejido), en la tarjeta de cada
 hipótesis (célula, etapa), en las entidades canónicas de hechos e hipótesis

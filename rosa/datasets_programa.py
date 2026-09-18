@@ -1,13 +1,13 @@
 """Registro curado de datasets a nivel de programa y lectura de célula única.
 
-Hoy Rosa descubre datasets con los conectores (`geo_series`, `geo_serie`,
+Hoy ROSA2018 descubre datasets con los conectores (`geo_series`, `geo_serie`,
 `cellxgene_colecciones`, `synapse_buscar`, `arrayexpress_experimentos`,
 `expression_atlas_experimentos`) y cura solo el fichero que una persona sube a
 una investigación (libro de procedencia en `plantilla.procedencia_dataset_vacia`).
 Lo que faltaba, y este módulo añade, son tres cosas:
 
 1. Un **registro a nivel de programa** (`e["datasetsPrograma"]`): cada dataset
-   público que Rosa nombró alguna vez queda una sola vez, con su fuente, su
+   público que ROSA2018 nombró alguna vez queda una sola vez, con su fuente, su
    accession, lo que se sabe de él (tejido, región, estadio, tipo, n,
    plataforma, acceso, licencia), en qué investigaciones se usó y con qué
    otros datasets comparte muestras. Un "dataset" aquí es un conjunto de datos
@@ -24,7 +24,7 @@ Lo que faltaba, y este módulo añade, son tres cosas:
    donante y tipo celular. "Pseudobulk" quiere decir eso: convertir miles de
    células en una muestra por donante, porque las células de un mismo donante
    no son observaciones independientes y compararlas entre sí infla los
-   p-valores. La regla de Rosa es comparar donantes, nunca células.
+   p-valores. La regla de ROSA2018 es comparar donantes, nunca células.
 
 Reglas que este módulo respeta: una fuente que no responde es "no pude
 comprobar", nunca "no hay"; un registro antiguo sin las claves nuevas (o con
@@ -148,7 +148,7 @@ _ESTADIOS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 # El orden importa: célula única antes que bulk porque "expression profiling
 # by high throughput sequencing" es la misma frase de GEO para los dos; e
-# imagen al final porque las fuentes de Rosa son depósitos de expresión y un
+# imagen al final porque las fuentes de ROSA2018 son depósitos de expresión y un
 # resumen de RNA-seq que dice "amyloid PET positive" sigue siendo expresión.
 _TIPOS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("celula_unica", ("single-cell", "single cell", "single-nucleus", "single nucleus", "snrna*", "scrna*", "nuclei", "10x genomics", "10x chromium", "célula única", "células únicas", "núcleo único", "drop-seq", "smart-seq*", "snatac*", "scatac*", "multiome", "cellxgene", "sea-ad")),

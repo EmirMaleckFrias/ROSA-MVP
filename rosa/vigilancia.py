@@ -15,7 +15,7 @@ que la verá como fuente candidata).
 No se vuelve a avisar de lo ya conocido: se descartan las publicaciones cuyo
 DOI o PMID ya está en la procedencia de la hipótesis o en novedades
 anteriores. Una hipótesis se vuelve a comprobar como muy pronto 24 horas
-después de la última vez, así que reiniciar Rosa no repite consultas.
+después de la última vez, así que reiniciar ROSA2018 no repite consultas.
 
 Filtro de pertinencia, sin modelos: Exa devuelve siempre los N documentos
 más parecidos, aunque ninguno hable de la hipótesis (la primera pasada real

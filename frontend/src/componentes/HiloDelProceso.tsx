@@ -16,13 +16,13 @@ import { proponiendoPlan } from '../lib/etiquetas';
 export type Etapa = 'plan' | 'literatura' | 'verificar' | 'mundo' | 'hipotesis' | 'candidatas' | 'laboratorio';
 
 export const ETAPAS: { clave: Etapa; nombre: string; corto: string; explicacion: string; pantalla: Pantalla; detalle?: string }[] = [
-  { clave: 'plan', nombre: 'Plan', corto: 'Plan', explicacion: 'Rosa propone el plan de la iteración y espera tu aprobación antes de ejecutar nada.', pantalla: 'corrida' },
+  { clave: 'plan', nombre: 'Plan', corto: 'Plan', explicacion: 'ROSA2018 propone el plan de la iteración y espera tu aprobación antes de ejecutar nada.', pantalla: 'corrida' },
   { clave: 'literatura', nombre: 'Buscar literatura', corto: 'Literatura', explicacion: 'Consultas a PubMed, Europe PMC, ensayos clínicos y bases curadas. Cada consulta queda registrada con fecha.', pantalla: 'corrida' },
   { clave: 'verificar', nombre: 'Verificar afirmaciones', corto: 'Verificar', explicacion: 'Cada afirmación extraida se contrasta con su pasaje literal; el juez decide si la fuente la sostiene.', pantalla: 'corrida' },
   { clave: 'mundo', nombre: 'Modelo de mundo', corto: 'Mundo', explicacion: 'Lo sostenido entra como hecho con su procedencia; lo abierto queda como pregunta. Se ve como árbol: que sostiene a que.', pantalla: 'arbol' },
-  { clave: 'hipotesis', nombre: 'Hipótesis y Killer', corto: 'Hipótesis', explicacion: 'Rosa genera hipótesis, el Killer las somete a catorce comprobaciones y tu decides sobre las que quedan en la cola.', pantalla: 'hipotesis' },
+  { clave: 'hipotesis', nombre: 'Hipótesis y Killer', corto: 'Hipótesis', explicacion: 'ROSA2018 genera hipótesis, el Killer las somete a catorce comprobaciones y tu decides sobre las que quedan en la cola.', pantalla: 'hipotesis' },
   { clave: 'candidatas', nombre: 'Candidatas', corto: 'Candidatas', explicacion: 'El torneo (Elo y Bradley-Terry) y los bloqueos deciden cuales llegan al laboratorio: hasta tres por ciclo.', pantalla: 'ranking' },
-  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y Rosa actualiza su conclusión. Aquí se ven solo las hipótesis que están en ese tramo.', pantalla: 'hipotesis', detalle: 'laboratorio' },
+  { clave: 'laboratorio', nombre: 'Laboratorio', corto: 'Laboratorio', explicacion: 'El experimento se prerregistra y se sella con un tercero; los datos vuelven y ROSA2018 actualiza su conclusión. Aquí se ven solo las hipótesis que están en ese tramo.', pantalla: 'hipotesis', detalle: 'laboratorio' },
 ];
 
 const ETAPA_POR_PISTA: Record<TipoPista, Etapa> = {
@@ -44,7 +44,7 @@ export interface EstadoHilo {
   viva: boolean;
 }
 
-/** Deriva el estado del hilo del estado de Rosa. Determinista; no inventa. */
+/** Deriva el estado del hilo del estado de ROSA2018. Determinista; no inventa. */
 export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: Corrida | null): EstadoHilo {
   const hip = estado.hipotesis.filter((h) => h.investigacionId === inv.id);
   const hechos = estado.hechos.filter((h) => h.investigacionId === inv.id);
@@ -83,7 +83,7 @@ export function estadoDelHilo(estado: EstadoRosa, inv: Investigacion, corrida: C
     }
   }
   const esperan: Partial<Record<Etapa, number>> = {};
-  // Solo cuenta como "te espera" cuando hay un plan que aprobar; mientras Rosa lo escribe no hay nada que hacer.
+  // Solo cuenta como "te espera" cuando hay un plan que aprobar; mientras ROSA2018 lo escribe no hay nada que hacer.
   if (corrida && (corrida.estado === 'esperando_aprobacion' || (corrida.estado === 'esperando_plan' && !proponiendoPlan(corrida, it)))) esperan.plan = 1;
   const pendientes = pendientesDeRevision(hip);
   if (pendientes > 0) esperan.hipotesis = pendientes;

@@ -1,6 +1,6 @@
-# Acceso y correo de Rosa
+# Acceso y correo de ROSA2018
 
-Rosa requiere una cuenta verificada de `@alzheimerproject.com`. Las opciones
+ROSA2018 requiere una cuenta verificada de `@alzheimerproject.com`. Las opciones
 Iniciar sesión y Registrarse comparten un acceso sin contraseña: la cuenta
 solo se crea cuando se confirma el enlace enviado al buzón corporativo.
 La pantalla para introducir un código queda pendiente del diseño del usuario;
@@ -9,10 +9,10 @@ por ahora se confirma con un enlace de un solo uso, válido durante 15 minutos.
 ## Entrada sin verificación mientras no hay correo
 
 Pedida por Emir el 15 de septiembre de 2026 ("abre el login para que puedan
-entrar personas sin configurar el proveedor"). Mientras el correo de Rosa no
+entrar personas sin configurar el proveedor"). Mientras el correo de ROSA2018 no
 esté configurado, la puerta muestra «Entrar sin verificación»: quien escriba
 una dirección `@alzheimerproject.com` entra con una sesión normal de 12 horas
-(`POST /api/acceso/entrar_sin_verificar`, que exige la cabecera `X-Rosa` como
+(`POST /api/acceso/entrar_sin_verificar`, que exige la cabecera `X-ROSA2018` como
 toda escritura). No hay más comprobación de identidad que la dirección
 escrita: es acceso abierto al dominio, y así se le dice a quien entra. En
 cuanto se configura un proveedor (SMTP o Resend), esa puerta devuelve 403
@@ -22,7 +22,7 @@ correo.
 
 ## Dos transportes: Google Workspace por SMTP o Resend
 
-Desde el 15 de septiembre de 2026 el correo de Rosa sale por uno de dos
+Desde el 15 de septiembre de 2026 el correo de ROSA2018 sale por uno de dos
 caminos, a elegir en «Configurar correo de esta instalación» (la puerta) o en
 Ajustes:
 
@@ -49,11 +49,11 @@ un servidor falso, sin red ni contraseñas reales.
 1. Con Google Workspace: generar una contraseña de aplicación de la cuenta
    corporativa que enviará los correos. Con Resend: crear la cuenta,
    verificar el dominio y generar una clave con permiso de envío.
-2. Arrancar el backend actualizado y abrir Rosa **en el equipo del servidor**.
+2. Arrancar el backend actualizado y abrir ROSA2018 **en el equipo del servidor**.
    La pantalla de acceso muestra «Configurar correo de esta instalación».
 3. Elegir el proveedor y guardar los datos (con SMTP: cuenta, contraseña de
    aplicación, servidor y puerto; con Resend: remitente y clave) y la URL de
-   Rosa. La URL local solo funciona en ese equipo. Para otros equipos hace falta un despliegue
+   ROSA2018. La URL local solo funciona en ese equipo. Para otros equipos hace falta un despliegue
    HTTPS accesible, con los hosts admitidos configurados en el servidor.
 4. Solicitar el enlace usando la cuenta corporativa y confirmarlo. La primera
    cuenta verificada administra la conexión de correo. Completar este paso
@@ -117,7 +117,7 @@ confirmar el resultado queda visible, no se convierte en éxito.
 «Aceptado por Resend» **no confirma entrega al buzón**: los rebotes y la entrega
 se consultan en el panel del proveedor; todavía no hay webhook de entregas.
 Desactivar avisos cancela lo pendiente, pero no puede retirar un correo que
-ya se está enviando. Rosa debe permanecer en ejecución para enviar avisos.
+ya se está enviando. ROSA2018 debe permanecer en ejecución para enviar avisos.
 Los mensajes no llaman a modelos de IA; el proveedor puede cobrar por envío.
 
 ## Verificación

@@ -1,4 +1,4 @@
-// Raiz de Rosa: lee el estado del almacen y la ruta del hash, y monta la
+// Raiz de ROSA2018: lee el estado del almacen y la ruta del hash, y monta la
 // barra lateral, la cabecera y la pantalla que toque. La busqueda global se
 // abre con Cmd+K o Ctrl+K. El titulo de la pestana lleva cuantas decisiones
 // esperan, para verlo sin abrir la pestana.
@@ -83,7 +83,7 @@ export default function App() {
   }, [claveRuta, ruta]);
 
   useEffect(() => {
-    const base = inv ? `${inv.titulo} · Rosa` : 'Rosa · Alzheimer Project';
+    const base = inv ? `${inv.titulo} · ROSA2018` : 'ROSA2018 · Alzheimer Project';
     document.title = esperan > 0 ? `(${esperan}) ${base}` : base;
   }, [inv, esperan]);
 

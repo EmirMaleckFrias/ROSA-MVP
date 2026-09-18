@@ -1,4 +1,4 @@
-# GEPA automático en Rosa
+# GEPA automático en ROSA2018
 
 El servicio arranca con el backend. Todas sus llamadas, incluidas reflexión
 y evaluación, utilizan los modelos de `rosa.gateway`. Se rechaza cualquier
@@ -76,7 +76,7 @@ La captura sigue activa. Una petición ya enviada al Gateway puede terminar tras
 pausar, pero no se permite activar su candidato. Los controles están autenticados
 y usan la misma protección contra escrituras externas que el resto de la API.
 
-El servicio se aloja en el único proceso escritor de Rosa, no es un planificador
+El servicio se aloja en el único proceso escritor de ROSA2018, no es un planificador
 distribuido. Un reinicio interrumpe el ciclo en curso; queda auditado y no se reusa
 su examen. La retención de trazas es local y por ahora no tiene borrado automático:
 conviene vigilar el espacio de disco. Los ficheros de GEPA pueden contener contexto
@@ -138,5 +138,5 @@ cosas (rosa/tests/test_gepa_arreglos.py las fija):
   reparto entrenamiento, validación y examen es por rango del hash de cada
   investigación (con tres o más siempre hay examen y validación; antes un cubo
   vacío dejaba a GEPA sin examen para siempre); el feedback de experiencia se
-  acota a 4 000 caracteres; `firma()` tolera módulos sin signature; y Rosa
+  acota a 4 000 caracteres; `firma()` tolera módulos sin signature; y ROSA2018
   arranca aunque el servicio no pueda construirse.

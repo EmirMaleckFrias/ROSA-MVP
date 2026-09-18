@@ -110,10 +110,10 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
     L += [f"# Dossier para el laboratorio: {h['titulo']}", "", f"Generado el {_fecha(ahora)}. Hipótesis {h['id']}, versión {h.get('version', 1)}. Investigación: {(inv or {}).get('titulo', '')}."]
     if corrida and corrida.get("arnes"):
         a = corrida["arnes"]
-        L.append(f"Rosa: commit {a.get('commit')}, firmas {a.get('firmas')}, programas optimizados {a.get('optimizados')}.")
+        L.append(f"ROSA2018: commit {a.get('commit')}, firmas {a.get('firmas')}, programas optimizados {a.get('optimizados')}.")
 
     # 1. Decision
-    L += ["", f"Nivel de autonomía con el que se produjo este dossier: {politicas.nivel_autonomia_texto()} Ninguna decisión que toque el mundo real (asignar un experimento, gastar grande, descartar) la toma Rosa sola por política."]
+    L += ["", f"Nivel de autonomía con el que se produjo este dossier: {politicas.nivel_autonomia_texto()} Ninguna decisión que toque el mundo real (asignar un experimento, gastar grande, descartar) la toma ROSA2018 sola por política."]
     L += ["", "## 1. Decisión de priorización"]
     if bloqueos:
         L.append("NO es candidata al laboratorio. Bloqueos no compensables:")
@@ -124,7 +124,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L.append("Sin bloqueos, pero hoy no está entre las candidatas (otras puntuan más o el Killer no la dejo avanzar todavía).")
     L.append(f"Estado: {h['estado']}. Elo {h['elo']} tras {len(h.get('partidos', []))} partidos. Decisión del Killer sobre esta versión: {h.get('decisionKiller') or 'pendiente'}.")
     if k:
-        L.append(f"Conclusión de Rosa: certeza {k.get('certeza')}, dirección {k.get('direccion')}. {k.get('enunciado', '')}")
+        L.append(f"Conclusión de ROSA2018: certeza {k.get('certeza')}, dirección {k.get('direccion')}. {k.get('enunciado', '')}")
 
     # 2. Hipotesis
     L += ["", "## 2. La hipótesis (contrato completo)", f"Título: {h['titulo']}", f"Enunciado: {h['enunciado']}", f"Mecanismo: {h['mecanismo']}"]
@@ -258,7 +258,7 @@ def texto_dossier(e: dict[str, Any], h: dict[str, Any], inv: dict[str, Any] | No
         L += [f"De que depende más: {k.get('loMasFragil', '')}", f"Subiría la certeza si: {k.get('subiria', '')}", f"Bajaría si: {k.get('bajaria', '')}"]
         if k.get("enContra"):
             L.append("En contra: " + " | ".join(k["enContra"]))
-    L.append("Qué hace Rosa con cada resultado posible del laboratorio:")
+    L.append("Qué hace ROSA2018 con cada resultado posible del laboratorio:")
     L += [f"- {nombre.replace('_', ' ')}: {texto}" for nombre, texto in APRENDIZAJE_POR_RESULTADO.items()]
     L += ["", "Lo que se analice fuera del prerregistro se reporta como exploratorio. Este dossier describe el estado de la evidencia en la fecha indicada; no es una recomendación clínica."]
     return "\n".join(L)

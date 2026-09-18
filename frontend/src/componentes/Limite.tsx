@@ -26,7 +26,7 @@ export class Limite extends Component<Props, Estado> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Queda en la consola del navegador con la pila de componentes.
-    console.error(`[Rosa] fallo al pintar ${this.props.ambito ?? 'la interfaz'}:`, error, info.componentStack);
+    console.error(`[ROSA2018] fallo al pintar ${this.props.ambito ?? 'la interfaz'}:`, error, info.componentStack);
   }
 
   componentDidUpdate(anterior: Props): void {
@@ -38,9 +38,9 @@ export class Limite extends Component<Props, Estado> {
     const mensaje = this.state.error.message || String(this.state.error);
     return (
       <div className="limite-error" role="alert">
-        <h3>Esta parte de Rosa falló al pintarse</h3>
+        <h3>Esta parte de ROSA2018 falló al pintarse</h3>
         <p>
-          Los datos están a salvo: el fallo es de la pantalla, no del registro. Puedes volver a intentarlo o ir al inicio. Si se repite, copia el mensaje de abajo y pásaselo a quien mantiene Rosa.
+          Los datos están a salvo: el fallo es de la pantalla, no del registro. Puedes volver a intentarlo o ir al inicio. Si se repite, copia el mensaje de abajo y pásaselo a quien mantiene ROSA2018.
         </p>
         <pre className="limite-detalle">{mensaje}</pre>
         <div className="acciones">
@@ -51,7 +51,7 @@ export class Limite extends Component<Props, Estado> {
             Ir al inicio
           </a>
           <button type="button" className="btn btn-fantasma" onClick={() => window.location.reload()}>
-            Recargar Rosa
+            Recargar ROSA2018
           </button>
         </div>
       </div>

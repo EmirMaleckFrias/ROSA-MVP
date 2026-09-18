@@ -9,7 +9,7 @@ activa_si: afirmacion, extraer, extraccion, verificar, cita, pasaje, dossier, ev
 
 Cada afirmacion de tipo dato lleva:
 
-| Campo | Que es | En Rosa |
+| Campo | Que es | En ROSA2018 |
 | --- | --- | --- |
 | Identificador | DOI, PMID, NCT o accession | fuente.doi, pmid, nct |
 | Diseno | cohorte, casos y controles, ensayo, transversal, preclinico, revision | fuente.tipoEstudio |
@@ -26,4 +26,4 @@ Cada afirmacion de tipo dato lleva:
 Reglas: la cifra del texto tiene que estar en el pasaje citado con la misma
 unidad (la regla `cifras_fuera_del_pasaje` lo comprueba); una frase de la
 discusion es interpretacion del autor, no una medida; no citar por parecido
-de titulo; separar el texto de la fuente de la sintesis de Rosa.
+de titulo; separar el texto de la fuente de la sintesis de ROSA2018.

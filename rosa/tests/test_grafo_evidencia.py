@@ -148,7 +148,7 @@ def test_cuestiones_por_accion_y_poda_al_volver():
 
     texto = T2.preguntas_abiertas(e["hechos"], inv, "GFAP y NfL", cuestiones=e["cuestiones"])
     assert "Simoa" in texto and "la resolvería: Un estudio cabeza a cabeza" in texto
-    # Una cuestión abierta por Rosa después de una iteración cerrada se poda al volver atrás; la de la persona no.
+    # Una cuestión abierta por ROSA2018 después de una iteración cerrada se poda al volver atrás; la de la persona no.
     c_rosa = CU.registrar(e, CU.nueva(inv, "¿NfL sube antes en portadores?", {"tipo": "killer", "id": a["id"]}, "una segunda cohorte", 5000))
     assert c_rosa is not None
     assert CU.podar_desde(e, inv, 4000) == 1

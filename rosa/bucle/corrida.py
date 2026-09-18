@@ -97,8 +97,8 @@ class Supervisor:
                 for p in it["pistas"]:
                     if p["estado"] == "en_curso":
                         p["estado"] = "fallida"
-                        p["resumen"] = "Interrumpida por un reinicio de Rosa; el paso se retoma"
-                        p["transcripcion"].append({"t": p["ms"], "tipo": "error", "texto": "Interrumpida por un reinicio de Rosa."})
+                        p["resumen"] = "Interrumpida por un reinicio de ROSA2018; el paso se retoma"
+                        p["transcripcion"].append({"t": p["ms"], "tipo": "error", "texto": "Interrumpida por un reinicio de ROSA2018."})
                         cambiado = True
                 for paso in it["plan"]:
                     if paso["estado"] == "en_curso":
@@ -109,7 +109,7 @@ class Supervisor:
             for run in e.get("ejecuciones", []):
                 if run["estado"] == "en_curso":
                     run["estado"] = "error_tecnico"
-                    run["error"] = "Interrumpida por un reinicio de Rosa. No se repite sola: pide el análisis otra vez si hace falta."
+                    run["error"] = "Interrumpida por un reinicio de ROSA2018. No se repite sola: pide el análisis otra vez si hace falta."
                     run["fin"] = ahora
                     cambiado = True
             for r in e.get("reproducciones", []):
@@ -137,7 +137,7 @@ class Supervisor:
         self.almacen.mutar(fn, "recuperacion")
         for c in self.almacen.estado["corridas"]:
             if c["estado"] not in ("detenida", "terminada"):
-                self.almacen.mutar(lambda e, c=c: A.con_evento(e, c["investigacionId"], "corrida_estado", f"Rosa volvió a arrancar; la corrida {c['numero']} retoma donde estaba", None, ahora) or True, "evento")
+                self.almacen.mutar(lambda e, c=c: A.con_evento(e, c["investigacionId"], "corrida_estado", f"ROSA2018 volvió a arrancar; la corrida {c['numero']} retoma donde estaba", None, ahora) or True, "evento")
 
     async def correr(self) -> None:
         self.recuperar_tras_reinicio()
@@ -347,7 +347,7 @@ class Supervisor:
         e = self.almacen.estado
         for h in list(e["hipotesis"]):
             if self._cerrando():
-                return  # Rosa está cerrando: nada nuevo al modelo
+                return  # ROSA2018 está cerrando: nada nuevo al modelo
             corrida = A.ultima_corrida_de(e, h["investigacionId"])
             if not corrida:
                 continue
@@ -501,7 +501,7 @@ class Supervisor:
         self.almacen.mutar(fn, "aprendizaje")
 
     async def _reformular_por_persona(self, ctx: Ctx, h: dict[str, Any]) -> None:
-        """La persona pidió refinar: Rosa reformula como versión nueva con su
+        """La persona pidió refinar: ROSA2018 reformula como versión nueva con su
         nota, y el Killer vuelve a juzgar la versión nueva."""
         nota = h.get("_reformularPedida") or "La persona pidió refinarla"
         texto_af, _ = T.afirmaciones_sostenidas(ctx.corrida().get("_afirmaciones", []))
@@ -623,7 +623,7 @@ class Supervisor:
                 shutil.copy(destino, destino.with_suffix(".json.anterior"))
             if origen.exists():
                 shutil.copy(origen, destino)
-                nota = f"Programa {nombre} promovido; se carga al reiniciar Rosa"
+                nota = f"Programa {nombre} promovido; se carga al reiniciar ROSA2018"
             else:
                 nota = f"No se encontró el candidato {origen.name}; nada que promover"
         except Exception as ex:  # noqa: BLE001
@@ -786,7 +786,7 @@ class Supervisor:
             y["_experimentoIntentado"] = True
             if experimento and not y.get("experimento"):
                 y["experimento"] = experimento
-                y["procedencia"]["registro"].append("experimento propuesto por Rosa (protocolo, ensayo, controles, criterios, coste)")
+                y["procedencia"]["registro"].append("experimento propuesto por ROSA2018 (protocolo, ensayo, controles, criterios, coste)")
                 y["procedencia"]["registro"].append(_linea_contrato(experimento))
                 A.recalcular_bloqueos(e, y)
             return True
@@ -794,7 +794,7 @@ class Supervisor:
         self.almacen.mutar(fn, "experimento")
 
     async def _concluir_hipotesis(self, ctx: Ctx, h: dict[str, Any]) -> None:
-        """La conclusión provisional de Rosa sobre la hipótesis con lo que hay.
+        """La conclusión provisional de ROSA2018 sobre la hipótesis con lo que hay.
         La escribe el juez. Se rehace al cerrar una iteración solo si cambió la
         huella de la evidencia contada (`huella_de_conclusion`), que se guarda en
         `conclusion.huella`; la dirección la fija la regla (`direccion_por_regla`)
@@ -888,7 +888,7 @@ class Supervisor:
                 if escalera and escalera[0].get("falta") and y["estado"] != "descartada":
                     CU.desde_escalera(e, y, escalera[0]["falta"], conclusion["fecha"])
                 if conclusion.get("cambio"):
-                    # Nivel 1 del aprendizaje: cambio lo que Rosa cree de esta hipotesis. Automatico y registrado.
+                    # Nivel 1 del aprendizaje: cambio lo que ROSA2018 cree de esta hipotesis. Automatico y registrado.
                     de = conclusion["cambio"]["de"]
                     e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "creencia", f"{y['titulo'][:80]}: de {de.get('certeza')}/{de.get('direccion')} a {conclusion['certeza']}/{conclusion['direccion']}. {conclusion['cambio']['motivo'][:160]}", f"hipotesis:{y['id']}", "aplicado", config.QUIEN_ROSA, conclusion["fecha"]))
             return True
@@ -983,7 +983,7 @@ class Supervisor:
                     hecho["hipotesisIds"] = [y["id"]]
                     e["hechos"].append(hecho)
                     A.con_evento(e, y["investigacionId"], "hecho_nuevo", f"Hecho nuevo del laboratorio: {resultado['resultado'][:120]}", f"#/investigaciones/{y['investigacionId']}/mundo", ahora)
-            # Que hace Rosa con cada clase de resultado (taxonomia de retorno).
+            # Que hace ROSA2018 con cada clase de resultado (taxonomia de retorno).
             if clasificacion == "fallo_tecnico":
                 y["experimento"]["estado"] = "asignado"  # se puede repetir; la hipotesis no cambia
                 y["experimento"]["ficheroDatos"] = None
@@ -1008,7 +1008,7 @@ class Supervisor:
                     A.con_evento(e, y["investigacionId"], "hipotesis_nueva", f"Hipótesis derivada por corrección de contexto: {nueva['titulo'][:80]}", f"#/investigaciones/{y['investigacionId']}/hipotesis/{nueva['id']}", ahora)
             A.registrar_decision(e, y, "retorno", "avanzar" if clasificacion == "apoyo_reproducido" else ("suspender" if clasificacion in ("toxicidad_inviabilidad", "correccion_contexto") else ("reformular" if clasificacion == "negativo_interpretable" else "avanzar")), f"Retorno del laboratorio: {clasificacion.replace('_', ' ')}. {resultado['resultado'][:200]}", quien, ahora)
             e.setdefault("aprendizaje", []).append(P.nuevo_cambio_aprendizaje(y["investigacionId"], 1, "creencia", f"Resultado del laboratorio ({clasificacion.replace('_', ' ')}) para '{y['titulo'][:60]}': {resultado['accionTomada'][:160]}", f"resultado:{y['id']}", "aplicado", quien, ahora))
-            y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}). {resultado['resultado']} Que hace Rosa: {resultado['accionTomada']}", "creadoEn": ahora})
+            y["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": f"Datos del laboratorio evaluados contra el prerregistro: {resultado['veredicto']} ({clasificacion.replace('_', ' ')}). {resultado['resultado']} Que hace ROSA2018: {resultado['accionTomada']}", "creadoEn": ahora})
             y["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} datos {resultado['fichero']} evaluados: {resultado['veredicto']} / {clasificacion}" + (" (SINTÉTICOS: datos de prueba, no cuentan como evidencia ni entran al modelo de mundo)" if sintetico else ""))
             y.pop("_conclusionIntentada", None)
             A.recalcular_bloqueos(e, y)
@@ -1344,7 +1344,7 @@ class Supervisor:
             if mision and i.get("mision") is None:
                 mision["presupuesto"]["llamadas"] = (A.ultima_corrida_de(e, i["id"]) or {}).get("presupuesto", {}).get("limiteLlamadas", mision["presupuesto"]["llamadas"])
                 i["mision"] = mision
-                A.con_evento(e, i["id"], "mision", f"Rosa propone la misión: {justificacion[:140]}. Apruebala o corrigela en Objetivo y datos.", f"#/investigaciones/{i['id']}/investigacion", ahora)
+                A.con_evento(e, i["id"], "mision", f"ROSA2018 propone la misión: {justificacion[:140]}. Apruebala o corrigela en Objetivo y datos.", f"#/investigaciones/{i['id']}/investigacion", ahora)
             return True
 
         self.almacen.mutar(fn, "mision")
@@ -1443,7 +1443,7 @@ class Supervisor:
             self.almacen.mutar(lambda e2: _pausar_por_presupuesto(e2, c["id"]), "presupuesto")
             return
         except Exception as ex:  # noqa: BLE001
-            ctx.incidencia("modelo_bloqueado", "No se pudo proponer el plan con el modelo", str(ex)[:400], self.modelos.cerebro.model, "Se usa el plan por defecto de Rosa; se puede editar antes de aprobarlo.")
+            ctx.incidencia("modelo_bloqueado", "No se pudo proponer el plan con el modelo", str(ex)[:400], self.modelos.cerebro.model, "Se usa el plan por defecto de ROSA2018; se puede editar antes de aprobarlo.")
         if not plan:
             for titulo, detalle, tipo, pres in PLAN_POR_DEFECTO:
                 coste = COSTE_POR_TIPO.get(tipo, pres)
@@ -1473,7 +1473,7 @@ class Supervisor:
             c2["estado"] = "esperando_plan"
             A.con_evento(e2, inv["id"], "corrida_estado", f"Plan de la iteración {numero} propuesto: {len(plan)} pasos. Espera tu aprobación.", f"#/investigaciones/{inv['id']}/corrida", ahora)
             for titulo in analisis_omitidos:
-                A.con_evento(e2, inv["id"], "corrida_estado", f"El planificador proponía «{titulo}» y se dejó fuera del plan de la iteración {numero}: no hay ningún dataset aprobado con fichero en la investigación. Registra o aprueba un dataset en Objetivo y datos para que Rosa pueda analizar.", f"#/investigaciones/{inv['id']}/investigacion", ahora)
+                A.con_evento(e2, inv["id"], "corrida_estado", f"El planificador proponía «{titulo}» y se dejó fuera del plan de la iteración {numero}: no hay ningún dataset aprobado con fichero en la investigación. Registra o aprueba un dataset en Objetivo y datos para que ROSA2018 pueda analizar.", f"#/investigaciones/{inv['id']}/investigacion", ahora)
             return True
 
         self.almacen.mutar(fn, "plan_propuesto")
@@ -1539,7 +1539,7 @@ class Supervisor:
             return
         ejecutor = PASOS.EJECUTORES.get(tipo)
         if ejecutor is None:
-            self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "omitido", motivo=f"Rosa no tiene herramienta para '{tipo}'"), "paso")
+            self.almacen.mutar(lambda e: _estado_paso(e, it["id"], paso["id"], "omitido", motivo=f"ROSA2018 no tiene herramienta para '{tipo}'"), "paso")
             return
         sin_trabajo_cls = getattr(PASOS, "SinTrabajo", None)
         try:
@@ -1742,7 +1742,7 @@ class Supervisor:
             # Lecciones por regla: lo que esta iteración enseña a no repetir (rosa/lecciones.py).
             nuevas_lecciones = LEC.registrar(e2, LEC.generar_al_cerrar(e2, c_prog, it2, revision, ahora))
             if nuevas_lecciones:
-                A.con_evento(e2, inv["id"], "aprendizaje", f"{nuevas_lecciones} {'lección nueva' if nuevas_lecciones == 1 else 'lecciones nuevas'} de la iteración {it['numero']}: lo que Rosa no repetirá", f"#/investigaciones/{inv['id']}/investigacion", ahora)
+                A.con_evento(e2, inv["id"], "aprendizaje", f"{nuevas_lecciones} {'lección nueva' if nuevas_lecciones == 1 else 'lecciones nuevas'} de la iteración {it['numero']}: lo que ROSA2018 no repetirá", f"#/investigaciones/{inv['id']}/investigacion", ahora)
             if revision["hallazgos"]:
                 A.con_evento(e2, inv["id"], "revision_registro", f"El revisor de registro encontró {len(revision['hallazgos'])} hallazgos en la iteración {it['numero']}: " + RR.resumen_revision(revision["hallazgos"])[:140], f"#/investigaciones/{inv['id']}/corrida", ahora)
             # Bradley-Terry con intervalos sobre los partidos del torneo: es lo que
@@ -2342,7 +2342,7 @@ def _vistas_de_programa_al_cerrar(e2: dict[str, Any], inv_id: str, it2: dict[str
 
 
 def _ordenar_plan(plan: list[dict[str, Any]], hay_novedad_pendiente: bool) -> list[dict[str, Any]]:
-    """El orden relativo lo decide el modelo, salvo dos dependencias de Rosa:
+    """El orden relativo lo decide el modelo, salvo dos dependencias de ROSA2018:
     el modelo de mundo se actualiza antes de generar hipótesis, y la novedad
     se comprueba después de generarlas (si no hay hipótesis pendientes de
     novedad, un paso de novedad antes de hipótesis no tendría nada que hacer)."""
@@ -2378,12 +2378,12 @@ def _fijar_evaluacion(e: dict[str, Any], cambio_id: str, evaluacion: dict[str, A
     if c["estado"] == "propuesto" and evaluacion.get("casos"):
         c["estado"] = "evaluado"
     # Lo que propuso la meta-campaña se revierte solo si empeora: nadie tiene que
-    # limpiar detrás de Rosa. Lo que propuso una persona queda evaluado y lo decide ella.
+    # limpiar detrás de ROSA2018. Lo que propuso una persona queda evaluado y lo decide ella.
     if str(c.get("origen") or "").startswith("arnes:") and A.empeora_al_evaluar(c):
         c["estado"] = "revertido"
         c["resueltoEn"] = ahora
         c["resueltoPor"] = config.QUIEN_ROSA
-        c["evaluacion"] = {**evaluacion, "nota": (evaluacion.get("nota") or "") + " Revertido por Rosa: la meta-campaña solo conserva lo que iguala o mejora."}
+        c["evaluacion"] = {**evaluacion, "nota": (evaluacion.get("nota") or "") + " Revertido por ROSA2018: la meta-campaña solo conserva lo que iguala o mejora."}
     A.con_evento(e, c.get("investigacionId"), "aprendizaje", f"Criterio evaluado sobre {evaluacion.get('casos', 0)} casos: acuerdo {evaluacion.get('antes')} antes, {evaluacion.get('despues')} después. {c['evaluacion'].get('nota', '')}", "#/ajustes", ahora)
     return True
 

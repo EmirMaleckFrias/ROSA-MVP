@@ -1,5 +1,5 @@
 """Banco de objetivos con respuesta conocida: la cifra que dice si un cambio
-en Rosa mejora o empeora.
+en ROSA2018 mejora o empeora.
 
 Antes de tocar el bucle o añadir una herramienta hay que poder medir. El
 banco son objetivos de investigación escritos como los escribe una persona,
@@ -130,7 +130,7 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("uso: python -m rosa.evaluacion.banco <corrida_id> [clave_objetivo]")
         return 2
-    # Solo lee: sin cerrojo, así funciona con Rosa en marcha (S-01).
+    # Solo lee: sin cerrojo, así funciona con ROSA2018 en marcha (S-01).
     al = Almacen(solo_lectura=True)
     try:
         e = al.estado

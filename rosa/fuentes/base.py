@@ -5,10 +5,10 @@ cliente se encarga de esperar.
 Diseño: un `Limitador` por dominio con el algoritmo de cubo de fichas (deja
 pasar N por segundo y hace esperar al resto), reintentos con espera
 exponencial en 429 y 5xx, y un único `httpx.AsyncClient` con el User-Agent
-de Rosa (que lleva el correo de contacto, como piden Crossref y Unpaywall).
+de ROSA2018 (que lleva el correo de contacto, como piden Crossref y Unpaywall).
 
 También viven aquí la referencia corta ("Apellido et al., 2025") con la que
-Rosa nombra una fuente a la persona y su desambiguación cuando dos fuentes
+ROSA2018 nombra una fuente a la persona y su desambiguación cuando dos fuentes
 distintas de una corrida se llamarían igual.
 """
 

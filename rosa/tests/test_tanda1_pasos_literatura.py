@@ -527,7 +527,7 @@ def test_terminos_para_ingles_descarta_estadistica_metadatos_y_mayusculas_con_ti
     assert T.terminos_para_ingles({"titulo": "TÍTULO EN MAYÚSCULAS SOBRE LA MEMORIA Y EL GFAP"}) == []
     assert T.terminos_para_ingles({"titulo": "TÍTULO EN MAYÚSCULAS SOBRE P-TAU181 Y GFAP", "_entidades": ["GFAP"]}) == ["GFAP", "P-TAU181"]
     assert T.terminos_para_ingles({"titulo": "APOE e4 y edad", "enunciado": "APOE e4 adelanta el cruce a los 65 años"}) == ["APOE"]
-    assert T.terminos_para_ingles({"titulo": "Rosa GRADE PRISMA", "enunciado": "según Rosa y GRADE y PRISMA en USD"}) == []
+    assert T.terminos_para_ingles({"titulo": "Marta GRADE PRISMA", "enunciado": "según Marta y GRADE y PRISMA en USD"}) == []
     # Un compuesto de un término ya recogido (TSPO-PET tras TSPO) no gasta el sitio de otro.
     assert T.terminos_para_ingles({"_entidades": ["TSPO"], "titulo": "Semaglutida y TSPO-PET", "enunciado": "medida por TSPO-PET y NfL"}) == ["TSPO", "NfL"]
     # Lo legítimo sigue entrando: siglas del dominio de dos letras que no están en la lista negra no se tocan.

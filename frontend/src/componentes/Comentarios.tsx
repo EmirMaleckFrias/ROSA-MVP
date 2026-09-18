@@ -2,7 +2,7 @@
 // un tramo del enunciado, del mecanismo o de una afirmacion, escribe una
 // linea, y el comentario queda pendiente. Guardar no envia: los pendientes se
 // acumulan en una bandeja, se pueden editar o quitar, y salen todos con el
-// siguiente mensaje a Rosa.
+// siguiente mensaje a ROSA2018.
 
 import { useCallback, useEffect, useState } from 'react';
 import type { AnclaComentario, Comentario } from '../datos/tipos';
@@ -56,7 +56,7 @@ export function NuevoComentario({ ancla, onGuardar, onCancelar }: { ancla: Ancla
         className="entrada"
         value={nota}
         maxLength={TOPE}
-        placeholder="Qué quieres decirle a Rosa sobre este tramo"
+        placeholder="Qué quieres decirle a ROSA2018 sobre este tramo"
         onChange={(e) => setNota(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && nota.trim() !== '') {
@@ -148,7 +148,7 @@ export function BandejaComentarios({
         ))}
       </ul>
       <div className="dirigir">
-        <textarea className="entrada" value={mensaje} placeholder="Mensaje para Rosa (opcional)" onChange={(e) => setMensaje(e.target.value)} rows={1} />
+        <textarea className="entrada" value={mensaje} placeholder="Mensaje para ROSA2018 (opcional)" onChange={(e) => setMensaje(e.target.value)} rows={1} />
         <button
           type="button"
           className="btn btn-primario"
@@ -157,7 +157,7 @@ export function BandejaComentarios({
             setMensaje('');
           }}
         >
-          Enviar a Rosa
+          Enviar a ROSA2018
         </button>
       </div>
     </div>

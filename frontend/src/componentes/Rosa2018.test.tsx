@@ -159,7 +159,7 @@ describe('RutaTerapeutica con la ruta evaluada', () => {
     h.tarjeta = null;
     h.ruta = rutaEvaluada();
     await render(<TarjetaDeHipotesis h={h} />);
-    expect(nodo.textContent).toContain('Rosa no pudo rellenar la tarjeta');
+    expect(nodo.textContent).toContain('ROSA2018 no pudo rellenar la tarjeta');
     expect(nodo.querySelector('[data-ruta-resumen]')).not.toBeNull();
     // Sin tarjeta, el paso actual es el declarado por la ruta.
     expect(nodo.querySelector('.ruta-terapeutica li.actual')!.textContent).toContain('Efecto funcional');

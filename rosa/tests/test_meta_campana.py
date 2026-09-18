@@ -55,7 +55,7 @@ def test_la_evaluacion_revierte_sola_lo_de_la_meta_campana_que_empeora_y_no_lo_d
     e["aprendizaje"] += [rosa, persona]
     peor = {"conjunto": "reservado", "casos": 6, "antes": 0.8, "despues": 0.5, "nota": "Empeora el acuerdo"}
     assert CO._fijar_evaluacion(e, rosa["id"], dict(peor), 2000) is True
-    assert rosa["estado"] == "revertido" and rosa["resueltoPor"] == "Rosa" and "Revertido por Rosa" in rosa["evaluacion"]["nota"]
+    assert rosa["estado"] == "revertido" and rosa["resueltoPor"] == "Rosa" and "Revertido por ROSA2018" in rosa["evaluacion"]["nota"]
     assert CO._fijar_evaluacion(e, persona["id"], dict(peor), 2000) is True
     assert persona["estado"] == "evaluado"  # la decide la persona; la puerta impedirá promoverla
     assert A.promover_aprendizaje(e, persona["id"], "Allegri", 3000) is False

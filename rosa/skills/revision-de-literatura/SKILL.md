@@ -8,14 +8,14 @@ activa_si: literatura, buscar, busqueda, pubmed, europe pmc, openalex, preprint,
 # Revision de literatura
 
 Del fragmento "Literature and retrieval" de la skill general de Claude
-Science, adaptado a las fuentes de Rosa.
+Science, adaptado a las fuentes de ROSA2018.
 
 - Traducir la pregunta a: conceptos, sinonimos, identificadores (gen,
   MONDO), poblacion, exposicion, comparador, desenlace, metodo, fechas.
 - Usar la sintaxis de cada fuente (MeSH en PubMed; `SRC:PPR` en Europe PMC
   para preprints; filtros de OpenAlex).
 - Registrar cada consulta material: base, consulta exacta, filtros, fecha y
-  numero de resultados (Rosa lo hace en `fuente.consultas` y en los
+  numero de resultados (ROSA2018 lo hace en `fuente.consultas` y en los
   registros de consulta de los conectores).
 - Revisiones sistematicas para mapear el campo; estudios primarios y
   registros oficiales para sostener afirmaciones concretas.

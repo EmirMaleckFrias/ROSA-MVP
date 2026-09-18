@@ -1,4 +1,4 @@
-"""La versión del arnes: que Rosa exacta produjo cada corrida.
+"""La versión del arnes: que ROSA2018 exacta produjo cada corrida.
 
 El paper de Zitnik y colaboradores (2026) pide que una auditoría pueda saber,
 para cada hipótesis, con que versión del modelo y que configuración del

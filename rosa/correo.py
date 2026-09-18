@@ -34,10 +34,10 @@ BASE = {"remitente": "", "url": "http://localhost:5174", "hora": 8, "zona": "Ame
 PROVEEDORES = ("resend", "smtp")
 ASUNTOS = {
     "hipotesisNueva": "Hay nuevas hipótesis para revisar",
-    "permisoPendiente": "Rosa necesita tu atención",
+    "permisoPendiente": "ROSA2018 necesita tu atención",
     "corridaDetenida": "Una corrida se ha pausado o finalizado",
-    "resumenDiario": "Tu resumen diario de Rosa",
-    "prueba": "El correo de Rosa está conectado",
+    "resumenDiario": "Tu resumen diario de ROSA2018",
+    "prueba": "El correo de ROSA2018 está conectado",
     "acceso": "Confirma tu acceso a Alzheimer Project",
 }
 
@@ -140,9 +140,9 @@ class Correo:
             raise ValueError("La clave contiene caracteres inválidos")
         u = urlsplit(c["url"])
         if u.scheme not in ("http", "https") or not u.hostname or u.username or u.password or u.query or u.fragment or any(x.isspace() for x in c["url"]):
-            raise ValueError("La URL de Rosa debe ser http(s), sin credenciales, parámetros ni fragmento")
+            raise ValueError("La URL de ROSA2018 debe ser http(s), sin credenciales, parámetros ni fragmento")
         if u.scheme == 'http' and u.hostname not in ('localhost', '127.0.0.1', '::1'):
-            raise ValueError('Fuera de localhost, Rosa necesita una URL HTTPS para proteger las sesiones')
+            raise ValueError('Fuera de localhost, ROSA2018 necesita una URL HTTPS para proteger las sesiones')
         c["hora"] = cambios.get("hora", c["hora"])
         if type(c["hora"]) is not int or not 0 <= c["hora"] <= 23:
             raise ValueError("La hora debe estar entre 0 y 23")
@@ -160,10 +160,10 @@ class Correo:
 
     def _encolar(self, tipo, destino, texto, ahora):
         c = self._config()
-        carga = {"from": c["remitente"], "to": [destino], "subject": "Rosa: " + ASUNTOS[tipo],
-                 "text": texto + "\n\nAbrir Rosa: " + c["url"].rstrip("/") + "/#/inicio\n\n"
+        carga = {"from": c["remitente"], "to": [destino], "subject": "ROSA2018: " + ASUNTOS[tipo],
+                 "text": texto + "\n\nAbrir ROSA2018: " + c["url"].rstrip("/") + "/#/inicio\n\n"
                  "Por privacidad, este correo no incluye documentos, datos clínicos ni conclusiones científicas. "
-                 "Consulta las evidencias y limitaciones en Rosa. Cambia los avisos en Ajustes."}
+                 "Consulta las evidencias y limitaciones en ROSA2018. Cambia los avisos en Ajustes."}
         id_ = str(uuid.uuid4())
         self.db.execute("INSERT INTO cola (id,tipo,destinatario,carga,creado,proximo) VALUES (?,?,?,?,?,?)",
                         (id_, tipo, destino, json.dumps(carga), ahora, ahora))

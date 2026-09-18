@@ -143,7 +143,7 @@ def test_juez_caido_deja_pendiente_y_a_la_tercera_suspende_con_motivo_tecnico(mo
 
 
 def test_sin_juez_las_citas_rotas_siguen_descartando(monkeypatch):
-    """Lo que Rosa comprueba sola contra el texto (citas que no resuelven) no
+    """Lo que ROSA2018 comprueba sola contra el texto (citas que no resuelven) no
     espera al juez: la evidencia rota es evidencia rota."""
     h = _hipotesis(afirmaciones=[_afirmacion(veredicto="cita_no_resuelve")])
     al, ctx = _preparar(monkeypatch, h)
@@ -599,7 +599,7 @@ def test_la_ultima_palabra_humana_se_respeta_con_fechas_reales(monkeypatch):
 
 def test_un_comentario_o_una_aclaracion_pendientes_mantienen_en_revision_pero_cierran_el_hallazgo(monkeypatch):
     """Un comentario de la persona (acciones.enviar_comentarios) o una aclaración
-    de Rosa tras 'no puedo juzgar' dejan la hipótesis en_revision porque hay un
+    de ROSA2018 tras 'no puedo juzgar' dejan la hipótesis en_revision porque hay un
     diálogo abierto. Si después el Killer retira su propuesta de descarte, el
     hallazgo se atiende (ya no propone descartarla) pero el estado no se toca:
     lo decide la persona que está mirando."""
@@ -618,7 +618,7 @@ def test_un_comentario_o_una_aclaracion_pendientes_mantienen_en_revision_pero_ci
     assert x["estado"] == "en_revision" and x["decisionKiller"] == "avanzar"
     assert [z["estado"] for z in x["hallazgos"] if z["resumen"] == "El Killer propone descartarla en este contexto"] == ["atendido"]
     assert not _eventos(al, "vuelve a la cola como propuesta")
-    # Aclaración de Rosa tras "no puedo juzgar": igual.
+    # Aclaración de ROSA2018 tras "no puedo juzgar": igual.
     h2 = _con_novedad_comprobada(_hipotesis(titulo="Segunda GENHEP"))
     h2["decisionKiller"] = "descartar_en_contexto"
     al.mutar(lambda e: e["hipotesis"].append(h2) or True, "prueba")

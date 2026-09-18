@@ -1,4 +1,4 @@
-// Inicio: "ahora" en cada investigacion (que hace Rosa, que espera), y el
+// Inicio: "ahora" en cada investigacion (que hace ROSA2018, que espera), y el
 // resumen "mientras no estabas" de la que tiene actividad. Es la pantalla
 // del que vuelve tras horas, como el dashboard con tarjetas "Now" de Claude
 // Science y el recap de la vista de agentes de Claude Code.
@@ -20,7 +20,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       <div className="pantalla-cabecera">
         <div>
           <h2>Investigaciones</h2>
-          <p>Cada investigación tiene su objetivo, sus límites y su condición de parada. Rosa corre dentro de ellos y tu revisas lo que propone.</p>
+          <p>Cada investigación tiene su objetivo, sus límites y su condición de parada. ROSA2018 corre dentro de ellos y tu revisas lo que propone.</p>
         </div>
         <a className="btn btn-primario" href="#/nueva">
           Nueva investigacion
@@ -36,14 +36,14 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       {estado.investigaciones.length === 0 ? (
         <Vacio
           titulo="Todavía no hay investigaciones"
-          pasos={['Escribes el objetivo, los límites y la condición de parada.', 'Rosa propone la misión y el plan de la primera iteración; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipótesis.', 'Tu decides sobre las hipótesis; las candidatas van al laboratorio con prerregistro.']}
+          pasos={['Escribes el objetivo, los límites y la condición de parada.', 'ROSA2018 propone la misión y el plan de la primera iteración; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipótesis.', 'Tu decides sobre las hipótesis; las candidatas van al laboratorio con prerregistro.']}
           accion={
             <a className="btn btn-primario" href="#/nueva">
               Crear la primera investigacion
             </a>
           }
         >
-          Una investigacion es un objetivo con sus limites y su condicion de parada. Rosa corre dentro de ellos.
+          Una investigacion es un objetivo con sus limites y su condicion de parada. ROSA2018 corre dentro de ellos.
         </Vacio>
       ) : (
         <div className="inicio-rejilla" style={{ marginTop: 20 }}>
@@ -69,7 +69,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                           {pistasVivas > 0 && ` (${pistasVivas} ${pistasVivas === 1 ? 'pista' : 'pistas'} en paralelo)`}
                         </>
                       ) : corrida.estado === 'esperando_plan' ? (
-                        proponiendoPlan(corrida, it) ? `Rosa está escribiendo el plan de la iteración ${corrida.iteracionActual}; en uno o dos minutos te lo enseña` : `El plan de la iteración ${corrida.iteracionActual} espera tu aprobación`
+                        proponiendoPlan(corrida, it) ? `ROSA2018 está escribiendo el plan de la iteración ${corrida.iteracionActual}; en uno o dos minutos te lo enseña` : `El plan de la iteración ${corrida.iteracionActual} espera tu aprobación`
                       ) : corrida.motivoCierre ? (
                         corrida.motivoCierre
                       ) : (

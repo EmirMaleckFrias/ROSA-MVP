@@ -1,4 +1,4 @@
-"""Lo que Rosa tomo de la revisión de 14 de septiembre de 2026 (huecos de un
+"""Lo que ROSA2018 tomo de la revisión de 14 de septiembre de 2026 (huecos de un
 AI scientist profesional): riesgo de sesgo por instrumento, PRISMA 2020,
 ensayo en seco, conocimiento operativo."""
 

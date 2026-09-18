@@ -1,1 +1,1 @@
-"""El bucle de investigación de Rosa."""
+"""El bucle de investigación de ROSA2018."""

@@ -36,7 +36,7 @@ describe('digest', () => {
     expect(d.lineas.some((l) => l.includes('la más antigua lleva 9 h'))).toBe(true);
     expect(d.lineas.some((l) => /^Gasto de la corrida \d+: 2318 llamadas/.test(l))).toBe(true);
     const texto = digestComoTexto(d, 'Prueba');
-    expect(texto.startsWith('Rosa · Prueba\n- ')).toBe(true);
+    expect(texto.startsWith('ROSA2018 · Prueba\n- ')).toBe(true);
   });
   it('«Visto» cierra la tarjeta aunque queden decisiones pendientes', () => {
     const e = { ...estadoDeMuestra(), ultimaVisita: AHORA_MUESTRA };
@@ -44,7 +44,7 @@ describe('digest', () => {
     expect(d.esperan.total).toBeGreaterThan(0);
     expect(d.hayNovedades).toBe(false);
     expect(d.eventos).toHaveLength(0);
-    expect(digestComoTexto(d, 'X')).toBe('Rosa · X\n- Sin novedades');
+    expect(digestComoTexto(d, 'X')).toBe('ROSA2018 · X\n- Sin novedades');
   });
   it('cuenta lo que importa: certeza que sube, corrida cerrada, evidencia enlazada y vivero', () => {
     const base = estadoDeMuestra();

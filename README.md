@@ -1,12 +1,12 @@
-# Rosa
+# ROSA2018
 
-Rosa es la IA de investigacion del Alzheimer Project (AI Robotix e INTEC): un
+ROSA2018 es la IA de investigacion del Alzheimer Project (AI Robotix e INTEC): un
 bucle que busca literatura, extrae afirmaciones con cita a la pagina exacta,
 las verifica, mantiene un modelo de mundo, propone hipotesis y las somete a un
 torneo, siempre con una persona decidiendo en la cola. Este repositorio tiene
 el backend (Python, DSPy, GEPA) y la interfaz (React).
 
-## Arrancar Rosa
+## Arrancar ROSA2018
 
 Con dos ventanas de terminal, o con el script que hace las dos cosas:
 
@@ -14,7 +14,7 @@ Con dos ventanas de terminal, o con el script que hace las dos cosas:
 ./rosa.sh
 ```
 
-Eso arranca el servidor de Rosa (puerto 8765), la interfaz (puerto 5174) y abre
+Eso arranca el servidor de ROSA2018 (puerto 8765), la interfaz (puerto 5174) y abre
 el navegador. A mano:
 
 ```bash
@@ -31,10 +31,10 @@ RAG. Nunca al codigo ni a un chat.
 ## Lo que trae ROSA2018 (septiembre de 2026)
 
 El documento de concepto del programa y el plan completo del sistema (ver
-`PLAN-ROSA2018.md`) a�aden a Rosa estas piezas. Todas estan en la interfaz;
+`PLAN-ROSA2018.md`) a�aden a ROSA2018 estas piezas. Todas estan en la interfaz;
 nada de esto se opera desde la terminal.
 
-- **Mision y areas.** Al arrancar la primera corrida Rosa propone la mision
+- **Mision y areas.** Al arrancar la primera corrida ROSA2018 propone la mision
   (poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion,
   capacidades del laboratorio, presupuesto en llamadas, dolares y horas) y las
   areas de investigacion que comparo para elegir por donde empezar. Se
@@ -47,12 +47,12 @@ nada de esto se opera desde la terminal.
   que completar origen, licencia y si el uso con IA esta autorizado. Las filas
   individuales no salen hacia un modelo salvo que el libro lo permita (solo
   datos abiertos o sinteticos).
-- **Puerta de reproduccion.** Rosa no descubre con datos hasta reproducir
+- **Puerta de reproduccion.** ROSA2018 no descubre con datos hasta reproducir
   tres analisis publicados dentro de una tolerancia fijada antes (hay tres
   precargados: GSE1297, OASIS-1, SEA-AD). Se puede eximir con motivo: queda
   registrado como cambio de politica.
 - **Analisis in silico.** Desde la ficha de una hipotesis, con un dataset
-  aprobado: Rosa congela un plan de analisis sin ver las filas, escribe el
+  aprobado: ROSA2018 congela un plan de analisis sin ver las filas, escribe el
   codigo, lo corre en un sandbox sin red (Docker Desktop encendido, o Apple
   `container`), interpreta las cifras contra el umbral del plan y un auditor
   independiente dice si el analisis vale. Solo lo valido entra como evidencia.
@@ -82,7 +82,7 @@ nada de esto se opera desde la terminal.
   dispara una accion distinta (una correccion de contexto crea una hipotesis
   derivada; un fallo tecnico no toca la hipotesis).
 - **Aprendizaje y metodos.** En Ajustes: el registro de aprendizaje en tres
-  niveles (creencias; criterios y programas, que Rosa propone y una persona
+  niveles (creencias; criterios y programas, que ROSA2018 propone y una persona
   evalua y promueve; politicas), el registro de metodos con su estado, y las
   politicas tal como estan en el codigo.
 
@@ -131,7 +131,7 @@ nada de esto se opera desde la terminal.
 
 ## Programa: ruta, mapa, datasets, perfil de diana, contrato del experimento y cifras de aprendizaje (16 de septiembre de 2026)
 
-Hasta aquí Rosa miraba cada hipótesis por separado. Estas seis piezas la hacen
+Hasta aquí ROSA2018 miraba cada hipótesis por separado. Estas seis piezas la hacen
 mirar también el conjunto (lo que ROSA2018 llama "vista de programa") y le
 exigen a cada experimento que diga, antes de tener datos, qué medirá y cómo
 leerá un resultado negativo. Todas son reglas fijas en Python (sin modelo de
@@ -203,7 +203,7 @@ servidor las sirve dentro de `/api/estado` y a demanda en
 
 ### Registro de datasets del programa (`rosa/datasets_programa.py`)
 
-- **Qué hace.** Un registro único de los conjuntos de datos que Rosa ha visto:
+- **Qué hace.** Un registro único de los conjuntos de datos que ROSA2018 ha visto:
   cada serie GEO y colección CELLxGENE que devuelven los conectores en el paso
   de novedad, y cada fichero que una persona sube en Objetivo y datos. De cada
   uno deduce por regla tipo (bulk, célula única, proteómica...), tejido,
@@ -253,7 +253,7 @@ servidor las sirve dentro de `/api/estado` y a demanda en
 
 ### Contrato del experimento (`rosa/experimento.py`)
 
-- **Qué hace.** Cuando Rosa propone un experimento, además del protocolo fija
+- **Qué hace.** Cuando ROSA2018 propone un experimento, además del protocolo fija
   un contrato: las lecturas (cada medida, con qué la confirma, qué la refuta,
   control y unidad; la de "compromiso de diana" prueba que la intervención
   tocó su blanco, separada de la de "efecto"), el sistema experimental (en qué
@@ -287,7 +287,7 @@ servidor las sirve dentro de `/api/estado` y a demanda en
 
 ### Cifras de aprendizaje (`rosa/cifras_aprendizaje.py`)
 
-- **Qué hace.** Tres medidas de si Rosa aprende, calculadas al cerrar cada
+- **Qué hace.** Tres medidas de si ROSA2018 aprende, calculadas al cerrar cada
   iteración: acierto prerregistrado (de las predicciones que dejó por escrito
   antes de mirar los datos, en planes de análisis y experimentos, cuántas
   salieron como dijo; sin casos no se inventa un 0 %), tiempo hasta decisión
@@ -309,7 +309,7 @@ servidor las sirve dentro de `/api/estado` y a demanda en
 ### Ranking explicado y explicaciones alternativas
 
 - **Qué hace.** `frontend/src/lib/ranking.ts` descompone, sin sumarlos, los
-  componentes que Rosa calcula sobre cada hipótesis (certeza GRADE y su
+  componentes que ROSA2018 calcula sobre cada hipótesis (certeza GRADE y su
   techo, dirección, cohortes distintas, a favor y en contra, Killer,
   bloqueos, Bradley-Terry, partidos, novedad) y dice en una frase qué la
   movería en el orden. Las alternativas son lo que también explicaría lo
@@ -330,7 +330,7 @@ Comprobar que todo sigue en pie tras un cambio: la suite de Python
 tsconfig.json` y `npm run build`. Para revisar tildes sin escribir nada:
 `python3 scripts/acentuar.py --comprobar` desde `frontend/`.
 
-## Lo que Rosa tomo de Claude Science (11 de septiembre de 2026)
+## Lo que ROSA2018 tomo de Claude Science (11 de septiembre de 2026)
 
 La investigacion completa esta en `INVESTIGACION-HERRAMIENTAS-CLAUDE-SCIENCE.md`.
 Lo aplicado:
@@ -362,10 +362,10 @@ Lo aplicado:
   herramientas (ReAct, hasta seis pasos) con los conectores, la busqueda en el
   proyecto y el modelo de mundo; la respuesta llega con sus consultas.
 - **Permisos por conector** (permitir, solo si pregunta una persona,
-  bloquear) y **memoria del proyecto** (hechos cortos que Rosa lee en cada
+  bloquear) y **memoria del proyecto** (hechos cortos que ROSA2018 lee en cada
   mision), en Ajustes y en Objetivo y datos.
 - **Revisor de registro**: al cerrar cada iteracion y en el dossier, lo que
-  Rosa dice se compara con lo que el registro prueba (seis clases de
+  ROSA2018 dice se compara con lo que el registro prueba (seis clases de
   hallazgo, por regla y con el juez); los hallazgos se ven como tarjetas en
   la corrida.
 - **Artefactos con cinco pestanas de procedencia** (mensajes, codigo,
@@ -382,15 +382,15 @@ Lo aplicado:
   del 16 % al 67 % tras hacer `supuestos` una regla y suspender cuando juez y
   regla discrepan).
 
-Lo que Claude Science tiene y Rosa no copia, y por que: kernels persistentes
-de Python y R, notebooks y entornos con instalacion libre (Rosa es un
+Lo que Claude Science tiene y ROSA2018 no copia, y por que: kernels persistentes
+de Python y R, notebooks y entornos con instalacion libre (ROSA2018 es un
 investigador autonomo con contrato de salida y reproducibilidad exigida;
 instalar a demanda la rompe), trabajos remotos en Slurm o Modal (sin
 infraestructura ni necesidad hoy), y las plataformas de pago sin datos
 publicos. scvi-tools no entra en la imagen de celula unica porque arrastra
 PyTorch y no hay GPU.
 
-## Lo que Rosa tomo de la revision de un AI scientist profesional (14 de septiembre de 2026)
+## Lo que ROSA2018 tomo de la revision de un AI scientist profesional (14 de septiembre de 2026)
 
 Un informe externo listo quince huecos entre el MVP y un sistema en operacion
 profesional; se verifico cada afirmacion contra las fuentes (ver
@@ -409,7 +409,7 @@ no es abierto) y se aplico lo que aportaba:
   del juez o cae el acuerdo, queda una incidencia.
 - **Sello externo del prerregistro** (`rosa/sello.py`): RFC 3161 con freeTSA,
   DigiCert y Sectigo al asignar un experimento; verificable con `openssl ts
-  -verify` sin Rosa. **Registro encadenado por hashes** (Ajustes, Integridad
+  -verify` sin ROSA2018. **Registro encadenado por hashes** (Ajustes, Integridad
   del registro).
 - **PRISMA 2020** (`rosa/prisma.py`): el cribado registra cada excluido con
   su motivo; la corrida exporta el flujo con las variables oficiales del
@@ -430,7 +430,7 @@ no es abierto) y se aplico lo que aportaba:
   evidencia propia. **RO-Crate con PROV** (`rosa/rocrate.py`) desde la ficha.
 
 Reglas de concurrencia (lo que antes no estaba escrito): un solo escritor
-(el proceso de Rosa, con cerrojo reentrante); cada mutacion es atomica y se
+(el proceso de ROSA2018, con cerrojo reentrante); cada mutacion es atomica y se
 persiste con su fila del registro en la misma transaccion; una lectura ve
 siempre una version completa (la instantanea se toma bajo el cerrojo); una
 decision humana lleva la version de la hipotesis que veia y el servidor la
@@ -440,7 +440,7 @@ procesos escribiendo, esta seccion es lo que hay que revisar primero.
 
 ## Espejo del estado en Convex
 
-Con `CONVEX_URL` y `CONVEX_DEPLOY_KEY` en el `.env` del servidor, Rosa copia
+Con `CONVEX_URL` y `CONVEX_DEPLOY_KEY` en el `.env` del servidor, ROSA2018 copia
 cada entidad publica del estado a una tabla de Convex (`frontend/convex/`:
 esquema y funciones `espejo:sincronizar`, `espejo:meta`, `espejo:coleccion`,
 `espejo:entidad`, `espejo:hashes`), actualizando solo lo que cambio pocos
@@ -459,7 +459,7 @@ con el motivo.
 ## Exa: búsqueda semántica de publicaciones (15 de septiembre de 2026)
 
 Exa (exa.ai) recupera por significado, con embeddings, sobre un índice de
-unos 350 millones de publicaciones (`category="publication"`). Rosa lo usa
+unos 350 millones de publicaciones (`category="publication"`). ROSA2018 lo usa
 como complemento de PubMed, Europe PMC y OpenAlex, no en su lugar:
 
 - **Búsqueda de literatura.** El planificador (`GenerarConsultas`) recibe las
@@ -490,7 +490,7 @@ Ampliado el 15 de septiembre en cuatro partes:
 - **Novedad honesta y más amplia.** El precedente, las patentes (Google
   Patents, WIPO, Espacenet, Justia, FPO) y los proyectos financiados (NIH
   RePORTER, Grantome, CORDIS, UKRI, ADDF) se buscan solo entre lo publicado
-  antes de que Rosa propusiera la hipótesis (`endPublishedDate`), con la
+  antes de que ROSA2018 propusiera la hipótesis (`endPublishedDate`), con la
   misma regla de puntuación que el precedente. Dos apartados nuevos en
   "Novedad" de cada hipótesis.
 - **Vigilancia diaria** (`rosa/vigilancia.py`): una búsqueda al día por
@@ -508,9 +508,9 @@ Solo se usan los endpoints de recuperación (`search`, `contents`,
 con modelos de Exa fuera del AI Gateway. La clave va en `ROSA_EXA_KEY` en el
 `.env` del servidor (se crea en dashboard.exa.ai; 20 USD de crédito inicial y
 10 al mes gratis) y viaja solo en la cabecera `x-api-key`. Exa devuelve URL:
-Rosa extrae el DOI de la URL cuando lo lleva y el PMID de las de PubMed; lo
+ROSA2018 extrae el DOI de la URL cuando lo lleva y el PMID de las de PubMed; lo
 demás queda como URL. Coste: 7 USD por mil búsquedas y 1 USD por mil páginas;
-Rosa anota `costDollars` en la pista. Lo que se envía a Exa es la consulta o
+ROSA2018 anota `costDollars` en la pista. Lo que se envía a Exa es la consulta o
 el enunciado de la hipótesis: es texto del equipo que sale a un proveedor
 externo; la retención cero de datos solo está en su plan Enterprise. Pruebas
 sin red en `rosa/tests/test_exa.py`.
@@ -518,7 +518,7 @@ sin red en `rosa/tests/test_exa.py`.
 ## Grafo de evidencia: el modelo de mundo se mantiene, no solo crece (16 de septiembre de 2026, noche)
 
 Lo que rekursiv.ai llama Trackinizer (un grafo tipado de indagaciones, cuestiones,
-artefactos, experimentos y creencias con aristas con valencia), en Rosa sin motor de
+artefactos, experimentos y creencias con aristas con valencia), en ROSA2018 sin motor de
 grafo aparte: el estado canónico ya es el grafo y lo que faltaba eran los enlaces, el
 peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
 
@@ -550,7 +550,7 @@ peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
 - **Método como nodo** (`rosa/metodos.py`, propuesta de Codex). Catálogo canónico de
   cohortes, plataformas de medida y muestras con alias; sustituye la lista escrita a
   mano de cohortes del Killer y unifica las tres reglas de "misma cohorte" que había
-  (priorización, certeza, Killer). Rosa puede decir "todas las fuentes miden con Simoa:
+  (priorización, certeza, Killer). ROSA2018 puede decir "todas las fuentes miden con Simoa:
   la concordancia no es independiente del instrumento".
 - **Grafo materializado en el backend** (`rosa/grafo.py`). El árbol que dibuja la
   interfaz, portado uno a uno y ampliado con nodos de dato (afirmaciones con dato,
@@ -564,7 +564,7 @@ peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
   aplicada con cautela). Los ataques solo son explícitos: el juez del torneo o el
   Killer declaran que dos hipótesis no pueden ser ciertas a la vez, o dos hipótesis
   afirman la misma arista causal con signo opuesto (`signo` en `relaciones`). Con eso
-  Rosa calcula la extensión fundamentada de Dung y marca `conflictoCon` entre las
+  ROSA2018 calcula la extensión fundamentada de Dung y marca `conflictoCon` entre las
   candidatas al laboratorio. Marca, nunca descarta: decide la persona.
 - **Fusión de ramas por torneo** (`rosa/torneo.py`, `fusionar_hipotesis`). El Killer
   anota con quién es redundante cada hipótesis (`redundanteCon`); el torneo les fuerza
@@ -576,7 +576,7 @@ peso y las reglas que lo mantienen. Además, las cuatro propuestas de Codex.
   `dependencia_pendiente`. Cuando una fuente se retracta, un hecho se sustituye o
   contradice, o una hipótesis se reformula, todo lo que dependía (hipótesis, hechos,
   planes, derivadas) queda "pendiente de revisar" y fuera de las candidatas hasta que
-  Rosa lo vuelve a concluir o una persona lo atiende.
+  ROSA2018 lo vuelve a concluir o una persona lo atiende.
 - **Diff entre versiones** (`rosa/registro.py`, `frontend/src/lib/registro.ts`). Cada
   versión guardada de una hipótesis lleva qué cambió campo a campo, la certeza y el
   Elo que tenía; la ficha lo enseña ("De la v1 a la v2: cambió la cohorte") y el
@@ -613,14 +613,14 @@ construcción aparte.
 
 Lo que rekursiv.ai exige a su "evidence worker" (predicción antes de mirar,
 tres semillas, aceptación por regla, cadena de ejecuciones, auditoría
-adversarial), en Rosa así:
+adversarial), en ROSA2018 así:
 
 - **Predicción antes del dato.** Cada plan de análisis lleva "si confirma",
-  "si refuta" y "si no es evaluable" (qué hará Rosa en cada caso) y cada paso
+  "si refuta" y "si no es evaluable" (qué hará ROSA2018 en cada caso) y cada paso
   del plan de la iteración lleva "espera" y "si no aparece". Los campos entran
   en el hash congelado del plan, de modo que no se pueden retocar después de
   ver el resultado. Un paso de literatura que esperaba algo y encuentra cero
-  relevantes deja una lección. En la interfaz: "Qué hará Rosa según salga".
+  relevantes deja una lección. En la interfaz: "Qué hará ROSA2018 según salga".
 - **Tres semillas siempre.** Todo análisis completado y evaluable se repite
   con dos semillas más. La comprobación determinista `estabilidad_semillas`
   es crítica: si el p-valor principal cruza el alfa con otra semilla, la
@@ -656,7 +656,7 @@ adversarial), en Rosa así:
 
 ## Memoria de errores, progreso y traspaso (16 de septiembre de 2026, tarde)
 
-Lo que rekursiv.ai llama aprender de los errores entre iteraciones, en Rosa
+Lo que rekursiv.ai llama aprender de los errores entre iteraciones, en ROSA2018
 por regla y sin modelos:
 
 - **Progreso y métrica** (`rosa/progreso.py`). Al cerrar cada iteración se
@@ -679,7 +679,7 @@ por regla y sin modelos:
   por significado y cada paso pide las suyas antes de actuar: el
   planificador, el generador de consultas, la exploración en amplitud y el
   generador de hipótesis las reciben como entrada. La investigación las
-  enseña en "Lo que Rosa aprendió a no repetir".
+  enseña en "Lo que ROSA2018 aprendió a no repetir".
 - **Consultas previas de toda la investigación con rendimiento** (resultados
   y relevantes por consulta) en lugar de las de la corrida en curso; los
   artículos ya excluidos con claridad no se vuelven a cribar (se reutiliza el
@@ -700,7 +700,7 @@ Pruebas: `rosa/tests/test_progreso.py`, `rosa/tests/test_lecciones.py`.
 
 ## Búsqueda en amplitud: los diamantes de al lado (16 de septiembre de 2026)
 
-Regla de Emir y de su compañero: una Rosa que solo mira la pregunta se
+Regla de Emir y de su compañero: una ROSA2018 que solo mira la pregunta se
 pierde la mayor parte de lo que hay sobre Alzheimer. Cada paso de literatura
 busca ahora en dos modos:
 
@@ -724,7 +724,7 @@ por la acumulación de evidencia y el vivero como todo lo demás: la amplitud
 alimenta lo que ya existe, no multiplica hipótesis.
 
 La persona elige la amplitud por investigación con tres botones en
-"Configuración que Rosa lee": **enfocada** (nada), **equilibrada** (un tercio
+"Configuración que ROSA2018 lee": **enfocada** (nada), **equilibrada** (un tercio
 de las consultas, por defecto) y **amplia** (la mitad). Queda en
 `configuracion.amplitud` (`fijarAmplitud`). Cada consulta y cada fuente
 llevan su `modo`; la tabla de consultas de la corrida lo enseña, la
@@ -781,7 +781,7 @@ Pruebas: `rosa/tests/test_vivero.py`.
 ## Acumulación de evidencia y techo de certeza (15 de septiembre de 2026, noche)
 
 Hasta hoy una hipótesis nacía con las afirmaciones y fuentes que la motivaron
-y ahí se quedaba: lo que Rosa leía después no se le sumaba (solo un resultado
+y ahí se quedaba: lo que ROSA2018 leía después no se le sumaba (solo un resultado
 de laboratorio o un análisis in silico), y la conclusión se rehacía al cerrar
 cada iteración sobre la misma evidencia. Por eso 23 de 25 hipótesis estaban en
 certeza muy baja sin moverse.
@@ -853,12 +853,12 @@ ningún número que diga si un cambio mejora o empeora.
 - **Reranker** (`rosa/reranker.py`). Un reranker recibe una pregunta y N
   documentos y devuelve la pertinencia de cada uno en una sola llamada; es
   un modelo pequeño (Cohere rerank-v3.5) y va por el AI Gateway como todo lo
-  demás (`/v2/rerank`). Rosa trae hasta 30 candidatos por consulta
+  demás (`/v2/rerank`). ROSA2018 trae hasta 30 candidatos por consulta
   (`MAX_FUENTES_CON_RERANKER`), el reranker ordena, y Sonnet solo criba los
   12 mejores (`MAX_CRIBADO_MODELO`); los demás quedan registrados como
   excluidos "fuera del corte del reranker" con su pertinencia, nunca se
   pierden en silencio. En la novedad del Killer ordena los candidatos de
-  OpenAlex y Exa antes de juzgarlos. Si el gateway no responde, Rosa sigue
+  OpenAlex y Exa antes de juzgarlos. Si el gateway no responde, ROSA2018 sigue
   como antes (cribado completo). `ROSA_RERANK_MODELO=` vacío lo apaga.
 - **Índice semántico del registro** (`rosa/indice_semantico.py`). Cada
   hecho, hipótesis y fuente de una investigación se convierte en un vector
@@ -893,11 +893,11 @@ Pruebas sin red: `rosa/tests/test_reranker_indice.py`,
 `rosa/tests/test_banco_y_pubtator.py`; `rosa/tests/conftest.py` apaga el
 reranker y los embeddings en la suite para que nunca salga a la red.
 
-## Despliegue: Vercel para la interfaz, un proceso persistente para Rosa
+## Despliegue: Vercel para la interfaz, un proceso persistente para ROSA2018
 
 El proyecto `rosa-mvp` de Vercel está hoy configurado con el preset FastAPI
 y raíz `.`, es decir, para desplegar el backend como funciones sin servidor.
-Eso no puede funcionar para Rosa: el backend es un proceso que vive (el
+Eso no puede funcionar para ROSA2018: el backend es un proceso que vive (el
 bucle de investigación con tareas asyncio de horas, el flujo SSE, el
 trabajador de correo cada cinco segundos, el espejo de Convex) y escribe en
 un SQLite local que es la fuente de verdad. Una función sin servidor es
@@ -910,11 +910,11 @@ minutos. La división correcta:
   el backend público, se añade una regla `rewrites` que mande `/api/(.*)` a
   su URL: así la interfaz y la API comparten origen y la cookie de sesión
   (SameSite=Strict) sigue valiendo. Hasta entonces la interfaz desplegada
-  muestra la puerta con «No se puede conectar con Rosa», que es la verdad.
-- **Rosa corre en una máquina persistente**: una VPS o un servicio de
+  muestra la puerta con «No se puede conectar con ROSA2018», que es la verdad.
+- **ROSA2018 corre en una máquina persistente**: una VPS o un servicio de
   procesos largos (Fly.io, Railway, Render), o el equipo del servidor
   expuesto con un túnel HTTPS (Cloudflare Tunnel, Tailscale). Con HTTPS
-  público, esa dirección va en «Dirección web de Rosa» de la configuración de
+  público, esa dirección va en «Dirección web de ROSA2018» de la configuración de
   correo, porque es la que viaja en los enlaces de acceso.
 
 Vercel además bloquea un despliegue si el correo del autor del commit no
@@ -928,9 +928,9 @@ cuenta.
 ## Como se investiga
 
 1. **Nueva investigacion**: titulo, objetivo, que cuenta como relevante,
-   limites, condicion de parada (si dice "N iteraciones", Rosa para sola al
+   limites, condicion de parada (si dice "N iteraciones", ROSA2018 para sola al
    llegar). Al crearla arranca la corrida 1.
-2. **Plan**: Rosa propone el plan de la iteracion (4 a 7 pasos con su tipo y
+2. **Plan**: ROSA2018 propone el plan de la iteracion (4 a 7 pasos con su tipo y
    su coste en llamadas) y espera. Se puede editar, reordenar o aprobar. Con
    "autoaprobar tras N segundos" no espera.
 3. **Pasos**: cada paso lanza pistas en paralelo con su transcripcion en vivo.
@@ -941,7 +941,7 @@ cuenta.
 4. **Cola de hipotesis**: cada hipotesis llega con sus afirmaciones y
    veredictos, sus fuentes con pagina, sus supuestos, sus revisiones y su
    novedad. Aceptar la mete al modelo de mundo como abierta; descartar exige
-   motivo; "no puedo juzgar" hace que Rosa la aclare.
+   motivo; "no puedo juzgar" hace que ROSA2018 la aclare.
 5. **Presupuesto**: la corrida tiene un tope de llamadas al modelo (1500 por
    defecto). Al llegar se pausa y pide ampliarlo; nunca muere en silencio.
 
@@ -988,4 +988,4 @@ la primera corrida el 15 de septiembre de 2026.
   fuentes y la arquitectura del backend.
 - `INVESTIGACION-AI-SCIENTIST-2026.md`: los quince huecos de un AI scientist
   profesional verificados contra las fuentes, con las correcciones al informe
-  externo y lo que Rosa tomo de cada uno.
+  externo y lo que ROSA2018 tomo de cada uno.

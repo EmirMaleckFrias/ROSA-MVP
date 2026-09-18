@@ -1,5 +1,5 @@
 // Los componentes del ranking, expuestos uno a uno y sin sumarlos (informe de
-// priorización de ROSA2018: "el ranking expone sus componentes"). Rosa ya
+// priorización de ROSA2018: "el ranking expone sus componentes"). ROSA2018 ya
 // calcula cada pieza (certeza GRADE con su techo, dirección, cohortes,
 // evidencia por relación, decisión del Killer, bloqueos, Bradley-Terry,
 // novedad, paso de la ruta, conflictos, pendientes de revisar, fusiones);
@@ -201,7 +201,7 @@ const NO_COMPROBADO = /^no\s+(se\s+pudo\s+)?comprob/i;
 
 /** La novedad en un solo estado, leyendo la comprobación de precedente
  *  (rosa/fuentes). El estado por defecto de la plantilla parece una ausencia
- *  pero su detalle empieza por "No comprobado": Rosa no afirma que algo es
+ *  pero su detalle empieza por "No comprobado": ROSA2018 no afirma que algo es
  *  nuevo sin haber mirado. */
 export function novedadDe(h: Pick<Hipotesis, 'novedad'>): { estado: EstadoNovedad; detalle: string } {
   const p = h.novedad?.precedente;
@@ -358,12 +358,12 @@ function encajada(s: string): string {
 
 /** Qué movería a esta hipótesis, en llano, a partir de lo que la conclusión
  *  ya dice por regla (el primer peldaño de la escalera) y por el juez (qué la
- *  subiría y qué la bajaría). Sin conclusión, lo dice: hasta que Rosa cierre
+ *  subiría y qué la bajaría). Sin conclusión, lo dice: hasta que ROSA2018 cierre
  *  una iteración, el puesto lo fija solo el torneo. */
 export function queCambiariaElOrden(h: Pick<Hipotesis, 'conclusion'>): string {
   const c = h.conclusion;
   if (!c || typeof c !== 'object' || !clave(c.certeza)) {
-    return 'Rosa todavía no ha escrito una conclusión sobre esta hipótesis: hasta que cierre una iteración, su puesto lo fija solo el torneo (los partidos que gana y pierde contra sus rivales), no la evidencia reunida.';
+    return 'ROSA2018 todavía no ha escrito una conclusión sobre esta hipótesis: hasta que cierre una iteración, su puesto lo fija solo el torneo (los partidos que gana y pierde contra sus rivales), no la evidencia reunida.';
   }
   const partes: string[] = [];
   const peldano = objetos<{ de?: string; a?: string; falta?: string }>(c.escalera)[0];
@@ -376,7 +376,7 @@ export function queCambiariaElOrden(h: Pick<Hipotesis, 'conclusion'>): string {
   } else if (clave(c.certeza) === 'alta') {
     partes.push('Está en certeza alta, el nivel más alto de GRADE: no hay peldaño por encima.');
   } else {
-    partes.push(`Está en ${etiquetaCerteza(c.certeza).toLowerCase()} y esta conclusión no trae la escalera por regla (es anterior a que Rosa la calculara): se rehará al cerrar la próxima iteración.`);
+    partes.push(`Está en ${etiquetaCerteza(c.certeza).toLowerCase()} y esta conclusión no trae la escalera por regla (es anterior a que ROSA2018 la calculara): se rehará al cerrar la próxima iteración.`);
   }
   const subiria = texto(c.subiria).trim();
   const bajaria = texto(c.bajaria).trim();

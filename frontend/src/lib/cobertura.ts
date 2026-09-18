@@ -2,7 +2,7 @@
 // de Undermind: la tasa de descubrimiento de articulos relevantes decae como
 // una exponencial, f(n) = 1 - e^(-n/tau), y se puede decir con honestidad
 // "hemos encontrado un 93 % de lo relevante". La consecuencia que importa
-// para Rosa es que una "ausencia refutada" solo vale si la busqueda del tema
+// para ROSA2018 es que una "ausencia refutada" solo vale si la busqueda del tema
 // converge: si no, se degrada a "sin verificar" con la cobertura al lado.
 
 import type { Cobertura, Veredicto } from '../datos/tipos';

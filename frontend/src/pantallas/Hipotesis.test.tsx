@@ -154,7 +154,7 @@ describe('la ficha de la hipótesis', () => {
     h.tarjeta = null;
     await montar(e, h.id);
     expect(nodo.querySelector('[role="group"][aria-label="Componentes del ranking, sin sumar"]')).not.toBeNull();
-    expect(nodo.textContent).toContain('Rosa no ha escrito explicaciones alternativas');
+    expect(nodo.textContent).toContain('ROSA2018 no ha escrito explicaciones alternativas');
     expect(nodo.querySelector('[data-ruta-resumen]')).toBeNull();
     expect(nodo.textContent).not.toContain('Perfil de la diana');
     // El contrato del experimento antiguo se enseña como lectura derivada.
@@ -176,7 +176,7 @@ describe('adversario: la ficha con las claves nuevas corruptas', () => {
     expect(nodo.querySelector('[data-ruta-resumen]')).toBeNull();
     expect(nodo.querySelector('.ruta-terapeutica')).toBeNull();
     expect(nodo.textContent).not.toContain('Perfil de la diana');
-    expect(nodo.textContent).toContain('Rosa no ha escrito explicaciones alternativas');
+    expect(nodo.textContent).toContain('ROSA2018 no ha escrito explicaciones alternativas');
     const contrato = nodo.querySelector('[data-contrato-experimento]')!;
     // Sin lecturas legibles, los criterios antiguos valen como lectura derivada; el sistema escrito como texto se lee por el vocabulario.
     expect(contrato.textContent).toContain('no declara lecturas separadas');

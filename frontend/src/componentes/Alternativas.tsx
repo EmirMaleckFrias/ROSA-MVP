@@ -30,7 +30,7 @@ export interface Alternativa {
   clase: ClaseAlternativa;
   /** Qué observación, medida o diseño separaría esta explicación de la hipótesis. */
   queLaDistinguiria: string;
-  /** Iteración en la que Rosa la escribió, si se sabe. */
+  /** Iteración en la que ROSA2018 la escribió, si se sabe. */
   iteracion?: number | null;
 }
 
@@ -190,7 +190,7 @@ export function Alternativas({ h, vacio }: { h: ConAlternativas | null | undefin
   if (lista.length === 0) {
     return (
       <p className="meta">
-        {vacio ?? 'Rosa no ha escrito explicaciones alternativas para esta hipótesis todavía. Las escribe al concluir cada iteración: qué más explicaría lo observado (causa inversa, confusor, selección, artefacto) y qué observación lo separaría de la hipótesis.'}
+        {vacio ?? 'ROSA2018 no ha escrito explicaciones alternativas para esta hipótesis todavía. Las escribe al concluir cada iteración: qué más explicaría lo observado (causa inversa, confusor, selección, artefacto) y qué observación lo separaría de la hipótesis.'}
       </p>
     );
   }
@@ -218,7 +218,7 @@ export function Alternativas({ h, vacio }: { h: ConAlternativas | null | undefin
               </div>
               {a.texto && <p>{a.texto}</p>}
               <p className="meta">
-                <strong>Qué la distinguiría:</strong> {a.queLaDistinguiria || 'Rosa no lo dejó escrito; sin eso la alternativa no se puede separar de la hipótesis en un experimento.'}
+                <strong>Qué la distinguiría:</strong> {a.queLaDistinguiria || 'ROSA2018 no lo dejó escrito; sin eso la alternativa no se puede separar de la hipótesis en un experimento.'}
               </p>
             </li>
           );

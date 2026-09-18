@@ -16,7 +16,7 @@ def _estado(obj):
                       "_fuentes": {"f1": {"titulo": "Lecanemab in Early Alzheimer's Disease"}, "f2": {"titulo": "Biomarker chronology in autosomal dominant Alzheimer"}, "f3": {"titulo": "Donanemab in Early Symptomatic Alzheimer's Disease"}},
                       "gasto": {"llamadas": 320, "usd": 2.1, "exaUsd": 0.09, "segundos": 3600}}],
         "hipotesis": [{"id": "h1", "investigacionId": "inv", "titulo": "El acoplamiento de GFAP con NfL distingue respuesta", "decisionKiller": "descartar_en_contexto"}],
-        "iteraciones": [{"corridaId": "c1", "resumen": "Rosa propone que el acoplamiento de GFAP con NfL distingue respuesta; pendiente de validación.", "resumenLlano": {}, "revisionRegistro": {"porRegla": 1, "hallazgos": [{}, {}]}}],
+        "iteraciones": [{"corridaId": "c1", "resumen": "ROSA2018 propone que el acoplamiento de GFAP con NfL distingue respuesta; pendiente de validación.", "resumenLlano": {}, "revisionRegistro": {"porRegla": 1, "hallazgos": [{}, {}]}}],
         "investigaciones": [{"id": "inv", "objetivo": obj["objetivo"]}],
     }
 

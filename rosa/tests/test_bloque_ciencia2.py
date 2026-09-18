@@ -85,7 +85,7 @@ def test_rocrate_con_prov_y_sello():
     ds = next(g for g in meta["@graph"] if g["@id"].startswith("#dataset-"))
     assert ds["sha256"] == "cafe" * 16 and "no incluido" in ds["name"]
     prov = crate["prov"]
-    assert "rosa:Rosa" in prov["agent"] and any(k.startswith("rosa:ejecucion-") for k in prov["activity"]) and prov["wasAttributedTo"]
+    assert "rosa:ROSA2018" in prov["agent"] and any(k.startswith("rosa:ejecucion-") for k in prov["activity"]) and prov["wasAttributedTo"]
     z = zipfile.ZipFile(io.BytesIO(RC.zip_bytes(crate)))
     assert json.loads(z.read("ro-crate-metadata.json"))["@context"] == RC.CONTEXTO
     assert z.read("sello/freeTSA.tsr") == b"\x00\x01\x02"

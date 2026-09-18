@@ -1,4 +1,4 @@
-// El sistema de movimiento de Rosa. Una sola regla: el movimiento explica
+// El sistema de movimiento de ROSA2018. Una sola regla: el movimiento explica
 // algo (de donde viene una cosa, a donde va, que cambio); nunca decora. Las
 // duraciones son cortas (150 a 400 ms) para que envejezcan bien, y todo
 // respeta la preferencia de movimiento reducido del navegador.
@@ -30,7 +30,7 @@ export const lista: Variants = {
 
 /** Como sale una tarjeta segun la decision tomada: aprobar la desplaza a la
  *  derecha (sigue adelante), descartar la encoge y apaga, refinar la devuelve
- *  hacia arriba (vuelve a Rosa). El gesto ensena la regla sin leerla. */
+ *  hacia arriba (vuelve a ROSA2018). El gesto ensena la regla sin leerla. */
 export const salidaPorDecision: Record<'aprobar' | 'descartar' | 'refinar' | 'neutra', TargetAndTransition> = {
   aprobar: { opacity: 0, x: 56, transition: { duration: DUR.lenta, ease: [0.22, 1, 0.36, 1] } },
   descartar: { opacity: 0, scale: 0.92, filter: 'grayscale(1)', transition: { duration: DUR.lenta } },

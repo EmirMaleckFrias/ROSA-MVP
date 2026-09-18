@@ -186,7 +186,7 @@ export function digest(estado: EstadoRosa, investigacionId: string, ahora: numbe
 
 /** El mismo resumen como texto plano, para Slack o correo. */
 export function digestComoTexto(d: Digest, tituloInvestigacion: string): string {
-  const cabecera = `Rosa · ${tituloInvestigacion}`;
+  const cabecera = `ROSA2018 · ${tituloInvestigacion}`;
   const cuerpo = d.lineas.map((l) => `- ${l}`).join('\n');
   return `${cabecera}\n${cuerpo || '- Sin novedades'}`;
 }

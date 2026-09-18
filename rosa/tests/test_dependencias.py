@@ -573,7 +573,7 @@ def test_objetivos_como_texto_y_titulos_en_ingles_o_sin_tildes_pasan_tal_cual():
     h["titulo"] = "Hipotesis sin tildes en el titulo"  # sin tildes: entrada a propósito sin acentos
     lineas = D.texto_pendientes(e, INV).split("\n")
     assert lineas[0] == "Pendiente de revisar: la hipótesis «Hipotesis sin tildes en el titulo» depende de un hecho contradicho (desde el 16/09): The old fact was contradicted by a new one"
-    # Lo que genera Rosa va acentuado aunque lo que recibe no lo esté.
+    # Lo que genera ROSA2018 va acentuado aunque lo que recibe no lo esté.
     assert "hipótesis" in lineas[0] and "análisis" in D.NOMBRE_TIPO["plan"]
 
 

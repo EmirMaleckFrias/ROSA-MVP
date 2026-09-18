@@ -1,5 +1,5 @@
 """El revisor de registro (lo que Claude Science llama RequestReview): al
-cerrar una iteración y al generar un dossier, se compara lo que Rosa dice
+cerrar una iteración y al generar un dossier, se compara lo que ROSA2018 dice
 con lo que el registro prueba. Seis clases de hallazgo, las mismas que el
 revisor de Claude Science detecta:
 

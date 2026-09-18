@@ -31,7 +31,7 @@ dos; si quien vuelve a preguntar es una persona, queda un movimiento en el
 historial (protege la cuestión de la poda). Si la equivalente ya está resuelta
 o descartada, se devuelve tal cual, sin reabrir: quien pregunte otra vez ve
 que ya se cerró. Tope de MAX_CUESTIONES_ABIERTAS abiertas por investigación
-para las que abre Rosa; las que abre una persona entran siempre.
+para las que abre ROSA2018; las que abre una persona entran siempre.
 
 Todo lo que aquí decide algo es determinista y devuelve su motivo:
 `registrar_con_motivo` dice si la cuestión entró, con quién se fundió y por
@@ -422,7 +422,7 @@ def _titulo_hipotesis(e: dict[str, Any], hipotesis_id: str | None) -> str:
 
 def _quien_abrio(c: dict[str, Any]) -> str:
     """Quién abrió la cuestión según el primer movimiento del historial; sin
-    historial legible, Rosa (valor de hoy para un registro antiguo)."""
+    historial legible, ROSA2018 (valor de hoy para un registro antiguo)."""
     historial = c.get("historial")
     if isinstance(historial, list):
         for m in historial:
@@ -432,7 +432,7 @@ def _quien_abrio(c: dict[str, Any]) -> str:
 
 
 def _de_persona(c: dict[str, Any]) -> bool:
-    """True si la abrió alguien que no es Rosa."""
+    """True si la abrió alguien que no es ROSA2018."""
     return _quien_abrio(c) != config.QUIEN_ROSA
 
 
@@ -580,8 +580,8 @@ def _fundir(existente: dict[str, Any], cuestion: dict[str, Any]) -> None:
         existente["queLaResolveria"] = _recortar(cuestion["queLaResolveria"])
     # Si quien vuelve a preguntar es una persona, queda su huella en el historial
     # (mismo estado antes y después): sin ella, la poda al volver a una iteración
-    # trataba la cuestión como solo de Rosa y borraba la pregunta de la médica.
-    # Cuando repite Rosa (el Killer cada iteración) no se anota, para no inflarlo.
+    # trataba la cuestión como solo de ROSA2018 y borraba la pregunta de la médica.
+    # Cuando repite ROSA2018 (el Killer cada iteración) no se anota, para no inflarlo.
     if _de_persona(cuestion):
         if not isinstance(existente.get("historial"), list):
             existente["historial"] = []
@@ -597,7 +597,7 @@ def registrar_con_motivo(e: dict[str, Any], cuestion: dict[str, Any]) -> tuple[d
     baja prioridad); 'ya <resuelta|descartada>: <id>' (equivalente cerrada,
     se devuelve sin reabrir); 'texto vacío', 'sin investigación', 'cuestión
     inválida' y 'tope de N abiertas alcanzado' (no entra, None). El tope solo
-    frena a las que abre Rosa: la pregunta de una persona entra siempre (el
+    frena a las que abre ROSA2018: la pregunta de una persona entra siempre (el
     tope acota el ruido automático, no a la médica)."""
     lista = _lista(e)
     if not isinstance(cuestion, dict):
@@ -699,9 +699,9 @@ def reabrir(e: dict[str, Any], cuestion_id: str, motivo: str, quien: str, ahora:
 def podar_desde(e: dict[str, Any], investigacion_id: str, limite_ms: int) -> int:
     """Al volver a una iteración anterior (modelo de mundo): quita las
     cuestiones de la investigación creadas después del límite cuyo historial es
-    todo de Rosa (misma regla que la poda de hechos en `acciones.volver_a_iteracion`);
+    todo de ROSA2018 (misma regla que la poda de hechos en `acciones.volver_a_iteracion`);
     las que tocó una persona se quedan. En las creadas antes del límite se
-    deshacen los movimientos posteriores hechos solo por Rosa (una resuelta por
+    deshacen los movimientos posteriores hechos solo por ROSA2018 (una resuelta por
     un hecho que se acaba de podar vuelve a abierta); si una persona intervino
     después del límite, no se toca. Devuelve cuántas quitó."""
     limite_ms = _ms(limite_ms)

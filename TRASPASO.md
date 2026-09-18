@@ -1,4 +1,4 @@
-# Traspaso: del RAG de FIREtech a Rosa, la IA del proyecto Alzheimer
+# Traspaso: del RAG de FIREtech a ROSA2018, la IA del proyecto Alzheimer
 
 Este documento existe porque la memoria de Claude Code va atada a la carpeta
 del proyecto. Al cambiar de carpeta, la sesión nueva empieza sin ninguno de
@@ -14,8 +14,8 @@ Fecha del traspaso: 9 de septiembre de 2026. Junto a este documento está
 Alzheimer a nivel de ingeniero, el investigador principal, las fuentes de
 datos con sus APIs y límites, la ingeniería del bucle con la API exacta de
 GEPA, la evaluación, y el marco legal y ético dominicano. Se lee después de
-este. Y `UI-ROSA.md` (10 de septiembre): la interfaz de Rosa tomando como
-referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
+este. Y `UI-ROSA.md` (10 de septiembre): la interfaz de ROSA2018 tomando como
+referencia la de Claude Science, patrón por patrón, más lo que ROSA2018 añade.
 
 ## 1. Quién y para qué
 
@@ -33,14 +33,14 @@ referencia la de Claude Science, patrón por patrón, más lo que Rosa añade.
 - **El equipo del agente nuevo son dos personas**: la persona responsable y un compañero que es
   a la vez ingeniero de IA, médico e investigador (él propuso a la persona responsable al jefe).
   Los programadores de la empresa no participan.
-- **El sistema se llama Rosa.** Es la IA del proyecto Alzheimer, y lo que la persona responsable
-  construye ya es Rosa, no un prototipo aparte: su compañero fue explícito en
+- **El sistema se llama ROSA2018.** Es la IA del proyecto Alzheimer, y lo que la persona responsable
+  construye ya es ROSA2018, no un prototipo aparte: su compañero fue explícito en
   que "es parte del sistema completo, no hay individualidad, todo va de la
   mano". Cuando la persona responsable dice "el modelo" suele referirse al sistema completo, no
   a un modelo de lenguaje; los modelos del gateway son piezas intercambiables
-  dentro de Rosa, como el índice o el juez.
+  dentro de ROSA2018, como el índice o el juez.
 - **Lo que van a construir**, según se lo explicó el compañero a la persona responsable: un
-  bucle en el que Rosa investiga en internet literatura del Alzheimer sin
+  bucle en el que ROSA2018 investiga en internet literatura del Alzheimer sin
   tiempo definido (días), acumula lo relevante y "se hace experta". Usarán
   **DSPy** y su optimizador **GEPA**. Los detalles finos aún no se los han
   dado; la persona responsable irá contando lo que le expliquen.
@@ -115,7 +115,7 @@ modelo por calidad y latencia para cada componente, y se cambia con el nombre.
 ### 2.2 Modelos elegidos para el agente nuevo (decisión de la persona responsable, 9 sep 2026)
 
 **Por ahora: `openai/gpt-6-astra`, `anthropic/claude-opus-5` y
-`anthropic/claude-sonnet-5`. Claude Fable 5.1 queda fuera de Rosa (ver 2.3).**
+`anthropic/claude-sonnet-5`. Claude Fable 5.1 queda fuera de ROSA2018 (ver 2.3).**
 El RAG anterior sigue con sus modelos
 (`openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/text-embedding-3-large`);
 la decisión es para el proyecto nuevo.
@@ -125,7 +125,7 @@ Reparto decidido por la persona responsable el 9 sep 2026, a confirmar midiendo:
 | Pieza | Modelo | Por qué |
 |---|---|---|
 | Cerebro del bucle: planificar, generar hipótesis, meta-revisión, coherencia en contexto largo | **GPT-6 Astra** | Primero en los rankings agregados de razonamiento; GPQA Diamond 96,0; Frontier Math nivel 4 97,6; ARC-AGI-2 95; y en contexto largo MRCR v2 con ocho agujas acierta el 100 % entre 256K y 512K y el 96,3 % entre 512K y 1M (Fable no publica esa cifra). Robustez documentada a inyección de instrucciones del 99,79 % y a la jerarquía de instrucciones del 99,99 %. Retención de datos "parcial" según el gateway: revisar la política antes de material sensible |
-| Juez del verificador: la métrica de GEPA y el veto final, de otra familia que el cerebro | **Claude Opus 5** | Primera fila (HLE con herramientas 63,6), retención cero de datos y sin entrenamiento, y respondió las tres preguntas de biología molecular que a Fable le bloqueó el filtro de doble uso. la persona responsable había elegido a Fable 5.1 por intuición de que "acierta más que GPT", y los datos lo sostenían en conocimiento (AA-Omniscience 85 % de precisión frente a 81 % de Astra, HLE 65,0 frente a 57,2), pero Fable no puede ser juez de Rosa: ver 2.3. Sigue vigente la prueba comparada como jueces (Opus 5 frente a Astra) sobre casos aprobados por humanos |
+| Juez del verificador: la métrica de GEPA y el veto final, de otra familia que el cerebro | **Claude Opus 5** | Primera fila (HLE con herramientas 63,6), retención cero de datos y sin entrenamiento, y respondió las tres preguntas de biología molecular que a Fable le bloqueó el filtro de doble uso. la persona responsable había elegido a Fable 5.1 por intuición de que "acierta más que GPT", y los datos lo sostenían en conocimiento (AA-Omniscience 85 % de precisión frente a 81 % de Astra, HLE 65,0 frente a 57,2), pero Fable no puede ser juez de ROSA2018: ver 2.3. Sigue vigente la prueba comparada como jueces (Opus 5 frente a Astra) sobre casos aprobados por humanos |
 | Alto volumen sin poder de veto: extractor de afirmaciones, calificador, triaje previo del juez | Claude Sonnet 5 | Nivel alto a velocidad de Sonnet, retención cero. El triaje deja pasar solo lo claramente sostenido y manda al juez lo dudoso más una muestra aleatoria de lo aprobado |
 | Reserva | Claude Fable 5.1, solo si la empresa obtiene acceso verificado para ciencias de la vida | Ver 2.3 |
 
@@ -139,10 +139,10 @@ calibración con casos humanos pesa más que la elección. La pareja Astra de
 cerebro y Opus 5 de juez cumple lo que el diseño exige: familias distintas
 (no comparten puntos ciegos) y un juez de primera fila.
 
-### 2.3 Por qué Claude Fable 5.1 queda fuera de Rosa (comprobado el 10 sep 2026)
+### 2.3 Por qué Claude Fable 5.1 queda fuera de ROSA2018 (comprobado el 10 sep 2026)
 
 la persona responsable preguntó si era cierto que "Fable 5.1 no responde nada científico". Lo
-es en parte, y la parte que falla es la que Rosa necesita:
+es en parte, y la parte que falla es la que ROSA2018 necesita:
 
 - **Política de Anthropic.** Fable 5 y 5.1 llevan clasificadores de seguridad
   para capacidades de doble uso. En biología bloquean **virología,
@@ -163,8 +163,8 @@ es en parte, y la parte que falla es la que Rosa necesita:
   última generó 357 tokens y los filtró). Opus 5, GPT-6 Astra y Sonnet 5
   respondieron las tres.
 - **Consecuencia.** Un juez o un cerebro que devuelve vacío justo en las
-  hipótesis mecanísticas y en las dianas terapéuticas rompe Rosa donde más
-  importa. Fable no entra en ninguna pieza de Rosa mientras la empresa no
+  hipótesis mecanísticas y en las dianas terapéuticas rompe ROSA2018 donde más
+  importa. Fable no entra en ninguna pieza de ROSA2018 mientras la empresa no
   tenga acceso verificado; si lo consigue, se reevalúa con la misma prueba.
   Y ojo con la generación de hipótesis en general: los filtros distinguen mal
   entre "diseño molecular" y "mecanismo de enfermedad", así que cualquier
@@ -463,11 +463,11 @@ haya hallazgos que revisar, porque el bucle trabaja cuando nadie mira.
    dejar este documento dentro del repo (por ejemplo `docs/TRASPASO.md`) con
    un `CLAUDE.md` que lo señale.
 
-## 7. Los modelos dentro de Rosa, el ajuste posterior y las tres Mac
+## 7. Los modelos dentro de ROSA2018, el ajuste posterior y las tres Mac
 
 la persona responsable preguntó si importaba que los modelos del gateway no fueran "el modelo"
 final; aclaró después que con "modelo" se refería al sistema completo, que es
-Rosa, y que la empresa tiene **tres Mac de gama alta de Apple** para Rosa (falta confirmar chip y memoria unificada de cada
+ROSA2018, y que la empresa tiene **tres Mac de gama alta de Apple** para ROSA2018 (falta confirmar chip y memoria unificada de cada
 una; la referencia de septiembre de 2026 es el Mac Studio con M5 Ultra, hasta
 512 GB de memoria unificada y 1,2 TB/s, disponible en octubre en la
 configuración de 512 GB). Lo acordado como flujo:
@@ -508,11 +508,11 @@ configuración de 512 GB). Lo acordado como flujo:
    casos humanos, con la misma métrica que todo lo demás. Los modelos del
    gateway siguen como maestros y jueces de última instancia.
 
-## 8. Skills instaladas para Rosa (9 sep 2026)
+## 8. Skills instaladas para ROSA2018 (9 sep 2026)
 
 Instaladas a nivel de usuario en `~/.claude/skills/` con el instalador
 `skills` de Vercel (`npx skills add <repo> -g -a claude-code -s <skill> -y`),
-así que están disponibles en cualquier carpeta, incluida la de Rosa cuando
+así que están disponibles en cualquier carpeta, incluida la de ROSA2018 cuando
 exista. Cada fuente se vetó antes: metadatos del repositorio (licencia,
 actividad, estrellas), lectura de al menos una `SKILL.md` buscando
 instrucciones sospechosas (descargar y ejecutar código externo, enviar datos a
@@ -523,12 +523,12 @@ usarla y no se instala de repositorios sin procedencia clara.**
 
 | Fuente | Skills instaladas | Notas |
 |---|---|---|
-| `intertwine/dspy-agent-skills` (MIT, 277 estrellas, activo) | `dspy-fundamentals`, `dspy-evaluation-harness`, `dspy-gepa-optimizer`, `dspy-advanced-workflow`, `dspy-rlm-module` | Validadas contra DSPy 3.2.x; la versión actual es 3.3.1, así que si algo no casa se mira el changelog antes de culpar al código. Exigen métrica con feedback textual y conjuntos de entrenamiento y validación separados, que es justo el diseño de Rosa |
-| `anthropics/skills` (oficial) | `pdf`, `docx`, `xlsx`, `skill-creator`, `mcp-builder`, `webapp-testing`, `frontend-design` | `skill-creator` es para escribir las skills propias de Rosa; `mcp-builder` para los conectores (PubMed, Open Targets); `pdf` para leer artículos |
+| `intertwine/dspy-agent-skills` (MIT, 277 estrellas, activo) | `dspy-fundamentals`, `dspy-evaluation-harness`, `dspy-gepa-optimizer`, `dspy-advanced-workflow`, `dspy-rlm-module` | Validadas contra DSPy 3.2.x; la versión actual es 3.3.1, así que si algo no casa se mira el changelog antes de culpar al código. Exigen métrica con feedback textual y conjuntos de entrenamiento y validación separados, que es justo el diseño de ROSA2018 |
+| `anthropics/skills` (oficial) | `pdf`, `docx`, `xlsx`, `skill-creator`, `mcp-builder`, `webapp-testing`, `frontend-design` | `skill-creator` es para escribir las skills propias de ROSA2018; `mcp-builder` para los conectores (PubMed, Open Targets); `pdf` para leer artículos |
 | `Aperivue/medsci-skills` (MIT, médico investigador, paquete npm verificado) | `search-lit`, `fulltext-retrieval`, `verify-refs`, `manage-refs`, `peer-review`, `review-paper`, `deidentify`, `analyze-stats`, `meta-analysis`, `design-study`, `check-reporting` | APIs públicas sin clave (PubMed, CrossRef, OpenAlex, Unpaywall). `search-lit` prohíbe generar una referencia de memoria: toda cita sale de una búsqueda verificada. `verify-refs` audita referencias contra PubMed y CrossRef y marca las fabricadas. `deidentify` es para datos de pacientes |
 | `K-Dense-AI/scientific-agent-skills` (MIT con licencia por skill, 44.000 estrellas, escáner de seguridad y tests) | `paper-lookup`, `literature-review`, `database-lookup`, `citation-management`, `hypothesis-generation`, `hypogenic`, `scientific-critical-thinking`, `primekg`, `ncats-arax`, `gget`, `pathway-enrichment`, `bulk-rnaseq`, `pydeseq2`, `scanpy`, `statistical-analysis`, `experimental-design`, `scholar-evaluation`, `markitdown`, `uncertainty-and-units`, `esm` | `paper-lookup` consulta once índices (PubMed, PMC, Europe PMC, bioRxiv, medRxiv, arXiv, OpenAlex, Crossref, Semantic Scholar, CORE, Unpaywall) con procedencia reproducible y solo biblioteca estándar. `primekg` es el grafo de conocimiento de medicina de precisión (129.000 nodos, 4 millones de aristas, se descarga de Harvard Dataverse). Se dejaron fuera a propósito las que dependen de servicios de pago o nube de terceros (`paperclip`, `exa-search`, `parallel-web`, `research-lookup`, que usa Parallel por defecto y se desinstaló tras verlo, `modal`, `tamarind`, integraciones de laboratorio) y las que chocan de nombre con las ya instaladas (`pdf`, `docx`, `xlsx`, `peer-review`) |
 
-Para llevarlas al repositorio de Rosa como skills de proyecto (versionadas
+Para llevarlas al repositorio de ROSA2018 como skills de proyecto (versionadas
 con el código) se repite el mismo comando sin `-g` desde la carpeta del repo;
 `npx skills list` enseña lo instalado y `npx skills update` las actualiza.
 Descartadas: `OmidZamani/dspy-skills` (redundante con intertwine),

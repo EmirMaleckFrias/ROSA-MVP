@@ -1,4 +1,4 @@
-"""Tildes y ñ en los textos en castellano del backend de Rosa.
+"""Tildes y ñ en los textos en castellano del backend de ROSA2018.
 
 Reutiliza el diccionario y las reglas de `frontend/scripts/acentuar.py`
 (`acentuar_texto`) y los aplica a los literales de cadena de `rosa/` y

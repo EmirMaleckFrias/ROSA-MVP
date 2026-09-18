@@ -275,7 +275,7 @@ def iteracion_en(iteraciones: Iterable[Any], t: Any) -> int | None:
 
 
 def es_medicion_propia(n: dict[str, Any]) -> tuple[bool, str]:
-    """MEDICIÓN PROPIA: un dato que Rosa o el laboratorio produjeron, no que
+    """MEDICIÓN PROPIA: un dato que ROSA2018 o el laboratorio produjeron, no que
     leyeron. Cuenta como tal, y solo esto:
 
     - un nodo 'ejecucion' con estado 'completado' y auditoría 'valido' (el
@@ -309,7 +309,7 @@ def es_medicion_propia(n: dict[str, Any]) -> tuple[bool, str]:
 
 
 def es_literatura_leida(n: dict[str, Any]) -> tuple[bool, str]:
-    """LITERATURA LEÍDA: un nodo 'fuente' de la que Rosa tiene el texto completo
+    """LITERATURA LEÍDA: un nodo 'fuente' de la que ROSA2018 tiene el texto completo
     o al menos un fragmento literal (no en blanco). Una fuente solo citada,
     sin pasaje, no cuenta: nadie la leyó."""
     if n.get("tipo") != "fuente":

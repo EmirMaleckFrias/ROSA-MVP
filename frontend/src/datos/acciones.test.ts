@@ -191,7 +191,7 @@ describe('volver a una iteracion', () => {
     expect(e1.iteraciones.find((i) => i.id === 'it-14')!.terminadaEn).toBe(T);
     expect(e1.corridas.find((c) => c.id === 'cor-3')?.estado).toBe('esperando_plan');
   });
-  it('con "mundo" quita lo que Rosa anadio despues del punto', () => {
+  it('con "mundo" quita lo que ROSA2018 anadio despues del punto', () => {
     const e0 = estadoDeMuestra();
     // he-9 se cerro hace 50 min (despues de terminar la iteracion 13? no: la 13 termino hace 7 min). Anadimos uno posterior.
     const e = { ...e0, hechos: [...e0.hechos, { ...e0.hechos[0]!, id: 'he-tarde', actualizadoEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'sabido' as const, quien: 'Rosa', motivo: 'x' }] }] };
@@ -268,7 +268,7 @@ describe('revisar hipotesis', () => {
     expect(revisarHipotesis(e0, 'hip-1', 'descartar', '  ', 'la persona responsable', T)).toBe(e0);
     expect(revisarHipotesis(e0, 'hip-1', 'no_puedo_juzgar', '', 'la persona responsable', T)).toBe(e0);
   });
-  it('no puedo juzgar la deja aclarando y Rosa la devuelve a revision', () => {
+  it('no puedo juzgar la deja aclarando y ROSA2018 la devuelve a revision', () => {
     let e = revisarHipotesis(estadoDeMuestra(), 'hip-1', 'no_puedo_juzgar', 'No entiendo si habla de PSEN1 o de todo el familiar', 'la persona responsable', T);
     expect(e.hipotesis.find((h) => h.id === 'hip-1')?.estado).toBe('aclarando');
     e = aclararHipotesis(e, 'hip-1', 'Me refiero a PSEN1.', T + 1);
@@ -545,11 +545,11 @@ describe('cuestiones persistentes y pendientes de revisar', () => {
     expect(e4.cuestiones![0]!.estado).toBe('abierta');
     expect(e4.cuestiones![0]!.historial.map((m) => m.a)).toEqual(['abierta', 'resuelta', 'abierta']);
   });
-  it('volver a una iteración con "mundo" poda las cuestiones que Rosa abrió después del punto y respeta las de la persona', () => {
+  it('volver a una iteración con "mundo" poda las cuestiones que ROSA2018 abrió después del punto y respeta las de la persona', () => {
     const e0 = estadoDeMuestra();
     const inv = e0.corridas.find((c) => c.id === 'cor-3')!.investigacionId;
     const base = { investigacionId: inv, estado: 'abierta' as const, origen: { tipo: 'killer' as const, id: null }, queLaResolveria: '', hipotesisIds: [], hechoIds: [], prioridad: 3, actualizadaEn: 0, resueltaEn: null, resolucion: null, veces: 1 };
-    const rosa = { ...base, id: 'cu-rosa', texto: 'De Rosa, tarde', creadaEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'abierta', quien: 'Rosa', motivo: 'x' }] };
+    const rosa = { ...base, id: 'cu-rosa', texto: 'De ROSA2018, tarde', creadaEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'abierta', quien: 'Rosa', motivo: 'x' }] };
     const persona = { ...base, id: 'cu-persona', texto: 'De la persona, tarde', creadaEn: AHORA_MUESTRA - 60_000, historial: [{ fecha: AHORA_MUESTRA - 60_000, de: null, a: 'abierta', quien: 'Allegri', motivo: 'x' }] };
     const e = { ...e0, cuestiones: [rosa, persona] };
     const e1 = volverAIteracion(e, 'it-13', 'mundo', T);
@@ -808,7 +808,7 @@ describe('registrarDatosExperimento con la bandera de sintético', () => {
     const h = e.hipotesis.find((x) => x.experimento)!;
     return { e, id: h.id };
   };
-  it('guarda datosSinteticos cuando la persona lo marca, lo fuerza si el nombre del fichero lo dice, y borra el resultado anterior para que Rosa reevalúe', () => {
+  it('guarda datosSinteticos cuando la persona lo marca, lo fuerza si el nombre del fichero lo dice, y borra el resultado anterior para que ROSA2018 reevalúe', () => {
     const { e, id } = conExperimento();
     const real = registrarDatosExperimento(e, id, 'datos_gfap.csv', 'tiempo hasta alteración');
     expect(real.hipotesis.find((x) => x.id === id)!.experimento).toMatchObject({ ficheroDatos: 'datos_gfap.csv', analisisPedido: 'tiempo hasta alteración', estado: 'datos_recibidos', datosSinteticos: false, resultado: null });

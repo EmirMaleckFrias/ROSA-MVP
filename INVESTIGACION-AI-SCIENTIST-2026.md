@@ -1,14 +1,14 @@
-# Lo que le falta a un AI scientist profesional, verificado, y lo que Rosa tomo
+# Lo que le falta a un AI scientist profesional, verificado, y lo que ROSA2018 tomo
 
 Investigacion del 14 de septiembre de 2026. Punto de partida: un informe
-externo (elaborado con Codex) con quince huecos entre el MVP de Rosa y "un
+externo (elaborado con Codex) con quince huecos entre el MVP de ROSA2018 y "un
 sistema de investigacion asistida por IA en operacion profesional", cuatro
 cosas que no conviene hacer y un orden de ataque. Antes de aplicar nada se
 verificaron sus afirmaciones contra las fuentes primarias con cuatro
 busquedas independientes (PRISMA y riesgo de sesgo; sellado externo y
 RO-Crate; ontologias, context rot, laboratorios autonomos, descubrimiento
 causal, ALCOA+, MLE-bench, diseno experimental bayesiano; y el mapa del
-codigo de Rosa hueco por hueco). Cada afirmacion de este documento lleva su
+codigo de ROSA2018 hueco por hueco). Cada afirmacion de este documento lleva su
 fuente. Lo que el informe decia y no se sostiene esta marcado como tal.
 
 ## 1. Correcciones al informe externo
@@ -33,7 +33,7 @@ fuente. Lo que el informe decia y no se sostiene esta marcado como tal.
    `equivalentTo` (https://www.ebi.ac.uk/ols4/api/ontologies/mondo/terms).
 4. **DrugBank no es una opcion abierta**: API comercial y descargas
    academicas pausadas (go.drugbank.com/releases/latest). Alternativas
-   abiertas: ChEMBL y PubChem (ya en Rosa), ChEBI por OLS4 y RxNav.
+   abiertas: ChEMBL y PubChem (ya en ROSA2018), ChEBI por OLS4 y RxNav.
 5. **Laboratorios autonomos**: la revision de Tobias y Wahab (Royal Society
    Open Science 2025, PMC12368842) dice que la mayoria esta en el nivel 3 de
    la escala de Beal y Rogers (Mol Syst Biol 2020, PMC7744957) y que ninguno
@@ -81,21 +81,21 @@ Huang y otros, arXiv:2411.02064; Action-BED, arXiv:2606.23662).
 | H06 PRISMA | Contadores sin motivos de exclusion ni exportacion | Excluidos con motivo en el cribado; exportacion PRISMA 2020 con las variables oficiales del diagrama, items 6, 7, 8, 16a y 16b, PRISMA-LSR y declaracion trAIce (modelos, hash de prompts, umbral, revision humana, kappa) | `rosa/prisma.py`, `GET /api/corridas/{id}/prisma` |
 | H07 Prerregistro externo | Inmutable pero interno | Sello RFC 3161 con freeTSA, DigiCert y Sectigo al asignar el experimento, verificable con OpenSSL; boton para repetirlo; va en el dossier y en el RO-Crate | `rosa/sello.py` |
 | H08 Valor de la informacion | `decisionQueCambia` en texto libre | Sin cambio: se deja para despues del primer ciclo real, como pide el informe; la advertencia de que informacion no es utilidad queda documentada | PENDIENTE.md |
-| H09 Conocimiento tacito | Memoria del proyecto generica | Clase de evidencia `conocimiento_operativo` con formulario propio; Rosa lo lee al planificar experimentos y lo cita aparte en el dossier | `rosa/estado/acciones.py`, Objetivo y datos |
+| H09 Conocimiento tacito | Memoria del proyecto generica | Clase de evidencia `conocimiento_operativo` con formulario propio; ROSA2018 lo lee al planificar experimentos y lo cita aparte en el dossier | `rosa/estado/acciones.py`, Objetivo y datos |
 | H10 ELN y LIMS | Fichero subido, identidad de muestras en texto | Sin integracion (el informe pide definir el contrato con el laboratorio concreto antes); el RO-Crate tipa el experimento como LabProcess para cuando exista | PENDIENTE.md |
 | H11 Ensayo en seco | No existia | Tabla sintetica con la forma del dataset; el plan congelado corre y se repara ahi antes de tocar los datos reales | `rosa/sintetico.py`, `rosa/bucle/analisis.py` |
 | H12 Nivel de autonomia | Dial por clase de accion, sin etiqueta hacia fuera | Nivel 2 de 5 declarado con la escala de Beal y Rogers, en Ajustes y en cada dossier | `rosa/politicas.py`, `rosa/dossier.py` |
 | H13 Coste por decision | Coste por llamada y por corrida | Coste total (modelo mas horas de revision a tarifa declarada) por dossier, por candidata y por decision humana, con tendencia por iteracion | `rosa/costes.py`, Calidad |
-| H14 Procedencia estandar | Libro propio de Rosa | RO-Crate 1.2 (perfil Process Run Crate 0.6) con PROV-JSON, sellos RFC 3161 dentro y README de verificacion; datasets referenciados por sha256 | `rosa/rocrate.py`, `GET /api/hipotesis/{id}/rocrate` |
+| H14 Procedencia estandar | Libro propio de ROSA2018 | RO-Crate 1.2 (perfil Process Run Crate 0.6) con PROV-JSON, sellos RFC 3161 dentro y README de verificacion; datasets referenciados por sha256 | `rosa/rocrate.py`, `GET /api/hipotesis/{id}/rocrate` |
 | H15 ALCOA+ | Registro solo de anadir sin cadena | Cadena de hashes en el registro de acciones, en la misma transaccion que el estado, verificable en Ajustes; firma electronica y validacion del sistema quedan para un destino regulado | `rosa/estado/almacen.py` |
 
 ## 3. Lo que no se hizo, a proposito
 
 - Descubrimiento causal desde datos: la revision de 2026 lo descarta para
-  biologia; Rosa embebe la estructura conocida como restriccion (base curada)
+  biologia; ROSA2018 embebe la estructura conocida como restriccion (base curada)
   y llama a su modulo por lo que es, un comprobador heuristico de supuestos.
 - Entrenar un modelo propio: el valor esta en el andamiaje.
-- Autonomia total: Rosa declara el nivel 2 y no pretende pasar del 3.
+- Autonomia total: ROSA2018 declara el nivel 2 y no pretende pasar del 3.
 - Microservicios: un almacen autoritativo y una aplicacion modular.
 
 ## 4. Fuentes

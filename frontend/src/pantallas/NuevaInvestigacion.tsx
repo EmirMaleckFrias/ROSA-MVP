@@ -1,6 +1,6 @@
 // Definir una investigacion: objetivo, que cuenta como relevante, limites,
 // condicion de parada, quien revisa. Con avisos sobre como esta escrito el
-// objetivo (las reglas de Edison para Kosmos), la configuracion que Rosa
+// objetivo (las reglas de Edison para Kosmos), la configuracion que ROSA2018
 // propone (preferencias, atributos, restricciones, como Co-Scientist),
 // tres parafrasis para ver la sensibilidad al fraseo antes de gastar, y la
 // opcion de heredar el modelo de mundo de otra investigacion.
@@ -57,7 +57,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
       <div className="pantalla-cabecera">
         <div>
           <h2>Nueva investigación</h2>
-          <p>Lo que Rosa lee antes de cada iteración. Se puede cambiar después, pero la primera corrida arranca con esto.</p>
+          <p>Lo que ROSA2018 lee antes de cada iteración. Se puede cambiar después, pero la primera corrida arranca con esto.</p>
         </div>
       </div>
       <form
@@ -73,7 +73,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         </div>
         <div className="campo">
           <label htmlFor="n-objetivo">Objetivo</label>
-          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Qué quieres que Rosa encuentre, en una o dos frases. Un solo objetivo por investigación." />
+          <textarea id="n-objetivo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={3} placeholder="Qué quieres que ROSA2018 encuentre, en una o dos frases. Un solo objetivo por investigación." />
           {objetivo.trim() !== '' && avisos.length > 0 && (
             <ul className="avisos-objetivo" aria-label="Avisos sobre el objetivo">
               {avisos.map((a) => (
@@ -88,7 +88,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         <div className="campo">
           <label htmlFor="n-relevancia">Qué cuenta como relevante</label>
           <textarea id="n-relevancia" value={relevancia} onChange={(e) => setRelevancia(e.target.value)} rows={2} placeholder="Una diana nueva, una hipótesis mecanística, una asociación biomarcador-progresión, un candidato a reposicionamiento..." />
-          <small>Es el criterio con el que Rosa prioriza y con el que el revisor juzga. Si está vacío, Rosa perseguira todo lo que parezca significativo.</small>
+          <small>Es el criterio con el que ROSA2018 prioriza y con el que el revisor juzga. Si está vacío, ROSA2018 perseguira todo lo que parezca significativo.</small>
         </div>
         <div className="campo">
           <label htmlFor="n-limites">Límites (uno por línea)</label>
@@ -97,14 +97,14 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         <div className="campo">
           <label htmlFor="n-parada">Condición de parada</label>
           <input id="n-parada" value={parada} onChange={(e) => setParada(e.target.value)} placeholder="3 iteraciones, o 72 horas, lo que ocurra primero" />
-          <p className="meta">{parada.trim() ? textoAutomatizacion(partesAutomatizadas(parada)) : 'Rosa para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decisión de parar por otro motivo es tuya.'}</p>
+          <p className="meta">{parada.trim() ? textoAutomatizacion(partesAutomatizadas(parada)) : 'ROSA2018 para sola cuando se cumple una cifra: iteraciones, minutos u horas de corrida, o llamadas al modelo. El resto de la frase lo lee para planificar, pero la decisión de parar por otro motivo es tuya.'}</p>
         </div>
         <div className="campo">
           <label htmlFor="n-revisores">Quien revisa (separados por coma)</label>
           <input id="n-revisores" value={revisores} onChange={(e) => setRevisores(e.target.value)} placeholder="la persona responsable, Compañero, el investigador clínico principal" />
         </div>
 
-        <Seccion titulo="Configuración que Rosa leerá" nota="Propuesta a partir del objetivo. Es lo que alimenta la generación, la revisión y los debates del torneo. Edítala si no encaja.">
+        <Seccion titulo="Configuración que ROSA2018 leerá" nota="Propuesta a partir del objetivo. Es lo que alimenta la generación, la revisión y los debates del torneo. Edítala si no encaja.">
           <div className="campo">
             <label htmlFor="n-pref">Preferencias</label>
             <textarea id="n-pref" value={configEfectiva.preferencias} rows={2} onChange={(e) => setConfig({ ...configEfectiva, preferencias: e.target.value })} />
@@ -121,17 +121,17 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
           </div>
           {config !== null && (
             <button type="button" className="enlace" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setConfig(null)}>
-              Volver a la propuesta de Rosa
+              Volver a la propuesta de ROSA2018
             </button>
           )}
         </Seccion>
 
         <Seccion
           titulo="Misión (opcional)"
-          nota="El objetivo puede ser amplio: Rosa propone el marco (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio) y las áreas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aquí y queda aprobado por ti."
+          nota="El objetivo puede ser amplio: ROSA2018 propone el marco (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio) y las áreas por donde empezar, y tu lo apruebas con el primer plan. Si ya lo tienes claro, escribelo aquí y queda aprobado por ti."
           acciones={
             <button type="button" className="btn btn-s" onClick={() => setVerMision((v) => !v)}>
-              {verMision ? 'Dejar que Rosa la proponga' : 'Escribirla yo'}
+              {verMision ? 'Dejar que ROSA2018 la proponga' : 'Escribirla yo'}
             </button>
           }
         >
@@ -158,7 +158,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
 
         <Seccion
           titulo="Sensibilidad al fraseo"
-          nota="Edison admite que las direcciones de Kosmos cambian con la redacción del objetivo. Antes de gastar, mira que primeras tareas propondría Rosa con tres redacciones."
+          nota="Edison admite que las direcciones de Kosmos cambian con la redacción del objetivo. Antes de gastar, mira que primeras tareas propondría ROSA2018 con tres redacciones."
           acciones={
             <button type="button" className="btn btn-s" disabled={objetivo.trim() === ''} onClick={() => setVerParafrasis((v) => !v)}>
               {verParafrasis ? 'Ocultar' : 'Probar tres paráfrasis'}
@@ -196,7 +196,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
                 </option>
               ))}
             </select>
-            <small>Rosa arranca sabiendo lo que ya se supo, se abrió y se descarto en esa investigación.</small>
+            <small>ROSA2018 arranca sabiendo lo que ya se supo, se abrió y se descarto en esa investigación.</small>
           </div>
         )}
 

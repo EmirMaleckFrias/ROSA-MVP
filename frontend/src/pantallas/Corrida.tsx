@@ -41,7 +41,7 @@ export function Corrida({ inv, estado, ahora, irA }: PropsCorrida) {
         <AvisoMuestra conexion={estado.conexion} />
         <Vacio
           titulo="Esta investigación no tiene corridas"
-          pasos={['Rosa lee el objetivo y los límites y propone el plan de la iteración 1.', 'Tu apruebas el plan (puedes reordenar, quitar o añadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aquí ves cada consulta a cada base.', 'Al cerrar la iteración, Rosa resume en llano lo que encontró y lo que te espera.']}
+          pasos={['ROSA2018 lee el objetivo y los límites y propone el plan de la iteración 1.', 'Tu apruebas el plan (puedes reordenar, quitar o añadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aquí ves cada consulta a cada base.', 'Al cerrar la iteración, ROSA2018 resume en llano lo que encontró y lo que te espera.']}
           accion={
             estado.conexion === 'muestra' ? undefined : (
               <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)}>
@@ -50,7 +50,7 @@ export function Corrida({ inv, estado, ahora, irA }: PropsCorrida) {
             )
           }
         >
-          {estado.conexion === 'muestra' ? 'Cuando Rosa este conectada, aquí se arranca la primera con el objetivo y los límites definidos.' : 'Rosa arranca la corrida con el objetivo y los límites definidos, propone el plan de la primera iteración y espera tu aprobación.'}
+          {estado.conexion === 'muestra' ? 'Cuando ROSA2018 este conectada, aquí se arranca la primera con el objetivo y los límites definidos.' : 'ROSA2018 arranca la corrida con el objetivo y los límites definidos, propone el plan de la primera iteración y espera tu aprobación.'}
         </Vacio>
       </div>
     );
@@ -71,7 +71,7 @@ function NuevaCorrida({ inv, anterior }: { inv: Investigacion; anterior: Corrida
   if (!abierto) {
     return (
       <div className="acciones">
-        <button type="button" className="btn btn-primario" onClick={() => setAbierto(true)} title="Elige cuánto debe durar la corrida y Rosa propone el plan de la iteración 1 sobre el modelo de mundo actual">
+        <button type="button" className="btn btn-primario" onClick={() => setAbierto(true)} title="Elige cuánto debe durar la corrida y ROSA2018 propone el plan de la iteración 1 sobre el modelo de mundo actual">
           <IconPlay size={13} /> Nueva corrida
         </button>
       </div>
@@ -126,7 +126,7 @@ function NuevaCorrida({ inv, anterior }: { inv: Investigacion; anterior: Corrida
         <label className="campo nueva-corrida-texto">
           <span className="campo-etiqueta">Otra condición, en palabras</span>
           <input type="text" maxLength={300} placeholder="por ejemplo: hasta que una hipótesis llegue a certeza baja" value={b.texto} onChange={campo('texto')} />
-          <small>Rosa comprueba el tiempo, las iteraciones, la certeza y la falta de avance; las demás condiciones las decides tú con el botón de detener.</small>
+          <small>ROSA2018 comprueba el tiempo, las iteraciones, la certeza y la falta de avance; las demás condiciones las decides tú con el botón de detener.</small>
         </label>
       </div>
       <div className="acciones">
@@ -152,7 +152,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
   // El reloj de la corrida es tiempo de trabajo (misma regla que
   // rosa/bucle/corrida.py tiempo_trabajo_ms: reloj de pared menos la espera a
   // una persona y menos las pausas del proceso), avanza cada segundo en
-  // pantalla mientras Rosa trabaja y se queda quieto mientras espera a alguien.
+  // pantalla mientras ROSA2018 trabaja y se queda quieto mientras espera a alguien.
   const segundosDeCorrida = useSegundosDeCorrida(corrida);
   const enEspera = esperandoPersona(corrida.estado);
 
@@ -211,7 +211,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             )}
             {corrida.arnes && (
               <span className="meta" title={`Firmas ${corrida.arnes.firmas} · programas optimizados: ${corrida.arnes.optimizados}`}>
-                Rosa {corrida.arnes.commit}
+                ROSA2018 {corrida.arnes.commit}
               </span>
             )}
           </div>
@@ -236,7 +236,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
               extra={
                 <label className="interruptor">
                   <input type="checkbox" checked={vigilar} onChange={(e) => setVigilar(e.target.checked)} />
-                  Vigilar la literatura 30 días: Rosa avisa de artículos nuevos que toquen una hipótesis aceptada
+                  Vigilar la literatura 30 días: ROSA2018 avisa de artículos nuevos que toquen una hipótesis aceptada
                 </label>
               }
               onConfirmar={(motivo) => acciones.detenerCorrida(corrida.id, motivo, vigilar ? 30 : null)}
@@ -257,7 +257,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       })()}
 
       {incidenciasPendientes.length > 0 && (
-        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se negó o un conector caducado no matan la corrida en silencio: aparecen aquí con la alternativa que Rosa propone.">
+        <Seccion titulo={incidenciasPendientes.length === 1 ? 'Algo impide seguir' : `${incidenciasPendientes.length} cosas impiden seguir`} nota="Un modelo que se negó o un conector caducado no matan la corrida en silencio: aparecen aquí con la alternativa que ROSA2018 propone.">
           {incidenciasPendientes.map((i) => (
             <TarjetaIncidencia key={i.id} incidencia={i} ahora={ahora} onResolver={(r) => acciones.resolverIncidencia(i.id, r)} />
           ))}
@@ -266,7 +266,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
 
       {pendientes.length > 0 && (
         <Seccion
-          titulo={pendientes.length === 1 ? 'Rosa necesita tu permiso' : `Rosa necesita tu permiso (${pendientes.length})`}
+          titulo={pendientes.length === 1 ? 'ROSA2018 necesita tu permiso' : `ROSA2018 necesita tu permiso (${pendientes.length})`}
           nota={`La aprobación va antes del efecto: nada de esto ocurre hasta que respondas. Si nadie decide en ${estado.politicaEsperas.horas} h: ${estado.politicaEsperas.accion === 'recordar' ? 'se recuerda' : estado.politicaEsperas.accion === 'escalar' ? `se escala a ${estado.politicaEsperas.escalarA}` : estado.politicaEsperas.accion === 'detener' ? 'la corrida se detiene con seguridad' : 'la corrida continúa y queda registrado'} (se cambia en Ajustes).`}
           acciones={
             seleccion.size > 1 ? (
@@ -355,7 +355,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                 <span>en Exa</span>
               </div>
             )}
-            <div className="gasto-item" title="Cuánto del contexto del cerebro está ocupado y cuántas veces se ha resumido el historial. Explica por qué Rosa puede 'olvidar' tras días.">
+            <div className="gasto-item" title="Cuánto del contexto del cerebro está ocupado y cuántas veces se ha resumido el historial. Explica por qué ROSA2018 puede 'olvidar' tras días.">
               <strong>{formatearPorcentaje(contextoPct)}</strong>
               <span>
                 contexto ocupado · {corrida.contexto.compactaciones} {corrida.contexto.compactaciones === 1 ? 'compactación' : 'compactaciones'}
@@ -371,7 +371,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       </div>
 
       {inv.mision && !inv.mision.aprobadaEn && viva && (
-        <Seccion titulo="La misión espera tu aprobación" nota="Rosa propuso el marco de la investigación a partir de tu objetivo (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como está; si quieres corregirla, hazlo aquí o en Objetivo y datos.">
+        <Seccion titulo="La misión espera tu aprobación" nota="ROSA2018 propuso el marco de la investigación a partir de tu objetivo (población, etapa, célula o tejido, mecanismo, tipo de intervención, capacidades del laboratorio y presupuesto). Aprobar el primer plan la aprueba tal como está; si quieres corregirla, hazlo aquí o en Objetivo y datos.">
           <FormularioMision inv={inv} compacto />
         </Seccion>
       )}
@@ -387,10 +387,10 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       )}
 
       {viva && proponiendoPlan(corrida, iteracion) && (
-        <Seccion titulo={`Iteración ${iteracion ? iteracion.numero + 1 : corrida.iteracionActual}`} nota="Rosa escribe el plan">
+        <Seccion titulo={`Iteración ${iteracion ? iteracion.numero + 1 : corrida.iteracionActual}`} nota="ROSA2018 escribe el plan">
           <div className="tarjeta">
             <p>
-              <span className="shimmer-text">Rosa está proponiendo el plan de esta iteración</span>
+              <span className="shimmer-text">ROSA2018 está proponiendo el plan de esta iteración</span>
             </p>
             <p className="meta">
               Primero fija la misión de la investigación, después la pregunta de esta corrida y por último los pasos con su presupuesto. Son dos o tres llamadas al cerebro y suelen tardar uno o dos minutos. Cuando el plan esté listo aparecerá aquí para que lo apruebes, lo edites o lo dejes autoaprobar. Todavía no hay nada que aprobar.
@@ -436,7 +436,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
             // corrida nace con la autoaprobación encendida; aquí se apaga o se enciende.
             <label className="interruptor">
               <input type="checkbox" checked={corrida.autoAprobarPlanSegundos !== null} onChange={(e) => acciones.fijarAutoaprobacionPlan(corrida.id, e.target.checked ? 60 : null)} />
-              Autoaprobar cada plan si no respondo en 60 segundos. Si está apagado, Rosa espera lo que haga falta y ese tiempo de espera no cuenta contra el tope de la corrida.
+              Autoaprobar cada plan si no respondo en 60 segundos. Si está apagado, ROSA2018 espera lo que haga falta y ese tiempo de espera no cuenta contra el tope de la corrida.
             </label>
           )}
           {viva && iteracion.planAprobado && (
@@ -447,7 +447,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
                 rows={1}
                 placeholder="Dirigir la corrida: una indicación que entra al plan tras el paso actual"
                 onChange={(e) => setIndicacion(e.target.value)}
-                aria-label="Indicación para Rosa"
+                aria-label="Indicación para ROSA2018"
               />
               <button
                 type="button"
@@ -466,7 +466,7 @@ function CorridaViva({ inv, estado, ahora, irA, corrida }: PropsCorrida & { corr
       )}
 
       {procesosVivos.length > 0 && (
-        <Seccion detalle titulo="Cómputo en marcha" nota="Cada proceso vivo. Detenerlo con una indicación se la pasa a Rosa como paso del plan (por ejemplo: rehazlo con menos memoria).">
+        <Seccion detalle titulo="Cómputo en marcha" nota="Cada proceso vivo. Detenerlo con una indicación se la pasa a ROSA2018 como paso del plan (por ejemplo: rehazlo con menos memoria).">
           <table className="tabla">
             <thead>
               <tr>
@@ -698,11 +698,11 @@ export function textoCoste(g: Pick<CorridaTipo['gasto'], 'usd' | 'usdReal' | 'us
       corto: `${usd(real)} facturados por el gateway${estimado !== null ? ` (estimado por tokens: ${usd(estimado)})` : ''}`,
       principal: usd(real),
       etiqueta: `facturado por el gateway${estimado !== null ? ` · estimado por tokens: ${usd(estimado)}` : ''}`,
-      title: `Lo que el AI Gateway de Vercel facturó por las llamadas de esta corrida (campo cost de cada llamada, sumado por el servidor)${nota}. La estimación por tokens usa la tabla de precios de Rosa y puede diferir.`,
+      title: `Lo que el AI Gateway de Vercel facturó por las llamadas de esta corrida (campo cost de cada llamada, sumado por el servidor)${nota}. La estimación por tokens usa la tabla de precios de ROSA2018 y puede diferir.`,
     };
   }
   if (estimado !== null && estimado > 0) {
-    return { corto: `${usd(estimado)} estimados por tokens`, principal: usd(estimado), etiqueta: 'estimados por tokens (el servidor no guardó la factura del gateway)', title: 'Estimación con la tabla de precios de Rosa a partir de los tokens; la factura real la da el AI Gateway y esta corrida no la trae guardada.' };
+    return { corto: `${usd(estimado)} estimados por tokens`, principal: usd(estimado), etiqueta: 'estimados por tokens (el servidor no guardó la factura del gateway)', title: 'Estimación con la tabla de precios de ROSA2018 a partir de los tokens; la factura real la da el AI Gateway y esta corrida no la trae guardada.' };
   }
   return { corto: '', principal: '', etiqueta: '', title: '' };
 }

@@ -38,7 +38,7 @@ export function Cabecera({ miga, titulo, esperan, onMenu, onBuscar, onAyuda }: P
           </button>
         </div>
         {onAyuda && (
-          <button type="button" className="btn btn-fantasma btn-icono" aria-label="Ver el recorrido de Rosa" title="Cómo funciona Rosa, en cinco pasos" onClick={onAyuda}>
+          <button type="button" className="btn btn-fantasma btn-icono" aria-label="Ver el recorrido de ROSA2018" title="Cómo funciona ROSA2018, en cinco pasos" onClick={onAyuda}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>?</span>
           </button>
         )}

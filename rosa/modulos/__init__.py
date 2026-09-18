@@ -1,1 +1,1 @@
-"""Los módulos DSPy de Rosa: firmas, programas y el contador de llamadas."""
+"""Los módulos DSPy de ROSA2018: firmas, programas y el contador de llamadas."""

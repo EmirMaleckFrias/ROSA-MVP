@@ -204,7 +204,7 @@ def aprobar_plan(e: Estado, iteracion_id: str, ahora: int, quien: str = "Investi
             inv["mision"]["aprobadaEn"] = ahora
             inv["mision"]["aprobadaPor"] = quien
             con_evento(e, inv["id"], "mision", "Misión aprobada junto con el primer plan", f"#/investigaciones/{inv['id']}/investigacion", ahora)
-        # La pregunta de la campana, si Rosa la formulo, queda aprobada con el plan.
+        # La pregunta de la campana, si ROSA2018 la formulo, queda aprobada con el plan.
         if c.get("pregunta") and not c["pregunta"].get("aprobadaEn"):
             c["pregunta"]["aprobadaEn"] = ahora
         con_evento(e, c["investigacionId"], "corrida_estado", f"Plan de la iteración {it['numero']} aprobado", None, ahora)
@@ -308,7 +308,7 @@ def volver_a_iteracion(e: Estado, iteracion_id: str, que: str, ahora: int) -> bo
     if que in ("mundo", "ambos"):
         limite = origen["terminadaEn"]
         e["hechos"] = [h for h in e["hechos"] if not (h["investigacionId"] == c["investigacionId"] and h["actualizadoEn"] > limite and all(m["quien"] == config.QUIEN_ROSA for m in h["historial"]))]
-        # Las cuestiones que Rosa abrió o resolvió después del punto vuelven atrás con los hechos.
+        # Las cuestiones que ROSA2018 abrió o resolvió después del punto vuelven atrás con los hechos.
         CU.podar_desde(e, c["investigacionId"], limite)
     c["iteracionActual"] = numero
     if c["estado"] in ("en_marcha", "esperando_plan"):
@@ -409,7 +409,7 @@ def revisar_hipotesis(e: Estado, hipotesis_id: str, accion: str, nota: str, quie
     if not h or accion not in ESTADO_TRAS_ACCION:
         return False
     # Concurrencia: la decision se tomo mirando una version concreta. Si la
-    # hipotesis cambio entre medias (Rosa la reformulo), no se aplica sobre la
+    # hipotesis cambio entre medias (ROSA2018 la reformulo), no se aplica sobre la
     # nueva; la interfaz se resincroniza y la persona vuelve a mirar.
     if version_esperada is not None and int(version_esperada) != h.get("version", 1):
         return False
@@ -516,7 +516,7 @@ def recalcular_bloqueos(e: Estado, h: dict) -> list[str]:
 def aprobar_mision(e: Estado, investigacion_id: str, mision: dict, quien: str, ahora: int) -> bool:
     """La persona aprueba la misión (corrigiendo lo que quiera). Los campos
     vacíos se quedan vacíos: la misión aprobada es lo que se ve, no lo que
-    Rosa propuso."""
+    ROSA2018 propuso."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     if not inv or not isinstance(mision, dict):
         return False
@@ -592,7 +592,7 @@ def fijar_permiso_conector(e: Estado, nombre: str, nivel: str, quien: str, ahora
 
 def anadir_memoria(e: Estado, investigacion_id: str, texto: str, quien: str, ahora: int) -> bool:
     """Memoria del proyecto (como la memoria de Claude Science): hechos
-    cortos y estables que Rosa lee en cada misión (preferencias, restricciones,
+    cortos y estables que ROSA2018 lee en cada misión (preferencias, restricciones,
     decisiones confirmadas). Los escribe y borra una persona; nunca resultados
     ni copias de literatura."""
     inv = _buscar(e["investigaciones"], investigacion_id)
@@ -671,7 +671,7 @@ def anadir_conocimiento_operativo(e: Estado, investigacion_id: str, texto: str, 
     """Lo que el laboratorio sabe y nunca se escribe (que protocolo no es
     fiable, que lote de anticuerpo falla, que medicion tiene un artefacto).
     Entra como evidencia de clase `conocimiento_operativo`, con su propio
-    estatus: Rosa lo lee al planificar experimentos y lo cita en el dossier,
+    estatus: ROSA2018 lo lee al planificar experimentos y lo cita en el dossier,
     pero no lo mezcla con la literatura ni lo cuenta como observacion."""
     inv = _buscar(e["investigaciones"], investigacion_id)
     t = (texto or "").strip()
@@ -905,7 +905,7 @@ def anadir_reproduccion(e: Estado, investigacion_id: str, dataset_id: str, datos
 
 
 def pedir_analisis(e: Estado, hipotesis_id: str, dataset_id: str, pregunta: str, ahora: int) -> bool:
-    """Pedir a Rosa un análisis in silico de la hipótesis sobre un dataset
+    """Pedir a ROSA2018 un análisis in silico de la hipótesis sobre un dataset
     aprobado y fijado por hash. El bucle congela el plan, escribe el código,
     lo ejecuta en el sandbox y lo audita."""
     h = _buscar(e["hipotesis"], hipotesis_id)
@@ -1144,7 +1144,7 @@ def solicitar_revision(e: Estado, hipotesis_id: str, ahora: int) -> bool:
         return False
     h["ultimaRevisionAutomatica"] = ahora
     h.setdefault("_revisionPedida", True)
-    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": "Revisión pedida por la investigadora. Rosa la hará en cuanto tenga el modelo libre.", "creadoEn": ahora})
+    h["procedencia"]["mensajes"].append({"id": P.nuevo_id("m"), "de": "revisor", "texto": "Revisión pedida por la investigadora. ROSA2018 la hará en cuanto tenga el modelo libre.", "creadoEn": ahora})
     con_evento(e, h["investigacionId"], "revision_automatica", f"Revisión pedida sobre: {h['titulo']}", f"#/investigaciones/{h['investigacionId']}/hipotesis/{h['id']}", ahora)
     return True
 
@@ -1178,12 +1178,12 @@ def proponer_hipotesis(e: Estado, investigacion_id: str, datos: dict, quien: str
         comprobacion={"biomarcador": t("biomarcador"), "cohorte": t("cohorte"), "diseno": t("diseno")},
         origen="humana",
         cluster=t("cluster") or "Sin cluster",
-        relevancia={"justificacion": "Propuesta por la investigadora; Rosa la justificara al revisarla.", "votoHumano": "alta"},
+        relevancia={"justificacion": "Propuesta por la investigadora; ROSA2018 la justificara al revisarla.", "votoHumano": "alta"},
         revisiones=[{"fecha": ahora, "quien": quien, "accion": "propuesta", "nota": "Propuesta por una persona", "aCiegas": False}],
     )
     if id_:
         h["id"] = id_
-    h["procedencia"] = P.procedencia_vacia(f"Hipótesis propuesta por {quien}. Rosa la revisara y la metera al torneo en la siguiente iteración.", ahora)
+    h["procedencia"] = P.procedencia_vacia(f"Hipótesis propuesta por {quien}. ROSA2018 la revisara y la metera al torneo en la siguiente iteración.", ahora)
     h["procedencia"]["mensajes"][0]["de"] = "investigadora"
     h["procedencia"]["registro"] = [f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} hipótesis humana añadida por {quien}"]
     e["hipotesis"].append(h)
@@ -1275,7 +1275,7 @@ def texto_prerregistro(h: dict, laboratorio: str, ahora: int, arnes: dict | None
     if k:
         lineas += ["", "## Estado de la evidencia al prerregistrar", f"Certeza: {k.get('certeza')}. Dirección: {k.get('direccion')}.", k.get("enunciado", ""), f"Subiría la certeza si: {k.get('subiria', '')}", f"Bajaría si: {k.get('bajaria', '')}"]
     if arnes:
-        lineas += ["", "## Versión de Rosa", f"Commit {arnes.get('commit')}, firmas {arnes.get('firmas')}, programas optimizados: {arnes.get('optimizados')}."]
+        lineas += ["", "## Versión de ROSA2018", f"Commit {arnes.get('commit')}, firmas {arnes.get('firmas')}, programas optimizados: {arnes.get('optimizados')}."]
     lineas += ["", "Lo que se analice fuera de este registro se reporta como exploratorio, separado de lo prerregistrado."]
     return "\n".join(lineas)
 
@@ -1516,7 +1516,7 @@ def enviar_comentarios(e: Estado, hipotesis_id: str, mensaje: str, quien: str, a
 
 def inyectar_debilidad(e: Estado, corrida_id: str, debilidad_id: str, quien: str = "Investigadora", ahora: int | None = None) -> bool:
     """Inyectar una debilidad como criterio de revisión cambia como razona
-    Rosa: es un cambio de nivel 2 que la persona promueve directamente al
+    ROSA2018: es un cambio de nivel 2 que la persona promueve directamente al
     pulsar el botón, y queda en el registro de aprendizaje."""
     c = corrida_de(e, corrida_id)
     if not c:
@@ -1569,7 +1569,7 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
         "relevancia": t("relevancia"),
         "limites": [l.strip() for l in datos.get("limites", []) if str(l).strip()],
         "condicionParada": t("condicionParada"),
-        # Que parte de la condicion mide Rosa y que parte decide una persona.
+        # Que parte de la condicion mide ROSA2018 y que parte decide una persona.
         "condicionParadaAutomatizada": PARADA.partes_automatizadas(t("condicionParada")),
         "revisores": [r.strip() for r in datos.get("revisores", []) if str(r).strip()],
         "estado": "activa",
@@ -1683,7 +1683,7 @@ def amplitud_valida(valor: Any) -> str:
 
 
 def fijar_amplitud(e: Estado, investigacion_id: str, amplitud: str) -> bool:
-    """La persona elige con un botón cuánto explora Rosa fuera de la pregunta:
+    """La persona elige con un botón cuánto explora ROSA2018 fuera de la pregunta:
     enfocada (nada), equilibrada (un tercio de las consultas) o amplia (la
     mitad). Se guarda en la configuración de la investigación."""
     inv = _buscar(e["investigaciones"], investigacion_id)
@@ -2016,5 +2016,5 @@ def iniciar_corrida(e: Estado, investigacion_id: str, ahora: int, limite: int | 
         con_evento(e, investigacion_id, "corrida_estado", "Investigación reabierta al crear una corrida nueva", f"#/investigaciones/{investigacion_id}/corrida", ahora)
     inv["estado"] = "activa"
     resumen = PARADA.resumen_parada(parada_n)
-    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; Rosa propone el plan de la iteración 1" + (f". Se detiene con {resumen}" if resumen else ""), f"#/investigaciones/{investigacion_id}/corrida", ahora)
+    con_evento(e, investigacion_id, "corrida_estado", f"Corrida {c['numero']} creada; ROSA2018 propone el plan de la iteración 1" + (f". Se detiene con {resumen}" if resumen else ""), f"#/investigaciones/{investigacion_id}/corrida", ahora)
     return c["id"]

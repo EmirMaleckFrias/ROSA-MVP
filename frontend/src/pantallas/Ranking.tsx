@@ -1,7 +1,7 @@
 // El ranking: hipotesis ordenadas por Elo (torneo, como Co-Scientist), con
 // su historial en una grafica pequena, el numero de partidos (un Elo con
 // pocos partidos es poco fiable), sus rivales, el coste y el origen (humana o
-// de Rosa). Vista alternativa por cluster para ver diversidad: el mejor de
+// de ROSA2018). Vista alternativa por cluster para ver diversidad: el mejor de
 // cada cluster, como hace el agente de proximidad de Co-Scientist.
 
 import { useMemo, useState } from 'react';
@@ -51,12 +51,12 @@ function Fila({ h, i, inv, estado }: { h: Hipotesis; i: number; inv: Investigaci
           {h.origen === 'humana' && <Chip tono="acento">Humana</Chip>}
           <Chip tono="borde">{h.cluster}</Chip>
           {killerPendienteDe(h) && (
-            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; Rosa repite la revisión en el siguiente paso o cuando la pidas.">
+            <Chip tono="aviso" title="La última pasada del Killer no fue un juicio: el modelo no respondió o su respuesta no se pudo leer. La decisión que se ve es la anterior; ROSA2018 repite la revisión en el siguiente paso o cuando la pidas.">
               {killerPendienteDe(h)}
             </Chip>
           )}
           {(h.conflictoCon?.length ?? 0) > 0 && (
-            <Chip tono="aviso" title={`No puede ser cierta a la vez que: ${h.conflictoCon!.map((id) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id).join('; ')}. Rosa lo marca; decide la persona.`}>
+            <Chip tono="aviso" title={`No puede ser cierta a la vez que: ${h.conflictoCon!.map((id) => estado.hipotesis.find((x) => x.id === id)?.titulo ?? id).join('; ')}. ROSA2018 lo marca; decide la persona.`}>
               Se contradice con {h.conflictoCon!.length === 1 ? 'otra' : h.conflictoCon!.length}
             </Chip>
           )}

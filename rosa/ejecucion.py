@@ -149,7 +149,7 @@ def _asegurar_imagen(runtime: str, entorno: str = "tabular") -> str | None:
 # ---------------------------------------------------------------------------
 
 PREAMBULO_LOCAL = r'''
-# Preambulo de aislamiento blando de Rosa (solo datos sinteticos y solo si se
+# Preambulo de aislamiento blando de ROSA2018 (solo datos sinteticos y solo si se
 # activa a proposito). Lectura limitada al directorio de trabajo, al dataset y
 # al propio Python; escritura solo en el directorio de trabajo; sin red, sin
 # procesos. Es una barrera contra errores, no contra un atacante decidido.
@@ -171,9 +171,9 @@ def _instalar_sandbox():
         p = os.path.realpath(str(f))
         escribe = any(c in mode for c in "wax+")
         if escribe and not p.startswith(trabajo):
-            raise PermissionError("Rosa: escritura fuera del directorio de trabajo")
+            raise PermissionError("ROSA2018: escritura fuera del directorio de trabajo")
         if not escribe and not p.startswith(permitidos):
-            raise PermissionError("Rosa: lectura fuera del dataset y del directorio de trabajo")
+            raise PermissionError("ROSA2018: lectura fuera del dataset y del directorio de trabajo")
         return abrir(f, mode, *a, **k)
     builtins.open = vigilado
     io.open = vigilado
@@ -181,13 +181,13 @@ def _instalar_sandbox():
     def os_open_vigilado(path, flags, *a, **k):
         p = os.path.realpath(str(path))
         if (flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC)) and not p.startswith(trabajo):
-            raise PermissionError("Rosa: escritura fuera del directorio de trabajo")
+            raise PermissionError("ROSA2018: escritura fuera del directorio de trabajo")
         if not p.startswith(permitidos):
-            raise PermissionError("Rosa: lectura fuera del dataset y del directorio de trabajo")
+            raise PermissionError("ROSA2018: lectura fuera del dataset y del directorio de trabajo")
         return os_open(path, flags, *a, **k)
     os.open = os_open_vigilado
     def sin(*a, **k):
-        raise PermissionError("Rosa: operacion deshabilitada en el sandbox")
+        raise PermissionError("ROSA2018: operacion deshabilitada en el sandbox")
     import socket, _socket, subprocess, shutil
     socket.socket = sin; socket.create_connection = sin; _socket.socket = sin
     subprocess.Popen = sin; subprocess.run = sin; subprocess.call = sin; subprocess.check_output = sin
@@ -341,7 +341,7 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
             entorno = {"ROSA_DATOS": str(ruta_datos.resolve()), "ROSA_SEMILLA": str(semilla), "PATH": "/usr/bin:/bin", "HOME": str(trabajo), "PYTHONDONTWRITEBYTECODE": "1", "MPLBACKEND": "Agg"}
             cwd = str(trabajo)
         # La salida va a ficheros (no a memoria del servidor): un script que imprime
-        # en bucle no puede agotar la RAM del proceso de Rosa.
+        # en bucle no puede agotar la RAM del proceso de ROSA2018.
         # Los ficheros de salida viven fuera del directorio montado: el script no
         # puede leerlos ni reescribirlos.
         salida_dir = Path(tempfile.mkdtemp(prefix=f"{id_ejecucion}-salida-", dir=DIR_TRABAJO))

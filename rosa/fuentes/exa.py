@@ -3,7 +3,7 @@
 Exa (exa.ai) indexa la web con un modelo neural de embeddings y recupera por
 significado, no por coincidencia de palabras; desde julio de 2026 tiene un
 índice dedicado de unos 350 millones de publicaciones académicas que se
-activa con `category="publication"`. Rosa lo usa como complemento de PubMed,
+activa con `category="publication"`. ROSA2018 lo usa como complemento de PubMed,
 Europe PMC y OpenAlex en dos sitios: la búsqueda de literatura (una consulta
 en lenguaje natural encuentra el trabajo que no comparte vocabulario con la
 hipótesis) y la comprobación de novedad del Killer (¿alguien ya propuso esto
@@ -11,7 +11,7 @@ con otras palabras?).
 
 Solo se usan los endpoints de recuperación (`search`, `contents`,
 `findSimilar`). Nunca `answer`, `research` ni los tipos `deep`: razonan con
-modelos de Exa que no pasan por el AI Gateway de Vercel, y en Rosa el
+modelos de Exa que no pasan por el AI Gateway de Vercel, y en ROSA2018 el
 razonamiento es de Astra, Opus 5 y Sonnet 5.
 
 Procedencia: Exa devuelve URL, no DOI ni PMID garantizados. Aquí se extrae el
@@ -165,7 +165,7 @@ async def buscar(texto: str, maximo: int = 10, desde_anio: int | None = None, do
     vuelve es el que responde, y `similitud` (coseno del mejor pasaje) sirve
     para ordenar antes de gastar una llamada al modelo. `hasta_fecha` (ISO,
     AAAA-MM-DD) limita a lo publicado antes de esa fecha: "qué se sabía antes
-    de que Rosa propusiera esto". `desde_fecha` limita a lo posterior: la
+    de que ROSA2018 propusiera esto". `desde_fecha` limita a lo posterior: la
     vigilancia de novedades desde la última comprobación."""
     destacados: Any = {"query": pregunta_pasajes[:500]} if pregunta_pasajes else True
     cuerpo: dict[str, Any] = {
@@ -206,7 +206,7 @@ async def similares(url: str, maximo: int = 6, categoria: str | None = "publicat
 
 
 async def contenidos(urls: list[str], maximo_caracteres: int = 20000) -> tuple[list[dict[str, Any]], float]:
-    """Texto limpio de páginas abiertas. Sirve para localizar; la cita de Rosa
+    """Texto limpio de páginas abiertas. Sirve para localizar; la cita de ROSA2018
     sigue saliendo del PDF o el XML con su página o sección."""
     if not urls:
         return [], 0.0

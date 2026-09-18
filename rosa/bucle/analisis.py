@@ -606,7 +606,7 @@ def cambio_respecto_al_padre(padre: dict[str, Any] | None, dataset_id: str, prue
 
 async def _sellar_plan(ctx, plan: dict[str, Any], pista: Pista | None) -> None:
     """Sello RFC 3161 del hash del plan congelado, con autoridades externas: un
-    revisor puede comprobar fuera de Rosa que el plan existía antes de la cifra.
+    revisor puede comprobar fuera de ROSA2018 que el plan existía antes de la cifra.
     Nunca lanza; sin red queda el intento registrado."""
     from rosa import sello as S
 

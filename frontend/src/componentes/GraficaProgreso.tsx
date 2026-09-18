@@ -41,7 +41,7 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
   return (
     <Seccion
       titulo="Progreso de la investigación"
-      nota="Cada punto es una iteración cerrada, de todas las corridas seguidas. La línea morada suma los peldaños de certeza (muy baja 0, baja 1, moderada 2, alta 3) de las hipótesis vivas; la gris, los hechos acumulados. Abajo, en rojo, lo que falló en cada iteración. Las rayas verticales marcan un cambio de versión de Rosa. Es la vara: si la línea morada no sube, Rosa lee pero no avanza."
+      nota="Cada punto es una iteración cerrada, de todas las corridas seguidas. La línea morada suma los peldaños de certeza (muy baja 0, baja 1, moderada 2, alta 3) de las hipótesis vivas; la gris, los hechos acumulados. Abajo, en rojo, lo que falló en cada iteración. Las rayas verticales marcan un cambio de versión de ROSA2018. Es la vara: si la línea morada no sube, ROSA2018 lee pero no avanza."
     >
       <svg className="grafica-progreso" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Progreso: ${ultimo.peldanosTotales} peldaños de certeza tras ${n} iteraciones${maxReal === 0 ? '; ninguna hipótesis ha subido todavía' : ''}`}>
         {[0, 0.5, 1].map((f) => (
@@ -53,7 +53,7 @@ export function GraficaProgreso({ corridas }: { corridas: Corrida[] }) {
         {puntos.filter((p) => p.cambioDeArnes).map((p) => (
           <g key={`arnes-${p.indice}`}>
             <line className="gp-arnes" x1={x(p.indice)} x2={x(p.indice)} y1={mt} y2={H - mb + 4} />
-            <text className="gp-eje" x={x(p.indice) + 3} y={mt + 8}>Rosa {p.arnes ?? '?'}</text>
+            <text className="gp-eje" x={x(p.indice) + 3} y={mt + 8}>ROSA2018 {p.arnes ?? '?'}</text>
           </g>
         ))}
         <path className="gp-hechos" d={camino((p) => yHechos(p.hechosAcumulados))} />

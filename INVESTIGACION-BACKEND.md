@@ -1,12 +1,12 @@
-# Investigacion para el backend de Rosa
+# Investigacion para el backend de ROSA2018
 
 Fecha: 10 de septiembre de 2026. Resumen de doce investigaciones hechas sobre
 documentacion oficial, papers y codigo fuente de los sistemas que hoy se
-llaman "AI scientist", mas las APIs de las fuentes que Rosa consulta. Al final
+llaman "AI scientist", mas las APIs de las fuentes que ROSA2018 consulta. Al final
 esta la arquitectura que se construyo con todo esto y por que.
 
-Lo que se copio de cada sistema esta marcado con "Rosa toma". Lo que se
-descarto, con "Rosa no toma" y el motivo.
+Lo que se copio de cada sistema esta marcado con "ROSA2018 toma". Lo que se
+descarto, con "ROSA2018 no toma" y el motivo.
 
 ## 1. Los sistemas de referencia
 
@@ -21,7 +21,7 @@ medido: 85 % en afirmaciones de datos, 82 % en literatura, 58 % en
 interpretaciones. Se paro por presupuesto (200 corridas por iteracion) y por
 estabilidad del modelo de mundo.
 
-Rosa toma: el modelo de mundo como estado explicito y persistente; tareas en
+ROSA2018 toma: el modelo de mundo como estado explicito y persistente; tareas en
 paralelo dentro de una iteracion con transcripcion por tarea ("pistas");
 tipo de afirmacion (dato, literatura, interpretacion) porque no se verifican
 igual; replicacion bajo demanda.
@@ -41,13 +41,13 @@ conradry, raktim) coinciden en: SQLite WAL con cola de tareas con leases,
 idempotencia por `match_id`, SSE al frontend, filtrado de citas a URLs
 realmente vistas en trazas de herramientas.
 
-Rosa toma: los seis tipos de revision como campos separados de la hipotesis;
+ROSA2018 toma: los seis tipos de revision como campos separados de la hipotesis;
 el torneo por pares con juez y debias A/B y B/A; la meta-revision con
 debilidades inyectables; el prior de las hipotesis humanas (entran con la
-misma incertidumbre que las de Rosa); las revisiones humanas estructuradas
+misma incertidumbre que las de ROSA2018); las revisiones humanas estructuradas
 como entrada del siguiente debate.
 
-Rosa no toma: la cola de tareas con leases y multiples workers. Un solo
+ROSA2018 no toma: la cola de tareas con leases y multiples workers. Un solo
 proceso con asyncio basta para una investigadora y una Mac, y quita una capa
 de fallos. Si hace falta escalar, la cola de Kaimen es el dise�o a copiar.
 
@@ -58,7 +58,7 @@ relevancia de cada fragmento 0 a 10 con el modelo (RCS), quedarse con los
 mejores, responder citando fragmentos, y decir "I cannot answer" cuando no
 hay respaldo. Clientes de metadatos con `is_retracted` y `source_quality`.
 
-Rosa toma: la puntuacion de relevancia por fragmento antes de extraer; la
+ROSA2018 toma: la puntuacion de relevancia por fragmento antes de extraer; la
 abstencion explicita; la marca de retractacion como parte de los metadatos de
 cada fuente.
 
@@ -69,7 +69,7 @@ en vez de Elo, mas experimentos propuestos con protocolo y coste. Virtual
 Lab: reuniones con agenda, un agente por rol, un critico obligatorio, y el
 "principal investigator" sintetiza; el humano fija la agenda y las reglas.
 
-Rosa toma: el experimento propuesto con protocolo, ensayo y coste estimado
+ROSA2018 toma: el experimento propuesto con protocolo, ensayo y coste estimado
 (campo `experimento` de la hipotesis); el critico obligatorio antes de
 sintetizar. Bradley-Terry queda como alternativa a Elo cuando haya mas de 30
 hipotesis por investigacion (Elo con pocos partidos es ruidoso pero legible).
@@ -84,11 +84,11 @@ paper-solver: andamiaje por secciones y rubrica NeurIPS. Coste medido: 2,33
 USD por paper con gpt-4o. Limitacion admitida: el revisor automatico
 sobreestima 2,3 puntos sobre 10 frente a humanos.
 
-Rosa toma: la idea de que cada fase termina con un artefacto explicito y
+ROSA2018 toma: la idea de que cada fase termina con un artefacto explicito y
 revisable; el aviso de que un revisor automatico no sustituye al humano (por
 eso la cola de hipotesis es humana).
 
-Rosa no toma: el dialogo por turnos entre roles. Con DSPy cada paso es una
+ROSA2018 no toma: el dialogo por turnos entre roles. Con DSPy cada paso es una
 firma con entrada y salida tipadas; el dialogo se sustituye por composicion.
 
 ### 1.6 Denario y cmbagent; Curie
@@ -103,7 +103,7 @@ variables sin usar) y un validador de ejecucion que reejecuta el flujo en
 limpio y exige el fichero de resultados; 3,4 veces mas conclusiones correctas
 que la linea base.
 
-Rosa toma: el plan se propone y se aprueba antes de ejecutarse; cada paso
+ROSA2018 toma: el plan se propone y se aprueba antes de ejecutarse; cada paso
 tiene presupuesto e intentos; la iteracion cierra con un resumen que se
 traslada a la siguiente en vez de arrastrar todo el historial; la
 verificacion del montaje (una pista que no produjo fichero no cuenta como
@@ -122,7 +122,7 @@ con entorno de 150 herramientas y 59 bases, plan como lista de control con
 casillas, `execute` y `solution` como acciones, recuperacion de herramientas
 por prompt, critico opcional.
 
-Rosa toma: la hipotesis con mecanismo, comprobacion (biomarcador, cohorte,
+ROSA2018 toma: la hipotesis con mecanismo, comprobacion (biomarcador, cohorte,
 dise�o) y novedad como campos obligatorios; la lista de control del plan con
 pasos hechos, fallidos y omitidos con motivo; los criterios de revision como
 lista editable (Ajustes) que el revisor lee.
@@ -131,7 +131,7 @@ lista editable (Ajustes) que el revisor lee.
 
 - `dspy.LM("openai/<id del gateway>", api_base=URL, api_key=...)` es la unica
   forma de hablar con los modelos. `lm.history[-1]` trae `usage` y `cost`;
-  `cost` es `None` para modelos que LiteLLM no tiene tarifados, asi que Rosa
+  `cost` es `None` para modelos que LiteLLM no tiene tarifados, asi que ROSA2018
   cuenta llamadas y tokens, no dolares.
 - Modulos: `dspy.Predict` para parseo y extraccion, `dspy.ChainOfThought`
   para revisiones y comparaciones. Salidas tipadas con pydantic. Llamada
@@ -150,7 +150,7 @@ lista editable (Ajustes) que el revisor lee.
 - MLflow 3.16: `mlflow.dspy.autolog()` traza cada llamada;
   `sqlite:///mlflow.db` como backend (el de ficheros esta deprecado);
   `log_compiles=True` cubre `GEPA.compile`. Con varios procesos escribiendo
-  hay bloqueos de SQLite; Rosa es un proceso.
+  hay bloqueos de SQLite; ROSA2018 es un proceso.
 
 ## 3. Fuentes y sus APIs (comprobadas el 10 de septiembre de 2026)
 
@@ -165,7 +165,7 @@ lista editable (Ajustes) que el revisor lee.
 | Semantic Scholar | `api.semanticscholar.org/graph/v1/paper/search`, `/paper/{id}/citations` | 1 por segundo con clave; sin clave devuelve 429 casi siempre | Gratuita, pedirla | `contexts` e `intents` de cada cita (para clasificar apoya, menciona, contrasta) |
 | ClinicalTrials.gov v2 | `clinicaltrials.gov/api/v2/studies` | Sin cifra oficial; 1 por segundo es prudente | No | `query.cond`, `query.intr`, `filter.advanced` en Essie, `pageSize` hasta 1000, `countTotal` |
 | Open Targets | `api.platform.opentargets.org/api/v4/graphql` | Uso razonable | No | `search(queryString, entityNames:["target"])` y `target(ensemblId){associatedDiseases}`; Alzheimer es `MONDO_0004975` |
-| Agora (AD Knowledge Portal) | Sin API publica estable | | | Rosa no afirma "no nominada": dice "no comprobado" |
+| Agora (AD Knowledge Portal) | Sin API publica estable | | | ROSA2018 no afirma "no nominada": dice "no comprobado" |
 
 Regla que sale de todo esto: distinguir siempre "la fuente no lo tiene" de
 "no pude consultar la fuente". Un tiempo agotado no es "sin ensayos".
@@ -189,7 +189,7 @@ Regla que sale de todo esto: distinguir siempre "la fuente no lo tiene" de
 - FastAPI + sse-starlette: `EventSourceResponse` con `ping` cada 15 s;
   `Last-Event-ID` lo gestiona el servidor reenviando desde su buffer o, mas
   simple, mandando el estado completo con `id` igual al numero de version.
-  Rosa manda el estado completo: pesa decenas de KB y elimina toda la logica
+  ROSA2018 manda el estado completo: pesa decenas de KB y elimina toda la logica
   de parches.
 - SQLite en modo WAL, un solo escritor, `synchronous=NORMAL`,
   `busy_timeout` 30 s. Tabla de estado (instantanea JSON), tabla de acciones
@@ -206,7 +206,7 @@ Regla que sale de todo esto: distinguir siempre "la fuente no lo tiene" de
   para empezar y no a�ade un servicio.
 - Sandbox: `dspy.PythonInterpreter` (Deno + Pyodide) no tiene tiempo limite
   propio; hay que envolverlo. Apple `container` (macOS 26) da una VM por
-  contenedor sin licencia. Entra cuando Rosa ejecute analisis de datos.
+  contenedor sin licencia. Entra cuando ROSA2018 ejecute analisis de datos.
 
 ## 6. Abstencion y calibracion
 

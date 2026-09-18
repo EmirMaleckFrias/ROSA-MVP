@@ -1,5 +1,5 @@
 // La franja compacta que expone, por fila del ranking, cada componente que
-// Rosa calcula sobre una hipótesis sin sumarlos (informe de priorización de
+// ROSA2018 calcula sobre una hipótesis sin sumarlos (informe de priorización de
 // ROSA2018). Orden fijo para que la vista se lea en columnas: certeza GRADE
 // con su techo, dirección de la evidencia, cohortes distintas, evidencia a
 // favor, en contra y que socava, decisión del Killer, bloqueos, fuerza de
@@ -51,7 +51,7 @@ const DEFINICIONES = {
   bt: 'Fuerza de Bradley-Terry: otra forma de ordenar por los partidos del torneo, en escala Elo, con un intervalo del 95 % por bootstrap. El intervalo dice cuánta seguridad hay en el orden, no solo el orden. Es lo que ordena a las candidatas.',
   partidos: 'Partidos del torneo: debates de dos en dos contra hipótesis rivales, juzgados por un modelo. Con menos de 3 el Elo y la fuerza dicen poco.',
   pasoRuta: 'Paso de la ruta terapéutica en el que está la hipótesis (mecanismo, opciones de intervención, compromiso de diana, efecto funcional, selectividad, exposición, replicación, evidencia en la población). Una campaña celular completada no completa la ruta.',
-  conflicto: 'Conflicto: dos hipótesis que no pueden ser ciertas a la vez (marco de argumentación). Rosa lo marca; no descarta ninguna. Si las dos van al laboratorio, una sobra o hay que diseñar el experimento que las separe.',
+  conflicto: 'Conflicto: dos hipótesis que no pueden ser ciertas a la vez (marco de argumentación). ROSA2018 lo marca; no descarta ninguna. Si las dos van al laboratorio, una sobra o hay que diseñar el experimento que las separe.',
   pendiente: 'Pendiente de revisar: algo de lo que depende cambió (una fuente se retractó, un hecho fue sustituido o contradicho) y nadie la volvió a concluir.',
   fusionada: 'Fusionada: el torneo la encontró equivalente a otra o un caso particular de ella; su evidencia vive en la otra. No fue refutada.',
   absorbe: 'Absorbió por fusión: heredó las afirmaciones y fuentes de otra hipótesis redundante con esta.',
@@ -88,7 +88,7 @@ function etiquetaRuta(r: NonNullable<ComponentesRanking['ruta']>): string {
 function ChipCerteza({ c }: { c: ComponentesRanking }) {
   if (!c.certeza) {
     return (
-      <Chip tono="borde" title={`${DEFINICIONES.certeza} Rosa todavía no ha escrito una conclusión: la escribe al cerrar cada iteración.`}>
+      <Chip tono="borde" title={`${DEFINICIONES.certeza} ROSA2018 todavía no ha escrito una conclusión: la escribe al cerrar cada iteración.`}>
         Sin conclusión todavía
       </Chip>
     );

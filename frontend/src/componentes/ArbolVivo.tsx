@@ -1,8 +1,8 @@
 // El árbol vivo de la pantalla de acceso: un árbol de conocimiento en SVG,
 // con el tronco (el objetivo), tres ramas, hojas (hipótesis) y, alrededor, lo
 // que las sostiene (fuentes, hechos, un experimento). Cada tres segundos se
-// ilumina la parte del árbol que corresponde a una etapa del proceso de Rosa
-// y cambia la frase de abajo: quien llega por primera vez ve qué hace Rosa
+// ilumina la parte del árbol que corresponde a una etapa del proceso de ROSA2018
+// y cambia la frase de abajo: quien llega por primera vez ve qué hace ROSA2018
 // antes de entrar. Los nodos se balancean despacio, como en la pantalla del
 // Árbol. Con movimiento reducido no hay balanceo ni cambio de etapa.
 
@@ -74,10 +74,10 @@ const ENLACES: [string, string, 'rama' | 'sostiene' | 'cita' | 'experimento'][] 
  *  `enlaces` dicen qué parte del árbol se enciende en cada una. */
 export const ETAPAS_VIVAS: { clave: string; titulo: string; frase: string; nodos: (n: Nodo) => boolean; enlaces: (t: string) => boolean }[] = [
   { clave: 'objetivo', titulo: 'Un objetivo', frase: 'Todo empieza en el tronco: la pregunta que el equipo quiere responder.', nodos: (n) => n.tipo === 'objetivo', enlaces: () => false },
-  { clave: 'literatura', titulo: 'Literatura', frase: 'Rosa lee PubMed, Europe PMC y los registros de ensayos; cada consulta queda anotada con su fecha.', nodos: (n) => n.tipo === 'fuente', enlaces: (t) => t === 'cita' },
+  { clave: 'literatura', titulo: 'Literatura', frase: 'ROSA2018 lee PubMed, Europe PMC y los registros de ensayos; cada consulta queda anotada con su fecha.', nodos: (n) => n.tipo === 'fuente', enlaces: (t) => t === 'cita' },
   { clave: 'verificar', titulo: 'Verificación', frase: 'Cada afirmación se contrasta con el pasaje literal de su fuente antes de contar como hecho.', nodos: (n) => n.tipo === 'hecho' || n.tipo === 'fuente', enlaces: (t) => t === 'cita' },
   { clave: 'mundo', titulo: 'Modelo de mundo', frase: 'Lo que resiste entra como hecho con su procedencia; lo abierto queda como pregunta.', nodos: (n) => n.tipo === 'hecho', enlaces: (t) => t === 'sostiene' },
-  { clave: 'hipotesis', titulo: 'Hipótesis y Killer', frase: 'Rosa propone hipótesis y el Killer las somete a catorce comprobaciones. Las que quedan, las decide una persona.', nodos: (n) => n.tipo === 'hipotesis' || n.tipo === 'rama', enlaces: (t) => t === 'rama' },
+  { clave: 'hipotesis', titulo: 'Hipótesis y Killer', frase: 'ROSA2018 propone hipótesis y el Killer las somete a catorce comprobaciones. Las que quedan, las decide una persona.', nodos: (n) => n.tipo === 'hipotesis' || n.tipo === 'rama', enlaces: (t) => t === 'rama' },
   { clave: 'laboratorio', titulo: 'Laboratorio', frase: 'La candidata se prerregistra, se sella con un tercero y vuelve del laboratorio con datos que actualizan la certeza.', nodos: (n) => n.tipo === 'experimento' || n.id === 'h5', enlaces: (t) => t === 'experimento' },
 ];
 
@@ -95,7 +95,7 @@ export function ArbolVivo({ className }: { className?: string }) {
   const porId = new Map(NODOS.map((n) => [n.id, n]));
   return (
     <div className={`arbol-vivo ${className ?? ''}`.trim()}>
-      <svg viewBox="0 0 360 420" role="img" aria-label="Árbol de conocimiento de Rosa: un objetivo, ramas, hipótesis y lo que las sostiene" className={reducido ? 'arbol-vivo-quieto' : ''}>
+      <svg viewBox="0 0 360 420" role="img" aria-label="Árbol de conocimiento de ROSA2018: un objetivo, ramas, hipótesis y lo que las sostiene" className={reducido ? 'arbol-vivo-quieto' : ''}>
         <defs>
           <radialGradient id="arbol-vivo-halo" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.55" />

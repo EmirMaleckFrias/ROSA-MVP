@@ -3,7 +3,7 @@ subir.
 
 La certeza de la evidencia sobre una hipótesis la escribe el juez
 (`ConcluirHipotesis`), con sus factores y su explicación. Pero el nivel queda
-acotado por una regla determinista sobre lo que Rosa tiene contado, igual que
+acotado por una regla determinista sobre lo que ROSA2018 tiene contado, igual que
 el Killer o el riesgo de sesgo: el juez explica dentro de la caja, no la fija.
 
 La regla solo baja, nunca sube. Con lo que hay en el registro:
@@ -71,7 +71,7 @@ texto y, si no se reconoce, no penaliza ni cuenta. Nada de lo que llega
 rompe: una hipótesis o una afirmación que no sea un diccionario vale como
 vacía.
 
-Una hipótesis nueva de Rosa arranca casi siempre en muy baja y no es un
+Una hipótesis nueva de ROSA2018 arranca casi siempre en muy baja y no es un
 fallo: es el punto de partida de toda hipótesis que nadie ha probado. La
 escalera dice qué le falta para el siguiente nivel, por regla, para que la
 persona vea el camino en vez de una etiqueta roja; cuando lo que frena es el

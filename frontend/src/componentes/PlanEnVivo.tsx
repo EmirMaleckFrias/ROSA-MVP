@@ -76,7 +76,7 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
       )}
       {pista.estado === 'en_curso' && onDetener && (
         <div className="dirigir" style={{ marginTop: 8 }}>
-          <input className="entrada entrada-s" value={indicacion} placeholder="Indicación para Rosa al detenerla (opcional)" onChange={(e) => setIndicacion(e.target.value)} aria-label="Indicación al detener la pista" />
+          <input className="entrada entrada-s" value={indicacion} placeholder="Indicación para ROSA2018 al detenerla (opcional)" onChange={(e) => setIndicacion(e.target.value)} aria-label="Indicación al detener la pista" />
           <button type="button" className="btn btn-s btn-peligro" onClick={() => onDetener(indicacion)}>
             <IconStop size={11} /> Detener esta pista
           </button>
@@ -128,7 +128,7 @@ export function PlanEnVivo({ iteracion, ahora, onDetenerPista, onEditarPlan, onA
           <div>
             <strong style={{ fontSize: 13 }}>Plan propuesto para la iteración {iteracion.numero}</strong>
             <p className="meta">
-              Propuesto <Momento t={iteracion.planPropuestoEn} ahora={ahora} />. Rosa no ejecuta nada hasta que lo apruebes. Reordena, quita o añade pasos y fija el presupuesto de cada uno.
+              Propuesto <Momento t={iteracion.planPropuestoEn} ahora={ahora} />. ROSA2018 no ejecuta nada hasta que lo apruebes. Reordena, quita o añade pasos y fija el presupuesto de cada uno.
             </p>
           </div>
           <button type="button" className="btn btn-primario" onClick={onAprobarPlan}>

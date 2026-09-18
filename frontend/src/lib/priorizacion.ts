@@ -33,7 +33,7 @@ export const EXPLICACION_BLOQUEO: Record<Bloqueo, string> = {
   descartada_por_killer: 'El Killer o una persona la descartó en este contexto.',
   fuente_retractada: 'Una de sus fuentes está retractada.',
   revision_registro_abierta: 'El revisor de registro encontró algo grave (un identificador que no está en el registro, una ejecución afirmada y no completada, un recuento que no cuadra) en el dossier o en la última iteración cerrada, y nadie lo atendió todavía.',
-  dependencia_pendiente: 'Algo de lo que depende cambió (una fuente se retractó, un hecho del modelo de mundo fue sustituido o contradicho) y Rosa todavía no volvió a concluirla ni una persona la revisó.',
+  dependencia_pendiente: 'Algo de lo que depende cambió (una fuente se retractó, un hecho del modelo de mundo fue sustituido o contradicho) y ROSA2018 todavía no volvió a concluirla ni una persona la revisó.',
 };
 
 type Estado = Pick<EstadoRosa, 'investigaciones' | 'planesAnalisis' | 'ejecuciones' | 'hipotesis'> & Partial<Pick<EstadoRosa, 'artefactos' | 'corridas' | 'iteraciones'>>;

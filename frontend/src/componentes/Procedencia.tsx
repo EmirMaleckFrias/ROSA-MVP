@@ -1,6 +1,6 @@
 // El cajon de procedencia de una hipotesis, en seis pestanas: Mensajes,
 // Codigo, Registro de ejecucion, Entorno, Revision y Fuentes. Las cinco
-// primeras son las de Claude Science; Fuentes es la que Rosa anade, con los
+// primeras son las de Claude Science; Fuentes es la que ROSA2018 anade, con los
 // fragmentos citados y su pagina exacta, el tipo de estudio, el nivel de
 // evidencia, si se leyo el texto completo y cuando se comprobo la
 // retractacion. El registro es la fuente autoritativa.
@@ -26,7 +26,7 @@ const PESTANAS: { clave: PestanaProcedencia; etiqueta: string }[] = [
 ];
 
 const DE: Record<Hipotesis['procedencia']['mensajes'][number]['de'], string> = {
-  rosa: 'Rosa',
+  rosa: 'ROSA2018',
   investigadora: 'Investigadora',
   revisor: 'Revisor',
 };
@@ -67,7 +67,7 @@ export function TarjetaFuente({ f, ahora }: { f: Fuente; ahora: number }) {
         <span className="acciones" style={{ gap: 6 }}>
           <Chip tono="borde">{TIPO_ESTUDIO[f.tipoEstudio]}</Chip>
           <Escalera nivel={f.nivelEvidencia} />
-          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'Rosa leyo el texto completo' : 'Rosa solo leyó el resumen: la verificación vale menos'}>
+          <Chip tono={f.textoCompleto ? undefined : 'aviso'} title={f.textoCompleto ? 'ROSA2018 leyo el texto completo' : 'ROSA2018 solo leyó el resumen: la verificación vale menos'}>
             {f.textoCompleto ? 'texto completo' : 'solo resumen'}
           </Chip>
           <span className="meta">

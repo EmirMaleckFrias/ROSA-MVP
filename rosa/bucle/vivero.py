@@ -125,7 +125,7 @@ def retirar(e: dict[str, Any], semilla: dict[str, Any], motivo: str, ahora: int)
 
 
 def nacer(e: dict[str, Any], semilla: dict[str, Any], iteracion: int, ahora: int, corrida_id: str | None = None) -> dict[str, Any]:
-    """Reducer: la semilla nace como hipótesis de Rosa (propuesta, con revisión
+    """Reducer: la semilla nace como hipótesis de ROSA2018 (propuesta, con revisión
     pedida para que el siguiente paso de hipótesis la revise y compruebe su
     novedad) y sale del vivero."""
     afirmaciones = list(semilla["afirmaciones"])

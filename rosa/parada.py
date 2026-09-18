@@ -1,4 +1,4 @@
-"""Que parte de una condicion de parada puede automatizar Rosa.
+"""Que parte de una condicion de parada puede automatizar ROSA2018.
 
 La persona escribe la condicion en lenguaje corriente ("3 iteraciones o
 cuando el modelo de mundo deje de cambiar"). El bucle solo puede medir tres
@@ -60,8 +60,8 @@ def texto_automatizacion(partes: dict[str, Any]) -> str:
     if partes.get("llamadas") is not None:
         medibles.append(f"{partes['llamadas']} llamadas")
     if not medibles:
-        return "Rosa no puede medir esta condición: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la misión."
-    frase = "Rosa para sola al llegar a " + " o ".join(medibles) + " (y al agotar el presupuesto de la misión)"
+        return "ROSA2018 no puede medir esta condición: la corrida sigue hasta que la detengas o hasta agotar el presupuesto de la misión."
+    frase = "ROSA2018 para sola al llegar a " + " o ".join(medibles) + " (y al agotar el presupuesto de la misión)"
     if partes.get("resto"):
         frase += f'. El resto ("{partes["resto"][:80]}") lo decides tu con el botón de detener'
     return frase + "."

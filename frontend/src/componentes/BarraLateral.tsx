@@ -66,7 +66,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
         <a className="marca" href="#/" onClick={onCerrar}>
           <img src="/arbol-marca.png" alt="" width={30} height={30} />
           <div>
-            <strong>Rosa</strong>
+            <strong>ROSA2018</strong>
             <small>Alzheimer Project</small>
           </div>
         </a>
@@ -124,7 +124,7 @@ export function BarraLateral({ estado, ruta, abierta, onCerrar, onBuscar }: Prop
         </div>
 
         <CuentaActual />
-        <p className="barra-pie">Rosa investiga; la persona decide. Ninguna hipótesis entra al modelo de mundo sin pasar por la cola.</p>
+        <p className="barra-pie">ROSA2018 investiga; la persona decide. Ninguna hipótesis entra al modelo de mundo sin pasar por la cola.</p>
       </nav>
     </>
   );

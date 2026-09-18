@@ -1,6 +1,6 @@
 // Los hallazgos del revisor como tarjetas bajo la hipotesis, con su estado.
 // Mas de tres ensenan los tres primeros y "mostrar todo"; al pulsar uno se ve
-// el razonamiento completo y, si Rosa ya lo atendio, su respuesta.
+// el razonamiento completo y, si ROSA2018 ya lo atendio, su respuesta.
 
 import { useState } from 'react';
 import type { HallazgoRevisor } from '../datos/tipos';
@@ -27,7 +27,7 @@ function TarjetaHallazgo({ h }: { h: HallazgoRevisor }) {
           <p className="hallazgo-razon">{h.razonamiento}</p>
           {h.respuestaDeRosa !== null && (
             <div className="hallazgo-respuesta">
-              <span>Rosa</span>
+              <span>ROSA2018</span>
               <p>{h.respuestaDeRosa}</p>
             </div>
           )}

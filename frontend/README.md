@@ -1,6 +1,6 @@
-# Frontend de Rosa
+# Frontend de ROSA2018
 
-La interfaz web de Rosa: la vista de una corrida de dias, la cola de revision
+La interfaz web de ROSA2018: la vista de una corrida de dias, la cola de revision
 de hipotesis con procedencia, el ranking, el explorador del modelo de mundo,
 los artefactos versionados, el tablero de calidad y los ajustes. Sigue
 `UI-ROSA.md` patron por patron.
@@ -17,12 +17,12 @@ npm run build      # produccion en dist/
 
 ## Estado actual: datos de muestra
 
-Rosa todavia no tiene bucle ni servidor. La interfaz arranca con datos de
+ROSA2018 todavia no tiene bucle ni servidor. La interfaz arranca con datos de
 muestra del dominio (`src/datos/muestra.ts`) y una corrida que avanza sola
 (`src/datos/simulacion.ts`) para poder construirla y juzgarla en vivo. La
 cabecera lo dice ("Datos de muestra") y cada pantalla lleva el aviso.
 
-Para conectar Rosa de verdad se cambia un solo modulo, `src/datos/almacen.ts`:
+Para conectar ROSA2018 de verdad se cambia un solo modulo, `src/datos/almacen.ts`:
 `useRosa()` pasa a leer las suscripciones del servidor (Convex, o Postgres con
 suscripciones; decision pendiente) y cada funcion de `acciones` pasa a llamar
 a su mutacion, con las mismas firmas. Las pantallas no cambian. Los tipos del
@@ -54,14 +54,14 @@ contrato estan en `src/datos/tipos.ts`.
 - `sin_verificar` se pinta como aviso, nunca como aprobado. Arriba se resume
   el fallo, no el acierto.
 - Los comentarios se anclan a una seleccion de texto, se acumulan como
-  pendientes y salen juntos a Rosa con el siguiente mensaje.
+  pendientes y salen juntos a ROSA2018 con el siguiente mensaje.
 - Nada de confirmaciones del navegador: las decisiones irreversibles se
   confirman inline, en dos pasos.
 
 
-## Conexion con el servidor de Rosa
+## Conexion con el servidor de ROSA2018
 
-Al arrancar, `src/datos/almacen.ts` pide `/api/estado`. Si el servidor de Rosa
+Al arrancar, `src/datos/almacen.ts` pide `/api/estado`. Si el servidor de ROSA2018
 responde (`uv run python -m rosa.main`, puerto 8765; Vite reenvia `/api`), la
 interfaz entra en modo servidor: el estado llega por Server-Sent Events
 (`/api/eventos`, el estado completo en cada cambio) y cada accion se aplica al
@@ -119,8 +119,8 @@ La interfaz explica el proceso por si misma. Lo que cambio y donde tocar:
 
 ## Auditoria visual (Playwright)
 
-`npm run auditoria-visual` abre cada pantalla de Rosa en un Chromium real
-(servida por el servidor de Rosa en el 8765) a cuatro anchos (1440, 1100,
+`npm run auditoria-visual` abre cada pantalla de ROSA2018 en un Chromium real
+(servida por el servidor de ROSA2018 en el 8765) a cuatro anchos (1440, 1100,
 800 y 420) y en los dos modos, despliega las secciones de detalle y busca lo
 que las pruebas de DOM no ven: texto recortado por su caja o por un
 antecesor, texto superpuesto (comparando las cajas de cada linea), texto
@@ -255,7 +255,7 @@ súper feo y genérico"): a la izquierda, sobre el fondo de la marca, el árbol
 vivo (`componentes/ArbolVivo.tsx`), un árbol de conocimiento en SVG que se
 balancea y se ilumina etapa a etapa (objetivo, literatura, verificación,
 modelo de mundo, hipótesis y Killer, laboratorio) con una frase por etapa,
-para que quien llega vea qué hace Rosa antes de entrar; a la derecha, la
+para que quien llega vea qué hace ROSA2018 antes de entrar; a la derecha, la
 tarjeta con un solo campo y tres estados: formulario (iniciar sesión o
 registrarse, con un control deslizante), enlace enviado ("Revisa tu correo",
 con la dirección y la caducidad de 15 minutos) y confirmación del enlace. El

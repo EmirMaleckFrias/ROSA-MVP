@@ -19,7 +19,7 @@ def _estado():
 
 
 def test_recuentos_del_texto_lee_n_y_n_de_m():
-    r = RR.recuentos_del_texto("Rosa leyó 59 hechos, 40 de 59 afirmaciones sostenidas, 2 búsquedas de Exa, 11 fuentes nuevas y 3 hipótesis.")
+    r = RR.recuentos_del_texto("ROSA2018 leyó 59 hechos, 40 de 59 afirmaciones sostenidas, 2 búsquedas de Exa, 11 fuentes nuevas y 3 hipótesis.")
     assert (59, "hechos", "59 hechos") in r
     assert (40, "afirmaciones", "40 de 59 afirmaciones") in r and (59, "afirmaciones", "40 de 59 afirmaciones") in r
     assert (2, "consultas", "2 búsquedas") in r and (11, "fuentes", "11 fuentes") in r and (3, "hipotesis", "3 hipótesis") in r
@@ -30,12 +30,12 @@ def test_recuentos_del_registro_y_contradicciones_por_regla():
     rec = RR.recuentos_del_registro(e, "inv", it, corrida)
     assert rec["hechos"] == {40, 11} and rec["afirmaciones"] == {40, 35, 30, 5} and rec["consultas"] == {8, 3, 5}
     corpus = RR.corpus_del_registro(e, "inv", it, corrida)
-    texto = "Rosa incorporó 59 hechos, verificó 30 afirmaciones sostenidas y 8 hechos nuevos; hizo 2 búsquedas en Exa y trajo 20 fuentes."
+    texto = "ROSA2018 incorporó 59 hechos, verificó 30 afirmaciones sostenidas y 8 hechos nuevos; hizo 2 búsquedas en Exa y trajo 20 fuentes."
     hz = RR.comprobaciones_deterministas(texto, corpus, it, 0)
     detalle = " ".join(h["detalle"] for h in hz if h["clase"] == "contradiccion_con_registro" and "Recuentos" in h["detalle"])
     assert "«59 hechos»" in detalle and "«8 hechos" in detalle and "«2 búsquedas»" in detalle
     assert "30 afirmaciones" not in detalle and "20 fuentes" not in detalle
-    bien = "Rosa incorporó 11 hechos nuevos (40 en total), verificó 35 afirmaciones (30 sostenidas y 5 parciales) con 8 consultas, 5 de ellas en Exa."
+    bien = "ROSA2018 incorporó 11 hechos nuevos (40 en total), verificó 35 afirmaciones (30 sostenidas y 5 parciales) con 8 consultas, 5 de ellas en Exa."
     assert not [h for h in RR.comprobaciones_deterministas(bien, corpus, it, 0) if "Recuentos" in h["detalle"]]
 
 
@@ -43,7 +43,7 @@ def test_hipotesis_descartada_por_el_killer_no_puede_salir_como_viva():
     e, it, corrida = _estado()
     corpus = RR.corpus_del_registro(e, "inv", it, corrida)
     hips = e["hipotesis"]
-    optimista = "Rosa propone que el acoplamiento de GFAP con NfL distingue respuesta informativa; queda pendiente de validación empírica."
+    optimista = "ROSA2018 propone que el acoplamiento de GFAP con NfL distingue respuesta informativa; queda pendiente de validación empírica."
     hz = RR.comprobaciones_deterministas(optimista, corpus, it, 0, hipotesis=hips)
     assert any(h["gravedad"] == "alta" and "descartar_en_contexto" in h["detalle"] for h in hz)
     honesto = "La hipótesis «El acoplamiento de GFAP con NfL distingue respuesta» fue descartada en contexto por el Killer: le falta el ensayo."

@@ -1,4 +1,4 @@
-"""Skills de Rosa: ficheros `SKILL.md` con instrucciones de metodo que el
+"""Skills de ROSA2018: ficheros `SKILL.md` con instrucciones de metodo que el
 planificador de analisis, el escritor de codigo y el proponente de areas
 cargan cuando la tarea lo pide. El formato es el de las Agent Skills de
 Anthropic (frontmatter con `name` y `description`, cuerpo en Markdown),

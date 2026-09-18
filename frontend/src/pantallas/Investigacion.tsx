@@ -1,5 +1,5 @@
 // Objetivo, limites, condicion de parada y revisores; la configuracion que
-// Rosa lee (editable); los datos con su contrato (comprobacion previa,
+// ROSA2018 lee (editable); los datos con su contrato (comprobacion previa,
 // diccionario, clasificacion de sensibilidad) y el catalogo de datos del
 // Alzheimer; bifurcar; y las corridas.
 
@@ -51,7 +51,7 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
           <span>columnas sin diccionario</span>
           {d.columnasSinDiccionario > 0 && (
             <button type="button" className="btn btn-s" onClick={() => acciones.aprobarDiccionario(inv.id, d.id)}>
-              Aprobar el diccionario que propone Rosa
+              Aprobar el diccionario que propone ROSA2018
             </button>
           )}
         </div>
@@ -93,7 +93,7 @@ function TarjetaDataset({ d, inv }: { d: Dataset; inv: Inv }) {
       </div>
       {d.clasificacion === 'personas' && (
         <p className="aviso-muestra" style={{ marginTop: 4 }}>
-          Datos de personas: antes de que Rosa los toque hay que desidentificarlos (la skill deidentify corre en local, sin red) y la fase pasa por un comite certificado y por CONABIOS (Ley 172-13). Las herramientas que envian texto al gateway quedan bloqueadas para este fichero.
+          Datos de personas: antes de que ROSA2018 los toque hay que desidentificarlos (la skill deidentify corre en local, sin red) y la fase pasa por un comite certificado y por CONABIOS (Ley 172-13). Las herramientas que envian texto al gateway quedan bloqueadas para este fichero.
         </p>
       )}
       <LibroDeProcedencia inv={inv} d={d} />
@@ -108,10 +108,10 @@ function QueToca({ inv, corridas, irA }: { inv: Inv; corridas: EstadoRosa['corri
   const puerta = inv.puertaReproduccion;
   const pendientes = inv.datasets.filter((d) => d.estado === 'pendiente').length;
   const tareas: { texto: string; accion: () => void; etiqueta: string }[] = [];
-  if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'Rosa propuso la misión (población, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la misión' });
+  if (inv.mision && !inv.mision.aprobadaEn) tareas.push({ texto: 'ROSA2018 propuso la misión (población, etapa, mecanismo, presupuesto). Falta que la apruebes o la corrijas.', accion: () => ir('mision'), etiqueta: 'Ver la misión' });
   if (pendientes > 0) tareas.push({ texto: `${pendientes} ${pendientes === 1 ? 'dataset espera' : 'datasets esperan'} que completes su libro de procedencia y lo apruebes.`, accion: () => ir('datos'), etiqueta: 'Ver los datos' });
   if (puerta && puerta.estado === 'bloqueada') tareas.push({ texto: `La puerta de reproducción está bloqueada (${puerta.superadas} de ${puerta.requeridas}): hasta abrirla, ningún análisis con datos cuenta como descubrimiento.`, accion: () => ir('puerta'), etiqueta: 'Ver la puerta' });
-  if (corridas.length === 0) tareas.push({ texto: 'Esta investigación no tiene corridas: Rosa todavía no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
+  if (corridas.length === 0) tareas.push({ texto: 'Esta investigación no tiene corridas: ROSA2018 todavía no ha empezado a trabajar en ella.', accion: () => irA(rutaDe(inv.id, 'corrida')), etiqueta: 'Arrancar la primera corrida' });
   return (
     <div className={`quetoca ${tareas.length === 0 ? 'quetoca-vacio' : ''}`} role="status">
       <strong>{tareas.length === 0 ? 'Nada te espera aquí.' : tareas.length === 1 ? 'Te espera una cosa:' : `Te esperan ${tareas.length} cosas:`}</strong>
@@ -182,7 +182,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         </div>
         <div className="tarjeta seccion">
           <h3 style={{ fontSize: 13, fontWeight: 600 }}>Qué cuenta como relevante</h3>
-          <p>{inv.relevancia || 'Sin definir. Rosa perseguira todo lo que parezca significativo.'}</p>
+          <p>{inv.relevancia || 'Sin definir. ROSA2018 perseguira todo lo que parezca significativo.'}</p>
         </div>
         <div className="tarjeta seccion">
           <h3 style={{ fontSize: 13, fontWeight: 600 }}>Límites</h3>
@@ -207,8 +207,8 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         </div>
       </div>
 
-      <Seccion id="mision" titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. Rosa propone; una persona aprueba. Debajo, las áreas de investigación que Rosa comparó para elegir por dónde empezar.">
-        {inv.mision === undefined || inv.mision === null ? <p className="meta">Rosa propondra la misión al arrancar la primera corrida. También puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
+      <Seccion id="mision" titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. ROSA2018 propone; una persona aprueba. Debajo, las áreas de investigación que ROSA2018 comparó para elegir por dónde empezar.">
+        {inv.mision === undefined || inv.mision === null ? <p className="meta">ROSA2018 propondra la misión al arrancar la primera corrida. También puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
         <FormularioMision inv={inv} corridas={corridas} />
       </Seccion>
 
@@ -218,7 +218,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       <ConocimientoOperativoDelLaboratorio inv={inv} />
 
       <Seccion
-        titulo="Configuración que Rosa lee"
+        titulo="Configuración que ROSA2018 lee"
         nota="Preferencias, atributos deseables y restricciones: alimentan la generación, cada revisión y cada debate del torneo. Se versiona con la investigación."
         acciones={
           editando ? (
@@ -288,7 +288,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         <div className="tarjeta amplitud">
           <p className="campo-etiqueta">Amplitud de búsqueda</p>
           <p className="meta">
-            Cuánto explora Rosa fuera de la pregunta en cada paso de literatura. Con foco sube la certeza de lo que ya hay; con amplitud encuentra lo que hay al lado (una segunda cohorte, un contraejemplo, una línea nueva). Se aplica desde el siguiente paso de literatura.
+            Cuánto explora ROSA2018 fuera de la pregunta en cada paso de literatura. Con foco sube la certeza de lo que ya hay; con amplitud encuentra lo que hay al lado (una segunda cohorte, un contraejemplo, una línea nueva). Se aplica desde el siguiente paso de literatura.
           </p>
           <div className="acciones amplitud-botones" role="radiogroup" aria-label="Amplitud de búsqueda">
             {(['enfocada', 'equilibrada', 'amplia'] as Amplitud[]).map((a) => {
@@ -313,7 +313,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
           </button>
         }
       >
-        {inv.datasets.length === 0 && <p className="meta">Sin datos adjuntos: Rosa trabaja solo con literatura y bases curadas.</p>}
+        {inv.datasets.length === 0 && <p className="meta">Sin datos adjuntos: ROSA2018 trabaja solo con literatura y bases curadas.</p>}
         {inv.datasets.map((d) => (
           <TarjetaDataset key={d.id} d={d} inv={inv} />
         ))}
@@ -372,7 +372,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       <Seccion
         id="programa"
         titulo="Programa"
-        nota="La vista de programa de ROSA2018: lo que la investigación aporta al conjunto, no a una hipótesis. Cuatro piezas, calculadas por regla al cerrar cada iteración. Aprendizaje: si las predicciones que Rosa dejó escritas antes de mirar los datos (prerregistro) acertaron, cuánto tarda cada hipótesis en recibir una decisión y si se reutiliza lo heredado de otras investigaciones. Mapa de la ruta terapéutica: por cada diana, cuáles de los ocho pasos entre un mecanismo y un beneficio para una persona están cubiertos. Mapa de la enfermedad: dónde cae la evidencia por fase, región del cerebro y tipo de célula, y qué huecos nombra la misión. Datasets del programa: los conjuntos de datos públicos que Rosa encontró, con su acceso. Los campos que aún no se han calculado lo dicen."
+        nota="La vista de programa de ROSA2018: lo que la investigación aporta al conjunto, no a una hipótesis. Cuatro piezas, calculadas por regla al cerrar cada iteración. Aprendizaje: si las predicciones que ROSA2018 dejó escritas antes de mirar los datos (prerregistro) acertaron, cuánto tarda cada hipótesis en recibir una decisión y si se reutiliza lo heredado de otras investigaciones. Mapa de la ruta terapéutica: por cada diana, cuáles de los ocho pasos entre un mecanismo y un beneficio para una persona están cubiertos. Mapa de la enfermedad: dónde cae la evidencia por fase, región del cerebro y tipo de célula, y qué huecos nombra la misión. Datasets del programa: los conjuntos de datos públicos que ROSA2018 encontró, con su acceso. Los campos que aún no se han calculado lo dicen."
       >
         <div className="programa">
           <CifrasAprendizaje cifras={inv.cifrasAprendizaje ?? null} />
@@ -386,7 +386,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       {(() => {
         const lecciones = (estado.lecciones ?? []).filter((l) => l.investigacionId === inv.id).sort((a, b) => (b.veces - a.veces) || (b.ultimaVez - a.ultimaVez));
         return lecciones.length > 0 ? (
-          <Seccion detalle titulo={`Lo que Rosa aprendió a no repetir (${lecciones.length})`} nota="Lecciones generadas por regla al cerrar cada iteración: pasos que fallaron, consultas que no rindieron, bases que no respondieron, hipótesis cerradas por el Killer y por qué, ideas retiradas del vivero, análisis sin efecto. Cada paso las lee antes de actuar; una lección repetida pesa más.">
+          <Seccion detalle titulo={`Lo que ROSA2018 aprendió a no repetir (${lecciones.length})`} nota="Lecciones generadas por regla al cerrar cada iteración: pasos que fallaron, consultas que no rindieron, bases que no respondieron, hipótesis cerradas por el Killer y por qué, ideas retiradas del vivero, análisis sin efecto. Cada paso las lee antes de actuar; una lección repetida pesa más.">
             <ul className="lista-limpia lecciones">
               {lecciones.slice(0, 40).map((l) => (
                 <li key={l.id} className="leccion">
@@ -460,7 +460,7 @@ const ORIGEN_CUESTION: Record<Cuestion['origen']['tipo'], string> = {
 };
 
 /** Cuestiones persistentes (lo que rekursiv.ai llama Issues): qué está abierto, de
- *  dónde salió y qué lo resolvería. Rosa las abre y las cierra; la persona también. */
+ *  dónde salió y qué lo resolvería. ROSA2018 las abre y las cierra; la persona también. */
 export function Cuestiones({ inv, estado }: { inv: Inv; estado: EstadoRosa }) {
   const [texto, setTexto] = useState('');
   const [resolveria, setResolveria] = useState('');
@@ -470,7 +470,7 @@ export function Cuestiones({ inv, estado }: { inv: Inv; estado: EstadoRosa }) {
   const cerradas = todas.filter((c) => c.estado !== 'abierta').sort((a, b) => (b.resueltaEn ?? b.actualizadaEn) - (a.resueltaEn ?? a.actualizadaEn));
   const titulo = (id: string) => estado.hipotesis.find((h) => h.id === id)?.titulo ?? id;
   return (
-    <Seccion detalle titulo={`Cuestiones abiertas (${abiertas.length})`} nota="Lo que la investigación tiene pendiente de responder, con su origen y lo que lo resolvería. Rosa las abre desde las preguntas del modelo de mundo, lo que pide el Killer y el peldaño siguiente de cada hipótesis; las cierra cuando un hecho nuevo las responde. Tú puedes abrir, resolver o descartar.">
+    <Seccion detalle titulo={`Cuestiones abiertas (${abiertas.length})`} nota="Lo que la investigación tiene pendiente de responder, con su origen y lo que lo resolvería. ROSA2018 las abre desde las preguntas del modelo de mundo, lo que pide el Killer y el peldaño siguiente de cada hipótesis; las cierra cuando un hecho nuevo las responde. Tú puedes abrir, resolver o descartar.">
       {abiertas.length === 0 && <p className="meta">Ninguna cuestión abierta todavía.</p>}
       <ul className="lista-limpia cuestiones">
         {abiertas.slice(0, 40).map((c) => (

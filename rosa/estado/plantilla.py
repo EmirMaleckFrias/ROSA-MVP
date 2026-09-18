@@ -125,7 +125,7 @@ def estado_inicial() -> dict[str, Any]:
         "metodos": metodos_iniciales(),
         "politicas": _politicas(),
         # Registro de datasets del programa (rosa/datasets_programa.py): cada conjunto
-        # público o subido que Rosa vio, con su acceso y en qué investigaciones se usó.
+        # público o subido que ROSA2018 vio, con su acceso y en qué investigaciones se usó.
         "datasetsPrograma": [],
     }
 
@@ -311,7 +311,7 @@ def nueva_hipotesis(investigacion_id: str, iteracion: int, ahora: int, **campos:
         "rivales": [],
         "novedad": novedad_pendiente(),
         "afirmaciones": [],
-        "procedencia": procedencia_vacia("Hipótesis generada por Rosa.", ahora),
+        "procedencia": procedencia_vacia("Hipótesis generada por ROSA2018.", ahora),
         "hallazgos": [],
         "revisiones": [{"fecha": ahora, "quien": config.QUIEN_ROSA, "accion": "propuesta", "nota": f"Iteración {iteracion}", "aCiegas": False}],
         "creadaEn": ahora,
@@ -388,7 +388,7 @@ def nuevo_hecho(investigacion_id: str, tipo: str, tema: str, enunciado: str, est
         "resuelveA": [],
         "contradiceA": [],
         "cerradoEn": None,
-        "historial": [{"fecha": ahora, "de": None, "a": estado, "quien": config.QUIEN_ROSA, "motivo": motivo or "Añadido por Rosa"}],
+        "historial": [{"fecha": ahora, "de": None, "a": estado, "quien": config.QUIEN_ROSA, "motivo": motivo or "Añadido por ROSA2018"}],
     }
 
 
@@ -461,7 +461,7 @@ def nuevo_metodo(nombre: str, tipo: str, evalua: str, ahora: int, **campos: Any)
 
 
 def metodos_iniciales() -> list[dict[str, Any]]:
-    """El registro de métodos con lo que Rosa ya tiene (plan completo,
+    """El registro de métodos con lo que ROSA2018 ya tiene (plan completo,
     sección 5). Cada entrada dice que evalua, donde aplica, como se valido y
     en que estado esta. Lo probado en contexto lo marca la puerta de
     reproducción; lo demás empieza en 'implementado'."""
@@ -542,7 +542,7 @@ def nuevo_plan_analisis(investigacion_id: str, hipotesis_id: str | None, dataset
         "correccionMultiplicidad": "",
         "umbralEfecto": "",
         "criterioNoEvaluable": "",
-        # Intención completa (como pide el prerregistro): qué hará Rosa según salga, y
+        # Intención completa (como pide el prerregistro): qué hará ROSA2018 según salga, y
         # de qué plan viene si es una réplica o una variante.
         "siConfirma": "",
         "siRefuta": "",

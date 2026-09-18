@@ -1,4 +1,4 @@
-// Las tres cifras con las que el programa mide si Rosa aprende (plan
+// Las tres cifras con las que el programa mide si ROSA2018 aprende (plan
 // completo, etapa G; rosa/cifras_aprendizaje.py): cuántas predicciones
 // prerregistradas acertaron, cuánto tarda cada hipótesis en recibir una
 // decisión y cuántos hechos heredados de otra investigación se usaron de
@@ -14,7 +14,7 @@ import { formatearEntero, formatearPorcentaje, plural } from '../lib/formato';
 /** Glosario de reserva, copiado de rosa/cifras_aprendizaje.py GLOSARIO; el
  *  que llega con las cifras manda, este cubre un registro que no lo traiga. */
 export const GLOSARIO_CIFRAS: Record<string, string> = {
-  prerregistro: 'lo que Rosa deja por escrito antes de mirar los datos: qué espera ver y qué hará según salga',
+  prerregistro: 'lo que ROSA2018 deja por escrito antes de mirar los datos: qué espera ver y qué hará según salga',
   acierto: "el resultado cayó del lado que el prerregistro llamó 'confirma'",
   decision: 'cada juicio registrado sobre una hipótesis: del Killer (killer_1, killer_2), de la priorización, de una persona o del retorno del laboratorio',
   mediana: 'el valor del medio: la mitad de los casos queda por debajo',

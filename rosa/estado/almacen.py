@@ -16,7 +16,7 @@ SQLite en modo WAL con un solo escritor: este proceso. Un `threading.Lock`
 serializa las escrituras porque DSPy hace llamadas en hilos.
 
 Tres garantías añadidas el 17 de septiembre de 2026 (hallazgo S-01: dos
-procesos de Rosa escribieron a la vez sobre rosa.db en un reinicio con el
+procesos de ROSA2018 escribieron a la vez sobre rosa.db en un reinicio con el
 Killer en vuelo, se perdió una decisión pagada y se rompió la cadena de
 auditoría):
 
@@ -27,7 +27,7 @@ auditoría):
   `Almacen` sobre la misma ruta comparten el cerrojo (lo que hacen los tests
   que simulan un reinicio) y los protege la segunda garantía. Con
   `solo_lectura=True` no se toma el cerrojo y no se puede escribir (para
-  scripts de análisis mientras Rosa corre).
+  scripts de análisis mientras ROSA2018 corre).
 - Escritura condicional por versión: el `UPDATE` del estado exige que la
   versión en disco sea la que este proceso cree tener. Si no lo es, se
   deshace la transacción, el almacén queda marcado como obsoleto y `mutar`
@@ -158,13 +158,13 @@ def _tomar_cerrojo(ruta: Path, espera: float) -> None:
                 if pasado >= espera:
                     os.close(fd)
                     raise AlmacenOcupado(
-                        f"Otra Rosa (PID {_pid_del_cerrojo(ruta_lock)}) sigue escribiendo en {ruta.name}: "
+                        f"Otra ROSA2018 (PID {_pid_del_cerrojo(ruta_lock)}) sigue escribiendo en {ruta.name}: "
                         f"espera a que ese proceso termine (está cerrando o acabando una llamada al modelo) antes de arrancar otra. "
                         f"Para leer la base sin escribir, abre el almacén con solo_lectura=True."
                     ) from None
                 if pasado - ultimo_aviso >= 5.0:
                     ultimo_aviso = pasado
-                    print(f"Otra Rosa (PID {_pid_del_cerrojo(ruta_lock)}) sigue cerrando {ruta.name}, probablemente terminando una llamada al modelo; espero ({int(pasado)} s de {int(espera)} s como máximo)...", file=sys.stderr, flush=True)
+                    print(f"Otra ROSA2018 (PID {_pid_del_cerrojo(ruta_lock)}) sigue cerrando {ruta.name}, probablemente terminando una llamada al modelo; espero ({int(pasado)} s de {int(espera)} s como máximo)...", file=sys.stderr, flush=True)
                 time.sleep(0.5)
         try:
             os.ftruncate(fd, 0)
@@ -206,7 +206,7 @@ class Almacen:
         """Abre (o crea) la base. `espera_cerrojo`: segundos que se espera a
         que otro proceso suelte el cerrojo antes de fallar con `AlmacenOcupado`
         (main.py pasa varios minutos; los tests, cero). `solo_lectura`: no toma
-        el cerrojo y rechaza toda escritura (scripts de análisis con Rosa en
+        el cerrojo y rechaza toda escritura (scripts de análisis con ROSA2018 en
         marcha)."""
         self.ruta = Path(ruta) if ruta else config.RUTA_BD
         self.solo_lectura = bool(solo_lectura)
@@ -297,7 +297,7 @@ class Almacen:
             en_disco = self._con.execute("SELECT version FROM estado WHERE clave='rosa'").fetchone()
             raise EscritorObsoleto(
                 f"Otro proceso escribió sobre {self.ruta.name}: en disco está la versión {en_disco[0] if en_disco else 'desconocida'} y este proceso "
-                f"creía tener la {version_anterior}. Este proceso deja de escribir para no pisar el estado; hay que cerrarlo y arrancar una sola Rosa."
+                f"creía tener la {version_anterior}. Este proceso deja de escribir para no pisar el estado; hay que cerrarlo y arrancar una sola ROSA2018."
             )
 
     # -- lectura -----------------------------------------------------------
@@ -339,7 +339,7 @@ class Almacen:
             if self.solo_lectura:
                 raise EscritorObsoleto(f"El almacén sobre {self.ruta.name} se abrió solo para leer: no puede escribir.")
             if self.obsoleto:
-                raise EscritorObsoleto(f"Otro proceso escribió sobre {self.ruta.name}; este almacén ya no escribe. Cierra este proceso y arranca una sola Rosa.")
+                raise EscritorObsoleto(f"Otro proceso escribió sobre {self.ruta.name}; este almacén ya no escribe. Cierra este proceso y arranca una sola ROSA2018.")
             try:
                 resultado = fn(self.estado)
             except Exception:
@@ -401,7 +401,7 @@ class Almacen:
         """Vuelve la memoria a la última versión persistida, rellenando EL MISMO
         diccionario (no se rebindea el atributo: las corrutinas del bucle que
         capturaron `almacen.estado` siguen viendo el estado bueno). Se recarga
-        CON migración: un estado guardado por una versión anterior de Rosa
+        CON migración: un estado guardado por una versión anterior de ROSA2018
         recibe al cargar claves que aún no están en disco hasta la primera
         escritura (por ejemplo `cuestiones` o `datasetsPrograma`); si se
         recargara sin migrar, un reducer que lanza justo después de arrancar
@@ -419,7 +419,7 @@ class Almacen:
         """Apunta una función que se llama (una vez, desde el hilo que detectó
         el fallo) cuando otro proceso escribió sobre la base y este almacén
         deja de escribir. main.py la usa para parar el supervisor y el servidor:
-        una Rosa obsoleta que sigue corriendo paga llamadas al modelo cuyo
+        una ROSA2018 obsoleta que sigue corriendo paga llamadas al modelo cuyo
         resultado no puede guardar."""
         self._al_quedar_obsoleto.append(fn)
 
@@ -530,7 +530,7 @@ class Almacen:
                     rama_abierta = None
                 elif h_ant in vistos:
                     rotura = {"seq": seq, "tipo": "bifurcacion", "enlazaConSeq": vistos[h_ant], "t": t, "version": version, "filas": None, "hastaSeq": None,
-                              "motivo": f"la fila {seq} enlaza con la {vistos[h_ant]} en vez de con la anterior: dos procesos de Rosa escribieron a la vez (reinicio con trabajo en vuelo); ninguna fila borrada"}
+                              "motivo": f"la fila {seq} enlaza con la {vistos[h_ant]} en vez de con la anterior: dos procesos de ROSA2018 escribieron a la vez (reinicio con trabajo en vuelo); ninguna fila borrada"}
                     roturas.append(rotura)
                     rama_abierta = {"rotura": rotura, "tip_principal": anterior}
                 else:
@@ -758,7 +758,7 @@ def _migrar_novedad_no_comprobada(estado: dict[str, Any]) -> None:
 def _migrar_progreso_por_ventana(estado: dict[str, Any]) -> None:
     """Hallazgo sobre el recuento de hipótesis nuevas por iteración: la serie de
     progreso de las corridas terminadas contaba `hipotesisNuevas` con una
-    regla distinta a la que usa el resto de Rosa. Se recalcula con
+    regla distinta a la que usa el resto de ROSA2018. Se recalcula con
     `rosa.progreso.hipotesis_nacidas_en` (ventana temporal de la iteración) y,
     si la corrida ya tenía métrica, se rehace la métrica. Idempotente: el
     recálculo da lo mismo cada vez. Si `hipotesis_nacidas_en` aún no existe en
@@ -978,7 +978,7 @@ def _migrar_fragmentos(estado: dict[str, Any]) -> None:
 
 
 def _migrar_consultas(estado: dict[str, Any]) -> None:
-    """Ajustes a estados guardados por versiones anteriores de Rosa. Cada uno
+    """Ajustes a estados guardados por versiones anteriores de ROSA2018. Cada uno
     es idempotente. Hoy: las consultas de búsqueda anteriores al 10 de
     septiembre de 2026 no llevaban `iteración`; se infiere por la fecha dentro
     de la ventana de cada iteración de su corrida."""

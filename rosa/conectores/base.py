@@ -1,4 +1,4 @@
-"""La capa de conectores de Rosa (lo que Claude Science llama "Connector").
+"""La capa de conectores de ROSA2018 (lo que Claude Science llama "Connector").
 
 Un conector es una funcion asincrona con nombre, descripcion, esquema de
 argumentos, fuente, licencia y limite de peticiones, registrada en un
@@ -81,11 +81,11 @@ def conector(nombre: str, fuente: str, descripcion: str, aporta: str, esquema: d
 
 
 async def _no_disponible(**_: Any) -> Resultado:
-    raise FuenteNoDisponible("conector no disponible en Rosa")
+    raise FuenteNoDisponible("conector no disponible en ROSA2018")
 
 
 def inerte(nombre: str, fuente: str, descripcion: str, aporta: str, estado: str, motivo: str, url_doc: str, grupo: str, licencia: str = "") -> None:
-    """Un conector que existe en Claude Science pero que Rosa no puede usar
+    """Un conector que existe en Claude Science pero que ROSA2018 no puede usar
     hoy (cuenta de pago, sin API, licencia, fichero local). Queda en el
     catálogo con su motivo para que se vea que falta y por que."""
     REGISTRO[nombre] = Conector(nombre, fuente, descripcion, aporta, {"type": "object", "properties": {}}, _no_disponible, licencia, "", url_doc, "si" if estado == "requiere_cuenta" else "no", estado=estado, motivo=motivo, grupo=grupo)

@@ -1,7 +1,7 @@
-# Lo que hacen los demas "AI Scientist" y lo que le falta a Rosa
+# Lo que hacen los demas "AI Scientist" y lo que le falta a ROSA2018
 
 Investigacion del 10 de septiembre de 2026, hecha despues de construir la
-primera version del frontend de Rosa. Compara lo construido con Claude
+primera version del frontend de ROSA2018. Compara lo construido con Claude
 Science (documentacion y changelog hasta la 0.1.43 del 31 de agosto), Kosmos
 y la plataforma de Edison Scientific (antes FutureHouse: Crow, Falcon, Owl,
 Robin, PaperQA), el AI co-scientist de Google DeepMind (Nature 2026 y su
@@ -20,9 +20,9 @@ captura publica de la interfaz del co-scientist de Google ni de la pantalla
 de progreso de Kosmos; lo que se dice de ellos sale de sus articulos, prompts
 y API, no de verlos.
 
-## 1. Lo que la investigacion confirma de Rosa
+## 1. Lo que la investigacion confirma de ROSA2018
 
-Estas decisiones de Rosa coinciden con lo que hacen los mejores sistemas, y
+Estas decisiones de ROSA2018 coinciden con lo que hacen los mejores sistemas, y
 conviene no tocarlas:
 
 - **La aprobacion va antes del efecto** (tarjetas de permiso con alcance,
@@ -49,7 +49,7 @@ conviene no tocarlas:
   aparte, y la cambiaron).
 - **Retractaciones marcadas y excluidas**: ninguna de las nueve herramientas
   del estudio JMIR 2026 lo hace de forma consistente, y en la prueba de MIT
-  Technology Review Consensus cito 18 de 21 retractados sin avisar. Rosa ya
+  Technology Review Consensus cito 18 de 21 retractados sin avisar. ROSA2018 ya
   hace algo que la mayoria no hace.
 
 ## 2. Lo que falta y valdria la pena, por prioridad
@@ -64,14 +64,14 @@ corrida de dias unas horas al dia.
    de agentes de Claude Code, el "Return Moment" del marco Agentic UX, los
    ficheros de estado de Codex, y las notificaciones de Claude Science
    (0.1.27: sesion terminada o necesita tu input, in-app, sonido y
-   escritorio). Rosa no tiene nada de esto. En pantalla: al abrir, una
+   escritorio). ROSA2018 no tiene nada de esto. En pantalla: al abrir, una
    tarjeta "Desde tu ultima visita (14 h): 3 iteraciones, 2 hipotesis
    nuevas, 1 subio al primer puesto, 4 decisiones esperan (la mas antigua
    lleva 9 h), gasto 63 de 120 llamadas en la iteracion actual", con cada
    linea enlazada. La misma tarjeta es el resumen que se manda a Slack o
    correo, que hoy en Ajustes es solo un interruptor sin nada detras.
 
-2. **Presupuesto global de la corrida con alarmas y pausa, no muerte.** Rosa
+2. **Presupuesto global de la corrida con alarmas y pausa, no muerte.** ROSA2018
    tiene presupuesto por iteracion; falta el tope de la corrida completa.
    Claude Science (0.1.18) pausa la sesion y pide confirmacion antes de
    gastar mas; los Managed Agents de Anthropic lo hacen con tope duro,
@@ -83,7 +83,7 @@ corrida de dias unas horas al dia.
    reanudar".
 
 3. **Marcas de tiempo absolutas en todo** (mensajes, pasos, hallazgos,
-   permisos). Claude Science las a�adi� en la 0.1.41. Rosa solo dice "hace
+   permisos). Claude Science las a�adi� en la 0.1.41. ROSA2018 solo dice "hace
    31 min". Barato e indispensable para auditar dias.
 
 4. **Cola de revision con envejecimiento, prioridad y accion por defecto.**
@@ -99,13 +99,13 @@ corrida de dias unas horas al dia.
    Science (0.1.41) muestra un aviso corto con cambio de modelo en un clic
    cuando las salvaguardas del modelo bloquean biologia, y una tarjeta
    "Sign-in expired, Reconnect" cuando un conector caduca, avisando dentro
-   de la sesion. Para Rosa es directo: ya se midio que Fable devuelve vacio
+   de la sesion. Para ROSA2018 es directo: ya se midio que Fable devuelve vacio
    con `finish_reason: content-filter` en hipotesis mecanisticas; cualquier
    respuesta bloqueada tiene que aparecer como tarjeta con alternativa, no
    como una pista que muere en silencio. Igual con las claves de PubMed,
    OpenAlex o Semantic Scholar en una corrida de dias.
 
-6. **Aprobar o editar el plan antes de que arranque la iteracion.** Rosa
+6. **Aprobar o editar el plan antes de que arranque la iteracion.** ROSA2018
    ense�a el plan y permite dirigir, pero la iteracion arranca sola.
    Claude Science (desde 0.1.27) no ejecuta ni marca pasos hasta que
    apruebas; Biomni-AD (la extension para Alzheimer) muestra "Aprobar y
@@ -114,13 +114,13 @@ corrida de dias unas horas al dia.
    el plan como lista de control con tres estados, hecho, pendiente y
    **fallido con explicacion** (Biomni obliga a marcar [x] y decir por que).
 
-### 2.2 Lo que hace mas fiable lo que Rosa afirma
+### 2.2 Lo que hace mas fiable lo que ROSA2018 afirma
 
 7. **Tipo de afirmacion con fiabilidad historica por tipo.** El articulo de
    Kosmos midio 85,5 % de acierto en afirmaciones de datos, 82,1 % en las de
-   literatura y **57,9 % en las de interpretacion o sintesis**. Rosa trata
+   literatura y **57,9 % en las de interpretacion o sintesis**. ROSA2018 trata
    todas igual. En pantalla: marcador de tipo (dato, literatura,
-   interpretacion) en cada afirmacion, y la tasa historica de Rosa para ese
+   interpretacion) en cada afirmacion, y la tasa historica de ROSA2018 para ese
    tipo en el tablero de calidad; las interpretaciones en gris hasta que las
    juzgue una persona.
 
@@ -130,8 +130,8 @@ corrida de dias unas horas al dia.
    fuertes" y que inventa metricas compuestas "conceptualmente oscuras". En
    pantalla: dos escalas separadas por hallazgo (evidencia estadistica y
    relevancia para el objetivo, esta ultima justificada en dos lineas por
-   Rosa y votada por la revisora); subrayado ambar en verbos fuertes
-   ("demuestra", "establece"); cualquier puntuacion nueva definida por Rosa
+   ROSA2018 y votada por la revisora); subrayado ambar en verbos fuertes
+   ("demuestra", "establece"); cualquier puntuacion nueva definida por ROSA2018
    exige definicion en una frase. El tablero cuenta los "alta significancia,
    baja relevancia".
 
@@ -139,26 +139,26 @@ corrida de dias unas horas al dia.
    juzgar".** En la evaluacion de Kosmos, un dato se revisa reproduciendolo,
    una cita se revisa en la literatura y una interpretacion se juzga solo
    con el contexto dado; y existia el veredicto UNSURE, que devolvia la
-   afirmacion aclarada al evaluador. Rosa tiene aceptar, refinar y
+   afirmacion aclarada al evaluador. ROSA2018 tiene aceptar, refinar y
    descartar. En pantalla: cuarto boton "No puedo juzgar" con motivo
-   (ambigua, falta contexto, no reproducible) que hace que Rosa reescriba o
+   (ambigua, falta contexto, no reproducible) que hace que ROSA2018 reescriba o
    anada contexto y la tarjeta vuelva marcada "aclarada". Opcion de revision
    a ciegas (ocultar las citas y el codigo hasta emitir veredicto), que es
    como lo hizo Kosmos para evitar el sesgo de confirmacion.
 
 10. **Citas de apoyo y contradictorias por hecho del modelo de mundo.**
-    Rosa verifica una afirmacion contra su cita, pero no ense�a si otras
+    ROSA2018 verifica una afirmacion contra su cita, pero no ense�a si otras
     fuentes la contradicen. Scite lo resuelve con tres numeros por
     afirmacion (apoya, menciona, contrasta) y el contexto de cada cita con
     la seccion del articulo; Consensus tiene una tabla "Claims & Evidence"
     con papers a favor y en contra; ContraCrow (FutureHouse) busca
     contradicciones a proposito. En pantalla: junto a cada hecho sabido,
     tres numeros con iconos; al abrir, los fragmentos citantes con su
-    clasificacion; aviso "nueva cita contrastante" cuando Rosa lea algo que
+    clasificacion; aviso "nueva cita contrastante" cuando ROSA2018 lea algo que
     contradiga un hecho.
 
 11. **Tipo de estudio y nivel de evidencia por fuente, y texto completo
-    frente a resumen.** Hoy en Rosa un caso clinico y un metaanalisis se ven
+    frente a resumen.** Hoy en ROSA2018 un caso clinico y un metaanalisis se ven
     igual. Consensus etiqueta el tipo (ECA, revision sistematica, cohorte,
     animal, in vitro) y la calidad de la revista; OpenEvidence a�adi� en
     julio de 2026 un grado A a D por cita basado en GRADE; Trip usa una
@@ -179,7 +179,7 @@ corrida de dias unas horas al dia.
     verificar (cobertura 61 %)"; pesta�a "Metodos" en cada informe con las
     cajas PRISMA y las consultas exactas.
 
-13. **Retractaciones vivas.** Rosa marca la retraccion al indexar; falta
+13. **Retractaciones vivas.** ROSA2018 marca la retraccion al indexar; falta
     recomprobar periodicamente contra Crossref y Retraction Watch con fecha
     de ultima comprobacion, propagar la marca a todo hecho e hipotesis que
     dependa de esa fuente (banner "depende de 1 fuente retractada el 4 de
@@ -202,7 +202,7 @@ corrida de dias unas horas al dia.
 15. **Ultima revision hace X.** Una resena de Claude Science documenta un
     caso en que la narrativa atribuyo mal un resultado y el revisor no lo
     marco; otra, que el revisor no corrio en el plan Pro y hubo que pedirlo.
-    Rosa debe decir cuando reviso por ultima vez para que el silencio no se
+    ROSA2018 debe decir cuando reviso por ultima vez para que el silencio no se
     lea como aprobacion, y ofrecer "Solicitar revision".
 
 ### 2.3 Lo que hace mejor la ciencia que sale
@@ -212,7 +212,7 @@ corrida de dias unas horas al dia.
     experto entra al torneo, mejora con las iteraciones y acaba superando a
     las generadas. En pantalla: boton "Proponer hipotesis" con el mismo
     formulario (enunciado, mecanismo, comprobacion), insignia "Humana", su
-    curva Elo junto a las demas, y las versiones que Rosa derive de ella
+    curva Elo junto a las demas, y las versiones que ROSA2018 derive de ella
     enlazadas como "derivada de tu hipotesis".
 
 17. **La revision escrita entra como revision, no solo como veredicto.**
@@ -235,7 +235,7 @@ corrida de dias unas horas al dia.
     revisiones (por ejemplo "5 de 9 hipotesis asumen X sin control") y lo
     inyecta en la siguiente generacion. En pantalla: tarjeta por iteracion
     con las debilidades recurrentes y un boton "Inyectar como criterio de
-    revision" (Rosa ya tiene criterios en Ajustes).
+    revision" (ROSA2018 ya tiene criterios en Ajustes).
 
 20. **Arbol de supuestos y tipos de revision separados.** La "verificacion
     profunda" de Co-Scientist descompone la hipotesis en supuestos y
@@ -264,7 +264,7 @@ corrida de dias unas horas al dia.
     reglas de que es un buen objetivo (uno solo, escala de semanas a meses,
     contexto experimental) y admite que "las direcciones son sensibles a la
     redaccion", asi que lanzan varias corridas por objetivo. En pantalla: al
-    crear la investigacion, Rosa propone la tarjeta de preferencias,
+    crear la investigacion, ROSA2018 propone la tarjeta de preferencias,
     atributos y restricciones para editar; avisos en linea ("objetivo con
     respuesta obvia", "faltan supuestos del campo"); boton "Probar tres
     parafrasis en una iteracion corta" que ense�a que primeras tareas
@@ -287,7 +287,7 @@ corrida de dias unas horas al dia.
     Co-Scientist (direcciones principales, y por cada una razon, hallazgos
     recientes, areas, "por que investigar", "que investigar", idea ejemplo,
     mas "areas inesperadas") es la salida principal que se le ense�a al
-    cientifico, y se exporta como pagina de Specific Aims del NIH. Rosa no
+    cientifico, y se exporta como pagina de Specific Aims del NIH. ROSA2018 no
     tiene una vista de sintesis por encima de las hipotesis. En pantalla:
     pesta�a "Panorama" y boton "Exportar como Specific Aims" como artefacto
     versionado; mas exportacion BibTeX, RIS y CSV de las fuentes con DOI,
@@ -307,7 +307,7 @@ corrida de dias unas horas al dia.
     aprobacion por lotes y edicion de los argumentos de una accion antes de
     permitirla.
 
-27. **Checkpoints con "volver aqui" y bifurcar desde una iteracion.** Rosa
+27. **Checkpoints con "volver aqui" y bifurcar desde una iteracion.** ROSA2018
     bifurca investigaciones completas; falta volver a un punto (LangGraph
     reproduce o bifurca desde un checkpoint con estado editado; Claude Code
     tiene `/rewind` con "restaurar conversacion, codigo o ambos"). En
@@ -353,24 +353,24 @@ corrida de dias unas horas al dia.
     de nuevas citas contrastantes o retractaciones. En pantalla: al cerrar
     una corrida, "Vigilar literatura 30 dias" que crea tarjetas en el
     modelo de mundo por cada articulo nuevo que toque una hipotesis
-    aceptada, con el aviso por Slack o correo que Rosa ya tiene.
+    aceptada, con el aviso por Slack o correo que ROSA2018 ya tiene.
 
-## 3. Matices de lo que Rosa ya copio de Claude Science
+## 3. Matices de lo que ROSA2018 ya copio de Claude Science
 
 - La tarjeta de permiso **sustituye la caja de mensaje**: mientras hay una
-  pendiente no se escribe. Rosa la pone como bloque aparte; conviene
+  pendiente no se escribe. ROSA2018 la pone como bloque aparte; conviene
   probar si bloquear la entrada de "Dirigir" mientras haya permisos
   pendientes hace la decision mas visible.
 - Los alcances **varian por tipo de accion**: carpeta (solo lectura o
   lectura y escritura, persiste), codigo (una vez o siempre), red (persiste
   hasta revocar), conector y trabajo remoto (una vez, esta conversacion,
-  este proyecto, global). Rosa ya varia los alcances por solicitud; falta
+  este proyecto, global). ROSA2018 ya varia los alcances por solicitud; falta
   fijar el juego por tipo en el contrato con el backend.
 - La tarjeta de trabajo remoto ense�a **el comando y el script completos**;
   la de Modal, la maquina, la facturacion por segundo y el tiempo maximo.
-  Rosa ense�a el recurso; cuando haya analisis, ense�ar el codigo exacto.
-- Que pasa al **denegar** no esta documentado en ningun sitio publico. Rosa
-  lo define: la solicitud queda denegada, la corrida sigue y Rosa se entera
+  ROSA2018 ense�a el recurso; cuando haya analisis, ense�ar el codigo exacto.
+- Que pasa al **denegar** no esta documentado en ningun sitio publico. ROSA2018
+  lo define: la solicitud queda denegada, la corrida sigue y ROSA2018 se entera
   en su siguiente paso.
 - El plan **no se edita a mano** en Claude Science (se itera conversando).
   Los sistemas para Alzheimer (Biomni-AD) y los de agentes generales
@@ -379,24 +379,24 @@ corrida de dias unas horas al dia.
 - El revisor corre **periodicamente durante el trabajo largo**, no solo tras
   cada mensaje, y se puede pedir con "Request review".
 - Las pistas paralelas **no se paran una a una** en Claude Science (Stop
-  mata la sesion). Rosa puede mejorarlo con parada por pista.
+  mata la sesion). ROSA2018 puede mejorarlo con parada por pista.
 - Los comentarios se anclan tambien a **imagenes (pines numerados
   arrastrables)** y a la **transcripcion de la sesion**; una vez enviados
   desaparecen del artefacto y quedan como tarjetas en el mensaje; se pueden
-  editar y borrar antes de enviar. Rosa ancla solo texto y no edita.
+  editar y borrar antes de enviar. ROSA2018 ancla solo texto y no edita.
 - Hay atajos: `@` artefacto, `#` sesion pasada, `/` skill, y `Cmd+K` como
-  busqueda global de sesiones y proyectos. Rosa no tiene busqueda global.
+  busqueda global de sesiones y proyectos. ROSA2018 no tiene busqueda global.
 - Claude Science muestra la **ocupacion del contexto** (a donde van los
   tokens) y marca cuando compacto el historial. Para dias de corrida explica
   por que el agente "olvida".
 
-## 4. Referencias de implementacion utiles para el backend de Rosa
+## 4. Referencias de implementacion utiles para el backend de ROSA2018
 
 - **Kaimen-Inc/Co-Scientist** (abierto): `co-scientist serve` levanta un
   panel FastAPI, htmx y SSE con actualizacion en vivo, y comandos `status`,
   `pause`, `resume`, `abort` y `feedback <id> --kind directive`. Guarda un
   JSON por hipotesis y por partido de torneo. Es el bucle de Co-Scientist
-  con exactamente los controles que Rosa pinta.
+  con exactamente los controles que ROSA2018 pinta.
 - **Kaimen-Inc/Biomni-AD** (abierto, premio Alzheimer's Insights AI Prize
   2026): plan-luego-aprobar en Chainlit, traza plegable por paso, y
   catalogos de datos de Alzheimer.
@@ -407,7 +407,7 @@ corrida de dias unas horas al dia.
   respuestas (aceptar, editar, responder, ignorar).
 - **API de Deep Research de OpenAI**: cada paso como item tipado y cada
   cita con `start_index` y `end_index` para resaltar el tramo exacto del
-  texto que respalda; replicable en el verificador de Rosa.
+  texto que respalda; replicable en el verificador de ROSA2018.
 - **Kosmos no esta disponible por API** (lo dice su documentacion); el
   co-scientist de Google es de acceso restringido por cuenta comercial.
 

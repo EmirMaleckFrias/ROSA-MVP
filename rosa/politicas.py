@@ -1,7 +1,7 @@
-"""Las politicas de Rosa: los limites que ningun agente puede editar.
+"""Las politicas de ROSA2018: los limites que ningun agente puede editar.
 
 El documento de concepto ROSA2018 (version 1.0, septiembre de 2026) exige
-que las reglas de gobierno vivan fuera del alcance de los agentes. En Rosa
+que las reglas de gobierno vivan fuera del alcance de los agentes. En ROSA2018
 eso significa este fichero: el estado (`rosa.db`) lo escriben el bucle y la
 interfaz, pero este modulo solo cambia con un commit, y el commit queda
 registrado en el `arnes` de cada corrida. Cambiar una politica es un cambio
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 # Hipótesis vivas por misión. Más allá de esto, la cola deja de ser
 # revisable por una persona en una sesión y el torneo pierde partidos por
-# hipótesis. Rosa deja de generar (no descarta) al llegar aquí. Bajado de 20
+# hipótesis. ROSA2018 deja de generar (no descarta) al llegar aquí. Bajado de 20
 # a 10 el 15 de septiembre de 2026: el valor de una corrida es cuánto suben
 # las hipótesis que ya existen, no cuántas nacen.
 MAX_HIPOTESIS_VIVAS_POR_MISION = 10
@@ -104,13 +104,13 @@ TOKENS_MAX_POR_ROL = {"cerebro": 120_000, "juez": 90_000, "volumen": 40_000, "re
 
 
 # Coste por decision: las horas de revision humana entran en el coste a esta
-# tarifa declarada (USD por hora), para comparar con investigar sin Rosa.
+# tarifa declarada (USD por hora), para comparar con investigar sin ROSA2018.
 TARIFA_HORA_REVISION_USD = 60.0
 
 # Nivel de autonomia declarado, con la escala de Beal y Rogers (Mol Syst Biol
 # 2020) que adopta la revision de laboratorios autonomos de Tobias y Wahab
 # (Royal Society Open Science 2025): la mayoria de los sistemas actuales esta
-# en el nivel 3 y ninguno en produccion pasa del 4. Rosa opera en el nivel 2:
+# en el nivel 3 y ninguno en produccion pasa del 4. ROSA2018 opera en el nivel 2:
 # asistencia cientifica proactiva (hipotesis, planes, protocolos, analisis in
 # silico) con decision humana en lo que cambia el mundo real. No ejecuta
 # ningun ciclo fisico sola y no pretende hacerlo.
@@ -158,11 +158,11 @@ def resumen() -> dict[str, object]:
         "nivelesAutonomia": list(NIVELES_AUTONOMIA),
     }
 
-# Amplitud de búsqueda (16 de septiembre de 2026). Rosa busca en dos modos en
+# Amplitud de búsqueda (16 de septiembre de 2026). ROSA2018 busca en dos modos en
 # cada paso de literatura: foco (la pregunta de la corrida y el peldaño que le
 # falta a cada hipótesis) y amplitud (temas adyacentes del modelo de mundo,
 # novedad reciente del campo y sorpresa por significado). Regla de Emir y de
-# su compañero: una Rosa que solo mira el punto fijo se pierde los diamantes
+# su compañero: una ROSA2018 que solo mira el punto fijo se pierde los diamantes
 # de al lado. La fracción es la parte de las consultas que van a explorar; la
 # persona la elige por investigación con botones (enfocada, equilibrada,
 # amplia); equilibrada por defecto.

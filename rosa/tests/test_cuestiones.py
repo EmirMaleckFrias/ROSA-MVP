@@ -265,12 +265,12 @@ def test_cerradas_por_hecho_con_indices_fuera_de_rango_repetidos_y_no_numericos(
 
 def test_podar_desde_respeta_las_de_persona_y_deshace_movimientos_de_rosa(e):
     limite = T0 + 1000
-    antes = CU.registrar(e, _cu("Creada antes del límite por Rosa", ahora=T0 + 100))
-    antes_resuelta = CU.registrar(e, _cu("Creada antes y resuelta después por Rosa", ahora=T0 + 200))
+    antes = CU.registrar(e, _cu("Creada antes del límite por ROSA2018", ahora=T0 + 100))
+    antes_resuelta = CU.registrar(e, _cu("Creada antes y resuelta después por ROSA2018", ahora=T0 + 200))
     antes_persona = CU.registrar(e, _cu("Creada antes y descartada después por una persona", ahora=T0 + 300))
-    despues_rosa = CU.registrar(e, _cu("Creada después del límite por Rosa", ahora=T0 + 2000))
+    despues_rosa = CU.registrar(e, _cu("Creada después del límite por ROSA2018", ahora=T0 + 2000))
     despues_persona = CU.registrar(e, _cu("Creada después del límite por la médica", ahora=T0 + 2100, origen="persona", quien="Dra. Allegri"))
-    despues_rosa_tocada = CU.registrar(e, _cu("Creada después por Rosa y descartada por la médica", ahora=T0 + 2200))
+    despues_rosa_tocada = CU.registrar(e, _cu("Creada después por ROSA2018 y descartada por la médica", ahora=T0 + 2200))
     A.crear_investigacion(e, {"titulo": "T2", "objetivo": "O", "condicionParada": "1 iteración"}, T0, "inv-otra")
     otra_inv = CU.registrar(e, _cu("De otra investigación, después del límite", ahora=T0 + 2300, inv="inv-otra"))
     assert CU.resolver(e, antes_resuelta["id"], "he-podado", "Respondida por el hecho: X", T0 + 2500)
@@ -280,7 +280,7 @@ def test_podar_desde_respeta_las_de_persona_y_deshace_movimientos_de_rosa(e):
     ids = {c["id"] for c in e["cuestiones"]}
     assert despues_rosa["id"] not in ids
     assert {antes["id"], antes_resuelta["id"], antes_persona["id"], despues_persona["id"], despues_rosa_tocada["id"], otra_inv["id"]} <= ids
-    # La resuelta por Rosa después del límite vuelve a abierta y pierde la resolución; el historial queda hasta el límite.
+    # La resuelta por ROSA2018 después del límite vuelve a abierta y pierde la resolución; el historial queda hasta el límite.
     assert antes_resuelta["estado"] == "abierta" and antes_resuelta["resolucion"] is None and antes_resuelta["resueltaEn"] is None
     assert len(antes_resuelta["historial"]) == 1 and antes_resuelta["actualizadaEn"] == limite
     # La descartada por una persona después del límite no se toca.
@@ -346,7 +346,7 @@ def test_registros_antiguos_sin_claves_nuevas_no_rompen(e):
     # Resolver y descartar sobre registros sin historial crean el historial.
     assert CU.resolver(e, "cu-viejo-2", "he-1", "ok", T0 + 5) and e["cuestiones"][1]["historial"][-1]["de"] == "abierta"
     assert CU.reabrir(e, "cu-viejo-3", "otra vez", "Dra. Allegri", T0 + 6) and e["cuestiones"][2]["estado"] == "abierta"
-    # La poda trata el registro sin historial como de Rosa (valor de hoy) y sin creadaEn como antiguo (0).
+    # La poda trata el registro sin historial como de ROSA2018 (valor de hoy) y sin creadaEn como antiguo (0).
     assert CU.podar_desde(e, INV, T0) == 0 and len(e["cuestiones"]) == 3
     e["cuestiones"].append({"id": "cu-viejo-4", "investigacionId": INV, "texto": "Nueva sin historial", "creadaEn": T0 + 999})
     assert CU.podar_desde(e, INV, T0) == 1
@@ -397,17 +397,17 @@ def test_marcas_cortas_en_minuscula_negacion_griegas_y_vacias_con_tilde():
 
 def test_persona_que_repite_deja_huella_y_la_poda_la_respeta(e):
     limite = T0 + 1000
-    # Rosa abre después del límite; la médica vuelve a preguntar lo mismo y se funde.
+    # ROSA2018 abre después del límite; la médica vuelve a preguntar lo mismo y se funde.
     a = CU.registrar(e, _cu("¿La plataforma Simoa mide GFAP igual que Lumipulse?", ahora=T0 + 2000))
     b = CU.registrar(e, _cu("la plataforma simoa mide gfap igual que lumipulse", ahora=T0 + 2100, quien="Dra. Allegri", origen="persona"))
     assert b is a and a["veces"] == 2
     assert a["historial"][-1] == {"fecha": T0 + 2100, "de": "abierta", "a": "abierta", "quien": "Dra. Allegri", "motivo": "Preguntada otra vez"}
     # Antes la fusión no dejaba huella y la poda borraba la pregunta de la médica.
     assert CU.podar_desde(e, INV, limite) == 0 and CU.buscar(e, a["id"]) is a
-    # Cuando repite Rosa (el Killer cada iteración) no se anota nada.
+    # Cuando repite ROSA2018 (el Killer cada iteración) no se anota nada.
     c = CU.registrar(e, _cu("La plataforma Simoa mide GFAP igual que Lumipulse", ahora=T0 + 2200))
     assert c is a and a["veces"] == 3 and len(a["historial"]) == 2
-    # Una creada antes del límite por Rosa que la médica repreguntó después tampoco se toca.
+    # Una creada antes del límite por ROSA2018 que la médica repreguntó después tampoco se toca.
     d = CU.registrar(e, _cu("¿Qué cohorte independiente replica el orden?", ahora=T0 + 100))
     CU.registrar(e, _cu("que cohorte independiente replica el orden", ahora=T0 + 3000, quien="Dra. Allegri", origen="persona"))
     assert CU.podar_desde(e, INV, limite) == 0 and d["estado"] == "abierta" and len(d["historial"]) == 2
@@ -416,7 +416,7 @@ def test_persona_que_repite_deja_huella_y_la_poda_la_respeta(e):
 def test_tope_no_frena_a_la_persona(e):
     for i in range(CU.MAX_CUESTIONES_ABIERTAS):
         assert CU.registrar(e, _cu(f"Cuestión automática número {i} sobre el marcador {i}")) is not None
-    assert CU.registrar_con_motivo(e, _cu("Una más de Rosa que no cabe"))[1] == "tope de 60 abiertas alcanzado"
+    assert CU.registrar_con_motivo(e, _cu("Una más de ROSA2018 que no cabe"))[1] == "tope de 60 abiertas alcanzado"
     res, motivo = CU.registrar_con_motivo(e, _cu("¿Qué pasa con la plataforma de medida?", quien="Dra. Allegri", origen="persona"))
     assert res is not None and motivo == "nueva" and CU.resumen(e, INV)["abiertas"] == 61
     assert CU.etiqueta_origen(e, res) == "persona (Dra. Allegri)"
@@ -554,7 +554,7 @@ def test_singular_cuando_hay_una_sola_abierta_sin_listar(e):
 
 def test_creada_en_ausente_se_toma_del_movimiento_de_apertura(e):
     limite = T0 + 1000
-    # Sin creadaEn pero con apertura (de None) después del límite: se poda, como un hecho de Rosa.
+    # Sin creadaEn pero con apertura (de None) después del límite: se poda, como un hecho de ROSA2018.
     e["cuestiones"].append({"id": "cu-a", "investigacionId": INV, "texto": "Abierta después sin creadaEn", "historial": [{"fecha": T0 + 5000, "de": None, "a": "abierta", "quien": "Rosa"}]})
     # Sin creadaEn y cuyo primer movimiento es una resolución (existía antes): no se le inventa fecha, cuenta como la más antigua.
     e["cuestiones"].append({"id": "cu-b", "investigacionId": INV, "texto": "Resuelta después, nacida quién sabe cuándo", "estado": "resuelta", "historial": [{"fecha": T0 + 5000, "de": "abierta", "a": "resuelta", "quien": "Rosa"}]})
@@ -564,7 +564,7 @@ def test_creada_en_ausente_se_toma_del_movimiento_de_apertura(e):
     assert CU.podar_desde(e, INV, limite) == 1
     ids = [c["id"] for c in e["cuestiones"]]
     assert "cu-a" not in ids and "cu-b" in ids and "cu-c" in ids
-    # La resolución posterior de cu-b se deshace (movimiento de Rosa después del límite): vuelve a abierta.
+    # La resolución posterior de cu-b se deshace (movimiento de ROSA2018 después del límite): vuelve a abierta.
     b = CU.buscar(e, "cu-b")
     assert b["estado"] == "abierta" and b["historial"] == [] and b["resolucion"] is None
 
@@ -592,7 +592,7 @@ def test_poda_que_vuelve_a_resuelta_restaura_la_resolucion_del_limite(e):
     a = CU.registrar(e, _cu("¿Cuál es la edad de inicio?", ahora=T0))
     assert CU.resolver(e, a["id"], "he-1", "Respondida por el hecho: A4", T0 + 50)
     assert a["historial"][-1]["por"] == "he-1"
-    # Rosa reabre y vuelve a resolver después del límite con un hecho que la poda borra.
+    # ROSA2018 reabre y vuelve a resolver después del límite con un hecho que la poda borra.
     assert CU.reabrir(e, a["id"], "se retiró he-1", "Rosa", T0 + 200) and CU.resolver(e, a["id"], "he-podado", "Respondida por el hecho: X", T0 + 300)
     assert CU.podar_desde(e, INV, limite) == 0
     assert a["estado"] == "resuelta" and a["resolucion"] == {"por": "he-1", "motivo": "Respondida por el hecho: A4"} and a["resueltaEn"] == T0 + 50

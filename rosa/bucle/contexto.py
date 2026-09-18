@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from rosa import config
 from rosa import certeza as CERTEZA
 from rosa import indice_semantico, politicas
 
@@ -331,7 +332,7 @@ def revisiones_humanas(h: dict[str, Any]) -> str:
     for r in h["revisionesHumanas"]:
         partes.append(f"{r['quien']}: supuestos cuestionados: {r['supuestosCuestionados']}; literatura que falta: {r['literaturaQueFalta']}; problema experimental: {r['problemaExperimental']}")
     for r in h["revisiones"]:
-        if r["quien"] != "Rosa" and r["nota"]:
+        if r["quien"] != config.QUIEN_ROSA and r["nota"]:
             partes.append(f"{r['quien']} ({r['accion']}): {r['nota']}")
     if h["relevancia"].get("votoHumano"):
         partes.append(f"Voto de relevancia humano: {h['relevancia']['votoHumano']}")
@@ -434,7 +435,7 @@ _SIGLAS_ES_EN = {"LCR": "CSF", "DCL": "MCI", "RM": "MRI", "TEP": "PET", "ARN": "
 
 # Tokens que cumplen la forma de una sigla pero no nombran nada del dominio: la
 # estadística de un enunciado ("HR 1,8; IC 95 %; OR 2,1"), los metadatos de una
-# cita (DOI, PMID), las siglas de la propia Rosa y sus marcos (GRADE, PRISMA) y las
+# cita (DOI, PMID), las siglas de la propia ROSA2018 y sus marcos (GRADE, PRISMA) y las
 # preposiciones y artículos de un título escrito en mayúsculas. Mandarlos a OpenAlex
 # da obras que no tienen nada que ver y, con ellas evaluadas, un "sin precedente"
 # falso (adversario del 17 de septiembre de 2026: "HR IC OR" y "TULO EN MAY").
@@ -753,7 +754,7 @@ def traspaso_de_corrida(e: dict[str, Any], investigacion_id: str) -> str:
     if debilidades:
         lineas.append("Debilidades del panorama no atendidas: " + "; ".join((d.get("texto") or "")[:100] for d in debilidades[:4]))
     if (c.get("arnes") or {}).get("commit"):
-        lineas.append(f"Corrió con Rosa {c['arnes']['commit']}")
+        lineas.append(f"Corrió con ROSA2018 {c['arnes']['commit']}")
     return "\n".join(f"- {l}" for l in lineas)
 
 

@@ -1,4 +1,4 @@
-"""Arranque de Rosa: servidor HTTP, supervisor del bucle y trazas MLflow en
+"""Arranque de ROSA2018: servidor HTTP, supervisor del bucle y trazas MLflow en
 un solo proceso.
 
     uv run python -m rosa.main
@@ -27,7 +27,7 @@ from rosa.modulos.contador import Contador
 from rosa.modulos.firmas import Programas
 from rosa.servidor import crear_app
 
-# Cuánto espera una Rosa nueva a que la anterior suelte rosa.db (S-01): más que
+# Cuánto espera una ROSA2018 nueva a que la anterior suelte rosa.db (S-01): más que
 # la llamada al Killer más lenta vista (113 s), con margen para dos seguidas.
 ESPERA_CERROJO_S = 600.0
 # Cuánto se deja al supervisor terminar el paso en vuelo al apagar antes de
@@ -44,7 +44,7 @@ def configurar_mlflow() -> None:
         mlflow.set_experiment("rosa")
         mlflow.dspy.autolog(log_traces=True, silent=True)
     except Exception as ex:  # noqa: BLE001
-        print(f"MLflow no disponible ({ex}); Rosa sigue sin trazas.", file=sys.stderr)
+        print(f"MLflow no disponible ({ex}); ROSA2018 sigue sin trazas.", file=sys.stderr)
 
 
 async def correr_con_tope(servidor: Any, supervisor: Any, tope_s: float = TOPE_APAGADO_S) -> None:
@@ -53,7 +53,7 @@ async def correr_con_tope(servidor: Any, supervisor: Any, tope_s: float = TOPE_A
     supervisor), al otro se le pide parar y se le deja terminar lo que tenga en
     vuelo hasta `tope_s` segundos; pasado el tope se cancela. Así el Killer que
     está a medias escribe su decisión (que ya se pagó) antes de que este proceso
-    suelte la base, y una Rosa nueva la encuentra en vez de repetirla (S-01)."""
+    suelte la base, y una ROSA2018 nueva la encuentra en vez de repetirla (S-01)."""
     t_servidor = asyncio.ensure_future(servidor.serve())
     t_supervisor = asyncio.ensure_future(supervisor.correr())
     hechas, pendientes = await asyncio.wait({t_servidor, t_supervisor}, return_when=asyncio.FIRST_COMPLETED)
@@ -79,15 +79,15 @@ async def correr_con_tope(servidor: Any, supervisor: Any, tope_s: float = TOPE_A
 
 async def principal() -> None:
     if config.HOST not in ("127.0.0.1", "localhost", "::1") and not config.ROSA_TOKEN:
-        print(f"Rosa no arranca escuchando en {config.HOST} sin ROSA_TOKEN en .env: es la llave de red que toda la API exige (con o sin sesión, también en las rutas de acceso); sin ella cualquier equipo de la red podría gastar en el gateway y alterar el estado.", file=sys.stderr)
+        print(f"ROSA2018 no arranca escuchando en {config.HOST} sin ROSA_TOKEN en .env: es la llave de red que toda la API exige (con o sin sesión, también en las rutas de acceso); sin ella cualquier equipo de la red podría gastar en el gateway y alterar el estado.", file=sys.stderr)
         raise SystemExit(2)
     try:
         # El cerrojo se toma aquí, antes de cargar modelos y antes de que el
-        # supervisor toque nada: si otra Rosa sigue cerrando, esta espera y, si no
+        # supervisor toque nada: si otra ROSA2018 sigue cerrando, esta espera y, si no
         # suelta, no arranca sobre la misma base.
         almacen = Almacen(espera_cerrojo=ESPERA_CERROJO_S)
     except AlmacenOcupado as ex:
-        print(f"Rosa no arranca: {ex}", file=sys.stderr)
+        print(f"ROSA2018 no arranca: {ex}", file=sys.stderr)
         raise SystemExit(3) from None
     if not (getattr(config, "ROSA_ADMIN", None) or os.environ.get("ROSA_ADMIN")):
         print("Aviso: sin ROSA_ADMIN en .env, administra la primera cuenta confirmada por enlace de correo; las cuentas que entran sin verificar no administran.", file=sys.stderr)
@@ -104,9 +104,9 @@ async def principal() -> None:
         almacen.gepa_servicio = gepa
         conectores_base.OBSERVADOR = gepa.observar_conector
         dspy.configure(lm=modelos.cerebro, callbacks=[contador, gepa.trazador])
-    except Exception as ex:  # noqa: BLE001  Rosa arranca aunque el servicio de optimización no pueda
+    except Exception as ex:  # noqa: BLE001  ROSA2018 arranca aunque el servicio de optimización no pueda
         gepa = None
-        print(f"GEPA continuo no arranca ({type(ex).__name__}: {str(ex)[:120]}); Rosa sigue sin optimización automática", file=sys.stderr)
+        print(f"GEPA continuo no arranca ({type(ex).__name__}: {str(ex)[:120]}); ROSA2018 sigue sin optimización automática", file=sys.stderr)
         dspy.configure(lm=modelos.cerebro, callbacks=[contador])
     configurar_mlflow()
 
@@ -127,7 +127,7 @@ async def principal() -> None:
         print(f"Espejo en Convex activo: {config.CONVEX_URL}")
 
     def parar(*_: object) -> None:
-        print(f"Rosa está cerrando: deja terminar el paso en curso (hasta {int(TOPE_APAGADO_S)} s) y suelta la base al salir. No arranques otra Rosa hasta que este proceso termine.", file=sys.stderr, flush=True)
+        print(f"ROSA2018 está cerrando: deja terminar el paso en curso (hasta {int(TOPE_APAGADO_S)} s) y suelta la base al salir. No arranques otra ROSA2018 hasta que este proceso termine.", file=sys.stderr, flush=True)
         supervisor.parar()
         servidor.should_exit = True
 
@@ -140,12 +140,12 @@ async def principal() -> None:
         # así que se cierra igual que con Ctrl+C en vez de seguir pagando llamadas
         # al modelo cuyo resultado no se puede escribir. El almacén lo avisa desde
         # el hilo que detectó el fallo (puede ser uno de DSPy): se salta al bucle.
-        print("Otra Rosa escribió sobre la base: este proceso queda obsoleto y se cierra. Deja una sola Rosa arrancada.", file=sys.stderr, flush=True)
+        print("Otra ROSA2018 escribió sobre la base: este proceso queda obsoleto y se cierra. Deja una sola ROSA2018 arrancada.", file=sys.stderr, flush=True)
         parar()
 
     almacen.al_quedar_obsoleto(lambda: bucle.call_soon_threadsafe(parar_por_obsoleto))
 
-    print(f"Rosa en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
+    print(f"ROSA2018 en http://{config.HOST}:{config.PUERTO}  (base {config.RUTA_BD.name}, versión {almacen.version})")
     tarea_gepa = asyncio.create_task(gepa.correr(), name="gepa-continuo") if gepa else None
     try:
         await correr_con_tope(servidor, supervisor)

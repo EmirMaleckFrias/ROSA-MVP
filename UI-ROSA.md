@@ -1,12 +1,12 @@
-# La interfaz de Rosa: lo que se toma de Claude Science y lo que Rosa añade
+# La interfaz de ROSA2018: lo que se toma de Claude Science y lo que ROSA2018 añade
 
 Escrito el 10 de septiembre de 2026 a partir de la documentación oficial de
 Claude Science (claude.com/docs/claude-science) y de sus reseñas. Claude
-Science es la referencia comercial más cercana a la mitad de Rosa que analiza
+Science es la referencia comercial más cercana a la mitad de ROSA2018 que analiza
 con procedencia y revisor; su interfaz está pensada por gente que ya se
 enfrentó a los mismos problemas, así que conviene copiar la forma y no
 reinventarla. Lo que Claude Science no tiene, el bucle autónomo de días con
-memoria estructurada y ranking de hipótesis, es lo que Rosa añade.
+memoria estructurada y ranking de hipótesis, es lo que ROSA2018 añade.
 
 ## 1. El modelo conceptual de Claude Science, tal como lo documenta Anthropic
 
@@ -99,29 +99,29 @@ memoria estructurada y ranking de hipótesis, es lo que Rosa añade.
 - **Render científico nativo**: estructuras 3D de proteínas, pistas de
   navegador genómico, dibujos de estructuras químicas, tablas y figuras.
 
-## 2. Qué se toma tal cual para Rosa
+## 2. Qué se toma tal cual para ROSA2018
 
-| Patrón de Claude Science | En Rosa |
+| Patrón de Claude Science | En ROSA2018 |
 |---|---|
 | Proyecto con sesiones e instrucciones propias | **Investigación** con corridas; las instrucciones del proyecto son el objetivo, los límites y la condición de parada |
 | Plan propuesto, aprobado, con pasos que se marcan | Cada iteración del bucle propone su plan; los pasos se marcan según avanzan. El RAG ya lo hace con las partes de una pregunta que se ponen en verde |
 | Tarjetas de permiso con alcance (una vez, esta conversación, este proyecto, global) | Idéntico para: acceder a un corpus, gastar un presupuesto grande, lanzar un trabajo largo, llamar a una fuente externa, y sobre todo **aceptar una hipótesis en el modelo de mundo** |
 | Marcadores de pistas paralelas con estado, pulsables para ver la transcripción | Las búsquedas y extracciones paralelas de cada iteración |
 | Artefactos versionados con diff | Informes, tablas de hipótesis, el estado del modelo de mundo por iteración |
-| Procedencia en cinco pestañas, con el registro de ejecución como fuente autoritativa | Idéntico: mensajes, código, registro, entorno, revisión. Rosa añade una sexta: **Fuentes**, los fragmentos citados con su página |
+| Procedencia en cinco pestañas, con el registro de ejecución como fuente autoritativa | Idéntico: mensajes, código, registro, entorno, revisión. ROSA2018 añade una sexta: **Fuentes**, los fragmentos citados con su página |
 | Revisor como tarjetas bajo el mensaje, tres visibles y "mostrar todo", con razonamiento al pulsar, y el agente respondiendo a los hallazgos | Es exactamente la barrera de verificación del RAG: una tarjeta por afirmación bloqueada, y la corrección del redactor como respuesta. Se copia la forma |
 | Criterios propios de revisión que se suman y no debilitan los integrados | Las reglas del proyecto (qué cuenta como relevante, qué cita es aceptable) se añaden al verificador sin poder relajar las deterministas |
 | Comentarios anclados, agrupados y enviados con el siguiente mensaje | La revisión humana de hipótesis: la investigadora marca la frase o la cifra y escribe una línea; se envían juntas |
 | Anotar una figura y pedir el cambio en lenguaje natural | Lo mismo sobre tablas de hipótesis e informes |
 | Bifurcar una sesión para comparar enfoques | Bifurcar una investigación para perseguir dos hipótesis rivales |
 | `@` artefacto, `#` sesión pasada, `/` skill | Idéntico; `#` para citar una iteración anterior |
-| Memoria local, listada, editable, con interruptor | La memoria de Rosa sobre la investigadora y sus preferencias, aparte del modelo de mundo, que es del proyecto |
+| Memoria local, listada, editable, con interruptor | La memoria de ROSA2018 sobre la investigadora y sus preferencias, aparte del modelo de mundo, que es del proyecto |
 | Files con buscador, "ver en contexto", "procedencia", destacar | Idéntico |
 
-## 3. Qué Rosa necesita y Claude Science no tiene
+## 3. Qué ROSA2018 necesita y Claude Science no tiene
 
 1. **Una investigación que corre sin nadie delante.** Claude Science es una
-   sesión con una persona al otro lado. Rosa necesita la vista de una corrida
+   sesión con una persona al otro lado. ROSA2018 necesita la vista de una corrida
    de días: iteración actual, qué está leyendo, qué encontró, gasto, botones
    de pausar, reanudar, dirigir y parar, y **avisos por correo o Slack** cuando
    haya hallazgos que revisar, como hace Kosmos.
@@ -134,7 +134,7 @@ memoria estructurada y ranking de hipótesis, es lo que Rosa añade.
    Co-Scientist.
 4. **El explorador del modelo de mundo.** Qué se sabe, con qué procedencia; qué
    está abierto; qué se descartó y por qué. Claude Science tiene memoria de
-   hechos cortos sobre el usuario; Rosa necesita memoria estructurada sobre la
+   hechos cortos sobre el usuario; ROSA2018 necesita memoria estructurada sobre la
    enfermedad.
 5. **El tablero de calidad.** Métricas del juez, casos aprobados, resultados de
    las optimizaciones de GEPA (MLflow presta su interfaz para esto último).
@@ -143,14 +143,14 @@ memoria estructurada y ranking de hipótesis, es lo que Rosa añade.
 
 ## 4. Sobre el sustrato
 
-Claude Science es una aplicación de escritorio local. Rosa corre en servidores
+Claude Science es una aplicación de escritorio local. ROSA2018 corre en servidores
 propios (y en las Mac) y la usan dos personas hoy y un equipo clínico mañana,
 así que es web. El frontend del RAG (React, Vite, suscripciones reactivas de
 Convex) ya trae los pasos en vivo, el panel de fuentes con página exacta, la
 insignia de verificación por afirmación y la pestaña de Calidad; con la
 reactividad de Convex, una fila que cambia refresca la pantalla sola, que es
 justo lo que pide mirar una corrida de días. Decisión pendiente (de la persona responsable y su
-compañero): si el frontend de Rosa nace del del RAG o de cero. Inferencia mía:
+compañero): si el frontend de ROSA2018 nace del del RAG o de cero. Inferencia mía:
 nacer del del RAG ahorra semanas y ya encarna estas reglas.
 
 ## 5. Fuentes

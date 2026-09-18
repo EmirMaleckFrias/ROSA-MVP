@@ -1,7 +1,7 @@
 """El expediente de una hipotesis como RO-Crate con procedencia W3C PROV.
 
-Mientras el libro de procedencia sea propio de Rosa, verificarlo obliga a
-confiar en Rosa. RO-Crate es el formato estandar para empaquetar datos con
+Mientras el libro de procedencia sea propio de ROSA2018, verificarlo obliga a
+confiar en ROSA2018. RO-Crate es el formato estandar para empaquetar datos con
 sus metadatos (JSON-LD sobre schema.org); su perfil Process Run Crate
 describe ejecuciones (CreateAction con instrumento, entradas, salidas,
 agente y tiempos), y W3C PROV es el vocabulario de procedencia que cualquier
@@ -16,7 +16,7 @@ herramienta entiende. Aqui se arma, sin ningun modelo:
   decisiones.json          las decisiones del Killer y de las personas
   ejecuciones/<id>.py      el codigo de cada analisis, y su resultado en JSON
   sello/<tsa>.tsr          los tokens RFC 3161 del prerregistro (verificables
-                           con openssl sin Rosa)
+                           con openssl sin ROSA2018)
   README.md                que hay y como verificarlo
 
 Los datasets no van dentro (pueden ser datos con acceso controlado): se
@@ -87,8 +87,8 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         return nombre
 
     # Agentes.
-    grafo.append({"@id": "#rosa", "@type": "SoftwareApplication", "name": "Rosa", "description": "IA del proyecto Alzheimer de AI Robotix y el INTEC", "softwareVersion": arnes.get("commit", ""), "identifier": f"firmas {arnes.get('firmas', '')}"})
-    prov["agent"]["rosa:Rosa"] = {"prov:type": {"$": "prov:SoftwareAgent", "type": "xsd:QName"}, "rosa:commit": arnes.get("commit", ""), "rosa:firmas": arnes.get("firmas", "")}
+    grafo.append({"@id": "#rosa", "@type": "SoftwareApplication", "name": "ROSA2018", "description": "IA del proyecto Alzheimer de AI Robotix y el INTEC", "softwareVersion": arnes.get("commit", ""), "identifier": f"firmas {arnes.get('firmas', '')}"})
+    prov["agent"]["rosa:ROSA2018"] = {"prov:type": {"$": "prov:SoftwareAgent", "type": "xsd:QName"}, "rosa:commit": arnes.get("commit", ""), "rosa:firmas": arnes.get("firmas", "")}
     personas = sorted({d.get("quien", "") for d in decisiones if d.get("etapa") == "persona"} - {""})
     for i, p in enumerate(personas):
         grafo.append({"@id": f"#persona-{i}", "@type": "Person", "name": p})
@@ -99,7 +99,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         prov["agent"][f"rosa:modelo-{rol}"] = {"prov:type": {"$": "prov:SoftwareAgent", "type": "xsd:QName"}, "rosa:modelo": modelo, "rosa:rol": rol}
 
     # La hipotesis y su expediente.
-    fichero("hipotesis.json", json.dumps(_limpio(h), ensure_ascii=False, indent=1).encode("utf-8"), "application/json", {"description": f"Hipótesis {h['id']} versión {h.get('version', 1)} tal como está en el estado de Rosa"})
+    fichero("hipotesis.json", json.dumps(_limpio(h), ensure_ascii=False, indent=1).encode("utf-8"), "application/json", {"description": f"Hipótesis {h['id']} versión {h.get('version', 1)} tal como está en el estado de ROSA2018"})
     fichero("dossier.md", texto_dossier(e, h, inv, corrida, ahora).encode("utf-8"), "text/markdown", {"description": "Dossier para el laboratorio, generado sin ningún modelo desde el estado"})
     fichero("decisiones.json", json.dumps(_limpio(decisiones), ensure_ascii=False, indent=1).encode("utf-8"), "application/json")
     buf = io.StringIO()
@@ -145,7 +145,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         img = (run.get("entorno") or {}).get("imagen") or "tabular"
         sb = f"#sandbox-{img}"
         if not any(g["@id"] == sb for g in grafo):
-            grafo.append({"@id": sb, "@type": "SoftwareApplication", "name": f"Sandbox de Rosa ({img})", "description": "Contenedor sin red, con plan congelado y control negativo obligatorio", "softwareVersion": json.dumps((run.get("entorno") or {}).get("paquetes", [])[:12], ensure_ascii=False)})
+            grafo.append({"@id": sb, "@type": "SoftwareApplication", "name": f"Sandbox de ROSA2018 ({img})", "description": "Contenedor sin red, con plan congelado y control negativo obligatorio", "softwareVersion": json.dumps((run.get("entorno") or {}).get("paquetes", [])[:12], ensure_ascii=False)})
         aid = f"#ejecucion-{run['id']}"
         grafo.append({"@id": aid, "@type": "CreateAction", "name": f"Análisis in silico {run['id']} ({run.get('estado')})", "instrument": {"@id": sb}, "agent": {"@id": "#rosa"}, "object": [{"@id": codigo}, {"@id": ds_id}], "result": {"@id": salida}, "startTime": _iso(run.get("inicio")), "endTime": _iso(run.get("fin")), "actionStatus": {"@id": "http://schema.org/CompletedActionStatus" if run.get("estado") == "completado" else "http://schema.org/FailedActionStatus"}, "error": (run.get("error") or "")[:300] or None})
         acciones.append({"@id": aid})
@@ -154,7 +154,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         prov["used"][f"_:u-e{i}a"] = {"prov:activity": act, "prov:entity": f"rosa:{codigo}"}
         prov["used"][f"_:u-e{i}b"] = {"prov:activity": act, "prov:entity": ds_id.replace("#", "rosa:")}
         prov["wasGeneratedBy"][f"_:g-e{i}"] = {"prov:entity": f"rosa:{salida}", "prov:activity": act, "prov:time": _iso(run.get("fin"))}
-        prov["wasAssociatedWith"][f"_:a-e{i}"] = {"prov:activity": act, "prov:agent": "rosa:Rosa"}
+        prov["wasAssociatedWith"][f"_:a-e{i}"] = {"prov:activity": act, "prov:agent": "rosa:ROSA2018"}
         prov["wasDerivedFrom"][f"_:d-e{i}"] = {"prov:generatedEntity": f"rosa:{salida}", "prov:usedEntity": ds_id.replace("#", "rosa:")}
 
     # Prerregistro, su sello externo y el experimento como LabProcess.
@@ -177,13 +177,13 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
 
     # README con la verificacion.
     readme = "\n".join([
-        f"# RO-Crate de la hipótesis {h['id']} (Rosa)",
+        f"# RO-Crate de la hipótesis {h['id']} (ROSA2018)",
         "",
-        f"Generado el {_iso(ahora)} por Rosa {arnes.get('commit', '')} (firmas {arnes.get('firmas', '')}). Investigación: {(inv or {}).get('titulo', '')}.",
+        f"Generado el {_iso(ahora)} por ROSA2018 {arnes.get('commit', '')} (firmas {arnes.get('firmas', '')}). Investigación: {(inv or {}).get('titulo', '')}.",
         "",
         "Contenido: `ro-crate-metadata.json` (RO-Crate 1.2, perfil Process Run Crate 0.6), `prov.json` (W3C PROV-JSON), la hipotesis, el dossier, las decisiones, las fuentes con su riesgo de sesgo, el codigo y el resultado de cada analisis in silico, el prerregistro y sus sellos de tiempo RFC 3161.",
         "",
-        "Cómo verificar sin Rosa:",
+        "Cómo verificar sin ROSA2018:",
         "- Cada fichero lleva su sha256 en `ro-crate-metadata.json`: `shasum -a 256 <fichero>`.",
         "- El sello del prerregistro: `openssl ts -verify -digest <sha256 de prerregistro.md> -in sello/<TSA>.tsr -CAfile <certificado raiz de la TSA>`.",
         "- El crate: `rocrate-validator validate . -p process-run-crate` (paquete roc-validator).",
@@ -197,7 +197,7 @@ def armar(e: dict[str, Any], h: dict[str, Any], ahora: int) -> dict[str, Any]:
         "@context": CONTEXTO,
         "@graph": [
             {"@id": "ro-crate-metadata.json", "@type": "CreativeWork", "about": {"@id": "./"}, "conformsTo": [{"@id": "https://w3id.org/ro/crate/1.2"}, {"@id": PERFIL}]},
-            {"@id": "./", "@type": "Dataset", "name": f"Expediente de la hipótesis: {h['titulo'][:120]}", "description": (h.get("enunciado") or "")[:1000], "datePublished": _iso(ahora), "license": {"@id": "https://spdx.org/licenses/CC-BY-4.0"}, "hasPart": partes, "mentions": acciones, "conformsTo": {"@id": PERFIL}, "creator": {"@id": "#rosa"}, "keywords": ["Alzheimer", "hipotesis", "procedencia", "Rosa"]},
+            {"@id": "./", "@type": "Dataset", "name": f"Expediente de la hipótesis: {h['titulo'][:120]}", "description": (h.get("enunciado") or "")[:1000], "datePublished": _iso(ahora), "license": {"@id": "https://spdx.org/licenses/CC-BY-4.0"}, "hasPart": partes, "mentions": acciones, "conformsTo": {"@id": PERFIL}, "creator": {"@id": "#rosa"}, "keywords": ["Alzheimer", "hipotesis", "procedencia", "ROSA2018"]},
             {"@id": "https://spdx.org/licenses/CC-BY-4.0", "@type": "CreativeWork", "name": "Creative Commons Attribution 4.0", "identifier": "CC-BY-4.0"},
         ] + grafo,
     }

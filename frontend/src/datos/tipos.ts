@@ -1,4 +1,4 @@
-// Tipos del dominio de Rosa, tal como los consume la interfaz.
+// Tipos del dominio de ROSA2018, tal como los consume la interfaz.
 //
 // Son el contrato entre las pantallas y el almacen (almacen.ts). Hoy el
 // almacen sirve datos de muestra y una corrida simulada; cuando entre el
@@ -15,7 +15,7 @@
 // aprobar, tipo de afirmacion, cobertura, partidos, supuestos, panorama,
 // autonomia, datasets, procesos, experimentos) sale de
 // INVESTIGACION-INTERFACES.md: lo que hacen Claude Science, Kosmos,
-// Co-Scientist, Biomni y las herramientas de literatura y Rosa no tenia.
+// Co-Scientist, Biomni y las herramientas de literatura y ROSA2018 no tenia.
 
 export type Id = string;
 
@@ -31,7 +31,7 @@ export interface ConfiguracionObjetivo {
   preferencias: string;
   atributos: string[];
   restricciones: string[];
-  /** Cuánto explora Rosa fuera de la pregunta en cada paso de literatura:
+  /** Cuánto explora ROSA2018 fuera de la pregunta en cada paso de literatura:
    *  enfocada (nada), equilibrada (un tercio de las consultas), amplia (la
    *  mitad). Ausente en investigaciones anteriores: equilibrada. */
   amplitud?: Amplitud;
@@ -242,7 +242,7 @@ export interface Responsables {
 }
 
 /** La mision cientifica (DiseaseMission en ROSA2018; "programme charter" en
- *  el plan completo): lo que fija el marco antes de la primera corrida. Rosa
+ *  el plan completo): lo que fija el marco antes de la primera corrida. ROSA2018
  *  propone valores a partir del objetivo y una persona los aprueba. Lo que
  *  no se sabe queda "sin fijar": un recurso desconocido no se trata como
  *  disponible ni un permiso desconocido como concedido. */
@@ -287,7 +287,7 @@ export interface Investigacion {
   relevancia: string;
   limites: string[];
   condicionParada: string;
-  /** Que parte de la condicion mide Rosa sola (iteraciones, tiempo, llamadas)
+  /** Que parte de la condicion mide ROSA2018 sola (iteraciones, tiempo, llamadas)
    *  y que parte queda para que la decida una persona. Espejo de rosa/parada.py. */
   condicionParadaAutomatizada?: CondicionAutomatizada;
   revisores: string[];
@@ -302,14 +302,14 @@ export interface Investigacion {
   /** La mision estructurada. Falta en investigaciones anteriores a septiembre de 2026. */
   mision?: Mision | null;
   /** Memoria del proyecto: hechos cortos y estables fijados por personas que
-   *  Rosa lee en cada mision (preferencias, restricciones, decisiones). */
+   *  ROSA2018 lee en cada mision (preferencias, restricciones, decisiones). */
   memoria?: MemoriaProyecto[];
   /** Conocimiento tacito del laboratorio, con clase de evidencia propia. */
   conocimientoOperativo?: ConocimientoOperativo[];
   /** Preguntas con herramientas hechas desde la interfaz, con sus consultas. */
   preguntasABases?: PreguntaABases[];
   puertaReproduccion?: PuertaReproduccion;
-  /** Vivero de ideas: propuestas de Rosa que todavía no tienen evidencia para
+  /** Vivero de ideas: propuestas de ROSA2018 que todavía no tienen evidencia para
    *  nacer como hipótesis (certeza baja por regla: dos cohortes distintas).
    *  La acumulación de evidencia las alimenta en cada cierre de iteración. */
   vivero?: Semilla[];
@@ -382,7 +382,7 @@ export interface Gasto {
   segundos: number;
   /** Articulos leidos en toda la corrida. */
   articulosLeidos: number;
-  /** Dólares estimados a partir de los tokens y la tabla de precios de Rosa. */
+  /** Dólares estimados a partir de los tokens y la tabla de precios de ROSA2018. */
   usd?: number;
   /** Dólares facturados por el AI Gateway (campo `cost` de cada llamada, sumado
    *  por el servidor). Es la cifra real; `usd` queda como estimación al lado.
@@ -569,10 +569,10 @@ export interface Corrida {
   esperaHumanaMs?: number;
   /** Milisegundos en que el proceso estuvo suspendido (equipo dormido); tampoco cuentan. */
   pausaMs?: number;
-  /** Que Rosa exacta corrio: commit del codigo, hash de las firmas DSPy y
+  /** Que ROSA2018 exacta corrio: commit del codigo, hash de las firmas DSPy y
    *  programas optimizados cargados. Para auditar cada hipotesis. */
   arnes?: { commit: string; firmas: string; optimizados: string };
-  /** La pregunta concreta de esta campana, formulada por Rosa desde la meta
+  /** La pregunta concreta de esta campana, formulada por ROSA2018 desde la meta
    *  y aprobada con el primer plan. Falta en corridas anteriores. */
   pregunta?: PreguntaCampana | null;
   /** Parada propia de esta corrida, fijada al crearla: horas, iteraciones,
@@ -703,7 +703,7 @@ export interface Iteracion {
   presupuesto: { limite: number; usado: number };
   /** Resumen de una linea al cerrar. */
   resumen: string;
-  /** El mismo cierre contado para quien no es cientifico. Lo escribe Rosa al
+  /** El mismo cierre contado para quien no es cientifico. Lo escribe ROSA2018 al
    *  cerrar; falta en iteraciones abiertas o si el modelo no respondio. */
   resumenLlano?: ResumenLlano | null;
   /** El revisor de registro al cerrar la iteracion. */
@@ -716,7 +716,7 @@ export interface TerminoLlano {
   explicacion: string;
 }
 
-/** Lo que hizo Rosa en una iteracion, con la estructura de un resumen en
+/** Lo que hizo ROSA2018 en una iteracion, con la estructura de un resumen en
  *  lenguaje llano de Cochrane: pregunta, mensajes clave, que buscaba, que
  *  hizo, que encontro, limitaciones, que cambio, que propone, que falta, que
  *  toca, y hasta cuando esta al dia. */
@@ -1126,7 +1126,7 @@ export interface Experimento {
    *  anterior y nuevo, quien y por que. */
   enmiendas?: EnmiendaPrerregistro[];
   /** Sello de tiempo de un tercero (RFC 3161) sobre el texto del prerregistro:
-   *  hash, autoridades que lo firmaron y la hora que firmaron. Se verifica sin Rosa. */
+   *  hash, autoridades que lo firmaron y la hora que firmaron. Se verifica sin ROSA2018. */
   selloExterno?: SelloExterno | null;
   /** Contrato del experimento (rosa/experimento.py): las medidas separadas, cada
    *  una con su criterio de confirmación y de refutación, su control y su unidad.
@@ -1265,7 +1265,7 @@ export interface ResultadoExperimento {
   fecha: number;
   fichero: string | null;
   /** La clase principal del resultado en la taxonomia de retorno (decide la
-   *  accion de aprendizaje), y que hizo Rosa con el. */
+   *  accion de aprendizaje), y que hizo ROSA2018 con el. */
   clasificacion?: ResultadoLaboratorio;
   accionTomada?: string;
   /** Las dimensiones del resultado, que pueden coexistir (plan completo,
@@ -1436,7 +1436,7 @@ export interface Hipotesis {
   /** Identificadores canonicos de lo que nombra la hipotesis (diana, celula, tejido, proceso). */
   entidades?: EntidadCanonica[];
   evidenciaEstadistica: 'fuerte' | 'moderada' | 'debil' | 'no_aplica';
-  /** Por que importa para el objetivo, en dos lineas, escrito por Rosa. */
+  /** Por que importa para el objetivo, en dos lineas, escrito por ROSA2018. */
   relevancia: { justificacion: string; votoHumano: 'alta' | 'media' | 'baja' | null };
   partidos: Partido[];
   revisionesAutomaticas: RevisionAutomatica[];
@@ -1450,11 +1450,11 @@ export interface Hipotesis {
   prerregistradaEn: number;
   /** La hipotesis en tres o cuatro frases para quien no es cientifico. */
   enLlano?: string | null;
-  /** La conclusion provisional de Rosa con la evidencia reunida. Se rehace
+  /** La conclusion provisional de ROSA2018 con la evidencia reunida. Se rehace
    *  al cerrar cada iteracion. No dice si es cierta: dice cuanto la apoya lo
    *  que hay. */
   conclusion?: ConclusionHipotesis | null;
-  /** El contrato minimo (Hypothesis Card). Null si Rosa no pudo rellenarlo. */
+  /** El contrato minimo (Hypothesis Card). Null si ROSA2018 no pudo rellenarlo. */
   tarjeta?: TarjetaHipotesis | null;
   /** Version actual (1 al nacer) y las anteriores. */
   version?: number;
@@ -1544,7 +1544,7 @@ export interface PlanAnalisis {
   correccionMultiplicidad: string;
   umbralEfecto: string;
   criterioNoEvaluable: string;
-  /** Intención completa: qué hará Rosa según salga, y de qué plan viene (réplica o variante). */
+  /** Intención completa: qué hará ROSA2018 según salga, y de qué plan viene (réplica o variante). */
   siConfirma?: string;
   siRefuta?: string;
   siNoEvaluable?: string;
@@ -1637,7 +1637,7 @@ export interface Reproduccion {
 
 export type NivelAprendizaje = 1 | 2 | 3;
 
-/** Un cambio que Rosa aprende, con su nivel: 1 cambia lo que cree de una
+/** Un cambio que ROSA2018 aprende, con su nivel: 1 cambia lo que cree de una
  *  hipotesis (automatico, registrado); 2 cambia como razona (un criterio, un
  *  programa optimizado) y solo se promueve tras compararlo sobre un conjunto
  *  reservado, por una persona; 3 cambia una politica y solo lo hace una
@@ -1755,7 +1755,7 @@ export interface HechoMundo {
   /** Identificadores canonicos de lo que nombra el hecho. */
   entidades?: EntidadCanonica[];
   estado: EstadoHecho;
-  /** Lo que dice la fuente, separado de lo que infiere Rosa; 'laboratorio' si
+  /** Lo que dice la fuente, separado de lo que infiere ROSA2018; 'laboratorio' si
    *  viene de un resultado de laboratorio evaluado contra el prerregistro. */
   origen: 'fuente' | 'inferencia' | 'laboratorio';
   procedencia: ProcedenciaHecho[];
@@ -1823,7 +1823,7 @@ export interface ProcedenciaArtefacto {
   revision: RevisionRegistro | null;
 }
 
-/** El revisor de registro: hallazgos de seis clases al comparar lo que Rosa
+/** El revisor de registro: hallazgos de seis clases al comparar lo que ROSA2018
  *  dijo con lo que el registro prueba. */
 export type ClaseHallazgoRegistro = 'calculo_no_ejecutado' | 'contradiccion_con_registro' | 'cita_sin_soporte' | 'identificador_no_coincide' | 'paso_incompleto' | 'conclusion_no_sigue';
 
@@ -2007,7 +2007,7 @@ export interface EstadoRosa {
   comentarios: Comentario[];
   hechos: HechoMundo[];
   cuestiones?: Cuestion[];
-  /** Lecciones por regla de cada investigación: lo que Rosa aprendió a no repetir. */
+  /** Lecciones por regla de cada investigación: lo que ROSA2018 aprendió a no repetir. */
   lecciones?: Leccion[];
   /** Aristas tipadas del modelo de mundo: base curada del campo y la
    *  relacion X causa Y de cada hipotesis juzgada, con su tipo. */
@@ -2020,7 +2020,7 @@ export interface EstadoRosa {
   conectores?: ConectorCatalogo[];
   /** Permiso por conector: permitir, solo cuando pregunta una persona, o bloquear. */
   permisosConectores?: Record<string, NivelPermisoConector>;
-  /** Las skills de metodo de Rosa (ficheros SKILL.md en rosa/skills/). */
+  /** Las skills de metodo de ROSA2018 (ficheros SKILL.md en rosa/skills/). */
   skills?: SkillCatalogo[];
   artefactos: Artefacto[];
   casos: CasoControl[];
@@ -2033,7 +2033,7 @@ export interface EstadoRosa {
   avisos: Avisos;
   politicaEsperas: PoliticaEsperas;
   eventos: Evento[];
-  /** Ultima vez que la persona abrio Rosa (para "mientras no estabas"). */
+  /** Ultima vez que la persona abrio ROSA2018 (para "mientras no estabas"). */
   ultimaVisita: number | null;
   /** Registros de ROSA2018: decisiones, planes de analisis, ejecuciones,
    *  reproducciones y aprendizaje. Faltan en estados anteriores; el almacen
@@ -2048,7 +2048,7 @@ export interface EstadoRosa {
   /** Las politicas tal como estan en el codigo del servidor (solo lectura). */
   politicas?: Record<string, number | string | Record<string, number> | { nivel: number; nombre: string; definicion: string }[]>;
   /** Registro de datasets del programa (rosa/datasets_programa.py): cada conjunto
-   *  público que Rosa vio en GEO, CELLxGENE, Synapse, ArrayExpress, Expression
+   *  público que ROSA2018 vio en GEO, CELLxGENE, Synapse, ArrayExpress, Expression
    *  Atlas o que subió una persona. Falta en estados anteriores: lista vacía. */
   datasetsPrograma?: DatasetPrograma[];
 }
@@ -2470,6 +2470,6 @@ export interface Alternativa {
   texto: string;
   clase: ClaseAlternativa;
   queLaDistinguiria: string;
-  /** Iteración en la que Rosa la escribió, si se sabe. */
+  /** Iteración en la que ROSA2018 la escribió, si se sabe. */
   iteracion?: number | null;
 }

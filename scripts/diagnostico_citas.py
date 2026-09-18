@@ -63,7 +63,7 @@ def cargar_estado(ruta: Path) -> dict:
     try:
         fila = con.execute("select json from estado where clave = 'rosa'").fetchone()
     except sqlite3.DatabaseError as ex:
-        raise SystemExit(f"{ruta} no es una base de Rosa con la tabla 'estado' ({ex}).")
+        raise SystemExit(f"{ruta} no es una base de ROSA2018 con la tabla 'estado' ({ex}).")
     finally:
         con.close()
     if not fila:

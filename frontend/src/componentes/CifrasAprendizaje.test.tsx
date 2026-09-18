@@ -40,8 +40,8 @@ function vacias(): Cifras {
     acierto: { ...agregado, porFuente: { analisis: { ...agregado }, laboratorio: { ...agregado } }, porNivel: {}, excluidos: { planesSinCongelar: 0, planesSinEjecucionValida: 0, planesReproduccion: 0, laboratorioSinPrerregistro: 0 }, detalle: [], regla: REGLA_A },
     tiempo: { casos: 0, hipotesis: 0, medianaHoras: null, p90Horas: null, porEtapa: {}, abiertasSinDecision: 0, abiertasSinDecisionHoras: null, sinFechaCreacion: 0, decisionesSinFecha: 0, fechasInvertidas: 0, detalle: [], regla: REGLA_T },
     reutilizacion: { hechosHeredados: 0, usados: 0, tasa: null, hipotesisConHerencia: 0, hipotesisVivas: 0, detalle: [], regla: REGLA_R },
-    glosario: { prerregistro: 'lo que Rosa deja por escrito antes de mirar los datos', acierto: "el resultado cayó del lado que el prerregistro llamó 'confirma'", decision: 'cada juicio registrado', mediana: 'el valor del medio', p90: 'el valor por debajo del cual queda el 90 % de los casos', hecho_heredado: 'un hecho copiado de otra investigación' },
-    texto: 'Todavía no hay predicciones prerregistradas (lo que Rosa dejó escrito que esperaba ver antes de mirar los datos) con dirección y resultado evaluable: el acierto no se puede medir.\nNinguna hipótesis tiene todavía una decisión registrada, así que el tiempo hasta decidir no se puede medir.\nEsta investigación no heredó hechos de otra, así que la reutilización no aplica.',
+    glosario: { prerregistro: 'lo que ROSA2018 deja por escrito antes de mirar los datos', acierto: "el resultado cayó del lado que el prerregistro llamó 'confirma'", decision: 'cada juicio registrado', mediana: 'el valor del medio', p90: 'el valor por debajo del cual queda el 90 % de los casos', hecho_heredado: 'un hecho copiado de otra investigación' },
+    texto: 'Todavía no hay predicciones prerregistradas (lo que ROSA2018 dejó escrito que esperaba ver antes de mirar los datos) con dirección y resultado evaluable: el acierto no se puede medir.\nNinguna hipótesis tiene todavía una decisión registrada, así que el tiempo hasta decidir no se puede medir.\nEsta investigación no heredó hechos de otra, así que la reutilización no aplica.',
     iteracion: 1,
   };
 }
@@ -98,7 +98,7 @@ describe('CifrasAprendizaje', () => {
     expect(texto).toContain(REGLA_A);
     // El glosario explica en tooltip los términos del texto, una vez cada uno.
     const t = titulos();
-    expect(t.some((x) => x.includes('lo que Rosa deja por escrito antes de mirar los datos'))).toBe(true);
+    expect(t.some((x) => x.includes('lo que ROSA2018 deja por escrito antes de mirar los datos'))).toBe(true);
     expect(nodo.querySelectorAll('.termino-glosario').length).toBeGreaterThanOrEqual(2);
     expect(todoElTexto()).not.toContain('\u2014');
     expect(todoElTexto()).not.toMatch(SIN_TILDE);

@@ -2,9 +2,9 @@
 // reglas que publica Edison para Kosmos), una propuesta de configuracion
 // (preferencias, atributos, restricciones, como la "research plan
 // configuration" de Co-Scientist) y tres parafrasis para ver, antes de
-// gastar, que primeras tareas propondria Rosa con cada redaccion.
+// gastar, que primeras tareas propondria ROSA2018 con cada redaccion.
 //
-// Todo es heuristico y local: cuando Rosa este conectada, la propuesta la
+// Todo es heuristico y local: cuando ROSA2018 este conectada, la propuesta la
 // hara el cerebro del bucle con el mismo contrato de salida.
 
 import type { ConfiguracionObjetivo } from '../datos/tipos';
@@ -20,7 +20,7 @@ const PREGUNTA_LISTA = /^(lista|enumera|cuales son|que genes|que tejidos|dame)/i
 export function avisosDelObjetivo(objetivo: string, condicionParada: string): AvisoObjetivo[] {
   const o = objetivo.trim();
   const avisos: AvisoObjetivo[] = [];
-  if (o.length < 80) avisos.push({ tipo: 'corto', texto: 'El objetivo es muy corto. Rosa va a perseguir lo primero que parezca significativo: di que enfermedad, que subgrupo y que tipo de hallazgo buscas.' });
+  if (o.length < 80) avisos.push({ tipo: 'corto', texto: 'El objetivo es muy corto. ROSA2018 va a perseguir lo primero que parezca significativo: di que enfermedad, que subgrupo y que tipo de hallazgo buscas.' });
   const oraciones = o.split(/[.;]\s+/).filter((s) => s.trim().length > 0);
   const conectores = (o.match(/\by (?:tambien|ademas)\b|\bpor otro lado\b/gi) ?? []).length;
   if (oraciones.length > 4 || conectores >= 2) avisos.push({ tipo: 'varios_objetivos', texto: 'Parece haber más de un objetivo. Edison recomienda uno solo por corrida: con varios, la búsqueda se reparte y ninguno converge. Considera una investigación por objetivo, o una rama.' });
@@ -28,7 +28,7 @@ export function avisosDelObjetivo(objetivo: string, condicionParada: string): Av
   if (!TERMINOS_DOMINIO.test(o)) avisos.push({ tipo: 'sin_contexto', texto: 'No aparece ningún término del campo (biomarcador, cohorte, mecanismo, diana, gen). Sin contexto experimental y supuestos del campo, las direcciones que salgan serán genéricas.' });
   if (!/comprob|cohorte|medir|biomarcador|ensayo|validar/i.test(o)) avisos.push({ tipo: 'sin_comprobacion', texto: 'No dice como se comprobaría un resultado. el investigador clínico principal necesita el biomarcador o la cohorte: pidelo en el objetivo para que toda hipótesis lo traiga.' });
   if (condicionParada.trim() === '') avisos.push({ tipo: 'sin_parada', texto: 'Sin condición de parada la corrida no sabe cuando terminar y gasta hasta el tope.' });
-  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'Rosa solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con número, no con letras). Lo demás lo decides tu con el botón Detener; añade una cifra si quieres que pare sin ti.' });
+  else if (!paradaMedible(condicionParada)) avisos.push({ tipo: 'parada_no_medible', texto: 'ROSA2018 solo para sola por una cifra: "N iteraciones", "N minutos", "N horas" o "N llamadas" (con número, no con letras). Lo demás lo decides tu con el botón Detener; añade una cifra si quieres que pare sin ti.' });
   return avisos;
 }
 

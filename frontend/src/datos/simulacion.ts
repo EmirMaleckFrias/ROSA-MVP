@@ -288,7 +288,7 @@ function resultadoReplicacion(h: Hipotesis, indice: number): 'sostiene' | 'contr
 export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
   let e = estado;
 
-  // Hipotesis marcadas "no puedo juzgar": Rosa las aclara.
+  // Hipotesis marcadas "no puedo juzgar": ROSA2018 las aclara.
   for (const h of e.hipotesis) {
     if (h.estado === 'aclarando') {
       const ultima = h.revisiones[h.revisiones.length - 1];

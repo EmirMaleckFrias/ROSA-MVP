@@ -209,7 +209,7 @@ def grafo_local(h: dict[str, Any], alternativas: list[str], independencia_pasa: 
 
 
 def relaciones_iniciales() -> list[dict[str, Any]]:
-    """Las aristas tipadas del modelo de mundo con las que arranca Rosa: la
+    """Las aristas tipadas del modelo de mundo con las que arranca ROSA2018: la
     base curada, marcada como tal."""
     return [{"id": f"rel-base-{i}", "investigacionId": None, "de": r["de"], "a": r["a"], "tipo": "base_curada", "contexto": r["contexto"], "hipotesisId": None, "actualizadoEn": 0} for i, r in enumerate(BASE_CURADA)]
 

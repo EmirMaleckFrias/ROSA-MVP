@@ -1,10 +1,10 @@
-# Como presentan sus conclusiones los AI scientists, y que hace Rosa
+# Como presentan sus conclusiones los AI scientists, y que hace ROSA2018
 
 Fecha: 10 de septiembre de 2026. Tres investigaciones sobre fuentes primarias
 (papers, documentacion oficial, codigo, PDFs de las guias): los sistemas de IA
 para ciencia, las herramientas de literatura para medicos, y las convenciones
 de la medicina basada en evidencia para comunicar conclusiones e
-incertidumbre. Al final, lo que se fusiono en Rosa y donde esta en el codigo.
+incertidumbre. Al final, lo que se fusiono en ROSA2018 y donde esta en el codigo.
 
 ## 1. Los sistemas de IA
 
@@ -70,9 +70,9 @@ paper pero no en el producto; el modelo de mundo es interno y opaco.
   direccion, poblacion y el resultado que la refutaria; Nosek separa
   prediccion de postdiccion.
 
-## 3. Lo que se fusiono en Rosa
+## 3. Lo que se fusiono en ROSA2018
 
-Por hipotesis, la **Conclusion de Rosa** (`ConcluirHipotesis` en
+Por hipotesis, la **Conclusion de ROSA2018** (`ConcluirHipotesis` en
 `rosa/modulos/firmas.py`; `_concluir_hipotesis` en `rosa/bucle/corrida.py`;
 `ConclusionDeRosa` en `frontend/src/componentes/EnLlano.tsx`):
 
@@ -97,7 +97,7 @@ estructura del Plain Language Summary: pregunta, mensajes clave, que buscaba,
 que hizo, que encontro, hasta donde fiarse, que cambio, que propone, que
 falta, que te toca, hasta cuando esta al dia, glosario.
 
-Lo que Rosa no hace a proposito: porcentajes de confianza por hipotesis
+Lo que ROSA2018 no hace a proposito: porcentajes de confianza por hipotesis
 (nadie los calibra), recomendaciones clinicas (Cochrane no las hace), "no hay
 ensayos" cuando la fuente no respondio, y "demostrado" o "confirmado" en
 ninguna conclusion.

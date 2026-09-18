@@ -1,7 +1,7 @@
 """Progreso de una corrida: la serie por iteración y la métrica única.
 
 Lo que rekursiv.ai dibuja como "progress across research waves" con su banda
-de fallidos, para Rosa: al cerrar cada iteración se guarda una instantánea
+de fallidos, para ROSA2018: al cerrar cada iteración se guarda una instantánea
 con la certeza de cada hipótesis (peldaño GRADE 0 a 3), cuántos peldaños se
 subieron o bajaron respecto a la instantánea anterior, cuántos hechos e
 hipótesis nacieron, qué falló (pasos, pistas, cierres del Killer,
@@ -46,7 +46,7 @@ def hipotesis_nacidas_en(e: dict[str, Any], investigacion_id: Any, it: dict[str,
     ventana por fecha funciona también hacia atrás, para recalcular la serie
     de progreso de las corridas viejas sin claves privadas.
 
-    `origen`: "rosa" para contar solo las de Rosa (resumen y llano), None para
+    `origen`: "rosa" para contar solo las de ROSA2018 (resumen y llano), None para
     todas (el revisor, que también mira las humanas). Una hipótesis sin
     `creadaEn` legible o una iteración sin `empezadaEn` no cuentan: mejor
     "ninguna" que un recuento inventado."""
@@ -73,7 +73,7 @@ def hipotesis_nacidas_en(e: dict[str, Any], investigacion_id: Any, it: dict[str,
 
 def recalcular_progreso(e: dict[str, Any]) -> int:
     """Recalcula `hipotesisNuevas` de cada instantánea de progreso con
-    `hipotesis_nacidas_en` (nacidas de Rosa en la ventana de su iteración) y
+    `hipotesis_nacidas_en` (nacidas de ROSA2018 en la ventana de su iteración) y
     vuelve a calcular la métrica de las corridas que ya la tenían. Devuelve
     cuántas instantáneas cambiaron. Es idempotente: pasarla dos veces da lo
     mismo, así que puede engancharse a la migración del almacén o correr al
@@ -188,7 +188,7 @@ def metrica_de_corrida(e: dict[str, Any], corrida_id: str) -> dict[str, Any] | N
 
 def aprendizaje_de(e: dict[str, Any], investigacion_id: Any) -> dict[str, Any] | None:
     """Las cifras de aprendizaje de la investigación, recortadas a las tres
-    que van en la métrica: acierto prerregistrado (qué fracción de lo que Rosa
+    que van en la métrica: acierto prerregistrado (qué fracción de lo que ROSA2018
     predijo por escrito salió como dijo), tiempo hasta decisión (horas desde
     que nace una hipótesis hasta que el Killer o una persona la decide) y
     reutilización heredada (cuántos hechos heredados de otra investigación
@@ -229,7 +229,7 @@ def _entero(v: Any) -> int | None:
 def frase_acierto(aprendizaje: Any) -> str:
     """La frase del acierto prerregistrado para la persona: 'acertó 1 de 2
     predicciones prerregistradas (50 %)'. Acierto prerregistrado quiere decir
-    la fracción de predicciones que Rosa dejó escritas antes de ver los datos
+    la fracción de predicciones que ROSA2018 dejó escritas antes de ver los datos
     y que después salieron como dijo. Solo cuando hay tasa (alguna predicción
     con dirección ya evaluada): sin casos se calla, nunca dice '0 %'. Una tasa
     que no sea un número finito (NaN, infinito, texto) también calla, en vez

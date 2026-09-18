@@ -1,4 +1,4 @@
-// Lo que hizo Rosa, contado para quien no es cientifico. Dos piezas: el
+// Lo que hizo ROSA2018, contado para quien no es cientifico. Dos piezas: el
 // resumen en llano de una iteracion (que buscaba, que encontro, que propone,
 // que falta, que te toca, glosario) y la hipotesis en tres frases. Van
 // antes del detalle tecnico, no despues: es lo primero que se lee.
@@ -11,9 +11,9 @@ import { Momento, Seccion } from './piezas';
 export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: ResumenLlano | null | undefined; numero: number; abierta?: boolean }) {
   if (resumen === undefined) return null;
   return (
-    <Seccion titulo={`Qué encontró Rosa en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada término técnico definido al final. El detalle con citas, veredictos y pistas está más abajo.">
+    <Seccion titulo={`Qué encontró ROSA2018 en la iteración ${numero}`} nota="Contado en lenguaje corriente, con cada término técnico definido al final. El detalle con citas, veredictos y pistas está más abajo.">
       {resumen === null ? (
-        <p className="meta">Rosa no pudo escribir el resumen de esta iteración (el modelo no respondió). El resumen técnico está en las iteraciones anteriores.</p>
+        <p className="meta">ROSA2018 no pudo escribir el resumen de esta iteración (el modelo no respondió). El resumen técnico está en las iteraciones anteriores.</p>
       ) : (
         <div className={`llano ${abierta ? '' : 'llano-compacto'}`}>
           {resumen.titulo && <p className="llano-pregunta">{resumen.titulo}</p>}
@@ -28,7 +28,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
             </div>
           )}
           <div className="llano-bloque">
-            <h4>Qué quería averiguar Rosa</h4>
+            <h4>Qué quería averiguar ROSA2018</h4>
             <p>{resumen.queBuscaba}</p>
           </div>
           {resumen.queHizo && (
@@ -81,7 +81,7 @@ export function ResumenEnLlano({ resumen, numero, abierta = true }: { resumen: R
           </div>
           {typeof resumen.aprendizaje === 'string' && resumen.aprendizaje.trim() && (
             <div className="llano-bloque">
-              <h4>Qué aprendió Rosa hasta aquí</h4>
+              <h4>Qué aprendió ROSA2018 hasta aquí</h4>
               <p>{resumen.aprendizaje}</p>
             </div>
           )}
@@ -119,21 +119,21 @@ export function HipotesisEnLlano({ texto }: { texto: string | null | undefined }
   return (
     <div className="llano llano-hipotesis">
       <h4>En pocas palabras</h4>
-      {texto === null ? <p className="meta">Rosa todavía no escribio el resumen de esta hipótesis.</p> : <p>{texto}</p>}
+      {texto === null ? <p className="meta">ROSA2018 todavía no escribio el resumen de esta hipótesis.</p> : <p>{texto}</p>}
     </div>
   );
 }
 
 
-/** La conclusion provisional de Rosa: cuanto apoya la evidencia reunida a la
+/** La conclusion provisional de ROSA2018: cuanto apoya la evidencia reunida a la
  *  hipotesis, que la apoya, que la debilita, de que depende y que la
  *  cambiaria. Distinta de la prueba, que es un experimento. */
 export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: ConclusionHipotesis | null | undefined; ahora: number }) {
   if (conclusion === undefined) return null;
   if (conclusion === null) {
     return (
-      <Seccion titulo="Conclusión de Rosa">
-        <p className="meta">Rosa todavía no escribió su conclusión sobre esta hipótesis. La escribe al crearla y la rehace al cerrar cada iteración con la evidencia que le haya llegado desde entonces.</p>
+      <Seccion titulo="Conclusión de ROSA2018">
+        <p className="meta">ROSA2018 todavía no escribió su conclusión sobre esta hipótesis. La escribe al crearla y la rehace al cerrar cada iteración con la evidencia que le haya llegado desde entonces.</p>
       </Seccion>
     );
   }
@@ -142,8 +142,8 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
   const b = conclusion.base;
   return (
     <Seccion
-      titulo="Conclusión de Rosa"
-      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración: lo que Rosa lee después de nacer la hipótesis se le suma (a favor, indirecto o en contra) y la certeza se recalcula."
+      titulo="Conclusión de ROSA2018"
+      nota="Dos cosas distintas, como en GRADE: cuanto se puede fiar uno de la evidencia reunida (certeza) y hacia donde apunta (dirección). Ninguna dice si la hipótesis es cierta: eso lo decide un experimento. Se rehace al cerrar cada iteración: lo que ROSA2018 lee después de nacer la hipótesis se le suma (a favor, indirecto o en contra) y la certeza se recalcula."
       acciones={
         <span className="meta">
           Iteración {conclusion.iteracion} · <Momento t={conclusion.fecha} ahora={ahora} />

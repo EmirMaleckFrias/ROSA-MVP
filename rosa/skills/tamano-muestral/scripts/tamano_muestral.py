@@ -1,6 +1,6 @@
 """Tamano muestral para dos grupos, continuo y binario. Adaptado del
 calculador de la skill clinical-trial-protocol (Anthropic, Apache-2.0) para
-Rosa: sin argparse, sin escritura de ficheros, resultados como diccionarios.
+ROSA2018: sin argparse, sin escritura de ficheros, resultados como diccionarios.
 """
 
 from __future__ import annotations

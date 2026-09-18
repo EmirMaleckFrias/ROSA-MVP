@@ -2,7 +2,7 @@
 // iteración cerrada de cada corrida, en orden, con los peldaños de certeza
 // (0 muy baja, 1 baja, 2 moderada, 3 alta) de las hipótesis vivas, los hechos
 // acumulados, lo que falló y las marcas de cambio de arnés (otra versión de
-// Rosa). Espejo de rosa/progreso.py; puro y probado.
+// ROSA2018). Espejo de rosa/progreso.py; puro y probado.
 import type { Corrida, ProgresoIteracion } from '../datos/tipos';
 
 export interface PuntoProgreso {

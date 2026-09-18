@@ -291,7 +291,7 @@ def test_texto_cifras_en_llano_con_tildes():
     assert lineas[1].startswith("Desde que nace una hipótesis hasta su primera decisión de cada etapa pasan 2,0 horas de mediana (el valor del medio) y 3,0 horas en el 90 % de los casos, sobre 2 decisiones (killer 1: 1,0 horas; persona: 3,0 horas).")
     assert "1 hipótesis viva lleva 30 minutos de mediana sin ninguna decisión" in lineas[1]
     assert lineas[2] == "Esta investigación no heredó hechos de otra, así que la reutilización no aplica."
-    assert res["glosario"]["prerregistro"].startswith("lo que Rosa deja por escrito")
+    assert res["glosario"]["prerregistro"].startswith("lo que ROSA2018 deja por escrito")
     # Singulares y días.
     e2 = _estado("inv-s")
     hs = _hip(e2, "inv-s", ahora=0)

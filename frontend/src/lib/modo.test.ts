@@ -4,7 +4,7 @@ import { primeraFrase } from './modo';
 
 describe('modo sencillo', () => {
   it('la primera frase de una nota larga', () => {
-    expect(primeraFrase('Rosa propone; una persona aprueba. Debajo, las areas que comparo.')).toBe('Rosa propone; una persona aprueba.');
+    expect(primeraFrase('ROSA2018 propone; una persona aprueba. Debajo, las areas que comparo.')).toBe('ROSA2018 propone; una persona aprueba.');
     expect(primeraFrase('Sin punto final')).toBe('Sin punto final');
     expect(primeraFrase('Se aprueba con el primer plan. Despues se corrige.')).toBe('Se aprueba con el primer plan.');
   });

@@ -1,5 +1,5 @@
 """Espejo del estado en Convex (base de datos en la nube con sincronizacion
-en tiempo real). SQLite en el servidor de Rosa sigue siendo la fuente de
+en tiempo real). SQLite en el servidor de ROSA2018 sigue siendo la fuente de
 verdad y el unico escritor; aqui se copia cada entidad publica del estado
 (sin claves privadas `_`) a una tabla `entidades` de Convex, una fila por
 entidad, y se actualiza solo lo que cambio (por hash). Sirve para leer el
@@ -11,7 +11,7 @@ cambio espera unos segundos (para agrupar rafagas) y manda a Convex, por
 lotes, las entidades cuyo hash cambio y los ids que desaparecieron, con la
 version del estado. La clave de despliegue y la URL vienen del entorno
 (`CONVEX_DEPLOY_KEY`, `CONVEX_URL`) y nunca se escriben en el estado ni en
-los registros. Sin clave, el espejo esta apagado y Rosa funciona igual.
+los registros. Sin clave, el espejo esta apagado y ROSA2018 funciona igual.
 
 Limites de Convex que se respetan: un documento pesa como maximo 1 MiB (las
 entidades mayores se guardan recortadas con `truncado: true`), y una
@@ -64,7 +64,7 @@ def _recortar(datos: dict[str, Any], bytes_: int) -> dict[str, Any]:
     queda solo la identidad con la nota. Siempre devuelve algo bajo el límite."""
     for texto_max, lista_max in ((20_000, 60), (4_000, 30), (800, 12), (200, 5)):
         out = _recortar_valor(datos, texto_max, lista_max)
-        out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el límite de Convex; el original está en el servidor de Rosa"}
+        out["_truncadoEspejo"] = {"bytesOriginales": bytes_, "nota": "Entidad mayor que el límite de Convex; el original está en el servidor de ROSA2018"}
         if len(json.dumps(out, ensure_ascii=False, default=str).encode("utf-8")) <= MAX_BYTES_DOC:
             return out
     return {k: datos.get(k) for k in ("id", "investigacionId", "titulo", "nombre", "estado") if k in datos} | {"_truncadoEspejo": {"bytesOriginales": bytes_, "nota": "Entidad demasiado grande para el espejo incluso recortada"}}

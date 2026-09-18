@@ -2,7 +2,7 @@
 // devolvio vacio con content-filter, una clave de conector caducada. Claude
 // Science lo resolvio en agosto de 2026 con un aviso corto y cambio de modelo
 // en un clic, y con "Sign-in expired, Reconnect". Aqui es una tarjeta con la
-// alternativa que Rosa propone y un campo para dar otra.
+// alternativa que ROSA2018 propone y un campo para dar otra.
 
 import { useState } from 'react';
 import type { Incidencia } from '../datos/tipos';

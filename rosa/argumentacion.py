@@ -169,7 +169,7 @@ def conflictos_entre(ids: list[str], ataques: list[Ataque]) -> dict[str, list[st
 
 
 # ---------------------------------------------------------------------------
-# Sobre el estado de Rosa
+# Sobre el estado de ROSA2018
 # ---------------------------------------------------------------------------
 
 

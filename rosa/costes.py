@@ -1,12 +1,12 @@
 """Coste por decisión, no por llamada.
 
-Rosa registra el coste de cada llamada al modelo (tabla `llamadas`): es el
+ROSA2018 registra el coste de cada llamada al modelo (tabla `llamadas`): es el
 dato de ingeniería. Lo que decide presupuestos es el agregado: cuanto cuesta
 una hipótesis que llega al dossier, cuanto una decisión que una persona
 tomo, y como evoluciona esa cifra por iteración. El tiempo de revisión
 humana entra en el coste (segundos de revisión por decisión, valorados con
 una tarifa declarada en políticas): sin eso la comparación con investigar
-sin Rosa no es honesta. Todo es aritmetica sobre el estado y el registro de
+sin ROSA2018 no es honesta. Todo es aritmetica sobre el estado y el registro de
 llamadas; ningún modelo interviene.
 """
 
@@ -84,5 +84,5 @@ def costes_de_investigacion(e: dict[str, Any], investigacion_id: str, llamadas_p
         "segundosMediosPorDecision": round(segundos_revision / len(de_persona), 1) if de_persona else None,
         "porIteracion": por_iteracion,
         "tendenciaUsdPorIteracion": tendencia,
-        "nota": "El coste total suma los dólares del modelo (tokens por la tabla de precios de Rosa), los de Exa (búsquedas semánticas y vigilancia) y las horas de revisión humana valoradas a la tarifa declarada en políticas. Las cifras por dossier, candidata y decisión dividen ese total.",
+        "nota": "El coste total suma los dólares del modelo (tokens por la tabla de precios de ROSA2018), los de Exa (búsquedas semánticas y vigilancia) y las horas de revisión humana valoradas a la tarifa declarada en políticas. Las cifras por dossier, candidata y decisión dividen ese total.",
     }

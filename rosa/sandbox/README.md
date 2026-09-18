@@ -1,4 +1,4 @@
-# Sandbox de Rosa
+# Sandbox de ROSA2018
 
 Imagen Docker (o Apple `container`) donde corren los analisis in silico.
 Se construye sola la primera vez que hace falta (`docker build -t

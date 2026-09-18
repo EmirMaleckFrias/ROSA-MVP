@@ -5,12 +5,12 @@ Un reranker recibe una pregunta y N documentos y devuelve una puntuación de
 pertinencia por documento en una sola petición. Es un modelo pequeño y
 barato (Cohere rerank-v3.5 sale a 0 USD por documento en el gateway;
 Voyage rerank-2.5-lite a 0,02 USD por millón de tokens), y va por el mismo
-gateway que el resto de modelos de Rosa, como exige la regla del proyecto.
+gateway que el resto de modelos de ROSA2018, como exige la regla del proyecto.
 
 Dónde se usa: en el cribado de literatura (de hasta 30 candidatos por
 consulta, Sonnet solo ve los 12 mejores; el resto queda registrado como
 excluido con su pertinencia) y en la novedad (los candidatos de OpenAlex y
-Exa se ordenan antes de juzgarlos). Si el reranker no responde, Rosa sigue
+Exa se ordenan antes de juzgarlos). Si el reranker no responde, ROSA2018 sigue
 como antes: cribado completo con el modelo. Nunca decide él solo: solo
 ordena y corta; la puntuación final sigue siendo del programa de relevancia.
 

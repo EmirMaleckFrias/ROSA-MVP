@@ -190,3 +190,16 @@ describe('la escena del lienzo', () => {
     expect(opacidadEtiqueta({ tipo: 'fuente' } as NodoArbol, 1, true, false)).toBe(0.9);
   });
 });
+
+describe('el radio de una hipótesis crece con su peso', () => {
+  it('una hipótesis de certeza alta se dibuja casi el doble que una de muy baja, y los demás tipos siguen acotados', () => {
+    const nodo = (tipo: string, peso: number) => ({ id: 'x', tipo, etiqueta: '', peso, iteracion: 1 }) as unknown as Parameters<typeof radioBase>[0];
+    const muyBaja = radioBase(nodo('hipotesis', 1));
+    const alta = radioBase(nodo('hipotesis', 3));
+    const candidataAlta = radioBase(nodo('hipotesis', 3.85));
+    expect(alta / muyBaja).toBeGreaterThan(1.6);
+    expect(candidataAlta).toBeGreaterThan(alta);
+    expect(radioBase(nodo('hipotesis', 99))).toBe(candidataAlta);
+    expect(radioBase(nodo('hecho', 5))).toBe(radioBase(nodo('hecho', 1.4)));
+  });
+});

@@ -68,7 +68,7 @@ def bloqueos_de(e: dict[str, Any], h: dict[str, Any]) -> list[str]:
         b.append(_bloqueo("revision_registro_abierta"))
     # Propagación de dependencias (rosa/dependencias.py): algo de lo que la hipótesis
     # depende cambió (una fuente se retractó, un hecho fue sustituido o contradicho) y
-    # Rosa o una persona todavía no la revisó. Se levanta al volver a concluirla.
+    # ROSA2018 o una persona todavía no la revisó. Se levanta al volver a concluirla.
     if h.get("pendienteRevision"):
         b.append(_bloqueo("dependencia_pendiente"))
     return b

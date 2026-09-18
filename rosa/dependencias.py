@@ -1,6 +1,6 @@
 """Propagación de dependencias entre fuentes, afirmaciones, hechos, hipótesis y planes.
 
-Qué resuelve. En el estado de Rosa cada objeto guarda de qué depende, pero
+Qué resuelve. En el estado de ROSA2018 cada objeto guarda de qué depende, pero
 cada uno a su manera y nadie recorre el camino inverso:
 
 - una hipótesis se apoya en fuentes (`procedencia.fuentes[].id`, con su DOI) y
@@ -167,7 +167,7 @@ def _iso(ahora: int) -> str:
 
 
 def _fecha_corta(t: Any) -> str:
-    """Día y mes (16/09), en la hora local del servidor como el resto de Rosa."""
+    """Día y mes (16/09), en la hora local del servidor como el resto de ROSA2018."""
     try:
         return datetime.fromtimestamp(int(t) / 1000).strftime("%d/%m")
     except (TypeError, ValueError, OverflowError, OSError):
@@ -486,7 +486,7 @@ def marcar_pendientes(e: Estado, objetivos: dict[str, list[str]] | None, causa: 
 
 
 def atender_pendiente(e: Estado, tipo: str, id_: str, quien: str, nota: str, ahora: int) -> bool:
-    """Una persona (o Rosa) da por atendida la marca: `pendienteRevision` queda
+    """Una persona (o ROSA2018) da por atendida la marca: `pendienteRevision` queda
     en None (con sus anteriores), que es como la deja la plantilla. En una
     hipótesis queda una línea en `procedencia.registro`; en un hecho, un
     movimiento en `historial` (sin tocar `actualizadoEn`); en un plan, nada

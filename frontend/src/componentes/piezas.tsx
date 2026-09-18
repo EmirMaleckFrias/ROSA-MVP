@@ -51,7 +51,7 @@ interface SeccionProps {
   id?: string;
 }
 
-/** Toda seccion de Rosa entra suavemente cuando aparece en pantalla (una
+/** Toda seccion de ROSA2018 entra suavemente cuando aparece en pantalla (una
  *  sola vez). En modo sencillo, la nota se reduce a su primera frase y el
  *  boton "?" abre la explicacion completa con las definiciones de los
  *  terminos tecnicos que nombra; las secciones de detalle quedan plegadas
@@ -202,7 +202,7 @@ export function AvisoMuestra({ conexion }: { conexion: EstadoConexion }) {
     <div className="aviso-muestra" role="status">
       <IconAlert size={14} />
       <span>
-        Datos de muestra: Rosa todavia no esta conectada. La corrida que ves avanza con una simulacion para poder juzgar la interfaz. Nada de lo
+        Datos de muestra: ROSA2018 todavia no esta conectada. La corrida que ves avanza con una simulacion para poder juzgar la interfaz. Nada de lo
         que hagas aqui llega a un servidor.
       </span>
     </div>
@@ -222,7 +222,7 @@ export function Barra({ fraccion, marcas = [], tono }: { fraccion: number; marca
   );
 }
 
-/** Descarga un texto como fichero. Rosa es una app propia: las descargas
+/** Descarga un texto como fichero. ROSA2018 es una app propia: las descargas
  *  funcionan; el nombre lleva la fecha para no pisar versiones. */
 export function descargar(nombre: string, contenido: string, tipo = 'text/plain;charset=utf-8'): void {
   const blob = new Blob([contenido], { type: tipo });

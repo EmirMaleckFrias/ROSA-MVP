@@ -1,6 +1,6 @@
-# Rosa
+# ROSA2018
 
-Este repositorio es Rosa, la IA del proyecto Alzheimer de AI Robotix y el
+Este repositorio es ROSA2018, la IA del proyecto Alzheimer de AI Robotix y el
 INTEC. Antes de tocar nada, leer en este orden:
 
 1. `TRASPASO.md`: decisiones tomadas, reglas de trabajo de la persona responsable, modelos
@@ -9,10 +9,10 @@ INTEC. Antes de tocar nada, leer en este orden:
    fuentes de datos y sus APIs, DSPy y GEPA con la API exacta, evaluacion,
    marco legal dominicano).
 3. `UI-ROSA.md`: la interfaz, patron por patron, tomando Claude Science como
-   referencia y a�adiendo lo que Rosa necesita y aquella no tiene.
+   referencia y a�adiendo lo que ROSA2018 necesita y aquella no tiene.
 4. `INVESTIGACION-INTERFACES.md`: lo que hacen Claude Science, Kosmos,
    Co-Scientist, Biomni y las herramientas de literatura, y la lista
-   priorizada de lo que le falta al frontend de Rosa.
+   priorizada de lo que le falta al frontend de ROSA2018.
 5. `INVESTIGACION-BACKEND.md`: los AI scientists estudiados a nivel de codigo
    (Kosmos, Co-Scientist, PaperQA, Robin, Agent Laboratory, Denario, Curie,
    SciAgents, ResearchAgent, HypoGeniC, Biomni), las APIs de las fuentes con
@@ -20,19 +20,19 @@ INTEC. Antes de tocar nada, leer en este orden:
 6. `INVESTIGACION-CONCLUSIONES.md`: como presentan sus conclusiones los AI
    scientists y las herramientas de literatura, las convenciones de la
    medicina basada en evidencia (GRADE, Cochrane, AAN, IPCC, ICD 203) y lo que
-   se fusiono en la "Conclusion de Rosa" y el resumen de cada iteracion.
+   se fusiono en la "Conclusion de ROSA2018" y el resumen de cada iteracion.
 7. `ROSA2018_SYSTEM_PLAN.md`: el plan completo del sistema (10 de septiembre
    de 2026), tal como lo mando la persona responsable del programa. Es el
    documento que manda sobre la arquitectura; el concepto del MVP es su
    primer demostrador.
 8. `PLAN-ROSA2018.md`: los dos documentos del programa (el concepto del MVP
    del 31 de octubre y el plan completo del sistema en etapas A a G) mapeados
-   a lo que Rosa tiene y le falta, con el orden de trabajo. Manda sobre el
+   a lo que ROSA2018 tiene y le falta, con el orden de trabajo. Manda sobre el
    alcance.
 9. `INVESTIGACION-ROSA2018.md`: los cuatro informes (Killer, procedencia,
    ejecucion in silico, priorizacion y aprendizaje) que sostienen las
-   decisiones de dise�o de ROSA2018 en Rosa, con URL por afirmacion.
-10. `README.md`: como arrancar Rosa y como se investiga con ella.
+   decisiones de dise�o de ROSA2018 en ROSA2018, con URL por afirmacion.
+10. `README.md`: como arrancar ROSA2018 y como se investiga con ella.
 
 `casos_evaluacion.jsonl` son los 17 casos de control del RAG anterior, todos
 sin aprobar por un humano.
@@ -66,7 +66,7 @@ sin aprobar por un humano.
   `rosa/sintetico.py` (ensayo en seco), `rosa/ontologias.py` (entidades
   canonicas), `rosa/costes.py`, `rosa/rocrate.py` (RO-Crate con PROV),
   `rosa/parada.py`. Ver `INVESTIGACION-AI-SCIENTIST-2026.md`.
-- `frontend/`: la interfaz web de Rosa (React, Vite, TypeScript). Ver su
+- `frontend/`: la interfaz web de ROSA2018 (React, Vite, TypeScript). Ver su
   `README.md`. `frontend/src/datos/almacen.ts` prueba el servidor al arrancar
   y, si no responde, cae a los datos de muestra con la corrida simulada.
 - Los datos de trabajo de una corrida (fuentes con fragmentos, afirmaciones
@@ -76,7 +76,7 @@ sin aprobar por un humano.
 ## Reglas que no se negocian
 
 - Modelos solo por el AI Gateway de Vercel, nunca por APIs directas. El
-  coste por token no es criterio. Claude Fable 5.1 queda fuera de Rosa
+  coste por token no es criterio. Claude Fable 5.1 queda fuera de ROSA2018
   (filtros de doble uso en biologia; ver `TRASPASO.md` 2.3).
 - La persona usuaria es medica, no programadora: botones y estado visible,
   en espa�ol, nunca variables de entorno ni terminal.
@@ -97,7 +97,7 @@ sin aprobar por un humano.
 - Commit y push al cerrar cada bloque de trabajo, sin esperar a que se pida
   (regla de Emir, 11 de septiembre de 2026), con los tests pasando y el
   escaneo de secretos limpio. Remoto `origin`, rama `main`.
-- La marca grafica de Rosa es el arbol del Alzheimer Project; no se usa el
+- La marca grafica de ROSA2018 es el arbol del Alzheimer Project; no se usa el
   logo de AI Robotix.
 - Intentar romper el propio cambio antes de cerrarlo: test adversarial,
   camino de punta a punta, y preguntarse que asume el cambio que antes no.
@@ -105,10 +105,10 @@ sin aprobar por un humano.
   tiempo agotado no es "sin ensayos".
 - Al modelo de mundo solo entran afirmaciones sostenidas o parciales; las
   hipotesis nuevas entran a la cola como propuestas y las decide una persona.
-- Mientras se construye algo, se explica como funciona: quien opera Rosa es
+- Mientras se construye algo, se explica como funciona: quien opera ROSA2018 es
   el ingeniero de IA que la construye, no la medica; necesita entender la
   ingenieria y el dominio, con los conceptos por su nombre y su definicion.
-- Las conclusiones de Rosa siguen GRADE: certeza y direccion por separado,
+- Las conclusiones de ROSA2018 siguen GRADE: certeza y direccion por separado,
   factores que bajan o suben la certeza a la vista, frases plantilla por nivel
   generadas por regla, sin porcentajes de confianza inventados, sin
   "demostrado" ni "confirmado", sin recomendaciones clinicas.

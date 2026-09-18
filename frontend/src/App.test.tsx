@@ -12,7 +12,7 @@ import { estadoDeMuestra } from './datos/muestra';
 describe('rework de la interfaz', () => {
   it('la aplicacion se renderiza con los datos de muestra', () => {
     const html = renderToString(<App />);
-    expect(html).toContain('Rosa');
+    expect(html).toContain('ROSA2018');
     expect(html.length).toBeGreaterThan(2000);
   });
   it('el hilo del proceso deriva etapas del estado sin inventar', () => {

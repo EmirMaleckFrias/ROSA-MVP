@@ -1,4 +1,4 @@
-# Las herramientas de Claude Science y como aplicarlas a Rosa
+# Las herramientas de Claude Science y como aplicarlas a ROSA2018
 
 Investigacion del 11 de septiembre de 2026. Fuentes primarias: la
 documentacion oficial de Claude Science (claude.com/docs/claude-science), el
@@ -109,7 +109,7 @@ De la pagina oficial y del repositorio.
 | instrument-data-to-allotrope | Convierte salidas de instrumentos a Allotrope Simple Model | `skills/instrument-data-to-allotrope/` |
 | Skills destacadas del producto | Revision de literatura, dossier de indicacion, y skills por modelo: AlphaFold2, Boltz-2, Chai-1, ESMFold2, OpenFold3, ProteinMPNN, DiffDock, ESM-2, Evo 2, Borzoi, scGPT, scvi-tools | Settings > Skills |
 
-### 1.4 Las reglas del prompt del sistema que importan para Rosa
+### 1.4 Las reglas del prompt del sistema que importan para ROSA2018
 
 Del fragmento "Scientific work" y de la skill general. Son reglas de
 comportamiento, no herramientas, pero son lo que hace que las herramientas
@@ -150,7 +150,7 @@ claude.com/connectors y de los `plugin.json` de `anthropics/life-sciences` y
 `anthropics/healthcare`. Los servidores de Anthropic (`pubmed.mcp.claude.com`,
 `hcls.mcp.claude.com`) no tienen codigo publico; cuatro de ellos (bioRxiv,
 ChEMBL, Clinical Trials, ICD-10) los construyo una consultora y se migraron
-al dominio de Anthropic. Estos nombres son la especificacion de lo que Rosa
+al dominio de Anthropic. Estos nombres son la especificacion de lo que ROSA2018
 tiene que ofrecer en su propia capa de conectores.
 
 | Conector | Tools |
@@ -179,7 +179,7 @@ Catalogue, InterPro, PDBe, AlphaFold, ArrayExpress, PRIDE, ChEBI, ChEMBL),
 PubChem), `gtexportal.org`, `string-db.org`, `*.proteinatlas.org`,
 `rcsb.org`, `api.platform.opentargets.org`, `civicdb.org`,
 `search.clinicalgenome.org`, `api.fda.gov`, `api.openalex.org` (clave
-gratuita obligatoria desde julio de 2026; Rosa ya la envia), `rest.kegg.jp`,
+gratuita obligatoria desde julio de 2026; ROSA2018 ya la envia), `rest.kegg.jp`,
 `cellguide.cellxgene.cziscience.com`.
 
 ### 1.6 Cronologia
@@ -194,9 +194,9 @@ gratuita obligatoria desde julio de 2026; Rosa ya la envia), `rest.kegg.jp`,
 | 2026-08-27 | Plan Team para cientificos; Claude Science 0.1.41 con hallazgos del revisor como tarjetas |
 | 2026-09-10 | Claude Science 0.1.47, Windows |
 
-## 2. Lo que Rosa ya tiene, por herramienta
+## 2. Lo que ROSA2018 ya tiene, por herramienta
 
-| Claude Science | Rosa hoy | Estado |
+| Claude Science | ROSA2018 hoy | Estado |
 | --- | --- | --- |
 | Connector (dispatcher hacia MCP) | Siete fuentes con cliente propio en `rosa/fuentes/`: PubMed (E-utilities), Europe PMC (texto completo JATS), OpenAlex, Crossref, Unpaywall, ClinicalTrials.gov v2, Open Targets (asociacion con Alzheimer); PDF por paginas. Las llama el bucle en pasos fijos, no las elige el modelo | Parcial: faltan las bases de genes, variantes, expresion, proteinas, quimica y ontologias; y no hay capa de herramienta que el modelo pueda llamar con argumentos |
 | Registro de consultas | Cada fuente guarda `consultas` y la afirmacion su localizador; la fecha de consulta no se guarda por consulta | Parcial |
@@ -204,7 +204,7 @@ gratuita obligatoria desde julio de 2026; Rosa ya la envia), `rest.kegg.jp`,
 | Environment | Una imagen `rosa-sandbox:1`; no hay entornos por proyecto ni instalacion de paquetes | No |
 | R | No hay | No |
 | Artifact con procedencia | Artefactos inmutables (prerregistro, dossier, informes) con iteracion y fecha; los analisis guardan plan congelado, hash del dataset, codigo, salida y auditoria | Si, sin versiones del mismo nombre ni pesta�as de procedencia |
-| RequestReview | Tres revisores: el verificador de citas (cada afirmacion contra su pasaje), el Killer (once comprobaciones) y el auditor del analisis (nueve comprobaciones sobre codigo y cifras). Un tercio de descartes auditado por un defensor | Si, mas fuerte que el de Claude Science en lo que revisa, pero no compara "lo que Rosa dijo" con "lo que corrio" al cerrar una iteracion |
+| RequestReview | Tres revisores: el verificador de citas (cada afirmacion contra su pasaje), el Killer (once comprobaciones) y el auditor del analisis (nueve comprobaciones sobre codigo y cifras). Un tercio de descartes auditado por un defensor | Si, mas fuerte que el de Claude Science en lo que revisa, pero no compara "lo que ROSA2018 dijo" con "lo que corrio" al cerrar una iteracion |
 | Agent y delegacion | Pistas paralelas por paso con parada individual | Si |
 | Plan | Plan por iteracion con aprobacion, edicion y valor de decision | Si |
 | ProjectSearch | Buscador en la interfaz (`frontend/src/lib/buscar.ts`) sobre el estado | Parcial: el modelo no busca en su propio historial |
@@ -215,15 +215,15 @@ gratuita obligatoria desde julio de 2026; Rosa ya la envia), `rest.kegg.jp`,
 | Permisos por herramienta | Autonomia por accion (`autonomia`), datasets con libro de procedencia, sandbox sin red | Parcial: no hay "una vez, esta conversacion, este proyecto, siempre" por conector |
 | Revisor que compara afirmaciones con el registro | No hay un paso que lea el resumen de la iteracion y compruebe que cada cifra o cita tiene un run o una fuente detras | No |
 
-## 3. Que aplicar a Rosa y en que orden
+## 3. Que aplicar a ROSA2018 y en que orden
 
 La regla de la seccion 1.4 numero 1 y el revisor de registro son lo primero
-porque cierran el riesgo mas caro: que Rosa diga que hizo algo que no hizo.
+porque cierran el riesgo mas caro: que ROSA2018 diga que hizo algo que no hizo.
 Despues, la capa de conectores, porque multiplica las fuentes de evidencia
 sin tocar el resto. Las skills van despues porque necesitan la capa de
 conectores para ser utiles.
 
-### Bloque 1. Revisor de registro (RequestReview de Rosa)
+### Bloque 1. Revisor de registro (RequestReview de ROSA2018)
 
 Un paso al cerrar cada iteracion y cada dossier: un modelo distinto al que
 escribio (el juez) recibe el resumen, la conclusion y el resumen en llano, y
@@ -272,12 +272,12 @@ herramientas del registro) en los pasos de novedad y factibilidad, con un
 maximo de llamadas por paso y con cada llamada como pista visible, igual que
 Claude Science muestra cada consulta como paso expandible.
 
-### Bloque 3. Skills de Rosa
+### Bloque 3. Skills de ROSA2018
 
-Una skill de Rosa es un fichero Markdown en `rosa/skills/<nombre>/SKILL.md`
+Una skill de ROSA2018 es un fichero Markdown en `rosa/skills/<nombre>/SKILL.md`
 que el planificador de analisis y el escritor de codigo cargan cuando el plan
 lo pide, mas scripts que el sandbox puede ejecutar. Las primeras cinco, por
-lo que Rosa ya hace con datos publicos:
+lo que ROSA2018 ya hace con datos publicos:
 
 1. `expresion-geo`: leer una serie GEO (matriz de la serie y anotacion de la
    plataforma), colapsar sondas a genes, normalizar, expresion diferencial y
@@ -293,7 +293,7 @@ lo que Rosa ya hace con datos publicos:
 4. `revision-de-literatura`: la fila de evidencia de Claude Science
    (identificador, dise�o, poblacion, n, intervencion, comparador, desenlace,
    efecto, incertidumbre, limitaciones, afirmacion que sostiene) como forma
-   obligatoria de la afirmacion de tipo dato; Rosa ya tiene nivel de medicion,
+   obligatoria de la afirmacion de tipo dato; ROSA2018 ya tiene nivel de medicion,
    n, comparador, efecto e incertidumbre; faltan dise�o y limitaciones.
 5. `eleccion-de-problema`: las preguntas de Fischbach y Walsh (por que
    importa si sale, cuales son los riesgos, que parametro fijar) como
@@ -310,7 +310,7 @@ de procedencia.
 ### Lo que no se copia
 
 RemoteJob (Slurm, Modal), R, notebooks y Environment con instalacion libre
-quedan fuera: Rosa no es un cuaderno para la persona sino un investigador
+quedan fuera: ROSA2018 no es un cuaderno para la persona sino un investigador
 autonomo con un contrato de salida; instalar paquetes a demanda rompe la
 reproducibilidad que la puerta exige. Benchling, 10x Cloud, Medidata y Owkin
 son plataformas de pago sin uso en el programa actual. BioRender tiene servidor
@@ -324,7 +324,7 @@ oficial de ChEMBL; los conectores de ChEMBL, bioRxiv y Clinical Trials de
 Anthropic son cerrados. Los MCP oficiales de primera parte que si existen
 son Open Targets, STRING y OLS4 (y 10x, comercial). La mayoria de los MCP
 comunitarios son envoltorios finos de una API publica sin commits en 2026:
-para Rosa, que ya tiene `rosa/fuentes/base.py` con cliente, reintentos y
+para ROSA2018, que ya tiene `rosa/fuentes/base.py` con cliente, reintentos y
 regla de "no pude comprobar", tiene mas sentido llamar a la API directa o al
 cliente Python mantenido, y usar MCP solo donde es oficial.
 
@@ -336,12 +336,12 @@ cliente Python mantenido, y usar MCP solo donde es oficial.
 | Open Targets | GraphQL `api.platform.opentargets.org/api/v4/graphql`; MCP oficial `mcp.platform.opentargets.org/mcp` | No | No publicado; para consultas masivas, descargas | CC0 | MCP oficial (Apache-2.0); `gget opentargets` |
 | STRING | REST `version-12-0.string-db.org/api/` (network, interaction_partners, enrichment, ppi_enrichment); MCP oficial `mcp.string-db.org` | No; `caller_identity` obligatorio | 1 s entre llamadas, sin paralelo | CC BY 4.0 | MCP oficial `meringlab/string-mcp` (MIT) |
 | Reactome | ContentService y AnalysisService REST | No | No publicado; token de analisis 7 dias | CC0 | `reactome2py` |
-| KEGG | REST `rest.kegg.jp` | No | 3 por segundo o bloqueo de IP | Solo uso academico; una empresa necesita licencia | Descartado para Rosa |
+| KEGG | REST `rest.kegg.jp` | No | 3 por segundo o bloqueo de IP | Solo uso academico; una empresa necesita licencia | Descartado para ROSA2018 |
 | GWAS Catalog v2 y sumstats | REST `ebi.ac.uk/gwas/rest/api/v2/` (studies, associations, efo-traits, genes); `gwas/summary-statistics/api/` | No | 15 por segundo | CC0 / terminos EMBL-EBI | Cuaderno oficial EBISPOT |
 | UniProt y EBI Proteins API | `rest.uniprot.org/uniprotkb/search`, `/idmapping/run`; `ebi.ac.uk/proteins/api/variation/{acc}` | No | Sin limite estricto; Proteins API 200 por segundo | CC BY 4.0 | `bioservices`, `gget` |
 | MyGene.info y MyVariant.info | `mygene.info/v3/query`, `myvariant.info/v1/variant/{hgvs}` (ClinVar, gnomAD, dbSNP, CADD en una llamada) | Opcional gratuita | MyVariant 1000 peticiones por IP y dia sin clave | Software Apache-2.0; datos heredan la fuente | `biothings_client` (oficial) |
 | gnomAD directo | GraphQL `gnomad.broadinstitute.org/api` | No | 10 peticiones por IP por minuto | Ficheros publicos | Mejor via MyVariant |
-| ClinVar y dbSNP | E-utilities `db=clinvar`, `db=snp` | Clave NCBI opcional (Rosa ya la envia) | 3 por segundo, 10 con clave | Dominio publico | Biopython Entrez |
+| ClinVar y dbSNP | E-utilities `db=clinvar`, `db=snp` | Clave NCBI opcional (ROSA2018 ya la envia) | 3 por segundo, 10 con clave | Dominio publico | Biopython Entrez |
 | Ensembl REST | `rest.ensembl.org` (lookup, xrefs, vep, variation, phenotype) | No | 15 por segundo, cabeceras X-RateLimit | Sin restricciones | `pyEnsemblRest`, `gget` |
 | OLS4 | `ebi.ac.uk/ols4/api/v2/ontologies/{id}/classes`, `/api/search?q=` (MONDO_0004975 para Alzheimer; comprobado: MONDO 2026-09-01, 63.460 clases) | No | No publicado | MONDO y HPO CC BY 4.0; EFO Apache-2.0 | Servidor `EBISPOT/ols4` con MCP propio |
 | GTEx v10 | REST `gtexportal.org/api/v2/` (medianGeneExpression, singleTissueEqtl) | No | No publicado | Terminos GTEx | Ninguno necesario |
@@ -350,7 +350,7 @@ cliente Python mantenido, y usar MCP solo donde es oficial.
 | PubChem | PUG REST y PUG View | No | 5 por segundo, 400 por minuto | Dominio publico | `pubchempy` |
 | DGIdb 5 | GraphQL `dgidb.org/api/graphql` | No | No publicado | Por fuente | `dgipy` |
 | DrugBank | Descarga con aprobacion humana; API de pago | Si | No aplica | CC BY-NC; descargas academicas pausadas desde mayo de 2026 | Descartado; DrugCentral (CC BY-SA) y ChEMBL cubren |
-| GEO | E-utilities `db=gds`; matrices y anotaciones por FTP (lo que Rosa ya hace a mano) | Clave NCBI opcional | 3 por segundo, 10 con clave | Dominio publico | `GEOparse` (sin mantenimiento desde 2024) |
+| GEO | E-utilities `db=gds`; matrices y anotaciones por FTP (lo que ROSA2018 ya hace a mano) | Clave NCBI opcional | 3 por segundo, 10 con clave | Dominio publico | `GEOparse` (sin mantenimiento desde 2024) |
 | ARCHS4 | `archs4py` sobre H5 de mas de 30 GB | No | No publicado | CC BY 4.0 con restriccion no comercial | `archs4py` (oficial) |
 | Expression Atlas | `ebi.ac.uk/gxa/json/experiments/{acc}` | No | No publicado | Terminos EMBL-EBI | ToolUniverse `gxa_tool` |
 | CELLxGENE Census y Discover | `cellxgene_census.open_soma()`; `api.cellxgene.cziscience.com/curation/v1/collections` | No | No publicado | CC BY 4.0 | `cellxgene-census` (oficial, MIT) |
@@ -358,13 +358,13 @@ cliente Python mantenido, y usar MCP solo donde es oficial.
 | Synapse y AD Knowledge Portal | REST y `synapseclient`; MCP oficial `mcp.synapse.org` | Cuenta gratuita y token; datos individuales con certificado de uso | No publicado | Por nivel; los individuales no se redistribuyen | `synapseclient` (oficial) |
 | Agora | Sin API publica; los JSON viven en Synapse (Agora Live Data) | Token Synapse | No aplica | Terminos del portal | `agora-data-tools` |
 | NIAGADS Open Access | REST `api.niagads.org` (sumstats de AD, variantes ADSP, FILER) | No indicada | En vista previa, sin cifra | Sin licencia clara | `niagads-pylib`; vigilar |
-| ClinicalTrials.gov v2 | `clinicaltrials.gov/api/v2/studies` (Rosa ya lo usa) | No | Unas 50 por minuto observadas | Dominio publico | Propio |
+| ClinicalTrials.gov v2 | `clinicaltrials.gov/api/v2/studies` (ROSA2018 ya lo usa) | No | Unas 50 por minuto observadas | Dominio publico | Propio |
 | bioRxiv y medRxiv | `api.biorxiv.org/details/{servidor}/{doi}`, `/pubs/` | No | 30 por pagina; bloquean agentes "bot" | Por preprint (CC BY a ninguna); prohibido cachear texto completo | Propio |
-| Europe PMC y Annotations API | REST (Rosa ya lo usa); `annotations_api/annotationsByArticleIds` (genes, enfermedades, quimicos anotados) | No | 10 por segundo, 500 por minuto | Por articulo | Propio |
+| Europe PMC y Annotations API | REST (ROSA2018 ya lo usa); `annotations_api/annotationsByArticleIds` (genes, enfermedades, quimicos anotados) | No | 10 por segundo, 500 por minuto | Por articulo | Propio |
 | Semantic Scholar | `api.semanticscholar.org/graph/v1/` (citations, references, recommendations) | Clave gratuita | 1 por segundo con clave | Licencia propia de la API | `semanticscholar` |
-| OpenAlex | `api.openalex.org` | Clave obligatoria desde febrero de 2026 (Rosa ya la envia) | 100.000 creditos por dia | CC0 | `pyalex` |
-| Crossref | `api.crossref.org/works` (Rosa ya lo usa) | `mailto` para el pool cortes | 5 por segundo registro unico, 1 por segundo listas (desde diciembre de 2025) | Metadatos como hechos | Propio |
-| Unpaywall | `api.unpaywall.org/v2/{doi}` (Rosa ya lo usa) | `email` obligatorio | 100.000 por dia | Terminos Unpaywall | Propio |
+| OpenAlex | `api.openalex.org` | Clave obligatoria desde febrero de 2026 (ROSA2018 ya la envia) | 100.000 creditos por dia | CC0 | `pyalex` |
+| Crossref | `api.crossref.org/works` (ROSA2018 ya lo usa) | `mailto` para el pool cortes | 5 por segundo registro unico, 1 por segundo listas (desde diciembre de 2025) | Metadatos como hechos | Propio |
+| Unpaywall | `api.unpaywall.org/v2/{doi}` (ROSA2018 ya lo usa) | `email` obligatorio | 100.000 por dia | Terminos Unpaywall | Propio |
 | AlzForum | Solo web; exportacion por correo | No aplica | No aplica | Todos los derechos reservados | Descartado |
 | Benchling, BioRender, 10x Cloud | Plataformas comerciales | Cuenta de pago | Por tenant | Contrato | Fuera de alcance |
 
@@ -377,9 +377,9 @@ cliente Python mantenido, y usar MCP solo donde es oficial.
 | BioContextAI knowledgebase-mcp | Un servidor con UniProt, Open Targets, Reactome, STRING, HPA, AlphaFold, OLS, Ensembl, Europe PMC, bioRxiv, ClinicalTrials.gov; registro comunitario de MCP biomedicos (Nature Biotechnology) | 28 estrellas, Apache-2.0 |
 | Augmented-Nature, JackKuo666, bio-mcp | Un servidor por base, JavaScript o Python | Sin commits en 2026; no apoyarse en ellos |
 
-### 4.3 Las doce fuentes que mas valor a�aden a Rosa, por orden
+### 4.3 Las doce fuentes que mas valor a�aden a ROSA2018, por orden
 
-Rosa ya tiene PubMed, Europe PMC, OpenAlex, Crossref, Unpaywall,
+ROSA2018 ya tiene PubMed, Europe PMC, OpenAlex, Crossref, Unpaywall,
 ClinicalTrials.gov y Open Targets (una consulta fija). Lo que falta, por
 valor para generar y matar hipotesis sobre el Alzheimer con datos publicos:
 
@@ -412,15 +412,15 @@ seleccion de herramientas por catalogo, y documentos con estado reanudable.
 
 ### 5.1 Herramientas por sistema
 
-| Sistema | Herramientas | Lo que Rosa toma |
+| Sistema | Herramientas | Lo que ROSA2018 toma |
 | --- | --- | --- |
 | Biomni (Stanford) | 150 herramientas, 105 paquetes y 59 bases (cbioportal, clinvar, dbsnp, ensembl, geo, gnomad, gwas_catalog, interpro...); un `ToolRetriever` elige herramientas por consulta y cada paso del plan es codigo ejecutable | El registro de herramientas con descripcion consultable por el planificador (github.com/snap-stanford/Biomni/blob/main/DETAILS.md) |
-| Kosmos (Edison Scientific) | Agente de datos y agente de literatura en paralelo coordinados por un modelo de mundo; ~42.000 lineas de codigo y ~1.500 articulos por corrida; cada afirmacion trazable a codigo o fuente; 79,4 % de afirmaciones exactas | La trazabilidad afirmacion a codigo, que Rosa ya tiene en la afirmacion de tipo dato con trayectoria (arxiv.org/abs/2511.02824) |
-| FutureHouse: PaperQA2, Finch, Robin, Phoenix | PaperQA2: buscar, reunir evidencia puntuada, responder, con retractaciones. Finch: dos herramientas (`edit_cell`, `submit_answer`) sobre Jupyter en Docker. Robin: propone ensayos, genera candidatos, torneo Elo, Finch analiza datos y realimenta. Phoenix: RDKit, PubChem, retrosintesis | El cierre Robin: el resultado del experimento realimenta el ranking (Rosa lo hace con el retorno); Finch como referencia de sandbox minimo (github.com/Future-House/robin) |
-| Co-Scientist (Google) | Generation, Reflection, Ranking (Elo), Evolution, Proximity, Meta-review; herramientas: busqueda web y modelos como AlphaFold | Ya copiado en el torneo y la meta revision de Rosa (arxiv.org/abs/2502.18864) |
-| Denario, Agent Laboratory, Curie, SciAgents, Virtual Lab | Idea, literatura, metodos, resultados, articulo, revision; experimentacion rigurosa en Docker (Curie, EXP-Bench); grafo ontologico (SciAgents); reuniones de agentes especialistas (Virtual Lab) | Curie: modulos de rigor intra e inter agente, cercanos al auditor de Rosa (github.com/Just-Curieous/Curie) |
+| Kosmos (Edison Scientific) | Agente de datos y agente de literatura en paralelo coordinados por un modelo de mundo; ~42.000 lineas de codigo y ~1.500 articulos por corrida; cada afirmacion trazable a codigo o fuente; 79,4 % de afirmaciones exactas | La trazabilidad afirmacion a codigo, que ROSA2018 ya tiene en la afirmacion de tipo dato con trayectoria (arxiv.org/abs/2511.02824) |
+| FutureHouse: PaperQA2, Finch, Robin, Phoenix | PaperQA2: buscar, reunir evidencia puntuada, responder, con retractaciones. Finch: dos herramientas (`edit_cell`, `submit_answer`) sobre Jupyter en Docker. Robin: propone ensayos, genera candidatos, torneo Elo, Finch analiza datos y realimenta. Phoenix: RDKit, PubChem, retrosintesis | El cierre Robin: el resultado del experimento realimenta el ranking (ROSA2018 lo hace con el retorno); Finch como referencia de sandbox minimo (github.com/Future-House/robin) |
+| Co-Scientist (Google) | Generation, Reflection, Ranking (Elo), Evolution, Proximity, Meta-review; herramientas: busqueda web y modelos como AlphaFold | Ya copiado en el torneo y la meta revision de ROSA2018 (arxiv.org/abs/2502.18864) |
+| Denario, Agent Laboratory, Curie, SciAgents, Virtual Lab | Idea, literatura, metodos, resultados, articulo, revision; experimentacion rigurosa en Docker (Curie, EXP-Bench); grafo ontologico (SciAgents); reuniones de agentes especialistas (Virtual Lab) | Curie: modulos de rigor intra e inter agente, cercanos al auditor de ROSA2018 (github.com/Just-Curieous/Curie) |
 | ToolUniverse (Harvard MIMS) | 600 a 1000 herramientas cargables: Open Targets 72, ChEMBL 28, PubChem 21, UniProt 18, Ensembl 22, GTEx 14, HPA 14, Reactome 20, FDA 190, Europe PMC, GWAS, ClinicalTrials, Enrichr; servidor MCP `tooluniverse-smcp`; conector oficial en Claude desde enero de 2026 | La opcion de no escribir cada cliente: montar ToolUniverse como servidor MCP local y exponer un subconjunto (github.com/mims-harvard/ToolUniverse) |
-| Bibliotecas de skills de terceros | K-Dense scientific-agent-skills (165 skills MIT: scanpy, scvi, pyDESeq2, gget, RDKit, statsmodels, enrichment, paper lookup); awesome-genomic-skills (Google DeepMind science-skills, ClawBio, bioSkills) | Plantillas para las skills de Rosa; no se firman por Anthropic (github.com/K-Dense-AI/scientific-agent-skills) |
+| Bibliotecas de skills de terceros | K-Dense scientific-agent-skills (165 skills MIT: scanpy, scvi, pyDESeq2, gget, RDKit, statsmodels, enrichment, paper lookup); awesome-genomic-skills (Google DeepMind science-skills, ClawBio, bioSkills) | Plantillas para las skills de ROSA2018; no se firman por Anthropic (github.com/K-Dense-AI/scientific-agent-skills) |
 
 ### 5.2 Herramientas especificas para el Alzheimer
 
@@ -429,7 +429,7 @@ trabajar solo con datos publicos.
 
 | Herramienta | Que aporta | Acceso | MCP existente |
 | --- | --- | --- | --- |
-| GEO (NCBI) | 2.300 series con "alzheimer"; matrices, SOFT, plataformas | E-utilities `db=gds`, 3 req/s (10 con clave NCBI, que Rosa ya envia); `GEOparse` | GEOmcp (MCPmed) |
+| GEO (NCBI) | 2.300 series con "alzheimer"; matrices, SOFT, plataformas | E-utilities `db=gds`, 3 req/s (10 con clave NCBI, que ROSA2018 ya envia); `GEOparse` | GEOmcp (MCPmed) |
 | ARCHS4 | Mas de 1,5 M muestras RNA-seq reprocesadas uniformemente; por GSE o GSM | `archs4py` sobre HDF5 (>30 GB); uso no comercial | gget-mcp |
 | GTEx v10 | Expresion por tejido (APOE en hipocampo 698,9 TPM, comprobado), eQTL | REST v2 `gtexportal.org/api/v2/`, sin clave | GTEx-MCP-Server; ToolUniverse |
 | AD Knowledge Portal (Synapse) | ROSMAP, MSBB, Mayo, SEA-AD; ~800 TB | REST y `synapseclient`; cuenta gratuita y token; muchos datasets con acuerdo de uso | Oficial: Sage-Bionetworks/synapse-mcp (MIT) |
@@ -451,14 +451,14 @@ trabajar solo con datos publicos.
 Lo que cambia respecto a lo escrito en la seccion 3 tras leer estos
 informes: BioRender si tiene servidor MCP (`render-figure`,
 `custom-figure-create-session`), pero es cerrado y de la plataforma; queda
-fuera igual. Y para las skills de Rosa hay dos fuentes abiertas de las que
+fuera igual. Y para las skills de ROSA2018 hay dos fuentes abiertas de las que
 partir en vez de escribirlas desde cero: las de `anthropics/life-sciences`
 (Apache-2.0) y las de K-Dense (MIT).
 
 
-## 6. Estado de la aplicacion en Rosa (11 de septiembre de 2026, tarde)
+## 6. Estado de la aplicacion en ROSA2018 (11 de septiembre de 2026, tarde)
 
-| Pieza de Claude Science | En Rosa | Donde |
+| Pieza de Claude Science | En ROSA2018 | Donde |
 | --- | --- | --- |
 | Connector (mas de 60 bases) | 80 conectores, 57 activos, 23 inertes con motivo; registro de consulta con invariante; catalogo con licencia, limite y permiso | `rosa/conectores/`, Ajustes |
 | Consultas como pasos visibles | Cada consulta en la pista del paso y en "Consultas a bases" de la hipotesis | `rosa/bucle/pasos.py` |

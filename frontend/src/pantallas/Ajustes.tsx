@@ -1,6 +1,6 @@
 // Ajustes: permisos concedidos (revocables), dial de autonomia por clase de
 // accion, politica de esperas (que pasa con una decision que nadie toma),
-// memoria de Rosa sobre la investigadora, criterios propios de revision,
+// memoria de ROSA2018 sobre la investigadora, criterios propios de revision,
 // planes guardados, avisos por Slack o correo con el resumen diario, y
 // apariencia.
 
@@ -92,11 +92,11 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
       <div className="pantalla-cabecera">
         <div>
           <h2>Ajustes</h2>
-          <p>Todo lo que Rosa tiene concedido o recuerda, en un sitio, y revocable.</p>
+          <p>Todo lo que ROSA2018 tiene concedido o recuerda, en un sitio, y revocable.</p>
         </div>
       </div>
 
-      <Seccion titulo="Autonomía por clase de acción" nota="Qué puede hacer Rosa sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea fricción sin seguridad.">
+      <Seccion titulo="Autonomía por clase de acción" nota="Qué puede hacer ROSA2018 sola, que pregunta antes y que solo sugiere. Es más fino que un permiso por recurso: el estudio de Anthropic de 2026 muestra que aprobar todo crea fricción sin seguridad.">
         <table className="tabla">
           <thead>
             <tr>
@@ -121,7 +121,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </table>
         {sugerencias.length > 0 && (
           <div className="aviso-muestra">
-            Rosa ha visto que has concedido {sugerencias.map((s) => `${s.veces} permisos de "${TIPO_PERMISO[s.tipo as keyof typeof TIPO_PERMISO] ?? s.tipo}"`).join(' y ')} con alcance amplio. Si quieres, sube esa clase a "actuar y avisar" en la tabla.
+            ROSA2018 ha visto que has concedido {sugerencias.map((s) => `${s.veces} permisos de "${TIPO_PERMISO[s.tipo as keyof typeof TIPO_PERMISO] ?? s.tipo}"`).join(' y ')} con alcance amplio. Si quieres, sube esa clase a "actuar y avisar" en la tabla.
           </div>
         )}
       </Seccion>
@@ -160,7 +160,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </Seccion>
 
-      <Seccion detalle titulo="Permisos concedidos" nota="Lo que has permitido con alcance mayor que una vez. Revocar hace que Rosa vuelva a pedirlo con una tarjeta.">
+      <Seccion detalle titulo="Permisos concedidos" nota="Lo que has permitido con alcance mayor que una vez. Revocar hace que ROSA2018 vuelva a pedirlo con una tarjeta.">
         {estado.permisos.length === 0 ? (
           <p className="meta">Sin permisos concedidos.</p>
         ) : (
@@ -176,7 +176,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
                       {i ? ` · ${i.titulo}` : ''} · <Momento t={p.concedidoEn} ahora={ahora} />
                     </small>
                   </div>
-                  <Confirmar etiqueta="Revocar" pregunta="Rosa dejara de tener este acceso y lo pedira de nuevo si lo necesita." onConfirmar={() => acciones.revocarPermiso(p.id)} />
+                  <Confirmar etiqueta="Revocar" pregunta="ROSA2018 dejara de tener este acceso y lo pedira de nuevo si lo necesita." onConfirmar={() => acciones.revocarPermiso(p.id)} />
                 </div>
               );
             })}
@@ -184,9 +184,9 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion titulo="Memoria de Rosa sobre ti" nota="Hechos cortos sobre la investigadora y sus preferencias. Aparte del modelo de mundo, que es de la investigación.">
+      <Seccion titulo="Memoria de ROSA2018 sobre ti" nota="Hechos cortos sobre la investigadora y sus preferencias. Aparte del modelo de mundo, que es de la investigación.">
         {estado.memoria.length === 0 ? (
-          <p className="meta">Rosa no recuerda nada todavía.</p>
+          <p className="meta">ROSA2018 no recuerda nada todavía.</p>
         ) : (
           <ul className="lista-limpia">
             {estado.memoria.map((r) => (
@@ -196,7 +196,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         )}
       </Seccion>
 
-      <Seccion detalle titulo="Planes guardados" nota="Flujos que funcionaron, reutilizables. Rosa propone usarlos cuando la tarea se parece (memoria de planes, como Magentic-UI).">
+      <Seccion detalle titulo="Planes guardados" nota="Flujos que funcionaron, reutilizables. ROSA2018 propone usarlos cuando la tarea se parece (memoria de planes, como Magentic-UI).">
         {estado.planesGuardados.length === 0 ? (
           <p className="meta">Sin planes guardados.</p>
         ) : (
@@ -281,7 +281,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
             <div className="campo">
               <label htmlFor="slack-canal">Canal</label>
               <EntradaDiferida id="slack-canal" valor={avisos.slack.canal} onGuardar={(v) => acciones.actualizarAvisos({ ...avisos, slack: { ...avisos.slack, canal: v } })} />
-              <small>La conexión con Slack se hará con un botón "Conectar con Slack" cuando Rosa este en su servidor; aquí solo se elige el canal.</small>
+              <small>La conexión con Slack se hará con un botón "Conectar con Slack" cuando ROSA2018 este en su servidor; aquí solo se elige el canal.</small>
             </div>
           )}
           <label className="interruptor">
@@ -296,7 +296,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.permisoPendiente} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, permisoPendiente: e.target.checked } })} />
-            Rosa espera un plan, un permiso o tiene una incidencia
+            ROSA2018 espera un plan, un permiso o tiene una incidencia
           </label>
           <label className="interruptor">
             <input type="checkbox" checked={avisos.cuando.corridaDetenida} onChange={(e) => acciones.actualizarAvisos({ ...avisos, cuando: { ...avisos.cuando, corridaDetenida: e.target.checked } })} />
@@ -308,7 +308,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
           </label>
           {avisos.cuando.resumenDiario && ejemploDigest !== '' && (
             <div>
-              <p className="campo-etiqueta">Resumen ampliado solo en Rosa; el correo no incluye estos detalles</p>
+              <p className="campo-etiqueta">Resumen ampliado solo en ROSA2018; el correo no incluye estos detalles</p>
               <pre className="registro">{ejemploDigest}</pre>
             </div>
           )}
@@ -317,8 +317,8 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
       </Seccion>
 
       <Seccion titulo="Apariencia">
-        <button type="button" className="btn btn-s" style={{ marginBottom: 10 }} onClick={() => { try { localStorage.removeItem('rosa.recorrido.v1'); } catch { /* sin almacenamiento */ } window.location.reload(); }} title="Vuelve a mostrar el recorrido de cinco pasos con el que empieza Rosa">
-          Ver el recorrido de Rosa otra vez
+        <button type="button" className="btn btn-s" style={{ marginBottom: 10 }} onClick={() => { try { localStorage.removeItem('rosa.recorrido.v1'); } catch { /* sin almacenamiento */ } window.location.reload(); }} title="Vuelve a mostrar el recorrido de cinco pasos con el que empieza ROSA2018">
+          Ver el recorrido de ROSA2018 otra vez
         </button>
         <div className="segmentos" role="group" aria-label="Tema">
           {(['sistema', 'claro', 'oscuro'] as Tema[]).map((t) => (
@@ -329,7 +329,7 @@ export function Ajustes({ estado, ahora }: { estado: EstadoRosa; ahora: number }
         </div>
       </Seccion>
 
-      <Seccion detalle titulo="Modelos de Rosa" nota="Piezas intercambiables dentro de Rosa, todas por el AI Gateway de Vercel. Se cambian por la métrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
+      <Seccion detalle titulo="Modelos de ROSA2018" nota="Piezas intercambiables dentro de ROSA2018, todas por el AI Gateway de Vercel. Se cambian por la métrica, no por el precio. Cuando un modelo se niega (content-filter), aparece una incidencia en la corrida con la alternativa.">
         <table className="tabla">
           <tbody>
             <tr>

@@ -1,4 +1,4 @@
-"""El servidor HTTP de Rosa (FastAPI).
+"""El servidor HTTP de ROSA2018 (FastAPI).
 
 Tres rutas y nada más, porque el frontend ya sabe hacer el resto:
 
@@ -146,7 +146,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
                 await tarea
             correo.cerrar()
 
-    app = FastAPI(title="Rosa", version="0.1", lifespan=_vida)
+    app = FastAPI(title="ROSA2018", version="0.1", lifespan=_vida)
     app.state.almacen = almacen
     app.state.token_interno = token_interno()
     app.state.semaforo_preguntas = asyncio.Semaphore(2)
@@ -178,11 +178,11 @@ def crear_app(almacen: Almacen) -> FastAPI:
             return componer_json_con_avisos(await asyncio.to_thread(almacen.instantanea_json, True), avisos)
         return await asyncio.to_thread(almacen.instantanea_json)
 
-    # Solo se aceptan peticiones dirigidas al nombre con el que se sirve Rosa:
+    # Solo se aceptan peticiones dirigidas al nombre con el que se sirve ROSA2018:
     # frena el "DNS rebinding" (una web ajena que resuelve a 127.0.0.1).
     permitidos = list(HOSTS_LOCALES) + ([config.HOST] if config.HOST not in HOSTS_LOCALES else []) + [f"{h}:{config.PUERTO}" for h in HOSTS_LOCALES]
     # Nunca un comodin: en 0.0.0.0 (el unico caso en que el ataque tiene sentido)
-    # los nombres con los que se sirve Rosa van en ROSA_HOSTS.
+    # los nombres con los que se sirve ROSA2018 van en ROSA_HOSTS.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=permitidos + list(config.HOSTS_PERMITIDOS))
     # Respuestas grandes comprimidas (la instantánea pesa 10 MB; en gzip, menos
     # de 2). Starlette no comprime `text/event-stream`, así que el SSE no cambia.
@@ -203,7 +203,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if config.ROSA_TOKEN and path.startswith("/api/") and not interno:
             dado = request.headers.get("x-rosa-token") or request.query_params.get("token")
             if not dado or not igual_secreto(dado, config.ROSA_TOKEN):
-                return JSONResponse({"detail": "Falta el token de acceso a Rosa"}, status_code=401)
+                return JSONResponse({"detail": "Falta el token de acceso a ROSA2018"}, status_code=401)
         # 2. La sesión: quién es la persona.
         if path.startswith('/api/') and not publico and not usuario and not interno:
             return JSONResponse({'detail': 'Inicia sesión con tu correo verificado'}, status_code=401)
@@ -235,7 +235,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
     @app.post('/api/acceso/configuracion')
     async def acceso_configurar(request: Request):
         if not instalacion_local(request):
-            raise HTTPException(403, 'La instalación inicial solo se configura en el equipo de Rosa antes de crear cuentas')
+            raise HTTPException(403, 'La instalación inicial solo se configura en el equipo de ROSA2018 antes de crear cuentas')
         obj = await objeto_pequeno(request)
         try:
             app.state.correo.configurar(obj)
@@ -397,7 +397,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if nombre not in ACCIONES:
             raise HTTPException(404, f"Acción desconocida: {nombre}")
         if nombre in ACCIONES_INTERNAS and not igual_secreto(request.headers.get("x-rosa-interno", ""), app.state.token_interno):
-            raise HTTPException(403, f"{nombre} solo la aplica el servidor de Rosa")
+            raise HTTPException(403, f"{nombre} solo la aplica el servidor de ROSA2018")
         if "application/json" not in request.headers.get("content-type", ""):
             raise HTTPException(415, "Los argumentos van como application/json")
         args = await leer_json_acotado(request, MAX_CUERPO_ACCION)
@@ -415,7 +415,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         except EscritorObsoleto as ex:
             # Otro proceso escribió sobre la base (S-01): este servidor ya no guarda
             # nada y se está cerrando. La persona lo sabe, en vez de un 500 mudo.
-            raise HTTPException(503, f"Esta Rosa ya no puede guardar cambios: {str(ex)[:300]}") from None
+            raise HTTPException(503, f"Esta ROSA2018 ya no puede guardar cambios: {str(ex)[:300]}") from None
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError, IndexError) as ex:
             # El almacen ya deshizo la mutacion a medias; el cliente recibe un 400 con el motivo.
             raise HTTPException(400, f"Argumentos inválidos para {nombre}: {type(ex).__name__}: {str(ex)[:200]}")
@@ -572,7 +572,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
     @app.get("/api/hipotesis/{hipotesis_id}/rocrate")
     async def rocrate_de(hipotesis_id: str) -> Response:
         """El expediente de la hipótesis como RO-Crate (zip) con procedencia
-        W3C PROV: verificable con herramientas de terceros, sin Rosa."""
+        W3C PROV: verificable con herramientas de terceros, sin ROSA2018."""
         from rosa import rocrate as RC
 
         def armar() -> bytes | None:

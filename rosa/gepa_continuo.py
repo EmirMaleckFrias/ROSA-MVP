@@ -647,7 +647,7 @@ class Servicio:
             investigacion_de = {c["id"]: c.get("investigacionId") for c in e["corridas"]}
             ultimos = {n: max((g["fecha"] for g in e.get("gepa", []) if g["programa"] == n), default=0) for n in AUTOMATICOS}
         if vivas:
-            self._estado("esperando_corridas", f"Hay {len(vivas)} {'corrida' if len(vivas) == 1 else 'corridas'} en marcha: GEPA no optimiza mientras Rosa investiga.")
+            self._estado("esperando_corridas", f"Hay {len(vivas)} {'corrida' if len(vivas) == 1 else 'corridas'} en marcha: GEPA no optimiza mientras ROSA2018 investiga.")
             return False
         try:
             self.registro.retener()
@@ -803,7 +803,7 @@ class Servicio:
                     # (con puerta por examen) para poder revertirlo desde Ajustes como todo lo demás.
                     from rosa.estado import plantilla as P
 
-                    cambio = P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Programa '{nombre}' optimizado por GEPA: métrica del examen de {g['metricaInicial']:.2f} a {g['metricaFinal']:.2f} sobre {len(antes)} casos que el optimizador no vio; activo para corridas nuevas", f"gepa:{ciclo}", "promovido", "Rosa", int(time.time() * 1000),
+                    cambio = P.nuevo_cambio_aprendizaje(None, 2, "programa", f"Programa '{nombre}' optimizado por GEPA: métrica del examen de {g['metricaInicial']:.2f} a {g['metricaFinal']:.2f} sobre {len(antes)} casos que el optimizador no vio; activo para corridas nuevas", f"gepa:{ciclo}", "promovido", "ROSA2018", int(time.time() * 1000),
                                                        evaluacion={"conjunto": "examen final de GEPA", "casos": len(antes), "antes": round(g["metricaInicial"], 3), "despues": round(g["metricaFinal"], 3), "nota": "Puntuación de un juez fijo (modelo), no validación científica"})
                     cambio.update(programa=nombre, version=version, anterior=actual or "base")
                     e.setdefault("aprendizaje", []).append(cambio)

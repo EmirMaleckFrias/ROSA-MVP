@@ -1,6 +1,6 @@
-# Rosa: estado del sistema a 11 de septiembre de 2026
+# ROSA2018: estado del sistema a 11 de septiembre de 2026
 
-Documento informativo. Describe lo que Rosa tiene construido y probado a la
+Documento informativo. Describe lo que ROSA2018 tiene construido y probado a la
 fecha y como funciona cada pieza. No reporta resultados cientificos: los
 analisis que se mencionan son pruebas del sistema.
 
@@ -59,13 +59,13 @@ analisis que se mencionan son pruebas del sistema.
 
 Al crear una investigacion se escriben el objetivo (puede ser amplio), que
 cuenta como relevante, los limites y la condicion de parada. Al arrancar la
-primera corrida, Rosa propone la **mision**: poblacion, etapa de la
+primera corrida, ROSA2018 propone la **mision**: poblacion, etapa de la
 enfermedad, celula o tejido, mecanismo, tipo de intervencion o resultado
 buscado, capacidades del laboratorio y presupuesto en llamadas al modelo,
 dolares estimados y horas. Lo que el objetivo no dice queda "sin fijar";
-Rosa no lo inventa, y un recurso desconocido no se trata como disponible.
+ROSA2018 no lo inventa, y un recurso desconocido no se trata como disponible.
 
-Con la mision, Rosa propone entre tres y seis **areas de investigacion**
+Con la mision, ROSA2018 propone entre tres y seis **areas de investigacion**
 comparadas por relevancia para la meta, valor de intervencion, incertidumbre,
 comprobabilidad, coste, demora y dependencia de otro trabajo, conservando
 familias de mecanismo distintas y marcando las que quedan sin explorar. Para
@@ -79,7 +79,7 @@ mano.
 
 ### 2.2 Plan de la iteracion
 
-Rosa propone entre cuatro y siete pasos, cada uno con su herramienta, su
+ROSA2018 propone entre cuatro y siete pasos, cada uno con su herramienta, su
 coste en llamadas (medido en corridas reales, no estimado por el modelo) y
 **que decision cambiaria segun su resultado**; un paso cuya siguiente accion
 seria la misma salga lo que salga vale poco y se dice. Los pasos se eligen
@@ -98,7 +98,7 @@ literal (maximo cuarenta palabras copiadas sin cambios), su tipo (dato,
 literatura, interpretacion), su clase de evidencia (observacion original,
 derivado, literatura, prediccion), su nivel de medicion (medida directa,
 resultado de un analisis, interpretacion de los autores, interpretacion de
-Rosa), la cohorte o estudio del que salen los datos, y los campos del
+ROSA2018), la cohorte o estudio del que salen los datos, y los campos del
 registro de evidencia cuando es un dato: n independiente, comparador, efecto
 con unidades e incertidumbre. Lo que la fuente no dice queda en una lista de
 campos sin resolver. Una frase de la discusion de un articulo nunca se
@@ -122,7 +122,7 @@ Al modelo de mundo solo entran afirmaciones sostenidas o parciales.
 
 Hechos sabidos, preguntas abiertas y descartes, cada uno con su procedencia
 a fuente y pagina, su prioridad y su historial. Lo que dice la fuente es un
-hecho; lo que Rosa infiere es una pregunta. Se guarda una instantanea como
+hecho; lo que ROSA2018 infiere es una pregunta. Se guarda una instantanea como
 artefacto en cada iteracion. Cuando el estado editorial de una fuente cambia
 (retractacion, expresion de preocupacion), las conclusiones que dependian de
 ella se recalculan y se produce un informe de diferencias con lo que decian
@@ -164,7 +164,7 @@ pudo comprobar) y su evidencia:
 10. No repite lo ya sabido ni otra hipotesis viva.
 11. La evidencia no tiene un riesgo de sesgo serio.
 
-Cuatro las resuelve Rosa sin modelo; siete el juez. La **decision no la
+Cuatro las resuelve ROSA2018 sin modelo; siete el juez. La **decision no la
 escribe ningun modelo**: se deriva por regla. Descartar en este contexto
 solo si falla la evidencia misma (1, 2, 3); reformular si falla algo
 arreglable (6, 7, 9, 10); suspender si algo critico no se pudo comprobar;
@@ -215,10 +215,10 @@ autorizado el contrato de datos no se puede aprobar.
 
 ### 2.10 Puerta de reproduccion
 
-Antes de que Rosa pueda descubrir algo con datos, tiene que reproducir tres
+Antes de que ROSA2018 pueda descubrir algo con datos, tiene que reproducir tres
 analisis ya publicados sobre sus datos originales, dentro de una tolerancia
 fijada antes de ejecutar. Cada reproduccion registra referencia, cifra
-publicada, valor y tolerancia; Rosa congela el plan, escribe el codigo, lo
+publicada, valor y tolerancia; ROSA2018 congela el plan, escribe el codigo, lo
 corre en el sandbox y compara. La puerta queda bloqueada, abierta o eximida
 (con motivo, por una persona, registrado como cambio de politica). Un
 analisis que no arranca es un error tecnico, no un fallo cientifico. El
@@ -283,8 +283,8 @@ versionado.
 
 Cada hipotesis viva tiene un experimento propuesto. Al asignarlo a un
 laboratorio se congela un **prerregistro** inmutable (hipotesis, version,
-protocolo, criterios, estado de la evidencia, version de Rosa). Los datos que
-vuelven se suben como fichero; Rosa los resume sin modelo (n, medias,
+protocolo, criterios, estado de la evidencia, version de ROSA2018). Los datos que
+vuelven se suben como fichero; ROSA2018 los resume sin modelo (n, medias,
 mediana con intervalo, cuartiles, signos, faltantes) y el juez aplica solo
 los criterios prerregistrados. El resultado lleva un veredicto (confirma,
 refuta, inconcluso, no evaluable), una **clase** de la taxonomia de retorno
@@ -302,9 +302,9 @@ la hipotesis cambio despues.
 
 - **Nivel 1, creencias**: cada cambio de certeza o direccion de una
   hipotesis, y cada resultado de laboratorio, queda registrado. Automatico.
-- **Nivel 2, como razona Rosa**: las debilidades recurrentes de la
+- **Nivel 2, como razona ROSA2018**: las debilidades recurrentes de la
   meta-revision entran como criterios de revision propuestos; una persona
-  puede pedir su evaluacion (Rosa corre el Killer con y sin el criterio
+  puede pedir su evaluacion (ROSA2018 corre el Killer con y sin el criterio
   sobre las hipotesis que ya decidio una persona y mide el acuerdo) y
   despues promoverlo o revertirlo. Los programas optimizados por GEPA
   siguen la misma via.
@@ -343,7 +343,7 @@ veredicto. Exportacion del expediente de una hipotesis.
   por regla (descartar en contexto por un supuesto sin respaldo), auditoria
   del descarte de acuerdo, y la propuesta en la cola para que decida una
   persona.
-- La mision, las areas y la pregunta de campana propuestas por Rosa para una
+- La mision, las areas y la pregunta de campana propuestas por ROSA2018 para una
   investigacion real, con seis areas comparadas y un plan de siete pasos con
   su valor de decision, a la espera de aprobacion.
 - La puerta de reproduccion con datos publicos reales: un conjunto de
@@ -385,7 +385,7 @@ La primera reproduccion con datos publicos reales se **supero** el 11 de
 septiembre de 2026, con el criterio congelado antes de ejecutar (cifra
 publicada 431, tolerancia del 20 %):
 
-| Cifra | Publicada en el articulo | Obtenida por Rosa |
+| Cifra | Publicada en el articulo | Obtenida por ROSA2018 |
 |---|---|---|
 | Genes sobreexpresados en el subgrupo incipiente (la cifra comparada) | 431 | 418 |
 | Genes correlacionados con las medidas clinicas en los 31 sujetos | 3.413 | 4.202 |

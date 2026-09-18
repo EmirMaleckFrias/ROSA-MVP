@@ -5,7 +5,7 @@
 // por cuadro a 60 fps). Un <canvas> 2D no guarda elementos: cada cuadro se pinta
 // entero de un trazo, y pintar 350 círculos, 700 líneas y 80 textos cuesta dos o
 // tres milisegundos. Es lo que hace Obsidian (con WebGL) para tener miles de
-// nodos fluidos; para los cientos de Rosa basta Canvas 2D y no hace falta nada
+// nodos fluidos; para los cientos de ROSA2018 basta Canvas 2D y no hace falta nada
 // nuevo en el proyecto.
 //
 // Tres piezas, todas puras salvo el trazo:
@@ -22,7 +22,7 @@
 // 2. LA PALETA (Paleta). Lee los tokens de styles.css con getComputedStyle una
 //    vez por tema (la pantalla la refresca cuando cambia data-theme o
 //    prefers-color-scheme), así el canvas usa exactamente los mismos colores
-//    que el resto de Rosa en claro y en oscuro.
+//    que el resto de ROSA2018 en claro y en oscuro.
 //
 // 3. EL TRAZO (dibujar). Enlaces primero, nodos después en el orden de la
 //    escena, cada uno con su halo (el tronco), su relleno, su anillo, sus rayas,
@@ -38,7 +38,13 @@ import { niebla, ordenarPorProfundidad, proyectar, type Camara, type Posicion3 }
 export const RADIO: Record<TipoNodo, number> = { objetivo: 22, rama: 13, area: 12, hipotesis: 11, hecho: 7, pregunta: 7, fuente: 5, entidad: 6, experimento: 12, afirmacion: 6, ejecucion: 9, dataset: 8, laboratorio: 12 };
 
 /** Radio del círculo de un nodo (sin proyectar ni ampliar): por tipo y algo más por peso. */
-export const radioBase = (n: NodoArbol): number => RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
+export const radioBase = (n: NodoArbol): number => {
+  // Las hipótesis usan su peso entero (de 0,8 a 3,85: certeza, torneo y
+  // candidatura, ver pesoHipotesis en arbol.ts): una de certeza alta se ve casi
+  // el doble que una de muy baja. Antes el tope de 1,4 las dejaba todas iguales.
+  if (n.tipo === 'hipotesis') return RADIO.hipotesis * (0.7 + Math.max(0.8, Math.min(3.85, n.peso)) * 0.32);
+  return RADIO[n.tipo] * (0.8 + Math.min(1.4, n.peso) * 0.3);
+};
 
 /** Cuánto se ve la etiqueta de un nodo según el zoom y su importancia (el
  *  "text fade threshold" del grafo de Obsidian): el tronco siempre; ramas,

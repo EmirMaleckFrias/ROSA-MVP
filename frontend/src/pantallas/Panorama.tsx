@@ -26,7 +26,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
       <div className="pantalla-cabecera" style={{ marginTop: 16 }}>
         <div>
           <h2>Panorama de la investigación</h2>
-          <p>La síntesis por encima de las hipótesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que Rosa le enseñaría a el investigador clínico principal primero.</p>
+          <p>La síntesis por encima de las hipótesis: direcciones principales, por que y que investigar en cada una, y lo inesperado. Es lo que ROSA2018 le enseñaría a el investigador clínico principal primero.</p>
         </div>
         <button type="button" className="btn" onClick={exportarAims} disabled={hipotesis.length === 0}>
           Exportar como Specific Aims
@@ -34,7 +34,7 @@ export function Panorama({ inv, estado, ahora }: { inv: Investigacion; estado: E
       </div>
 
       {direcciones.length === 0 ? (
-        <Vacio titulo="Sin panorama todavía">Rosa lo sintetiza al cerrar cada iteración a partir de las hipótesis, las revisiones y el modelo de mundo.</Vacio>
+        <Vacio titulo="Sin panorama todavía">ROSA2018 lo sintetiza al cerrar cada iteración a partir de las hipótesis, las revisiones y el modelo de mundo.</Vacio>
       ) : (
         <div className="seccion">
           {direcciones.map((d, i) => (

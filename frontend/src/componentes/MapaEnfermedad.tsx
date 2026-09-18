@@ -284,7 +284,7 @@ export function MapaEnfermedad({ mapa }: { mapa: Mapa | null | undefined }) {
             </table>
           </div>
         ) : (
-          <p className="meta">Todavía no hay hechos ni hipótesis situados: la rejilla aparece en cuanto Rosa reúna evidencia con fase, región o tipo celular.</p>
+          <p className="meta">Todavía no hay hechos ni hipótesis situados: la rejilla aparece en cuanto ROSA2018 reúna evidencia con fase, región o tipo celular.</p>
         )}
       </SoloDetalle>
     </article>

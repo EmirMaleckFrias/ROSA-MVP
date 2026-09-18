@@ -1,7 +1,7 @@
 """Prueba HMR real con una investigación ficticia y la API interceptada.
 
 Requiere Vite en localhost:5174. Actualiza solo la fecha del almacén para
-provocar HMR, sin cambiar su contenido ni llamar a la API de Rosa.
+provocar HMR, sin cambiar su contenido ni llamar a la API de ROSA2018.
 uv run --with playwright python scripts/probar_actualizacion_caliente.py
 """
 import json

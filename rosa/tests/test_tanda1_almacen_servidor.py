@@ -95,7 +95,7 @@ def test_dos_procesos_sobre_la_misma_base_el_segundo_falla_con_mensaje_claro():
             Almacen(ruta)
         assert time.monotonic() - t0 < 2
         texto = str(ex.value)
-        assert "Otra Rosa" in texto and str(hijo.pid) in texto and "solo_lectura" in texto
+        assert "Otra ROSA2018" in texto and str(hijo.pid) in texto and "solo_lectura" in texto
         # Con espera breve tampoco entra mientras el otro no suelte.
         t0 = time.monotonic()
         with pytest.raises(AlmacenOcupado):
@@ -275,7 +275,7 @@ def test_el_reanclaje_documenta_el_corte_y_la_cadena_vuelve_a_verde():
     al.cerrar()
     h_rama = _insertar_fila(ruta, "llamada_modelo", _hash_de(ruta, 2), 3)
     _insertar_fila(ruta, "killer", h_rama, 4)
-    al = Almacen(ruta)  # como una Rosa nueva: encadena desde la última fila
+    al = Almacen(ruta)  # como una ROSA2018 nueva: encadena desde la última fila
     assert al.verificar_cadena()["ok"] is False
     with pytest.raises(ValueError, match="motivo"):
         al.reanclar_registro("corto", "admin@alzheimerproject.com")
@@ -689,7 +689,7 @@ async def test_preguntar_tiene_tope_y_firma_con_la_sesion(cliente, monkeypatch):
     assert estado == 413 and pedidos == 0
     estado, _, _ = await _llamar_asgi(app, "POST", f"/api/investigaciones/{inv}/preguntar", {**cab, "content-type": "text/plain"}, [b"{}"])
     assert estado == 415
-    r = c.post(f"/api/investigaciones/{inv}/preguntar", json={"pregunta": "¿Qué sabe Rosa de GFAP?", "quien": "Suplantada"}, headers={"X-Rosa": "1"})
+    r = c.post(f"/api/investigaciones/{inv}/preguntar", json={"pregunta": "¿Qué sabe ROSA2018 de GFAP?", "quien": "Suplantada"}, headers={"X-Rosa": "1"})
     assert r.status_code == 200 and r.json()["ok"], r.text
     registrada = al.estado["investigaciones"][0]["preguntasABases"][-1]
     assert registrada["quien"] == SESION and "Suplantada" not in json.dumps(al.estado)
@@ -823,7 +823,7 @@ def test_un_reanclaje_metido_a_mano_que_no_enlaza_no_documenta_nada():
 
 def test_un_reducer_que_lanza_tras_arrancar_no_deja_el_estado_sin_migrar():
     """La recarga tras un reducer que lanza se hacía sin migración: un estado
-    guardado por una Rosa anterior (sin `cuestiones`, `datasetsPrograma`,
+    guardado por una ROSA2018 anterior (sin `cuestiones`, `datasetsPrograma`,
     `conectores`...) perdía en memoria las claves que la migración le había
     puesto al arrancar, y la interfaz las recibía ausentes hasta el siguiente
     reinicio."""
@@ -870,13 +870,13 @@ def test_al_quedar_obsoleto_la_memoria_vuelve_a_disco_y_se_avisa_una_vez(cliente
     al.al_quedar_obsoleto(lambda: avisos.append(1))
     al.aplicar("anadirCriterio", {"texto": "uno"})
     otro = sqlite3.connect(str(al.ruta), isolation_level=None)
-    otro.execute("UPDATE estado SET version=version+5, json=? WHERE clave='rosa'", (json.dumps({**json.loads(otro.execute("SELECT json FROM estado").fetchone()[0]), "criteriosRevision": ["escrito por la otra Rosa"]}),))
+    otro.execute("UPDATE estado SET version=version+5, json=? WHERE clave='rosa'", (json.dumps({**json.loads(otro.execute("SELECT json FROM estado").fetchone()[0]), "criteriosRevision": ["escrito por la otra ROSA2018"]}),))
     otro.close()
     with pytest.raises(EscritorObsoleto):
         al.aplicar("anadirCriterio", {"texto": "dos"})
     assert al.obsoleto and avisos == [1]
-    assert al.estado["criteriosRevision"] == ["escrito por la otra Rosa"] and al.version == 6  # lo que hay en disco, no "dos"
-    assert json.loads(al.instantanea_json())["criteriosRevision"] == ["escrito por la otra Rosa"]
+    assert al.estado["criteriosRevision"] == ["escrito por la otra ROSA2018"] and al.version == 6  # lo que hay en disco, no "dos"
+    assert json.loads(al.instantanea_json())["criteriosRevision"] == ["escrito por la otra ROSA2018"]
     # El segundo intento no vuelve a avisar ni toca el reducer.
     with pytest.raises(EscritorObsoleto):
         al.aplicar("anadirCriterio", {"texto": "tres"})

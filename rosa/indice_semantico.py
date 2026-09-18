@@ -1,5 +1,5 @@
-"""Índice semántico del registro de Rosa: buscar por significado en lo que
-Rosa ya sabe (hechos, hipótesis, fuentes).
+"""Índice semántico del registro de ROSA2018: buscar por significado en lo que
+ROSA2018 ya sabe (hechos, hipótesis, fuentes).
 
 Hasta ahora el registro solo se buscaba por palabras, así que dos
 afirmaciones que dicen lo mismo con otras palabras eran dos, y una hipótesis
@@ -173,7 +173,7 @@ class Indice:
 
 
 # ---------------------------------------------------------------------------
-# El índice del almacén de Rosa
+# El índice del almacén de ROSA2018
 # ---------------------------------------------------------------------------
 
 _INDICES: dict[str, Indice] = {}
@@ -196,7 +196,7 @@ def de_almacen(almacen: Any) -> Indice:
 def items_del_estado(e: dict[str, Any]) -> list[dict[str, Any]]:
     """Lo que se indexa del estado: hechos, hipótesis (vivas y descartadas) y
     las fuentes de cada corrida por título y resumen. Nunca datos privados
-    de personas; todo esto es literatura pública o texto de Rosa."""
+    de personas; todo esto es literatura pública o texto de ROSA2018."""
     items: list[dict[str, Any]] = []
     for h in e.get("hechos", []):
         if h.get("enunciado"):

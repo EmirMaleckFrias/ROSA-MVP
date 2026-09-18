@@ -1,4 +1,4 @@
-"""Configuración de Rosa: rutas, puertos y contacto para las APIs.
+"""Configuración de ROSA2018: rutas, puertos y contacto para las APIs.
 
 Todo lo que puede variar entre la Mac de la persona responsable y otra máquina vive aquí y se
 lee del entorno (.env). Los valores por defecto sirven para arrancar sin
@@ -21,7 +21,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 RUTA_BD = Path(os.environ.get("ROSA_BD", RAIZ / "rosa.db"))
 PUERTO = int(os.environ.get("ROSA_PUERTO", "8765"))
 HOST = os.environ.get("ROSA_HOST", "127.0.0.1")
-# Nombres de host con los que se sirve Rosa fuera de localhost (coma separada).
+# Nombres de host con los que se sirve ROSA2018 fuera de localhost (coma separada).
 # Sin comodines: es lo que frena el DNS rebinding cuando se escucha en 0.0.0.0.
 HOSTS_PERMITIDOS = tuple(h.strip() for h in os.environ.get("ROSA_HOSTS", "").split(",") if h.strip())
 MLFLOW_URI = os.environ.get("ROSA_MLFLOW_URI", f"sqlite:///{RAIZ / 'mlflow.db'}")
@@ -31,19 +31,19 @@ FRONTEND_DIST = RAIZ / "frontend" / "dist"
 # Contacto que se manda a Crossref, Unpaywall y OpenAlex. Es público por
 # diseño (piden un correo real para el "polite pool").
 CORREO_CONTACTO = os.environ.get("ROSA_CORREO", "contacto-interno@example.invalid")
-USER_AGENT = f"Rosa/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
+USER_AGENT = f"ROSA2018/0.1 (Alzheimer Project; mailto:{CORREO_CONTACTO})"
 
-# Claves opcionales de fuentes. Sin ellas Rosa funciona con los cupos públicos.
+# Claves opcionales de fuentes. Sin ellas ROSA2018 funciona con los cupos públicos.
 CLAVE_NCBI = os.environ.get("ROSA_NCBI_KEY", "")
 CLAVE_OPENALEX = os.environ.get("ROSA_OPENALEX_KEY", "")
 CLAVE_S2 = os.environ.get("ROSA_S2_KEY", "")
-# Exa (exa.ai): búsqueda semántica de publicaciones. Sin clave, Rosa no la usa
+# Exa (exa.ai): búsqueda semántica de publicaciones. Sin clave, ROSA2018 no la usa
 # y los conectores de Exa quedan en el catálogo como "requiere cuenta".
 CLAVE_EXA = os.environ.get("ROSA_EXA_KEY", "")
 # Token de acceso a la API. Obligatorio si el servidor escucha fuera de 127.0.0.1:
 # sin él, cualquier equipo de la red podría arrancar corridas y gastar en el gateway.
 ROSA_TOKEN = os.environ.get("ROSA_TOKEN", "")
-# Acceso inicial de Rosa. La contraseña nunca vive en el código: este valor es
+# Acceso inicial de ROSA2018. La contraseña nunca vive en el código: este valor es
 # una huella scrypt guardada exclusivamente en .env.
 ROSA_LOGIN_EMAIL = os.environ.get("ROSA_LOGIN_EMAIL", "").strip().lower()
 ROSA_LOGIN_PASSWORD_HASH = os.environ.get("ROSA_LOGIN_PASSWORD_HASH", "").strip().lower()
@@ -57,7 +57,11 @@ CONVEX_DEPLOY_KEY = os.environ.get("CONVEX_DEPLOY_KEY", "")
 # Directorio donde se guardan los PDF descargados (texto completo por página).
 DIR_PDFS = Path(os.environ.get("ROSA_PDFS", RAIZ / "pdfs"))
 
-# Quien firma lo que hace Rosa en los historiales.
+# Quien firma lo que hace ROSA2018 en los historiales.
+# Valor que se guarda como autor en el estado (revisiones, historial, cuestiones):
+# es un identificador de datos (570 registros reales lo llevan), así que no cambia
+# aunque el nombre visible del producto sea ROSA2018 (petición de Emir, 18 de
+# septiembre de 2026). La interfaz lo traduce al mostrarlo (nombreActor en etiquetas.ts).
 QUIEN_ROSA = "Rosa"
 
 # Presupuesto por defecto de una corrida nueva, en llamadas al modelo.
@@ -70,7 +74,7 @@ PRESUPUESTO_ITERACION = int(os.environ.get("ROSA_PRESUPUESTO_ITERACION", "300"))
 # Precios de respaldo por millón de tokens (entrada, salida) en dólares, para
 # cuando una llamada llega sin el coste del gateway. Actualizados el 17 de
 # septiembre de 2026 (hallazgo S-19: la tabla anterior, 5/20, 15/75 y 3/15,
-# hacía que Rosa mostrara el doble del coste real y que el presupuesto de 60
+# hacía que ROSA2018 mostrara el doble del coste real y que el presupuesto de 60
 # dólares de la misión cortara a los 30). Ajustados por mínimos cuadrados sobre
 # 1.980 trazas de GEPA con `usage.cost`: Sonnet 5 y Opus 5 salen exactos; GPT-6
 # Astra es aproximado (no es lineal por la caché de entrada; residuo de 0,10

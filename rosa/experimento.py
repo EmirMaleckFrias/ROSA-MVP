@@ -193,7 +193,7 @@ TIPOS_LECTURA: dict[str, dict[str, str]] = {
 
 TIPOS_EFECTO = ("funcion_mecanismo", "biomarcador")
 
-# Datos de acceso controlado que Rosa no usa (decisión del 11 de septiembre de
+# Datos de acceso controlado que ROSA2018 no usa (decisión del 11 de septiembre de
 # 2026: solo datos públicos). Se buscan como palabra entera, sin distinguir
 # mayúsculas, admitiendo la oleada como sufijo («ADNI-3», «ADNI2», «ADNI-GO»);
 # «A4» va sin sufijo para que «A42» (amiloide) no cuente. Una mención negada
@@ -597,7 +597,7 @@ def validar_contrato(experimento: Any) -> list[str]:
         textos_datos.append(x.get("protocolo"))
     hallados = sorted({d for t in textos_datos for d in _datos_controlados(t)})
     if hallados:
-        problemas.append(f"el análisis nombra datos de acceso controlado ({', '.join(hallados)}): Rosa trabaja solo con datos públicos (GEO, SEA-AD abierto, OASIS con registro)")
+        problemas.append(f"el análisis nombra datos de acceso controlado ({', '.join(hallados)}): ROSA2018 trabaja solo con datos públicos (GEO, SEA-AD abierto, OASIS con registro)")
 
     # 4. Las dos ramas del negativo: en un sistema con intervención hace falta
     # una lectura de compromiso de diana aparte del efecto, y viabilidad en células.

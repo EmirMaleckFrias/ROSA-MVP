@@ -18,7 +18,7 @@ if (!raiz) throw new Error('No se encontró el elemento #root');
 
 createRoot(raiz).render(
   <StrictMode>
-    <Limite ambito="Rosa">
+    <Limite ambito="ROSA2018">
       <Acceso><App /></Acceso>
     </Limite>
   </StrictMode>,

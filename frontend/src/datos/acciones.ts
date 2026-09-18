@@ -1,5 +1,5 @@
 // Las acciones de la interfaz como funciones puras sobre el estado: cada
-// boton de Rosa llama a una de estas. Devuelven un estado nuevo y no mutan el
+// boton de ROSA2018 llama a una de estas. Devuelven un estado nuevo y no mutan el
 // anterior, asi que vitest las prueba sin React y el almacen las aplica tal
 // cual. Cuando el almacen real exista, cada una se convierte en una mutacion
 // del servidor con la misma firma; las pantallas no cambian.
@@ -119,7 +119,7 @@ export function pausarCorrida(estado: EstadoRosa, corridaId: string): EstadoRosa
 export function reanudarCorrida(estado: EstadoRosa, corridaId: string): EstadoRosa {
   return {
     ...estado,
-    // Una solicitud pendiente no impide reanudar: Rosa sigue con lo demas y
+    // Una solicitud pendiente no impide reanudar: ROSA2018 sigue con lo demas y
     // la tarjeta se queda esperando.
     corridas: reemplazar(estado.corridas, corridaId, (c) => (c.estado === 'pausada' ? { ...c, estado: 'en_marcha' } : c)),
   };
@@ -250,7 +250,7 @@ export function detenerPista(estado: EstadoRosa, pistaId: string, indicacion: st
   };
 }
 
-/** Parar un proceso de computo con una indicacion que vuelve a Rosa. */
+/** Parar un proceso de computo con una indicacion que vuelve a ROSA2018. */
 export function detenerProceso(estado: EstadoRosa, corridaId: string, procesoId: string, indicacion: string): EstadoRosa {
   const corrida = corridaDe(estado, corridaId);
   if (!corrida) return estado;
@@ -263,7 +263,7 @@ export function detenerProceso(estado: EstadoRosa, corridaId: string, procesoId:
 }
 
 /** Volver a un punto: una iteracion nueva que retoma el plan de una anterior
- *  (pasos a pendiente) y, si se pide, quita del modelo de mundo lo que Rosa
+ *  (pasos a pendiente) y, si se pide, quita del modelo de mundo lo que ROSA2018
  *  anadio despues. La corrida original se conserva en el historial. */
 export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: 'plan' | 'mundo' | 'ambos', ahora: number): EstadoRosa {
   const origen = estado.iteraciones.find((i) => i.id === iteracionId);
@@ -296,7 +296,7 @@ export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: '
   if (que === 'mundo' || que === 'ambos') {
     const limite = origen.terminadaEn;
     hechos = estado.hechos.filter((h) => !(h.investigacionId === corrida.investigacionId && h.actualizadoEn > limite && h.historial.every((m) => m.quien === 'Rosa')));
-    // Misma regla para las cuestiones que Rosa abrió después del punto (rosa/cuestiones.py podar_desde).
+    // Misma regla para las cuestiones que ROSA2018 abrió después del punto (rosa/cuestiones.py podar_desde).
     cuestiones = cuestiones.filter((c) => !(c.investigacionId === corrida.investigacionId && c.creadaEn > limite && c.historial.every((m) => m.quien === 'Rosa')));
   }
   const siguiente: EstadoRosa = {
@@ -399,7 +399,7 @@ export function fijarAutonomia(estado: EstadoRosa, clase: ClaseAccion, nivel: Ni
 }
 
 /** Si se han concedido tres o mas permisos del mismo tipo con alcance amplio,
- *  Rosa puede proponer una regla. Devuelve las sugerencias. */
+ *  ROSA2018 puede proponer una regla. Devuelve las sugerencias. */
 export function sugerenciasDeAutonomia(estado: EstadoRosa): { tipo: string; veces: number }[] {
   const cuenta = new Map<string, number>();
   for (const p of estado.permisos) if (p.alcance === 'siempre' || p.alcance === 'esta_investigacion') cuenta.set(p.tipo, (cuenta.get(p.tipo) ?? 0) + 1);
@@ -451,7 +451,7 @@ export function revisarHipotesis(
   if (h.estado === ESTADO_TRAS_ACCION[accion]) return estado;
   const notaLimpia = nota.trim();
   // Descartar y "no puedo juzgar" exigen motivo: es lo que queda para que
-  // nadie vuelva a proponer lo mismo, o lo que Rosa tiene que aclarar.
+  // nadie vuelva a proponer lo mismo, o lo que ROSA2018 tiene que aclarar.
   if ((accion === 'descartar' || accion === 'no_puedo_juzgar') && notaLimpia === '') return estado;
 
   const revision: Revision = { fecha: ahora, quien, accion: ACCION_REVISION[accion], nota: notaLimpia, aCiegas };
@@ -498,7 +498,7 @@ export function revisarHipotesis(
   return conEvento(siguiente, h.investigacionId, 'hipotesis_decidida', textos[accion], `#/investigaciones/${h.investigacionId}/hipotesis/${h.id}`, ahora);
 }
 
-/** Rosa responde a un "no puedo juzgar": aclara y la devuelve a revision.
+/** ROSA2018 responde a un "no puedo juzgar": aclara y la devuelve a revision.
  *  Lo dispara la simulacion; en produccion, el bucle. */
 export function aclararHipotesis(estado: EstadoRosa, hipotesisId: string, aclaracion: string, ahora: number): EstadoRosa {
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
@@ -563,7 +563,7 @@ export interface DatosHipotesisHumana {
 }
 
 /** La investigadora mete su propia hipotesis al torneo. Entra con Elo
- *  inicial, marcada como humana, y Rosa la trata como a las demas. */
+ *  inicial, marcada como humana, y ROSA2018 la trata como a las demas. */
 export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, datos: DatosHipotesisHumana, quien: string, ahora: number): { estado: EstadoRosa; id: string | null } {
   if (datos.titulo.trim() === '' || datos.enunciado.trim() === '' || (datos.biomarcador.trim() === '' && datos.cohorte.trim() === '')) return { estado, id: null };
   const corrida = estado.corridas.filter((c) => c.investigacionId === investigacionId).sort((a, b) => b.numero - a.numero)[0];
@@ -588,7 +588,7 @@ export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, d
     },
     afirmaciones: [],
     procedencia: {
-      mensajes: [{ id: nuevoId('m'), de: 'investigadora', texto: `Hipótesis propuesta por ${quien}. Rosa la revisará y la meterá al torneo en la siguiente iteración.`, creadoEn: ahora }],
+      mensajes: [{ id: nuevoId('m'), de: 'investigadora', texto: `Hipótesis propuesta por ${quien}. ROSA2018 la revisará y la meterá al torneo en la siguiente iteración.`, creadoEn: ahora }],
       codigo: '',
       registro: [`${new Date(ahora).toISOString()} hipótesis humana añadida por ${quien}`],
       entorno: { lenguaje: 'Python', version: '3.12.14', paquetes: [], modelos: [] },
@@ -602,7 +602,7 @@ export function proponerHipotesis(estado: EstadoRosa, investigacionId: string, d
     derivadaDe: null,
     cluster: datos.cluster.trim() || 'Sin cluster',
     evidenciaEstadistica: 'no_aplica',
-    relevancia: { justificacion: 'Propuesta por la investigadora; Rosa la justificara al revisarla.', votoHumano: 'alta' },
+    relevancia: { justificacion: 'Propuesta por la investigadora; ROSA2018 la justificara al revisarla.', votoHumano: 'alta' },
     partidos: [],
     revisionesAutomaticas: (['inicial', 'completa', 'profunda', 'observacion', 'simulacion', 'torneo'] as const).map((tipo) => ({ tipo, estado: 'pendiente' as const, resumen: '', fecha: null })),
     supuestos: [],
@@ -1197,7 +1197,7 @@ ${x.costeEstimado}`,
   ];
   if (x.analisisPedido) lineas.push('', '## Análisis sobre datos existentes', x.analisisPedido);
   if (k) lineas.push('', '## Estado de la evidencia al prerregistrar', `Certeza: ${k.certeza}. Dirección: ${k.direccion}.`, k.enunciado, `Subiría la certeza si: ${k.subiria}`, `Bajaría si: ${k.bajaria}`);
-  if (arnes) lineas.push('', '## Versión de Rosa', `Commit ${arnes.commit}, firmas ${arnes.firmas}, programas optimizados: ${arnes.optimizados}.`);
+  if (arnes) lineas.push('', '## Versión de ROSA2018', `Commit ${arnes.commit}, firmas ${arnes.firmas}, programas optimizados: ${arnes.optimizados}.`);
   lineas.push('', 'Lo que se analice fuera de este registro se reporta como exploratorio, separado de lo prerregistrado.');
   return lineas.join('\n');
 }
@@ -1316,7 +1316,7 @@ export interface CitaComprobable {
 
 /** Responde con lo que hay en el modelo de mundo, citando cada hecho una sola
  *  vez por fuente. `fuentes` (por id) permite devolver el PMID y el DOI de
- *  cada cita para que se pueda comprobar fuera de Rosa: una referencia de
+ *  cada cita para que se pueda comprobar fuera de ROSA2018: una referencia de
  *  2026 sin identificador parece inventada aunque venga de PubMed. */
 export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: string, pregunta: string, fuentes: Map<string, Pick<Fuente, 'id' | 'referencia' | 'doi' | 'pmid' | 'titulo'>> = new Map()): { respuesta: string; nodos: HechoMundo[]; citas: CitaComprobable[] } {
   const palabras = normalizar(pregunta)
@@ -1354,7 +1354,7 @@ export function preguntarAlModeloDeMundo(hechos: HechoMundo[], investigacionId: 
           if (!citas.has(fid)) citas.set(fid, { fuenteId: fid, referencia: ref, doi: f?.doi ?? null, pmid: f?.pmid ?? null, titulo: f?.titulo ?? '' });
           return `${ref}${paginas.length ? `, pág. ${paginas.sort((a, b) => a - b).join(', ')}` : ''}${f?.pmid ? `, PMID ${f.pmid}` : ''}`;
         })
-        .join('; ') || 'inferencia de Rosa'
+        .join('; ') || 'inferencia de ROSA2018'
     );
   };
   const partes: string[] = [];
@@ -1378,7 +1378,7 @@ export interface DatosInvestigacion {
   configuracion?: Investigacion['configuracion'];
   /** Investigacion cuyo modelo de mundo se hereda, si se pide. */
   heredarModeloDe?: string | null;
-  /** La mision escrita por la persona al crear; si falta, Rosa la propone. */
+  /** La mision escrita por la persona al crear; si falta, ROSA2018 la propone. */
   mision?: Partial<Omit<Mision, 'presupuesto'>> & { presupuesto?: Partial<Mision['presupuesto']> };
   quien?: string;
 }
@@ -1510,7 +1510,7 @@ export function anadirReproduccion(estado: EstadoRosa, investigacionId: string, 
   return { estado: siguiente, id: r.id };
 }
 
-/** Pedir a Rosa un analisis in silico. Solo con un dataset aprobado y fijado
+/** Pedir a ROSA2018 un analisis in silico. Solo con un dataset aprobado y fijado
  *  por hash; el bucle lo ejecuta en el sandbox. */
 export function pedirAnalisis(estado: EstadoRosa, hipotesisId: string, datasetId: string, pregunta: string, ahora: number): EstadoRosa {
   const h = estado.hipotesis.find((x) => x.id === hipotesisId);
@@ -1784,7 +1784,7 @@ export function actualizarConfiguracion(estado: EstadoRosa, investigacionId: str
   };
 }
 
-/** Cuánto explora Rosa fuera de la pregunta (botones enfocada, equilibrada, amplia). Misma regla que rosa/estado/acciones.py. */
+/** Cuánto explora ROSA2018 fuera de la pregunta (botones enfocada, equilibrada, amplia). Misma regla que rosa/estado/acciones.py. */
 export function fijarAmplitud(estado: EstadoRosa, investigacionId: string, amplitud: Amplitud): EstadoRosa {
   if (!['enfocada', 'equilibrada', 'amplia'].includes(amplitud)) return estado;
   return {
@@ -1812,7 +1812,7 @@ export function decidirDataset(estado: EstadoRosa, investigacionId: string, data
   return { ...estado, investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, datasets: i.datasets.map((d) => (d.id === datasetId ? { ...d, estado: decision } : d)) })) };
 }
 
-/** Rosa propone un diccionario de columnas y la persona lo aprueba: deja las
+/** ROSA2018 propone un diccionario de columnas y la persona lo aprueba: deja las
  *  columnas sin diccionario en cero. */
 export function aprobarDiccionario(estado: EstadoRosa, investigacionId: string, datasetId: string): EstadoRosa {
   return { ...estado, investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, datasets: i.datasets.map((d) => (d.id === datasetId ? { ...d, columnasSinDiccionario: 0 } : d)) })) };

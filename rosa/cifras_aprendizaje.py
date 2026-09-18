@@ -1,9 +1,9 @@
-"""Las tres cifras de aprendizaje que el informe pide y Rosa no medía.
+"""Las tres cifras de aprendizaje que el informe pide y ROSA2018 no medía.
 
 Son aritmética sobre el registro; ningún modelo interviene y cada valor
 viene con el motivo que lo produjo. Las tres, con el término definido:
 
-1. Acierto de lo prerregistrado. Un prerregistro es lo que Rosa deja por
+1. Acierto de lo prerregistrado. Un prerregistro es lo que ROSA2018 deja por
    escrito antes de mirar los datos: qué espera ver (dirección esperada de
    un plan de análisis, criterio de confirmación de un experimento) y qué
    hará según salga. La cifra es la fracción de esas predicciones que
@@ -93,7 +93,7 @@ REGLA_TIEMPO = "Horas desde `creadaEn` de la hipótesis hasta la primera decisi�
 REGLA_REUTILIZACION = "Heredado: id con el sufijo de la investigación de destino (es_heredado) o id que termina en '-<investigación>' cuyo original existe. Usado: comparte afirmación o fuente (id o referencia) con una hipótesis viva, o está sabido y una hipótesis lo nombra en su procedencia."
 
 GLOSARIO = {
-    "prerregistro": "lo que Rosa deja por escrito antes de mirar los datos: qué espera ver y qué hará según salga",
+    "prerregistro": "lo que ROSA2018 deja por escrito antes de mirar los datos: qué espera ver y qué hará según salga",
     "acierto": "el resultado cayó del lado que el prerregistro llamó 'confirma'",
     "decision": "cada juicio registrado sobre una hipótesis: del Killer (killer_1, killer_2), de la priorización, de una persona o del retorno del laboratorio",
     "mediana": "el valor del medio: la mitad de los casos queda por debajo",
@@ -170,7 +170,7 @@ def _hipotesis_de(e: Any, investigacion_id: str | None) -> list[dict[str, Any]]:
 
 
 def _viva(h: dict[str, Any]) -> bool:
-    """Misma regla que el resto de Rosa: viva es toda hipótesis no descartada
+    """Misma regla que el resto de ROSA2018: viva es toda hipótesis no descartada
     (la fusión también descarta). Un estado ausente cuenta como viva."""
     return _clave(h.get("estado")) != "descartada"
 
@@ -609,7 +609,7 @@ def _texto_acierto(a: dict[str, Any]) -> str:
     total_aparte = sin_dir + no_ev
     cola = f" Aparte {'queda' if total_aparte == 1 else 'quedan'} {' y '.join(aparte)}, que no {'entra' if total_aparte == 1 else 'entran'} en la cuenta." if aparte else ""
     if con == 0:
-        return "Todavía no hay predicciones prerregistradas (lo que Rosa dejó escrito que esperaba ver antes de mirar los datos) con dirección y resultado evaluable: el acierto no se puede medir." + cola
+        return "Todavía no hay predicciones prerregistradas (lo que ROSA2018 dejó escrito que esperaba ver antes de mirar los datos) con dirección y resultado evaluable: el acierto no se puede medir." + cola
     ok = _entero(a.get("aciertos"))
     frase = f"De {_n(con, 'predicción prerregistrada', 'predicciones prerregistradas')} con dirección, {ok} {'salió' if ok == 1 else 'salieron'} como se dijo"
     pf = _dict(a.get("porFuente"))

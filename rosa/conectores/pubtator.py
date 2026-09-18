@@ -7,7 +7,7 @@ interacción, correlación) con el número de publicaciones que las sostienen.
 API pública y gratuita, sin clave. Los identificadores tienen la forma
 `@GENE_GFAP`, `@DISEASE_Alzheimer_Disease`, `@CHEMICAL_...`.
 
-Para Rosa es el esqueleto de evidencia del grafo causal: antes de que el
+Para ROSA2018 es el esqueleto de evidencia del grafo causal: antes de que el
 modelo proponga que A afecta a B, se puede ver cuántas publicaciones
 relacionan A con B según PubTator. Como toda base, "no responde" es "no pude
 comprobar", nunca "no hay". Comprobado en vivo el 15 de septiembre de 2026.
@@ -26,7 +26,7 @@ BASE = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 _lim = Limitador(3.0)
 DOC = "https://www.ncbi.nlm.nih.gov/research/pubtator3/api"
 LICENCIA = "Dominio público (NCBI); sin clave"
-LIMITE = "3 por segundo (límite propio de Rosa)"
+LIMITE = "3 por segundo (límite propio de ROSA2018)"
 TIPOS_RELACION = ("associate", "positive_correlate", "negative_correlate", "cause", "treat", "prevent", "inhibit", "stimulate", "interact", "cotreat", "drug_interact", "compare")
 
 

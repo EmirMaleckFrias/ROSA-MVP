@@ -86,7 +86,7 @@ describe('la aplicacion montada en el cliente', () => {
   it('inicio con el recorrido de primera vez', async () => {
     localStorage.removeItem('rosa.recorrido.v1');
     const raiz = await montar('#/');
-    expect(raiz.textContent).toContain('Rosa investiga; tu decides');
+    expect(raiz.textContent).toContain('ROSA2018 investiga; tu decides');
     // Siguiente hasta el final y Empezar: queda anotado y no vuelve a salir.
     for (let i = 0; i < 4; i++) {
       const siguiente = [...raiz.querySelectorAll('button')].find((b) => b.textContent === 'Siguiente');

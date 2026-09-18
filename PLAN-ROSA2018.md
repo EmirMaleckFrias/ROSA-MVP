@@ -1,4 +1,4 @@
-# Plan ROSA2018: los dos documentos del programa, mapeados a Rosa
+# Plan ROSA2018: los dos documentos del programa, mapeados a ROSA2018
 
 Escrito el 11 de septiembre de 2026. Dos documentos mandan sobre este plan:
 
@@ -8,12 +8,12 @@ Escrito el 11 de septiembre de 2026. Dos documentos mandan sobre este plan:
    evaluaciones costosas, 0 a 3 candidatos, 2 reformulaciones).
 2. **ROSA2018 complete system plan** (10 de septiembre de 2026): la
    arquitectura completa del programa, en etapas A a G, sin fecha de cierre.
-   El MVP es su primer demostrador, no la sustituye. Rosa elige el alcance
+   El MVP es su primer demostrador, no la sustituye. ROSA2018 elige el alcance
    desde una meta amplia; los resultados actualizan todo lo compatible; las
    hipotesis rechazadas siguen recuperables.
 
 Los dos son propuestas: ninguno reporta software implementado ni rendimiento
-cientifico validado. Este fichero dice que hay hecho en Rosa a fecha de hoy,
+cientifico validado. Este fichero dice que hay hecho en ROSA2018 a fecha de hoy,
 que falta, y en que etapa cae cada cosa. Los nombres de los registros son los
 del anexo del documento de concepto y de la seccion 10 del plan completo,
 traducidos: Programme y DiseaseMission son `mision`; Campaign es la corrida
@@ -29,9 +29,9 @@ procedencia, ejecucion in silico, priorizacion y aprendizaje) esta en
 
 ## 1. Las diez etapas del documento de concepto
 
-| Etapa | Que pide | Estado en Rosa (11 de septiembre) | Donde |
+| Etapa | Que pide | Estado en ROSA2018 (11 de septiembre) | Donde |
 |---|---|---|---|
-| 0. Mision cientifica | Poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio; Rosa propone, una persona aprueba | Hecho. Rosa propone la mision al arrancar la primera corrida y ademas las areas de investigacion comparadas (plan completo, seccion 1). Se aprueba con el primer plan o en Objetivo y datos. Presupuesto en llamadas, dolares estimados y horas | `ProponerMision`, `ProponerAreas`, `aprobar_mision`, pantalla Objetivo y datos, tarjeta en Corrida |
+| 0. Mision cientifica | Poblacion, etapa, celula o tejido, mecanismo, tipo de intervencion, capacidades del laboratorio; ROSA2018 propone, una persona aprueba | Hecho. ROSA2018 propone la mision al arrancar la primera corrida y ademas las areas de investigacion comparadas (plan completo, seccion 1). Se aprueba con el primer plan o en Objetivo y datos. Presupuesto en llamadas, dolares estimados y horas | `ProponerMision`, `ProponerAreas`, `aprobar_mision`, pantalla Objetivo y datos, tarjeta en Corrida |
 | 1. Datos y evidencia (Provenance Ledger) | Origen, version, licencia, permisos, fecha, hash, diccionario, uso de IA autorizado; cuatro clases de evidencia; etiqueta de sintetico; misma cohorte | Hecho. Subida de datasets con sha256 y perfil; libro de procedencia editable; `permiteLlmTerceros` nace en falso (NIH NOT-OD-25-081); clase por afirmacion; cohorte por afirmacion y por fuente; registro de evidencia (nivel de medicion, n, comparador, efecto, incertidumbre, campos sin resolver). Falta: deteccion de misma cohorte por autores, centro y periodo (hoy solo por nombre y NCT) | `POST /api/investigaciones/{id}/datasets`, `rosa/datos.py`, `LibroDeProcedencia`, `AfirmacionExtraida` |
 | 2. Mapa y puerta de reproduccion | Tres analisis publicados reproducidos con tolerancias fijas; si no, el modulo no descubre | Hecho el mecanismo: registro de reproducciones con tolerancia congelada, ejecucion en el sandbox, comparacion, puerta bloqueada, abierta o eximida con motivo (nivel 3). Tres candidatos precargados (GSE1297, OASIS-1, SEA-AD). Falta: subir los datasets publicos y correrlos | `anadir_reproduccion`, `rosa/bucle/analisis.py::reproducir`, `PuertaYReproducciones` |
 | 3. Generador (Hypothesis Cards) | Diana, celula, etapa, intervencion y direccion, prediccion falsable, riesgos; versionado | Hecho. Tarjeta al generar y al completar las antiguas; version y versiones con motivo; paso de la ruta terapeutica | `tarjeta`, `reformular_hipotesis`, `TarjetaDeHipotesis` |
@@ -48,10 +48,10 @@ procedencia, ejecucion in silico, priorizacion y aprendizaje) esta en
 |---|---|---|---|---|
 | A. Contrato del sistema | Jerarquia del programa, formatos de registro, limites de inferencia, permisos, protocolo de evaluacion | Mision con areas; pregunta de campana con plantilla; registros de decision, ejecucion, plan, aprendizaje y metodos; politicas; dial de autonomia | Jerarquia explicita programa, areas, campanas, preguntas (hoy: investigacion, corrida con pregunta); protocolo de evaluacion escrito y con responsable | Ejemplos revisados con decisiones esperadas y responsables asignados |
 | B. Nucleo de evidencia y causalidad | Comprobacion de fuentes, afirmaciones tipadas, metodos causales limitados, ejecucion numerica, seguimiento de dependencias | Verificador con contratos, registro de evidencia, sandbox con auditor, recalculo y informe de diferencias al cambiar el estado editorial de una fuente, registro de metodos | El motor causal (reglas tipadas con desconocidos explicitos, modelo causal estructural con supuestos declarados, componentes estadisticos jerarquicos); aristas del modelo de mundo como supuesto o inferencia con evidencia; comprobaciones automaticas de unidades y direccion invertida | Pruebas de extraccion, reproducciones, pruebas de inferencia y de correccion |
-| C. Primer ciclo completo | Rosa elige una pregunta estrecha desde una meta amplia, actua, importa resultados, elige la siguiente accion | Hecho de punta a punta con literatura: mision y areas, pregunta, plan con valor de decision, Killer, conclusion GRADE, experimento prerregistrado con version, retorno con dimensiones, siguiente iteracion | Etiquetar la retroalimentacion simulada o de repeticion como tal en la interfaz | Un ciclo reconstruible con evidencia real |
+| C. Primer ciclo completo | ROSA2018 elige una pregunta estrecha desde una meta amplia, actua, importa resultados, elige la siguiente accion | Hecho de punta a punta con literatura: mision y areas, pregunta, plan con valor de decision, Killer, conclusion GRADE, experimento prerregistrado con version, retorno con dimensiones, siguiente iteracion | Etiquetar la retroalimentacion simulada o de repeticion como tal en la interfaz | Un ciclo reconstruible con evidencia real |
 | D. Programa adaptativo | Varias campanas, revision del alcance, evidencia compartida, seleccion de metodos, resultados pendientes, asignacion de presupuesto | Corridas multiples por investigacion; afirmaciones compartidas por id; registro de metodos con estado; presupuesto por mision | Reasignacion entre areas al cambiar resultados o costes; reapertura de areas pausadas con condicion; seleccion de metodo desde el registro con filtros | Comparaciones con presupuesto fijo y recuperacion ante evidencia inesperada |
 | E. Operacion con laboratorio | Peticiones acordadas, protocolo real ejecutado, identidad de muestras, controles de calidad, revision de decisiones con consecuencia | Prerregistro con version, subida de datos, dimensiones del resultado, fallo tecnico que no toca la hipotesis | Importar el protocolo real y las desviaciones; identidad de experimento y muestra; enmiendas fechadas para trabajo adaptativo | Campanas prospectivas con predicciones registradas y reporte completo |
-| F. Evaluacion cientifica | Comparaciones independientes contra procesos mas simples | Acuerdo del juez con decisiones humanas (Calidad); evaluacion de criterios sobre conjunto reservado | Las cuatro condiciones (cientifico solo, cientifico con LLM y recuperacion, Rosa con componentes apagados, Rosa completa) y los cinco niveles de prueba; panel del Killer con fallos plantados; casos que exigen abstenerse | Efectos, incertidumbre, costes, fallos y limites de generalizacion |
+| F. Evaluacion cientifica | Comparaciones independientes contra procesos mas simples | Acuerdo del juez con decisiones humanas (Calidad); evaluacion de criterios sobre conjunto reservado | Las cuatro condiciones (cientifico solo, cientifico con LLM y recuperacion, ROSA2018 con componentes apagados, ROSA2018 completa) y los cinco niveles de prueba; panel del Killer con fallos plantados; casos que exigen abstenerse | Efectos, incertidumbre, costes, fallos y limites de generalizacion |
 | G. Expansion | Mas metodos, contextos, clases de intervencion, aprendizaje controlado, operacion sostenida | Registro de metodos preparado para a�adir | Cada extension con sus propias pruebas | Cada extension pasa sus comprobaciones |
 
 ## 3. Lo que hay que hacer fuera del codigo, ya
@@ -72,7 +72,7 @@ procedencia, ejecucion in silico, priorizacion y aprendizaje) esta en
   otros GEO (GSE5281, GSE48350, GSE44770) como analisis de la puerta.
 - **Asignar responsables** (patrocinador, lider cientifico, metodos, datos,
   ingenieria, laboratorio, evaluacion) en la mision. Quien escribe una
-  conclusion no es su unico evaluador: en Rosa el generador es Astra, el
+  conclusion no es su unico evaluador: en ROSA2018 el generador es Astra, el
   Killer y el auditor son Opus 5, y la auditoria de descartes vuelve a Astra
   con otro metodo.
 
@@ -101,7 +101,7 @@ de la fecha del demostrador. Este calendario cubre el MVP; las etapas D a G se
 estiman cuando esten confirmados el acceso a datos, las personas, los metodos
 soportados y los tiempos del laboratorio.
 
-## 5. Lo que Rosa hace mejor que lo que piden los documentos
+## 5. Lo que ROSA2018 hace mejor que lo que piden los documentos
 
 Sale de la investigacion del 11 de septiembre (`INVESTIGACION-ROSA2018.md`):
 

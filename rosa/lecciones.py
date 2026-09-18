@@ -1,6 +1,6 @@
 """Lecciones: lo que la investigación aprendió a no repetir, por regla.
 
-Es el "do not re-mine" de rekursiv.ai aplicado a Rosa. Al cerrar cada
+Es el "do not re-mine" de rekursiv.ai aplicado a ROSA2018. Al cerrar cada
 iteración se generan, sin modelo, a partir de lo que el registro ya guarda:
 pasos y pistas que fallaron y por qué, consultas que devolvieron cero
 resultados o cero relevantes, bases que no respondieron, hallazgos del revisor

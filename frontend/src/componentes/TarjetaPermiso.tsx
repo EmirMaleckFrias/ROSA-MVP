@@ -1,5 +1,5 @@
 // Tarjeta de permiso, como en Claude Science: aparece en la corrida cada vez
-// que Rosa necesita un acceso nuevo, con el nombre exacto de lo que pide y
+// que ROSA2018 necesita un acceso nuevo, con el nombre exacto de lo que pide y
 // los alcances elegibles. Anade lo que Claude Science no tiene: los
 // argumentos de la accion editables antes de permitir (como Agent Inbox), la
 // seleccion para aprobar varias de una vez, y la edad de la solicitud con

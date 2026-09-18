@@ -150,7 +150,7 @@ describe('FranjaRanking', () => {
 });
 
 describe('Alternativas', () => {
-  it('sin alternativas dice que Rosa no las escribió todavía', async () => {
+  it('sin alternativas dice que ROSA2018 no las escribió todavía', async () => {
     await act(async () => root.render(<Alternativas h={{}} />));
     expect(nodo.textContent).toContain('no ha escrito explicaciones alternativas');
     await act(async () => root.render(<Alternativas h={null} vacio="Nada por aquí." />));
@@ -178,7 +178,7 @@ describe('Alternativas', () => {
     expect(nodo.textContent).toContain('Medir el marcador años antes del diagnóstico en la misma cohorte.');
     expect(nodo.textContent).toContain('Re-run both groups on the same plate.');
     // Una alternativa sin "qué la distinguiría" lo dice, no lo esconde.
-    expect(nodo.textContent).toContain('Rosa no lo dejó escrito');
+    expect(nodo.textContent).toContain('ROSA2018 no lo dejó escrito');
     expect(todoElTexto()).not.toContain('\u2014');
     expect(todoElTexto()).not.toMatch(SIN_TILDE);
   });
@@ -309,7 +309,7 @@ describe('adversario: alternativas como las escribe hoy el Killer y desde el gra
   it('una cadena suelta montada enseña que la clase es inferida y que falta qué la distinguiría', async () => {
     await act(async () => root.render(<Alternativas h={{ alternativas: ['La edad explica las dos.'] }} />));
     expect(nodo.textContent).toContain('Clase inferida del texto por regla');
-    expect(nodo.textContent).toContain('Rosa no lo dejó escrito');
+    expect(nodo.textContent).toContain('ROSA2018 no lo dejó escrito');
     expect(chips()).toEqual(['Confusor']);
   });
 });

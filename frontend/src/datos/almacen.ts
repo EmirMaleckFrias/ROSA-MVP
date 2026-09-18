@@ -1,4 +1,4 @@
-// El almacen de Rosa: un solo estado, suscripciones, y las acciones que lo
+// El almacen de ROSA2018: un solo estado, suscripciones, y las acciones que lo
 // cambian. Las pantallas leen con `useRosa()` y escriben con `acciones`.
 //
 // Dos modos:
@@ -478,7 +478,7 @@ export async function conectar(permitirMuestra = true): Promise<'muestra' | 'ser
     abrirEventos();
     vigilarFlujo();
   } catch {
-    if (!permitirMuestra) throw new Error('No se pudo cargar el estado de Rosa');
+    if (!permitirMuestra) throw new Error('No se pudo cargar el estado de ROSA2018');
     modo = 'muestra';
     arrancarMuestra();
   }
@@ -518,7 +518,7 @@ export const acciones = {
   iniciarCorrida: (investigacionId: string, parada: ParadaCorrida | null = null) => {
     enviar('iniciarCorrida', parada ? { investigacion_id: investigacionId, parada } : { investigacion_id: investigacionId });
   },
-  /** Cuánto explora Rosa fuera de la pregunta en cada paso de literatura. */
+  /** Cuánto explora ROSA2018 fuera de la pregunta en cada paso de literatura. */
   fijarAmplitud: (investigacionId: string, amplitud: Amplitud) => {
     aplicar((e) => A.fijarAmplitud(e, investigacionId, amplitud));
     enviar('fijarAmplitud', { investigacion_id: investigacionId, amplitud });
@@ -580,7 +580,7 @@ export const acciones = {
    *  cambio entre medias), se resincroniza el estado y se avisa. */
   revisarHipotesis: (id: string, accion: A.AccionRevision, nota: string, aCiegas = false, revisionHumana: Omit<RevisionHumana, 'fecha' | 'quien'> | null = null, versionEsperada: number | null = null, segundosRevision: number | null = null): boolean => {
     const titulo = vivo.estado.hipotesis.find((h) => h.id === id)?.titulo ?? 'la hipótesis';
-    const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a Rosa para refinar' : 'Decisión registrada';
+    const verbo = accion === 'aceptar' ? 'Aceptada' : accion === 'descartar' ? 'Descartada' : accion === 'refinar' ? 'Devuelta a ROSA2018 para refinar' : 'Decisión registrada';
     const ahora = Date.now();
     const corto = titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo;
     const args = { hipotesis_id: id, accion, nota, quien: QUIEN, a_ciegas: aCiegas, revision_humana: revisionHumana, version_esperada: versionEsperada, segundos_revision: segundosRevision };
@@ -589,7 +589,7 @@ export const acciones = {
     const mandar = (keepalive: boolean, intento = 0): Promise<void> =>
       enviarYComprobar('revisarHipotesis', args, keepalive).then((ok) => {
         if (ok === false) {
-          fijarAviso('La hipótesis cambió mientras la revisabas (Rosa la reformuló) o la decisión ya estaba registrada. Se recargó la versión del servidor; vuelve a mirarla antes de decidir.');
+          fijarAviso('La hipótesis cambió mientras la revisabas (ROSA2018 la reformuló) o la decisión ya estaba registrada. Se recargó la versión del servidor; vuelve a mirarla antes de decidir.');
           void resincronizar();
           return;
         }
@@ -643,7 +643,7 @@ export const acciones = {
     enviar('registrarDatosExperimento', sintetico ? { hipotesis_id: id, fichero, analisis, sintetico: 'si' } : { hipotesis_id: id, fichero, analisis });
   },
   /** Sube el fichero de datos del laboratorio. Con servidor, va por multipart
-   *  y Rosa lo evalúa contra el prerregistro; en modo muestra solo se registra
+   *  y ROSA2018 lo evalúa contra el prerregistro; en modo muestra solo se registra
    *  el nombre. `sintetico` es la casilla "estos datos son sintéticos o de
    *  prueba": viaja como el campo `sintetico` ("si" o "no", igual que en la
    *  subida de datasets) y un dato sintético nunca cuenta como evidencia.
@@ -714,7 +714,7 @@ export const acciones = {
       return r.estado;
     });
     if (id !== null) {
-      // Con servidor, la primera corrida arranca sola: Rosa propone el plan y
+      // Con servidor, la primera corrida arranca sola: ROSA2018 propone el plan y
       // lo deja esperando aprobacion. Se encadena tras la respuesta de crear:
       // dos peticiones sueltas pueden llegar al servidor en orden cambiado.
       const invId = id;
@@ -923,7 +923,7 @@ export const acciones = {
    *  de mundo): la corre el servidor con el cerebro y la respuesta llega al
    *  estado por SSE con sus consultas. Devuelve un error legible o null. */
   preguntarALasBases: async (investigacionId: string, pregunta: string): Promise<string | null> => {
-    if (modo !== 'servidor') return 'Preguntar a las bases requiere el servidor de Rosa.';
+    if (modo !== 'servidor') return 'Preguntar a las bases requiere el servidor de ROSA2018.';
     try {
       const r = await fetch(`${API}/investigaciones/${encodeURIComponent(investigacionId)}/preguntar`, { method: 'POST', headers: cabeceras(), body: JSON.stringify({ pregunta, quien: QUIEN }) });
       if (!r.ok) return `El servidor no pudo responder (${r.status}).`;
@@ -1025,7 +1025,7 @@ export const acciones = {
   /** Sube un dataset con su fichero. El servidor calcula el hash, perfila las
    *  columnas y lo deja pendiente hasta completar el libro de procedencia. */
   subirDataset: async (investigacionId: string, fichero: File, nombre: string, descripcion: string, sintetico: boolean): Promise<string | null> => {
-    if (modo !== 'servidor') return 'Subir datasets requiere el servidor de Rosa.';
+    if (modo !== 'servidor') return 'Subir datasets requiere el servidor de ROSA2018.';
     const cuerpo = new FormData();
     cuerpo.append('fichero', fichero, fichero.name);
     cuerpo.append('nombre', nombre);

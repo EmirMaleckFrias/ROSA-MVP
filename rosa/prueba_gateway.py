@@ -1,4 +1,4 @@
-"""Comprueba que los tres modelos de Rosa responden por el gateway con DSPy.
+"""Comprueba que los tres modelos de ROSA2018 responden por el gateway con DSPy.
 
 Una llamada minima a cada uno. Imprime el id del modelo, la palabra que
 devolvio y el finish_reason, que es lo que hay que mirar para detectar un

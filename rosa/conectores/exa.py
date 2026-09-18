@@ -26,7 +26,7 @@ if config.CLAVE_EXA:
         "Encuentra el trabajo que no comparte vocabulario con la pregunta; complementa a PubMed, Europe PMC y OpenAlex",
         _esq(pregunta="La pregunta o la hipótesis, en lenguaje natural (sin operadores booleanos)", desde_anio="Año mínimo de publicación (opcional)"),
         _LICENCIA,
-        "5 por segundo (límite propio de Rosa)",
+        "5 por segundo (límite propio de ROSA2018)",
         _DOC,
         clave="si",
         grupo="literatura",
@@ -45,7 +45,7 @@ if config.CLAVE_EXA:
         "La pregunta de novedad al revés: qué se parece a este trabajo",
         _esq(url="URL del documento de partida"),
         _LICENCIA,
-        "5 por segundo (límite propio de Rosa)",
+        "5 por segundo (límite propio de ROSA2018)",
         _DOC,
         clave="si",
         grupo="literatura",
@@ -62,7 +62,7 @@ if config.CLAVE_EXA:
         "El vecindario de citas de un trabajo, para el precedente y para el Árbol",
         _esq(url="URL de la página del artículo"),
         _LICENCIA,
-        "5 por segundo (límite propio de Rosa)",
+        "5 por segundo (límite propio de ROSA2018)",
         _DOC,
         clave="si",
         grupo="literatura",
@@ -74,7 +74,7 @@ if config.CLAVE_EXA:
         return Resultado({"referencias": refs, "costeUsd": coste}, len(refs), ids, None, (con_id == len(refs) and len(refs) > 0, f"{con_id} de {len(refs)} enlaces con DOI o PMID" if refs else "la página no expone enlaces bibliográficos"))
 
 else:
-    _MOTIVO = "Falta la clave de Exa: ROSA_EXA_KEY en el .env del servidor (se crea en dashboard.exa.ai). Sin ella Rosa busca solo en PubMed, Europe PMC y OpenAlex."
+    _MOTIVO = "Falta la clave de Exa: ROSA_EXA_KEY en el .env del servidor (se crea en dashboard.exa.ai). Sin ella ROSA2018 busca solo en PubMed, Europe PMC y OpenAlex."
     inerte("exa_publicaciones", "Exa (índice de publicaciones)", "Busca publicaciones por significado, en lenguaje natural", "Encuentra el trabajo que no comparte vocabulario con la pregunta", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)
     inerte("exa_similares", "Exa (documentos parecidos)", "Documentos parecidos a una URL dada", "La pregunta de novedad al revés", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)
     inerte("exa_referencias", "Exa (referencias de un artículo)", "Los enlaces bibliográficos de la página de un artículo", "El vecindario de citas de un trabajo", "requiere_cuenta", _MOTIVO, _DOC, "literatura", _LICENCIA)
