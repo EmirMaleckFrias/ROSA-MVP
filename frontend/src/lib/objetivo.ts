@@ -76,12 +76,12 @@ export function parafrasis(objetivo: string): Parafrasis[] {
       primerasTareas: ['Buscar mecanismos y dianas en Open Targets y Agora', 'Leer revisiones recientes de neuroinflamación y genética', 'Proponer 3 hipótesis mecanísticas con biomarcador'],
     },
     {
-      redaccion: `${o}. Prioriza asociaciones biomarcador-progresion en cohortes longitudinales, y distingue Alzheimer familiar de esporadico.`,
+      redaccion: `${o}. Prioriza asociaciones biomarcador-progresión en cohortes longitudinales, y distingue Alzheimer familiar de esporadico.`,
       primerasTareas: ['Buscar cohortes longitudinales con biomarcadores plasmáticos seriados', 'Comparar familiar frente a esporádico en la literatura', 'Proponer 3 hipótesis de anticipación con umbrales'],
     },
     {
-      redaccion: `${o}. Prioriza candidatos a reposicionamiento con un biomarcador de respuesta, y comprueba primero si ya estan en ensayo.`,
-      primerasTareas: ['Consultar ClinicalTrials.gov por farmacos en fase 2 y 3', 'Buscar biomarcadores de respuesta en esos ensayos', 'Descartar lo que ya tiene ensayo con ese desenlace'],
+      redaccion: `${o}. Prioriza candidatos a reposicionamiento con un biomarcador de respuesta, y comprueba primero si ya están en ensayo.`,
+      primerasTareas: ['Consultar ClinicalTrials.gov por fármacos en fase 2 y 3', 'Buscar biomarcadores de respuesta en esos ensayos', 'Descartar lo que ya tiene ensayo con ese desenlace'],
     },
   ];
 }

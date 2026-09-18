@@ -238,7 +238,7 @@ def resumir(ruta: Path, filas_muestra: int = 40) -> tuple[str, str]:
             for p in doc:
                 t = p.get_text("text").strip()
                 if t:
-                    textos.append(f"[pag. {p.number + 1}]\n{t}")
+                    textos.append(f"[pág. {p.number + 1}]\n{t}")
         texto = "\n\n".join(textos)
         return f"PDF de {len(textos)} páginas con texto, {len(texto)} caracteres.", texto[:12000]
     raw = ruta.read_bytes()

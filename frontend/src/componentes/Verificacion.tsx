@@ -72,7 +72,7 @@ export function Verificacion({ afirmaciones, cobertura = null, ocultarCitas = fa
                     {a.texto}
                   </span>
                   {!ocultarCitas && a.cita !== '' && <span className="verif-cita">{a.cita}</span>}
-                  {ocultarCitas && a.cita !== '' && <span className="verif-cita">[cita oculta: revision a ciegas]</span>}
+                  {ocultarCitas && a.cita !== '' && <span className="verif-cita">[cita oculta: revisión a ciegas]</span>}
                   {!ocultarCitas && a.fragmento && (
                     <details className="verif-fragmento">
                       <summary>Lo que dice la fuente, literal</summary>

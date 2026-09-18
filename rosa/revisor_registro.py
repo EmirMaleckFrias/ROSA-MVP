@@ -326,7 +326,7 @@ def texto_registro(e: dict[str, Any], inv_id: str, it: dict[str, Any] | None, co
     lineas += [f"- [{a.get('veredicto')}] {a.get('texto', '')[:160]} {a.get('cita', '')}" for a in afs[:60]]
     runs = [r for r in e.get("ejecuciones", []) if any(r.get("hipotesisId") == h["id"] for h in hips) or r.get("investigacionId") == inv_id]
     lineas.append("EJECUCIONES:")
-    lineas += [f"- {r['id']} [{r.get('estado')}] auditoria={((r.get('auditoria') or {}).get('veredicto'))} " + "; ".join(f"{k}={v}" for k, v in (r.get("resultados") or {}).items()) for r in runs[-12:]] or ["- ninguna"]
+    lineas += [f"- {r['id']} [{r.get('estado')}] auditoría={((r.get('auditoria') or {}).get('veredicto'))} " + "; ".join(f"{k}={v}" for k, v in (r.get("resultados") or {}).items()) for r in runs[-12:]] or ["- ninguna"]
     reps = [r for r in e.get("reproducciones", []) if r.get("investigacionId") == inv_id]
     lineas.append("REPRODUCCIONES: " + ("; ".join(f"{r.get('referencia', '')[:40]} [{r.get('estado')}] obtenido={r.get('valorObtenido')} publicado={r.get('valorPublicado')}" for r in reps) or "ninguna"))
     cons = [q for h in hips for q in h.get("consultas", [])]

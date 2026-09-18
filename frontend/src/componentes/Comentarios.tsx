@@ -75,7 +75,7 @@ export function NuevoComentario({ ancla, onGuardar, onCancelar }: { ancla: Ancla
           Cancelar
         </button>
         <span className="meta" style={{ marginLeft: 'auto' }}>
-          Enter guarda, Shift+Enter salta de linea · {nota.length} / {TOPE}
+          Enter guarda, Shift+Enter salta de línea · {nota.length} / {TOPE}
         </span>
       </div>
     </div>

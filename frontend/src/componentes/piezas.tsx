@@ -202,8 +202,8 @@ export function AvisoMuestra({ conexion }: { conexion: EstadoConexion }) {
     <div className="aviso-muestra" role="status">
       <IconAlert size={14} />
       <span>
-        Datos de muestra: ROSA2018 todavia no esta conectada. La corrida que ves avanza con una simulacion para poder juzgar la interfaz. Nada de lo
-        que hagas aqui llega a un servidor.
+        Datos de muestra: ROSA2018 todavía no está conectada. La corrida que ves avanza con una simulación para poder juzgar la interfaz. Nada de lo
+        que hagas aquí llega a un servidor.
       </span>
     </div>
   );

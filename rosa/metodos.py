@@ -202,12 +202,12 @@ _PLATAFORMAS_DEF: tuple[tuple[str, str, list[Any], dict[str, Any]], ...] = (
     # Sin "genotyp*": el genotipo APOE es covariable en casi todo artículo y
     # convertiría el genotipado en plataforma común de cualquier conjunto.
     ("genotipado", "Genotipado", ["GWAS", "genome-wide association", "whole-genome sequencing", "whole-exome sequencing", "WGS", "WES", "polygenic risk"], {"familia": "genómica"}),
-    ("ihq", "Inmunohistoquímica", ["inmunohistoquímic*", "immunohistochem*", "IHC"], {"familia": "histología"}),
+    ("ihq", "Inmunohistoquímica", ["inmunohistoquimic*", "immunohistochem*", "IHC"], {"familia": "histología"}),
     ("western", "Western blot", ["Western blot*", "immunoblot*"], {"familia": "histología"}),
 )
 
 _MUESTRAS_DEF: tuple[tuple[str, str, list[Any], dict[str, Any]], ...] = (
-    ("plasma", "plasma", ["plasmátic*"], {}),
+    ("plasma", "plasma", ["plasmatic*"], {}),
     ("suero", "suero", ["serum", "sera", "séric*"], {}),
     # "blood-brain barrier", "blood pressure" y "blood flow" no son una muestra de sangre.
     ("sangre", "sangre", [_A(alias="blood", excepto=r"[-‐–\s]?brain[-‐–\s]?barrier|\s+(?:pressure|flow|vessels?|supply|oxygen)"), "sanguín*", "dried blood spot"], {}),

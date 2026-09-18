@@ -32,7 +32,7 @@ export function veredictoConCobertura(veredicto: Veredicto, cobertura: Cobertura
   const pct = Math.round(cobertura.fraccion * 100);
   return {
     veredicto: 'sin_verificar',
-    nota: `La busqueda del tema "${cobertura.tema}" no ha convergido (cobertura estimada ${pct} %): no se puede afirmar que este ni que no este.`,
+    nota: `La búsqueda del tema "${cobertura.tema}" no ha convergido (cobertura estimada ${pct} %): no se puede afirmar que esté ni que no esté.`,
   };
 }
 

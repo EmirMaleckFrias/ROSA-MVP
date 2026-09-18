@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { etiquetaCorrida, proponiendoPlan } from './etiquetas';
+import { etiquetaCorrida, mostrarTexto, proponiendoPlan } from './etiquetas';
 
 // La captura del 15 de septiembre: la corrida recién creada decía "Esperando que
 // apruebes el plan" durante los 93 segundos en que ROSA2018 aún escribía el plan y
@@ -118,5 +118,22 @@ describe('killerPendienteDe', () => {
     expect(killerPendienteDe({ decisionKiller: 'avanzar', procedencia: null })).toBeNull();
     expect(killerPendienteDe({ decisionKiller: 'avanzar', procedencia: { mensajes: 'x' } })).toBeNull();
     expect(killerPendienteDe({ decisionKiller: 'avanzar', procedencia: { mensajes: [null, 4, { de: 'revisor', texto: 9 }] } })).toBeNull();
+  });
+});
+
+// Los eventos guardados antes del 18 de septiembre de 2026 dicen "Rosa"; en
+// pantalla el producto se llama ROSA2018. La sustitución es solo al mostrar.
+describe('mostrarTexto', () => {
+  it('sustituye la palabra Rosa entera por ROSA2018', () => {
+    expect(mostrarTexto('Rosa propone el plan de la iteración 2')).toBe('ROSA2018 propone el plan de la iteración 2');
+    expect(mostrarTexto('Aprobado por Rosa.')).toBe('Aprobado por ROSA2018.');
+  });
+  it('no toca palabras que contienen Rosa ni la minúscula ni lo ya renombrado', () => {
+    expect(mostrarTexto('Rosalía revisó la rosa del jardín; Rosario también')).toBe('Rosalía revisó la rosa del jardín; Rosario también');
+    expect(mostrarTexto('ROSA2018 propone')).toBe('ROSA2018 propone');
+  });
+  it('devuelve cadena vacía si el texto no es una cadena', () => {
+    expect(mostrarTexto(undefined)).toBe('');
+    expect(mostrarTexto(null)).toBe('');
   });
 });

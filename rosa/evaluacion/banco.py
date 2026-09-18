@@ -128,7 +128,7 @@ def main(argv: list[str]) -> int:
     from rosa.estado.almacen import Almacen
 
     if len(argv) < 2:
-        print("uso: python -m rosa.evaluacion.banco <corrida_id> [clave_objetivo]")
+        print("uso: python -m rosa.evaluación.banco <corrida_id> [clave_objetivo]")
         return 2
     # Solo lee: sin cerrojo, así funciona con ROSA2018 en marcha (S-01).
     al = Almacen(solo_lectura=True)

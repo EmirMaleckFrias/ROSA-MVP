@@ -36,7 +36,7 @@ Estados de un paso:
 - vacio: se miró y no hay nada para el paso.
 - no_comprobable: la información para juzgar no está (afirmaciones sin
   verificar, fuentes sin tipo de estudio, ejecuciones sin auditar, hipótesis
-  sin tarjeta). Nunca se convierte en "vacío": una cosa es no haber y otra no
+  sin tarjeta). Nunca se convierte en "vacio": una cosa es no haber y otra no
   poder mirar.
 
 Qué cuenta en cada paso (todo determinista; el motivo va con el valor). Un

@@ -177,7 +177,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
                     ))}
                   </ol>
                   <button type="button" className="btn btn-s" onClick={() => setObjetivo(p.redaccion)}>
-                    Usar esta redaccion
+                    Usar esta redacción
                   </button>
                 </div>
               ))}
@@ -207,7 +207,7 @@ export function NuevaInvestigacion({ estado, irA }: { estado: EstadoRosa; irA: (
         )}
         <div className="acciones">
           <button type="submit" className="btn btn-primario">
-            Crear investigacion
+            Crear investigación
           </button>
           <a className="btn btn-fantasma" href="#/">
             Cancelar

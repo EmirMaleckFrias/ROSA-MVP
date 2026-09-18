@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import { RESORTE, useMovimientoReducido } from '../lib/movimiento';
 import type { Iteracion, PasoPlan, Pista } from '../datos/tipos';
-import { ESTADO_PISTA, TIPO_PISTA } from '../lib/etiquetas';
+import { ESTADO_PISTA, TIPO_PISTA, mostrarTexto } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { IconAlert, IconCheck, IconChevronDown, IconMinus, IconSpinner, IconStop, IconTrash, IconUser } from './icons';
 import { Chip, Momento } from './piezas';
@@ -66,7 +66,7 @@ export function Transcripcion({ pista, ahora, onDetener }: { pista: Pista; ahora
               <motion.li key={`${e.t}-${i}`} className={`t-${e.tipo}`} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18 }}>
                 <time>{formatearDuracion(e.t) || '0 s'}</time>
                 <div>
-                  <span>{e.texto}</span>
+                  <span>{mostrarTexto(e.texto)}</span>
                   {e.consulta && <Consulta c={e.consulta} />}
                 </div>
               </motion.li>

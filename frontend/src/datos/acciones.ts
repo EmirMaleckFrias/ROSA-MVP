@@ -310,7 +310,7 @@ export function volverAIteracion(estado: EstadoRosa, iteracionId: string, que: '
 }
 
 /* ---------------------------------------------------------------------
-   Permisos, incidencias y autonomia
+   Permisos, incidencias y autonomía
    --------------------------------------------------------------------- */
 
 export function resolverSolicitud(
@@ -1266,7 +1266,7 @@ export function enviarComentarios(estado: EstadoRosa, hipotesisId: string, mensa
 }
 
 /* ---------------------------------------------------------------------
-   Meta-revision y modelo de mundo
+   Meta-revisión y modelo de mundo
    --------------------------------------------------------------------- */
 
 /** Inyectar una debilidad recurrente como criterio de revision. */
@@ -1429,7 +1429,7 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
 }
 
 /* ---------------------------------------------------------------------
-   ROSA2018: mision, puerta, reproducciones, analisis, aprendizaje
+   ROSA2018: misión, puerta, reproducciones, análisis, aprendizaje
    --------------------------------------------------------------------- */
 
 /** La persona aprueba (o corrige y aprueba) la mision. Misma regla que
@@ -1727,6 +1727,18 @@ export function actualizarProcedenciaDataset(estado: EstadoRosa, investigacionId
   const nueva: ProcedenciaDataset = { ...base, ...editables };
   const sinDiccionario = procedencia.diccionario ? nueva.diccionario.filter((c) => c.descripcion.trim() === '').length : ds.columnasSinDiccionario;
   return { ...estado, investigaciones: reemplazar(estado.investigaciones, investigacionId, (i) => ({ ...i, datasets: i.datasets.map((d) => (d.id === datasetId ? { ...d, procedencia: nueva, columnasSinDiccionario: sinDiccionario } : d)) })) };
+}
+
+/** Misma regla que rosa/estado/acciones.py editar_investigacion: solo cambian los
+ *  campos que llegan con texto; un título vacío no borra el anterior. El evento lo
+ *  escribe el servidor con el actor real. */
+export function editarInvestigacion(estado: EstadoRosa, investigacionId: string, cambios: { titulo?: string; objetivo?: string }): EstadoRosa {
+  const titulo = (cambios.titulo ?? '').trim();
+  const objetivo = (cambios.objetivo ?? '').trim();
+  return {
+    ...estado,
+    investigaciones: estado.investigaciones.map((i) => (i.id === investigacionId ? { ...i, ...(titulo ? { titulo } : {}), ...(objetivo ? { objetivo } : {}) } : i)),
+  };
 }
 
 export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: string, motivo: string, ahora: number): { estado: EstadoRosa; id: string | null } {

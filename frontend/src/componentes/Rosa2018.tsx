@@ -221,7 +221,7 @@ export function FormularioMision({ inv, compacto = false, corridas = [] }: { inv
       <div className="acciones">
         {error && <p className="tono-mal" role="alert" style={{ fontSize: 13 }}>{error}</p>}
         <button type="button" className="btn btn-primario" onClick={guardar}>
-          Aprobar la mision
+          Aprobar la misión
         </button>
         {m && (
           <button type="button" className="btn btn-fantasma" onClick={() => setEditando(false)}>
@@ -266,7 +266,7 @@ export function TarjetaDeHipotesis({ h }: { h: Hipotesis }) {
             {t.intervencion || 'ninguna'} <Chip tono="borde">{t.direccion.replace('_', ' ')}</Chip>
           </dd>
           <dt>Predicción falsable</dt>
-          <dd className={t.prediccionFalsable ? '' : 'tono-mal'}>{t.prediccionFalsable || 'NINGUNA: asi no es evaluable'}</dd>
+          <dd className={t.prediccionFalsable ? '' : 'tono-mal'}>{t.prediccionFalsable || 'NINGUNA: así no es evaluable'}</dd>
           <dt>Riesgos</dt>
           <dd>{t.riesgos.length ? <ul className="lista-limpia">{t.riesgos.map((r, i) => <li key={i}>{r}</li>)}</ul> : 'ninguno declarado'}</dd>
           <dt>Ruta terapéutica</dt>
@@ -769,7 +769,7 @@ export function EjecucionesInSilico({ h, estado, ahora }: { h: Hipotesis; estado
           <Chip tono={h.evidenciaSecuencial.rechazaNula ? 'ok' : 'borde'} title="Producto de los e-valores (kappa p^(kappa-1)) de los análisis válidos. Controla el error de tipo I aunque se sigan añadiendo pruebas (Popper, 2025).">
             Evidencia acumulada e = {h.evidenciaSecuencial.eAcumulado} sobre {h.evidenciaSecuencial.pruebas.length} {h.evidenciaSecuencial.pruebas.length === 1 ? 'prueba' : 'pruebas'}
           </Chip>
-          <span className="meta">{h.evidenciaSecuencial.rechazaNula ? `Alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: rechaza la hipotesis nula al ${Math.round(h.evidenciaSecuencial.alfa * 100)} %.` : `No alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: la evidencia acumulada aun no rechaza la nula.`}</span>
+          <span className="meta">{h.evidenciaSecuencial.rechazaNula ? `Alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: rechaza la hipotesis nula al ${Math.round(h.evidenciaSecuencial.alfa * 100)} %.` : `No alcanza 1/alfa = ${Math.round(1 / h.evidenciaSecuencial.alfa)}: la evidencia acumulada aún no rechaza la nula.`}</span>
         </div>
       )}
       {runs.map((run) => (
@@ -822,7 +822,7 @@ export function FichaEjecucion({ run, plan, ahora }: { run: Ejecucion; plan: Pla
           </Chip>
         )}
         {run.ensayoSeco && run.ensayoSeco.estado !== 'no_hecho' && (
-          <Chip tono={run.ensayoSeco.estado === 'completado' ? 'ok' : 'aviso'} title={`El codigo se corrio antes sobre ${run.ensayoSeco.filas} filas sinteticas con la forma del dataset (${run.ensayoSeco.intentos} intento${run.ensayoSeco.intentos === 1 ? '' : 's'}). ${run.ensayoSeco.error || 'Sus cifras no cuentan: solo dice si el codigo corre sobre esa forma.'}`}>
+          <Chip tono={run.ensayoSeco.estado === 'completado' ? 'ok' : 'aviso'} title={`El código se corrió antes sobre ${run.ensayoSeco.filas} filas sintéticas con la forma del dataset (${run.ensayoSeco.intentos} intento${run.ensayoSeco.intentos === 1 ? '' : 's'}). ${run.ensayoSeco.error || 'Sus cifras no cuentan: solo dice si el codigo corre sobre esa forma.'}`}>
             Ensayo en seco: {run.ensayoSeco.estado === 'completado' ? 'corre' : run.ensayoSeco.estado.replace('_', ' ')}
           </Chip>
         )}
@@ -1687,7 +1687,7 @@ function FilaArea({ inv, a, corridas }: { inv: Investigacion; a: AreaInvestigaci
             <>
               <input className="entrada" value={condicion} placeholder="Condición para reabrirla" onChange={(e) => setCondicion(e.target.value)} aria-label={`Condición de reapertura de ${a.titulo}`} />
               <button type="button" className="btn btn-pequeno" disabled={condicion.trim() === ''} onClick={() => acciones.cambiarEstadoArea(inv.id, a.id, 'pausada', condicion)}>
-                Pausar con condicion
+                Pausar con condición
               </button>
             </>
           )}
@@ -1701,7 +1701,7 @@ function FilaArea({ inv, a, corridas }: { inv: Investigacion; a: AreaInvestigaci
               <option value="">Sin campaña</option>
               {corridas.map((c) => (
                 <option key={c.id} value={c.id}>
-                  Campana {c.numero} ({c.estado.replace('_', ' ')})
+                  Campaña {c.numero} ({c.estado.replace('_', ' ')})
                 </option>
               ))}
             </select>
@@ -1726,7 +1726,7 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
     if (!q) return <span className="meta">sin pregunta de campaña todavía</span>;
     return (
       <span>
-        {q.intervencion || 'la intervencion'} frente a {q.comparador || 'el comparador'} sobre {q.desenlace || 'el desenlace'} en {q.contexto || 'el contexto'}
+        {q.intervencion || 'la intervención'} frente a {q.comparador || 'el comparador'} sobre {q.desenlace || 'el desenlace'} en {q.contexto || 'el contexto'}
         {q.umbralResuelto ? '' : ' (umbral de efecto sin resolver)'}
       </span>
     );
@@ -1749,7 +1749,7 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
                     {cs.map((c) => (
                       <li key={c.id}>
                         <a className="enlace" href={rutaDe(inv.id, 'corrida', c.id)}>
-                          Campana {c.numero}
+                          Campaña {c.numero}
                         </a>{' '}
                         <span className="meta">({c.estado.replace('_', ' ')})</span>
                         <ul>
@@ -1768,7 +1768,7 @@ export function Jerarquia({ inv, corridas }: { inv: Investigacion; corridas: Cor
                   {sinArea.map((c) => (
                     <li key={c.id}>
                       <a className="enlace" href={rutaDe(inv.id, 'corrida', c.id)}>
-                        Campana {c.numero}
+                        Campaña {c.numero}
                       </a>{' '}
                       <span className="meta">({c.estado.replace('_', ' ')})</span>
                       <ul>
@@ -1909,7 +1909,7 @@ export function PanelKiller({ estado }: { estado: EstadoRosa }) {
             </div>
             {ev.resumen.acuerdo?.decision && (
               <p className="meta" title="Kappa de Cohen: acuerdo entre la decisión esperada y la que salió, corregido por el que se daría por azar. Landis y Koch: 0,41 a 0,60 moderado, 0,61 a 0,80 sustancial, más de 0,80 casi perfecto.">
-                Acuerdo por decision: kappa {ev.resumen.acuerdo.decision.kappa ?? 'n/a'} ({ev.resumen.acuerdo.decision.interpretacion}, n = {ev.resumen.acuerdo.decision.n})
+                Acuerdo por decisión: kappa {ev.resumen.acuerdo.decision.kappa ?? 'n/a'} ({ev.resumen.acuerdo.decision.interpretacion}, n = {ev.resumen.acuerdo.decision.n})
                 {Object.entries(ev.resumen.acuerdo.porComprobacion).map(([c, a]) => ` · ${COMPROBACION_KILLER[c] ?? c}: ${a.kappa ?? 'n/a'}`).join('')}
               </p>
             )}
@@ -2610,7 +2610,7 @@ export function RevisionDeRegistro({ r, compacto = false, iteracionId }: { r: Re
             {h.respuesta && <p className="meta">Respuesta: {h.respuesta}</p>}
             {iteracionId && h.id && (h.estado ?? 'abierto') === 'abierto' && !compacto && (
               <div className="acciones">
-                <Confirmar etiqueta="Atendido" pregunta="Que se hizo con este hallazgo?" pedirTexto={{ etiqueta: 'Respuesta', marcador: 'Se corrigio el resumen; la cifra venia de la pista 3' }} onConfirmar={(t) => acciones.resolverHallazgoRegistro(iteracionId, h.id!, 'atendido', t)} />
+                <Confirmar etiqueta="Atendido" pregunta="¿Qué se hizo con este hallazgo?" pedirTexto={{ etiqueta: 'Respuesta', marcador: 'Se corrigió el resumen; la cifra venía de la pista 3' }} onConfirmar={(t) => acciones.resolverHallazgoRegistro(iteracionId, h.id!, 'atendido', t)} />
                 <Confirmar etiqueta="Descartar" pregunta="¿Por qué no aplica este hallazgo?" pedirTexto={{ etiqueta: 'Motivo', marcador: 'El revisor confundió hipótesis en cola con hipótesis nuevas' }} onConfirmar={(t) => acciones.resolverHallazgoRegistro(iteracionId, h.id!, 'descartado', t)} />
               </div>
             )}
@@ -2631,7 +2631,7 @@ export function ProcedenciaDeArtefacto({ p }: { p: ProcedenciaArtefacto | undefi
     <div className="procedencia-artefacto">
       <div className="pestanas">
         {(Object.keys(etiquetas) as (keyof ProcedenciaArtefacto)[]).map((k) => (
-          <button key={k} type="button" className={`pestana ${pestana === k ? 'activa' : ''}`} onClick={() => setPestana(k)} disabled={vacio(k)} title={vacio(k) ? 'No aplica a esta version' : ''}>
+          <button key={k} type="button" className={`pestana ${pestana === k ? 'activa' : ''}`} onClick={() => setPestana(k)} disabled={vacio(k)} title={vacio(k) ? 'No aplica a esta versión' : ''}>
             {etiquetas[k]}
           </button>
         ))}
@@ -2679,13 +2679,13 @@ export function Skills({ skills }: { skills: SkillCatalogo[] | undefined }) {
                 <td>
                   <strong style={{ fontSize: 13 }}>{s.nombre}</strong>
                   <p className="meta">
-                    {s.ruta}/SKILL.md, {s.lineas} lineas
+                    {s.ruta}/SKILL.md, {s.lineas} líneas
                   </p>
                 </td>
                 <td className="meta">{s.descripcion}</td>
                 <td className="meta">{s.activaSi.join(', ')}</td>
                 <td className="meta">
-                  <Chip tono={s.entorno === 'celula_unica' ? 'aviso' : 'borde'}>{s.entorno === 'celula_unica' ? 'celula unica' : 'tabular'}</Chip>
+                  <Chip tono={s.entorno === 'celula_unica' ? 'aviso' : 'borde'}>{s.entorno === 'celula_unica' ? 'célula única' : 'tabular'}</Chip>
                   {s.paquetes.length > 0 && <p className="meta">Paquetes: {s.paquetes.join(', ')}</p>}
                   {s.scripts.length > 0 && <p className="meta">Módulos: {s.scripts.join(', ')}</p>}
                 </td>
@@ -2784,7 +2784,7 @@ export function IntegridadRegistro() {
 // ---------------------------------------------------------------------------
 // Conocimiento operativo del laboratorio (clase de evidencia propia)
 
-const TIPO_OPERATIVO: Record<ConocimientoOperativo['tipo'], string> = { protocolo: 'Protocolo', reactivo: 'Reactivo o lote', medicion: 'Medicion o artefacto', muestra: 'Muestras', otro: 'Otro' };
+const TIPO_OPERATIVO: Record<ConocimientoOperativo['tipo'], string> = { protocolo: 'Protocolo', reactivo: 'Reactivo o lote', medicion: 'Medición o artefacto', muestra: 'Muestras', otro: 'Otro' };
 
 export function ConocimientoOperativoDelLaboratorio({ inv }: { inv: Investigacion }) {
   const [texto, setTexto] = useState('');

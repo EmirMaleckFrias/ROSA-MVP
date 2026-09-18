@@ -112,7 +112,7 @@ export function modoActual(): 'muestra' | 'servidor' {
 }
 
 /* ---------------------------------------------------------------------
-   Conexion con el servidor
+   Conexión con el servidor
    --------------------------------------------------------------------- */
 
 /** Version del estado del servidor que ya se pinto (llega como `id` del
@@ -538,6 +538,10 @@ export const acciones = {
   aprobarPlan: (iteracionId: string) => {
     aplicar((e) => A.aprobarPlan(e, iteracionId, Date.now()));
     enviar('aprobarPlan', { iteracion_id: iteracionId });
+  },
+  editarInvestigacion: (investigacionId: string, cambios: { titulo?: string; objetivo?: string }) => {
+    aplicar((e) => A.editarInvestigacion(e, investigacionId, cambios));
+    enviar('editarInvestigacion', { investigacion_id: investigacionId, titulo: cambios.titulo ?? null, objetivo: cambios.objetivo ?? null });
   },
   fijarAutoaprobacionPlan: (corridaId: string, segundos: number | null) => {
     aplicar((e) => A.fijarAutoaprobacionPlan(e, corridaId, segundos));

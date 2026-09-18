@@ -158,7 +158,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
           <Chip tono={d.tono}>{d.etiqueta}</Chip>
           <span className="meta">
             Se apoya en {b.sostenidas} de {b.afirmaciones} afirmaciones sostenidas, de {b.fuentes} {b.fuentes === 1 ? 'fuente' : 'fuentes'}
-            {b.interpretaciones > 0 ? `; ${b.interpretaciones} ${b.interpretaciones === 1 ? 'es interpretacion' : 'son interpretaciones'}, no datos` : ''}.
+            {b.interpretaciones > 0 ? `; ${b.interpretaciones} ${b.interpretaciones === 1 ? 'es interpretación' : 'son interpretaciones'}, no datos` : ''}.
           </span>
         </div>
         <p className="meta">{g.nota}</p>
@@ -184,7 +184,7 @@ export function ConclusionDeRosa({ conclusion, ahora }: { conclusion: Conclusion
         <p className="conclusion-enunciado">{conclusion.enunciado}</p>
         {conclusion.cambio && (
           <p className="meta">
-            Cambio respecto a la iteracion {conclusion.cambio.de.iteracion ?? '?'}: antes {conclusion.cambio.de.certeza ? CERTEZA_EVIDENCIA[conclusion.cambio.de.certeza].etiqueta.toLowerCase() : 'sin certeza'} y {conclusion.cambio.de.direccion ? DIRECCION_EVIDENCIA[conclusion.cambio.de.direccion].etiqueta.toLowerCase() : 'sin direccion'}. {conclusion.cambio.motivo}
+            Cambio respecto a la iteración {conclusion.cambio.de.iteracion ?? '?'}: antes {conclusion.cambio.de.certeza ? CERTEZA_EVIDENCIA[conclusion.cambio.de.certeza].etiqueta.toLowerCase() : 'sin certeza'} y {conclusion.cambio.de.direccion ? DIRECCION_EVIDENCIA[conclusion.cambio.de.direccion].etiqueta.toLowerCase() : 'sin dirección'}. {conclusion.cambio.motivo}
           </p>
         )}
         <p className="conclusion-texto">{conclusion.conclusion}</p>

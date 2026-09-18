@@ -13,14 +13,14 @@ const CLAVE = 'rosa.recorrido.v1';
 
 export const PASOS: { titulo: string; texto: string; pista: string; etapa: number | null }[] = [
   {
-    titulo: 'ROSA2018 investiga; tu decides',
+    titulo: 'ROSA2018 investiga; tú decides',
     texto: 'ROSA2018 lee la literatura, extrae afirmaciones y las verifica contra el pasaje literal, actualiza un modelo de mundo con procedencia, genera hipótesis y las somete a un Killer de catorce comprobaciones. Nada entra al modelo de mundo ni llega al laboratorio sin pasar por ti.',
-    pista: 'El hilo de arriba muestra siempre en que etapa esta y que te espera.',
+    pista: 'El hilo de arriba muestra siempre en qué etapa está y qué te espera.',
     etapa: null,
   },
   {
     titulo: 'La corrida en vivo',
-    texto: 'Cada iteración empieza con un plan que ROSA2018 propone y tu apruebas (puedes reordenar, quitar o añadir pasos). Después ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
+    texto: 'Cada iteración empieza con un plan que ROSA2018 propone y tú apruebas (puedes reordenar, quitar o añadir pasos). Después ves cada paso ejecutarse y, dentro, las pistas que trabajan en paralelo con cada consulta a cada base.',
     pista: 'Si algo va mal, ROSA2018 abre una incidencia o pide permiso: se resuelven ahí mismo.',
     etapa: 1,
   },

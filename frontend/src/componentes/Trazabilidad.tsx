@@ -71,7 +71,7 @@ export function Trazabilidad({ corrida, activa }: { corrida: Corrida; activa: bo
           <div className="pestanas pestanas-s" role="tablist">
             {iteraciones.map((n) => (
               <button key={n} type="button" role="tab" aria-selected={n === actual} className={n === actual ? 'activa' : ''} onClick={() => setIteracion(n)}>
-                Iteracion {n}
+                Iteración {n}
               </button>
             ))}
           </div>

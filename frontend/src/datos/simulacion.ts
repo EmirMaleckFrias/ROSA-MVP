@@ -242,12 +242,12 @@ function hipotesisSimulada(investigacionId: string, iteracion: number, ahora: nu
     procedencia: {
       mensajes: [{ id: nuevoId('m'), de: 'rosa', texto: 'Hipótesis generada por la simulación de la interfaz a partir de la pregunta abierta sobre NfL y GFAP.', creadoEn: ahora }],
       codigo: 'salida = generar(hechos=hechos_iteracion, pregunta_abierta="orden de NfL y GFAP")',
-      registro: ['(simulacion) generar -> 1 hipotesis', '(simulacion) juez -> parcial', '(simulacion) novedad -> sin ensayo'],
+      registro: ['(simulación) generar -> 1 hipótesis', '(simulación) juez -> parcial', '(simulación) novedad -> sin ensayo'],
       entorno: { lenguaje: 'Python', version: '3.12.14', paquetes: [{ nombre: 'dspy', version: '3.3.1' }], modelos: [{ nombre: 'openai/gpt-6-astra', version: 'gateway' }] },
       fuentes: [f],
     },
     hallazgos: [],
-    revisiones: [{ fecha: ahora, quien: 'Rosa', accion: 'propuesta', nota: `Iteracion ${iteracion} (simulacion)`, aCiegas: false }],
+    revisiones: [{ fecha: ahora, quien: 'Rosa', accion: 'propuesta', nota: `Iteración ${iteracion} (simulación)`, aCiegas: false }],
     creadaEn: ahora,
     iteracion,
     origen: 'rosa',
@@ -329,7 +329,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
         iteraciones: e.iteraciones.map((i) => (i.id === it.id ? { ...i, planAprobado: true, empezadaEn: ahora } : i)),
         corridas: e.corridas.map((x) => (x.id === c.id ? { ...x, estado: 'en_marcha' as const } : x)),
       };
-      e = conEvento(e, c.investigacionId, 'corrida_estado', `Plan de la iteracion ${it.numero} autoaprobado tras ${c.autoAprobarPlanSegundos} s sin respuesta`, null, ahora);
+      e = conEvento(e, c.investigacionId, 'corrida_estado', `Plan de la iteración ${it.numero} autoaprobado tras ${c.autoAprobarPlanSegundos} s sin respuesta`, null, ahora);
     }
   }
 
@@ -361,7 +361,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
 
   // Presupuesto global: alertas y pausa al tope. Una pregunta pendiente
   // (permiso o incidencia) tiene prioridad: la corrida queda en
-  // "esperando aprobacion", no en "pausada por presupuesto".
+  // "esperando aprobación", no en "pausada por presupuesto".
   const pres = estadoPresupuesto(corridaNueva);
   if (pres.nuevasAlertas.length > 0) {
     corridaNueva = { ...corridaNueva, presupuesto: { ...corridaNueva.presupuesto, avisadas: [...corridaNueva.presupuesto.avisadas, ...pres.nuevasAlertas] } };
@@ -445,7 +445,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
       const siguiente = nuevaIteracion(corrida.id, actual.numero + 1, ahora);
       nuevasIteraciones = [...e.iteraciones, siguiente];
       corridas = corridas.map((c) => (c.id === corrida.id ? { ...c, iteracionActual: siguiente.numero, estado: 'esperando_plan' as const, gasto: { ...c.gasto, articulosLeidos: c.gasto.articulosLeidos + 12 } } : c));
-      e = conEvento(e, corrida.investigacionId, 'iteracion_terminada', `Iteracion ${actual.numero} terminada: ${resumen}`, `#/investigaciones/${corrida.investigacionId}/corrida`, ahora);
+      e = conEvento(e, corrida.investigacionId, 'iteracion_terminada', `Iteración ${actual.numero} terminada: ${resumen}`, `#/investigaciones/${corrida.investigacionId}/corrida`, ahora);
       const yaAnadida = hipotesis.some((h) => h.titulo.startsWith('GFAP en plasma se altera antes que NfL'));
       if (!yaAnadida) {
         const nueva = hipotesisSimulada(corrida.investigacionId, actual.numero, ahora);
@@ -467,7 +467,7 @@ export function avanzar(estado: EstadoRosa, ahora: number): EstadoRosa {
             actualizadoEn: ahora,
             prioridad: 5,
             citas: [],
-            historial: [{ fecha: ahora, de: null, a: 'sabido', quien: 'Rosa', motivo: `Anadido en la iteracion ${actual.numero}` }],
+            historial: [{ fecha: ahora, de: null, a: 'sabido', quien: 'Rosa', motivo: `Añadido en la iteración ${actual.numero}` }],
           },
         ];
         e = conEvento(e, corrida.investigacionId, 'hecho_nuevo', 'Hecho nuevo en el modelo de mundo: GFAP como marcador astroglial, NfL como axonal', `#/investigaciones/${corrida.investigacionId}/mundo`, ahora);

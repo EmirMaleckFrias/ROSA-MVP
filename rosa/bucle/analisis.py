@@ -65,7 +65,7 @@ def _texto_plan(plan: dict[str, Any]) -> str:
             f"No evaluable si: {plan['criterioNoEvaluable']}",
             f"Semilla: {plan['semilla']}",
         ]
-        + (["SALIDA OBLIGATORIA: la cifra comparada con la publicada se imprime como RESULTADO valor_reproducido=<numero>, con ese nombre exacto."] if plan.get("tipo") == "reproduccion" else [])
+        + (["SALIDA OBLIGATORIA: la cifra comparada con la publicada se imprime como RESULTADO valor_reproducido=<número>, con ese nombre exacto."] if plan.get("tipo") == "reproduccion" else [])
     )
 
 
@@ -246,7 +246,7 @@ async def _correr_plan(ctx, plan: dict[str, Any], ds: dict[str, Any], ruta: Path
         else:
             texto_rep = ""
             if repeticiones:
-                texto_rep = "\n\nRepeticiones con otras semillas (mismo plan y codigo):\n" + "\n".join(f"- semilla {r['semilla']} ({r['estado']}): " + ("; ".join(f"{k}={v}" for k, v in r["resultados"].items()) or "sin cifras") for r in repeticiones)
+                texto_rep = "\n\nRepeticiones con otras semillas (mismo plan y código):\n" + "\n".join(f"- semilla {r['semilla']} ({r['estado']}): " + ("; ".join(f"{k}={v}" for k, v in r["resultados"].items()) or "sin cifras") for r in repeticiones)
             try:
                 pi = await ctx.llamar("juez", ctx.programas.interpretar, plan=_texto_plan(plan), resultados=("\n".join(f"{k}={v}" for k, v in res.resultados.items()) or "ninguna") + texto_rep, baseline="\n".join(f"{k}={v}" for k, v in res.baseline.items()) or "ninguna", control_negativo="\n".join(f"{k}={v}" for k, v in res.control.items()) or "ninguna")
                 interpretacion = {"estado": pi.interpretacion.estado, "resumen": pi.interpretacion.resumen.strip(), "cifras": [{"nombre": c.nombre, "valor": c.valor} for c in pi.interpretacion.cifras_clave][:10]}
@@ -489,7 +489,7 @@ async def reproducir(ctx, rep: dict[str, Any], pista: Pista) -> None:
         "cerebro",
         ctx.programas.planificar,
         hipotesis=f"Reproducir el análisis publicado: {rep['referencia']} ({rep['doi'] or 'sin DOI'}). {rep['descripcion']}",
-        prediccion_falsable=f"La cifra publicada es {rep['cifraPublicada']} = {rep['valorPublicado']}. El script debe imprimir RESULTADO valor_reproducido=<numero> con la misma definicion.",
+        prediccion_falsable=f"La cifra publicada es {rep['cifraPublicada']} = {rep['valorPublicado']}. El script debe imprimir RESULTADO valor_reproducido=<número> con la misma definición.",
         pregunta_pedida=f"Calcular exactamente: {rep['cifraPublicada']}",
         esquema_datos=esquema,
         limites="Reproducción: mismos criterios que la publicación; ninguna variante nueva",
@@ -507,7 +507,7 @@ async def reproducir(ctx, rep: dict[str, Any], pista: Pista) -> None:
     else:
         dentro = abs(valor - rep["valorPublicado"]) <= rep["tolerancia"] * max(abs(rep["valorPublicado"]), 1e-12)
         estado = "superada" if dentro else "fallida"
-    ctx.mutar(lambda e2: _estado_rep(e2, rep["id"], estado, plan["id"], run["id"], None if estado != "error_tecnico" else (run.get("error") or "El script no imprimio RESULTADO valor_reproducido=<numero>: no se puede comparar con la cifra publicada"), valor), "reproduccion")
+    ctx.mutar(lambda e2: _estado_rep(e2, rep["id"], estado, plan["id"], run["id"], None if estado != "error_tecnico" else (run.get("error") or "El script no imprimio RESULTADO valor_reproducido=<número>: no se puede comparar con la cifra publicada"), valor), "reproduccion")
     pista.resultado(f"Reproducción {rep['referencia']}: {estado}" + (f" (obtenido {valor:g}, publicado {rep['valorPublicado']:g}, tolerancia {rep['tolerancia']:.0%})" if valor is not None else ""))
 
 

@@ -98,10 +98,10 @@ class AfirmacionExtraida(BaseModel):
     tipo: Literal["dato", "literatura", "interpretacion"] = Field(description="dato si es una cifra o medida; literatura si es lo que la fuente afirma; interpretación si es lectura de ROSA2018")
     tema: str
     cohorte: str = Field(default="", description="Nombre de la cohorte, estudio o registro del que salen los datos, tal como aparece en el fragmento (ADNI, BioFINDER, A4, un NCT); vacío si el fragmento no lo dice")
-    nivel_medicion: Literal["medida", "resultado_analisis", "interpretacion_autor", "interpretacion_rosa"] = Field(default="resultado_analisis", description="medida si es una medicion directa reportada; resultado_analisis si es la salida de un analisis estadistico del articulo; interpretacion_autor si es lo que los autores concluyen o discuten (una frase de la discusion nunca es una medida); interpretacion_rosa si es lectura de ROSA2018")
+    nivel_medicion: Literal["medida", "resultado_analisis", "interpretacion_autor", "interpretacion_rosa"] = Field(default="resultado_analisis", description="medida si es una medición directa reportada; resultado_analisis si es la salida de un análisis estadístico del artículo; interpretacion_autor si es lo que los autores concluyen o discuten (una frase de la discusión nunca es una medida); interpretacion_rosa si es lectura de ROSA2018")
     n: str = Field(default="", description="Número de unidades biológicas independientes (personas, donantes) al que se refiere la cifra, tal como lo dice el fragmento; vacío si no lo dice")
     comparador: str = Field(default="", description="Con que se compara (grupo control, placebo, no portadores); vacío si no hay o no lo dice")
-    efecto: str = Field(default="", description="La magnitud del efecto con su unidad, tal como aparece (por ejemplo 'diferencia de 0,8 pg/mL', 'HR 1,6'); vacio si no hay cifra")
+    efecto: str = Field(default="", description="La magnitud del efecto con su unidad, tal como aparece (por ejemplo 'diferencia de 0,8 pg/mL', 'HR 1,6'); vacío si no hay cifra")
     incertidumbre: str = Field(default="", description="Intervalo de confianza, desviación o p, tal como aparece; vacío si no lo dice")
 
 
@@ -212,7 +212,7 @@ class ProponerPlan(dspy.Signature):
     lecciones: str = dspy.InputField(desc="Lo que esta investigación aprendió a no repetir, por ámbito. Se leen antes de proponer y el plan las respeta")
     indicaciones_humanas: str = dspy.InputField(desc="Lo que pidió la investigadora, si algo")
     hipotesis_vivas: str = dspy.InputField(desc="Las hipótesis en competencia con su certeza, dirección, lo más frágil y que las subiría o bajaría")
-    datasets_disponibles: str = dspy.InputField(desc="Registro de datasets del programa que coinciden con la pregunta (accession, tipo, acceso, con qué términos coinciden); los de acceso controlado no se proponen para análisis, el proyecto no los pide. Un paso de análisis solo se propone sobre un dataset abierto de esta lista o uno aprobado por la investigadora")
+    datasets_disponibles: str = dspy.InputField(desc="Registro de datasets del programa que coinciden con la pregunta (accession, tipo, acceso, con qué términos coinciden); los de acceso controlado no se proponen para análisis, el proyecto no los pide. Un paso de análisis solo se propone sobre un dataset abierto de está lista o uno aprobado por la investigadora")
     numero_iteracion: int = dspy.InputField()
     plan: list[PasoPropuesto] = dspy.OutputField()
 
@@ -579,7 +579,7 @@ class ProponerExperimento(dspy.Signature):
 class RelacionEvidencia(BaseModel):
     indice: int = Field(description="Número de la afirmación candidata en la lista")
     relacion: Literal["apoya", "apoya_indirecta", "contradice", "socava", "no_pertinente"] = Field(description="apoya: misma población, mismo marcador o intervención y mismo sentido que la hipótesis; apoya_indirecta: el mismo patrón en otra población, otro desenlace cercano o otra plataforma de medida (cuenta como evidencia indirecta, baja la certeza, no la dirección); contradice: misma población y marcador con el sentido contrario o sin el efecto; socava: no habla del sentido de la hipótesis sino que ataca el método o la inferencia de UNO de los apoyos ya presentes (la plataforma no mide eso, la cohorte no es la que dice, el análisis tenía fuga), y entonces `socava_a` dice cuál; no_pertinente: no habla de lo que la hipótesis afirma aunque comparta palabras")
-    socava_a: int | None = Field(default=None, description="Solo si relacion es socava: número del apoyo atacado en la lista `afirmaciones_existentes`")
+    socava_a: int | None = Field(default=None, description="Solo si relación es socava: número del apoyo atacado en la lista `afirmaciones_existentes`")
     motivo: str = Field(description="Una frase: qué coincide o qué no (población, marcador, sentido)")
 
 
@@ -665,13 +665,13 @@ class DimensionesResultado(BaseModel):
 
 
 class ResultadoExperimento(BaseModel):
-    veredicto: Literal["confirma", "refuta", "inconcluso", "no_evaluable"] = Field(description="Segun los criterios congelados en el prerregistro: confirma si se cumple el criterio de confirmacion, refuta si el de refutacion, inconcluso si los datos no bastan para ninguno, no_evaluable si el fichero no contiene lo necesario para aplicar los criterios")
+    veredicto: Literal["confirma", "refuta", "inconcluso", "no_evaluable"] = Field(description="Según los criterios congelados en el prerregistro: confirma si se cumple el criterio de confirmación, refuta si el de refutación, inconcluso si los datos no bastan para ninguno, no_evaluable si el fichero no contiene lo necesario para aplicar los criterios")
     dimensiones: DimensionesResultado = Field(description="Las dimensiones del resultado, que pueden coexistir. No se fuerza todo a una etiqueta: un fallo técnico parcial con un efecto inesperado en otra medida es las dos cosas")
     clasificacion: Literal["apoyo_reproducido", "negativo_interpretable", "inconcluso", "fallo_tecnico", "toxicidad_inviabilidad", "correccion_contexto"] = Field(
         default="inconcluso",
-        description="La clase del resultado en la taxonomia de retorno. apoyo_reproducido: efecto en la direccion predicha con controles validos y el criterio cumplido. negativo_interpretable: controles validos, potencia suficiente o intervalo que excluye el efecto minimo, y el criterio de refutacion cumplido. inconcluso: controles validos pero potencia insuficiente o intervalo que cruza el efecto minimo. fallo_tecnico: control positivo fallido, control negativo con senal, o el ensayo no se ejecuto como se prerregistro; no toca la hipotesis. toxicidad_inviabilidad: el modelo no tolero la intervencion o no hubo exposicion en el tejido. correccion_contexto: el efecto existe pero en otra variable, dosis, tejido, etapa o poblacion",
+        description="La clase del resultado en la taxonomia de retorno. apoyo_reproducido: efecto en la dirección predicha con controles válidos y el criterio cumplido. negativo_interpretable: controles válidos, potencia suficiente o intervalo que excluye el efecto mínimo, y el criterio de refutación cumplido. inconcluso: controles válidos pero potencia insuficiente o intervalo que cruza el efecto mínimo. fallo_tecnico: control positivo fallido, control negativo con señal, o el ensayo no se ejecutó como se prerregistro; no toca la hipótesis. toxicidad_inviabilidad: el modelo no toleró la intervención o no hubo exposición en el tejido. correccion_contexto: el efecto existe pero en otra variable, dosis, tejido, etapa o población",
     )
-    contexto_corregido: str = Field(default="", description="Solo si la clasificacion es correccion_contexto: en que contexto (celula, etapa, poblacion, variable) se observo el efecto, para escribir la hipotesis derivada")
+    contexto_corregido: str = Field(default="", description="Solo si la clasificación es correccion_contexto: en que contexto (célula, etapa, población, variable) se observo el efecto, para escribir la hipótesis derivada")
     resultado: str = Field(description="El hallazgo principal en una o dos frases con las cifras y su denominador")
     motivo: str = Field(description="Qué criterio del prerregistro se aplico y como lo cumplen o no los datos; que controles había y si fueron válidos")
     limitaciones: str = Field(description="Qué no permiten concluir los datos: tamaño, faltantes, diseño distinto al prerregistrado, ausencia de controles")
@@ -688,7 +688,7 @@ class EvaluarResultado(dspy.Signature):
     informativo. Lenguaje corriente, con denominadores."""
 
     hipotesis: str = dspy.InputField()
-    prerregistro: str = dspy.InputField(desc="Protocolo, ensayo, criterio de confirmacion y de refutacion tal como se congelaron; despues, el protocolo realmente ejecutado con sus desviaciones e identidad de muestras, y las enmiendas fechadas. Una desviacion que toca el criterio o un ensayo que no se ejecuto como se prerregistro es fallo_tecnico o una limitacion explicita, nunca se ignora")
+    prerregistro: str = dspy.InputField(desc="Protocolo, ensayo, criterio de confirmación y de refutación tal como se congelaron; después, el protocolo realmente ejecutado con sus desviaciones e identidad de muestras, y las enmiendas fechadas. Una desviación que toca el criterio o un ensayo que no se ejecutó como se prerregistro es fallo_tecnico o una limitación explícita, nunca se ignora")
     analisis_pedido: str = dspy.InputField(desc="Lo que la persona pidió analizar al registrar los datos")
     resumen_datos: str = dspy.InputField(desc="Resumen determinista del fichero: filas, columnas, estadísticos por columna, faltantes")
     muestra_datos: str = dspy.InputField(desc="Las primeras filas del fichero o el texto, tal cual")
@@ -829,7 +829,7 @@ NOMBRES_COMPROBACION = Literal[
 
 class ComprobacionKiller(BaseModel):
     comprobacion: NOMBRES_COMPROBACION
-    resultado: Literal["pasa", "falla", "no_aplica", "no_comprobable"] = Field(description="no_comprobable solo cuando falta la informacion o una fuente no respondio: no es 'falla'")
+    resultado: Literal["pasa", "falla", "no_aplica", "no_comprobable"] = Field(description="no_comprobable solo cuando falta la información o una fuente no respondió: no es 'falla'")
     detalle: str = Field(description="Una o dos frases con la afirmación, supuesto o fuente concreta que lo motiva")
 
 
@@ -839,11 +839,11 @@ class AlternativaPropuesta(BaseModel):
 
 
 class RevisionKiller(BaseModel):
-    comprobaciones: list[ComprobacionKiller] = Field(description="Una entrada por cada comprobacion que ROSA2018 no resolvio ya de forma determinista: supuestos, fuente_primaria, direccion_causal, falsabilidad, factibilidad, redundancia, sesgo_evidencia")
-    supuesto_invalidante: str = Field(description="El supuesto concreto que esta CONTRADICHO por evidencia citada y que tumba la hipotesis; vacio si ninguno esta contradicho. Un supuesto sin evidencia no va aqui: va en que_haria_falta")
+    comprobaciones: list[ComprobacionKiller] = Field(description="Una entrada por cada comprobación que ROSA2018 no resolvió ya de forma determinista: supuestos, fuente_primaria, direccion_causal, falsabilidad, factibilidad, redundancia, sesgo_evidencia")
+    supuesto_invalidante: str = Field(description="El supuesto concreto que esta CONTRADICHO por evidencia citada y que tumba la hipótesis; vacío si ninguno está contradicho. Un supuesto sin evidencia no va aquí: va en que_haria_falta")
     alternativas: list[AlternativaPropuesta] = Field(default_factory=list, description="Explicaciones alternativas de lo observado sin que la hipótesis sea cierta (causa inversa, confusor común, sesgo de selección, artefacto de medida), cada una con la observación que la distinguiría de la hipótesis. Vacía solo si de verdad no hay ninguna")
     reformulacion_sugerida: str = Field(description="Si alguna comprobación reformulable falla: como habría que reescribir la hipótesis para que pase; vacío si no aplica")
-    que_haria_falta: str = Field(description="Si algo quedo no_comprobable: que fuente o dato haria falta para evaluarla; vacio si nada")
+    que_haria_falta: str = Field(description="Si algo quedó no_comprobable: que fuente o dato haría falta para evaluarla; vacío si nada")
     contradice_a: list[str] = Field(default_factory=list, description="Ids (hip-...) de las otras hipótesis vivas con las que esta NO puede ser cierta a la vez (mismo mecanismo o marcador con sentido opuesto), copiados tal cual de la lista de hipótesis; vacío si ninguna. No es redundancia: dos hipótesis que dicen lo mismo no se contradicen")
     resumen: str = Field(description="Tres frases en lenguaje corriente: que pasa la hipótesis, que no, y que es lo más frágil")
 
@@ -976,7 +976,7 @@ class PlanPropuesto(BaseModel):
     si_refuta: str = Field(default="", description="Qué hará ROSA2018 si lo refuta (por ejemplo: bajar la dirección a en contra y no reinterpretar el negativo con subgrupos)")
     si_no_evaluable: str = Field(default="", description="Qué hará ROSA2018 si los datos no bastan (por ejemplo: pedir otro dataset; no cuenta ni a favor ni en contra)")
     criterio_no_evaluable: str = Field(description="Qué condición de los DATOS (n mínimo por grupo, faltantes, columna ausente, valores fuera de rango) hace que el análisis no se pueda evaluar. Solo condiciones comprobables en el fichero: nunca dudas sobre el método o la documentación. Si el texto del plan no fija un detalle del método, se elige la opción más fiel a la publicación, se declara en el plan y se calcula")
-    entorno: Literal["tabular", "celula_unica"] = Field(default="tabular", description="tabular (pandas, numpy, scipy, statsmodels) para CSV, TSV y JSON; celula_unica (ademas scanpy y anndata) solo para ficheros h5ad de celula unica")
+    entorno: Literal["tabular", "celula_unica"] = Field(default="tabular", description="tabular (pandas, numpy, scipy, statsmodels) para CSV, TSV y JSON; celula_unica (además scanpy y anndata) solo para ficheros h5ad de célula única")
 
 
 class PlanificarAnalisis(dspy.Signature):
@@ -1045,7 +1045,7 @@ class RepararCodigo(dspy.Signature):
 
 
 class InterpretacionAnalisis(BaseModel):
-    estado: Literal["efecto_detectado", "sin_efecto_detectable", "no_evaluable"] = Field(description="Segun el umbral y el criterio fijados en el plan. sin_efecto_detectable exige que el control negativo saliera limpio y la baseline se calculara; si no, no_evaluable")
+    estado: Literal["efecto_detectado", "sin_efecto_detectable", "no_evaluable"] = Field(description="Según el umbral y el criterio fijados en el plan. sin_efecto_detectable exige que el control negativo saliera limpio y la baseline se calculara; si no, no_evaluable")
     resumen: str = Field(description="Dos o tres frases en lenguaje corriente con las cifras y su denominador; el verbo sigue a la evidencia: 'los datos muestran', 'no se detecta', 'no se pudo evaluar'")
     cifras_clave: list[CifraClave]
 
@@ -1074,7 +1074,7 @@ class ComprobacionAuditor(BaseModel):
 class AuditoriaAnalisis(BaseModel):
     comprobaciones: list[ComprobacionAuditor]
     plausibilidad_verificada: bool = Field(description="True si las cifras son plausibles en unidades, escala y n para estos datos; False si algo huele a error silencioso (normalización, unidades, signo)")
-    veredicto: Literal["valido", "no_valido", "no_evaluable_computacionalmente"] = Field(description="no_valido si alguna comprobacion critica falla (fuga, no coincide con el plan, interpretacion que sobrepasa, unidades imposibles). no_evaluable_computacionalmente si con estos datos no habia forma de responder la pregunta")
+    veredicto: Literal["valido", "no_valido", "no_evaluable_computacionalmente"] = Field(description="no_valido si alguna comprobación crítica falla (fuga, no coincide con el plan, interpretación que sobrepasa, unidades imposibles). no_evaluable_computacionalmente si con estos datos no había forma de responder la pregunta")
     motivo: str = Field(description="Dos frases con la comprobación que decide")
 
 

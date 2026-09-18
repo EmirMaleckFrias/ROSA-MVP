@@ -49,7 +49,7 @@ import {
   revisarHipotesis,
   revocarPermiso,
   volverAIteracion,
-} from './acciones';
+  editarInvestigacion,} from './acciones';
 import { AHORA_MUESTRA, estadoDeMuestra } from './muestra';
 import { nuevaIteracion } from './simulacion';
 
@@ -850,5 +850,16 @@ describe('enmendarExperimento recalcula el hash como el servidor', () => {
     const x2 = e2.hipotesis.find((y) => y.id === h.id)!.experimento!;
     expect(x2.hashLecturas).toBeUndefined();
     expect(x2.enmiendas![0]!.hashAntes).toBeUndefined();
+  });
+});
+
+describe('editarInvestigacion', () => {
+  it('cambia solo los campos con texto y no toca el resto (misma regla que el servidor)', () => {
+    const e = estadoDeMuestra();
+    const inv = e.investigaciones[0]!;
+    const e2 = editarInvestigacion(e, inv.id, { titulo: '  Progresión en Alzheimer  ', objetivo: '' });
+    expect(e2.investigaciones[0]!.titulo).toBe('Progresión en Alzheimer');
+    expect(e2.investigaciones[0]!.objetivo).toBe(inv.objetivo);
+    expect(editarInvestigacion(e, 'inv-x', { titulo: 'Otro' }).investigaciones).toEqual(e.investigaciones);
   });
 });

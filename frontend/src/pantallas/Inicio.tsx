@@ -20,10 +20,10 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       <div className="pantalla-cabecera">
         <div>
           <h2>Investigaciones</h2>
-          <p>Cada investigación tiene su objetivo, sus límites y su condición de parada. ROSA2018 corre dentro de ellos y tu revisas lo que propone.</p>
+          <p>Cada investigación tiene su objetivo, sus límites y su condición de parada. ROSA2018 corre dentro de ellos y tú revisas lo que propone.</p>
         </div>
         <a className="btn btn-primario" href="#/nueva">
-          Nueva investigacion
+          Nueva investigación
         </a>
       </div>
 
@@ -36,14 +36,14 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
       {estado.investigaciones.length === 0 ? (
         <Vacio
           titulo="Todavía no hay investigaciones"
-          pasos={['Escribes el objetivo, los límites y la condición de parada.', 'ROSA2018 propone la misión y el plan de la primera iteración; tu lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipótesis.', 'Tu decides sobre las hipótesis; las candidatas van al laboratorio con prerregistro.']}
+          pasos={['Escribes el objetivo, los límites y la condición de parada.', 'ROSA2018 propone la misión y el plan de la primera iteración; tú lo apruebas.', 'Busca literatura, verifica, actualiza el modelo de mundo y genera hipótesis.', 'Tu decides sobre las hipótesis; las candidatas van al laboratorio con prerregistro.']}
           accion={
             <a className="btn btn-primario" href="#/nueva">
-              Crear la primera investigacion
+              Crear la primera investigación
             </a>
           }
         >
-          Una investigacion es un objetivo con sus limites y su condicion de parada. ROSA2018 corre dentro de ellos.
+          Una investigación es un objetivo con sus límites y su condición de parada. ROSA2018 corre dentro de ellos.
         </Vacio>
       ) : (
         <div className="inicio-rejilla" style={{ marginTop: 20 }}>
@@ -83,7 +83,7 @@ export function Inicio({ estado, ahora }: { estado: EstadoRosa; ahora: number })
                 <footer>
                   {espera.total > 0 ? (
                     <Chip tono={espera.masAntiguaMs > estado.politicaEsperas.horas * 3_600_000 ? 'mal' : 'aviso'}>
-                      {espera.total} {espera.total === 1 ? 'decision espera' : 'decisiones esperan'}
+                      {espera.total} {espera.total === 1 ? 'decisión espera' : 'decisiones esperan'}
                       {espera.masAntiguaMs > 60_000 && ` · la más antigua ${formatearDuracion(espera.masAntiguaMs)}`}
                     </Chip>
                   ) : (

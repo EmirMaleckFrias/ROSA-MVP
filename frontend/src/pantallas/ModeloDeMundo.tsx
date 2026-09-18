@@ -213,12 +213,12 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
                     <i style={{ width: `${c.fraccion * 100}%`, background: baja ? 'var(--amber)' : 'var(--green)' }} />
                   </div>
                   <span className="meta">
-                    {c.leidos} leidos
+                    {c.leidos} leídos
                     {Number.isFinite(faltan) && faltan > 0 && ` · unos ${faltan} más para el 90 %`}
                   </span>
                   {baja && (
                     <button type="button" className="btn btn-s" onClick={() => corrida && acciones.dirigirCorrida(corrida.id, `Extender la búsqueda del tema "${c.tema}" hasta el 90 % de cobertura (unos ${Number.isFinite(faltan) ? faltan : 'muchos'} artículos más)`)} disabled={!corrida}>
-                      Extender busqueda
+                      Extender búsqueda
                     </button>
                   )}
                 </div>
@@ -283,7 +283,7 @@ export function ModeloDeMundo({ inv, estado, ahora }: { inv: Investigacion; esta
       {vista === 'cambios' ? (
         <Seccion titulo="Qué cambió desde tu última visita" nota="Movimientos entre sabido, abierto y descartado, con quien los decidió y por que.">
           {movimientos.length === 0 ? (
-            <p className="meta">Nada se movio desde tu última visita.</p>
+            <p className="meta">Nada se movió desde tu última visita.</p>
           ) : (
             <ul className="lista-limpia">
               {movimientos.map((x, i) => (

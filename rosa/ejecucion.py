@@ -364,7 +364,7 @@ def ejecutar(codigo: str, ruta_datos: Path, semilla: int, sintetico: bool, id_ej
         if r.returncode != 0:
             return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error=error or f"Código de salida {r.returncode}", codigo_salida=r.returncode, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
         if not resultados and not no_evaluable:
-            return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error="El script termino sin imprimir ninguna linea RESULTADO ni NO_EVALUABLE: no cumplio el contrato de salida.", codigo_salida=0, duracion_s=duracion, paquetes=_paquetes(runtime))
+            return Resultado(estado="error_tecnico", runtime=runtime, salida=salida, error="El script término sin imprimir ninguna línea RESULTADO ni NO_EVALUABLE: no cumplio el contrato de salida.", codigo_salida=0, duracion_s=duracion, paquetes=_paquetes(runtime))
         return Resultado(estado="completado", runtime=runtime, salida=salida, error=error, codigo_salida=0, duracion_s=duracion, resultados=resultados, baseline=baseline, control=control, no_evaluable=no_evaluable, paquetes=_paquetes(runtime))
     finally:
         shutil.rmtree(trabajo, ignore_errors=True)
@@ -410,7 +410,7 @@ def comprobaciones_deterministas(codigo: str, plan: dict[str, Any], res: Resulta
     if ns:
         c.append({"comprobacion": "tamano_muestral", "resultado": "falla" if min(ns) < 5 else "pasa", "detalle": f"n mínimo por grupo {min(ns):g}" + (" (menos de 5)" if min(ns) < 5 else "")})
     else:
-        c.append({"comprobacion": "tamano_muestral", "resultado": "no_comprobable", "detalle": "El codigo no imprimio n por grupo (RESULTADO n_...)"})
+        c.append({"comprobacion": "tamano_muestral", "resultado": "no_comprobable", "detalle": "El código no imprimio n por grupo (RESULTADO n_...)"})
     pvalores = [k for k in res.resultados if re.search(r"^p(_|val|$)", k, re.I)]
     corrige = bool(re.search(r"bonferroni|holm|fdr|multipletests|benjamini", codigo, re.I)) or "una sola" in (plan.get("correccionMultiplicidad") or "").lower()
     c.append({"comprobacion": "multiplicidad", "resultado": "pasa" if (len(pvalores) <= 1 or corrige) else "falla", "detalle": f"{len(pvalores)} p-valores impresos; corrección en el código: {'si' if corrige else 'no'}"})

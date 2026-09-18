@@ -46,6 +46,6 @@ describe('specificAims', () => {
     expect(texto).not.toContain('GLP-1 reducen');
   });
   it('sin candidatas lo dice', () => {
-    expect(specificAims(INVESTIGACION, [])).toContain('Sin hipotesis candidatas');
+    expect(specificAims(INVESTIGACION, [])).toContain('Sin hipótesis candidatas');
   });
 });

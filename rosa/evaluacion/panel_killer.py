@@ -163,7 +163,7 @@ def _llamar_killer(programas: Programas, e: dict[str, Any], h: dict[str, Any], i
         hipotesis=T.hipotesis_texto(h) + "\n" + K.texto_tarjeta(h),
         afirmaciones=_afs_texto(h),
         supuestos="\n".join(f"- [{s['estado']}] {s['texto']} ({s['evidencia']})" for s in h.get("supuestos", [])) or "Sin supuestos evaluados",
-        modelo_de_mundo=T.modelo_de_mundo(e["hechos"], inv["id"], maximo=40) + "\n\nOtras hipotesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], inv["id"]),
+        modelo_de_mundo=T.modelo_de_mundo(e["hechos"], inv["id"], maximo=40) + "\n\nOtras hipótesis vivas:\n" + T.hipotesis_existentes([x for x in e["hipotesis"] if x["id"] != h["id"]], inv["id"]),
         comprobaciones_deterministas="\n".join(f"- {c['comprobacion']}: {c['resultado']}. {c['detalle']}" for c in deterministas),
         criterios_revision="\n".join(e["criteriosRevision"]),
     )

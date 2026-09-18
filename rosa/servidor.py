@@ -726,7 +726,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         if cont["dia"] != hoy:
             cont.update(dia=hoy, n=0)
         if cont["n"] >= config.PREGUNTAS_MAX_DIA:
-            raise HTTPException(429, f"Tope de {config.PREGUNTAS_MAX_DIA} preguntas con herramientas por dia alcanzado (ROSA_PREGUNTAS_MAX_DIA)")
+            raise HTTPException(429, f"Tope de {config.PREGUNTAS_MAX_DIA} preguntas con herramientas por día alcanzado (ROSA_PREGUNTAS_MAX_DIA)")
         cont["n"] += 1
         modelos_ = getattr(app.state, "modelos", None) or cargar_modelos()
         app.state.modelos = modelos_

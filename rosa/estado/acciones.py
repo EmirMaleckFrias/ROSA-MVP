@@ -1110,7 +1110,7 @@ def generar_dossier(e: Estado, hipotesis_id: str, quien: str, ahora: int) -> str
     corpus = RR.corpus_del_registro(e, h["investigacionId"], None, corrida, hipotesis=h)
     runs_ok = sum(1 for r in e.get("ejecuciones", []) if r.get("estado") == "completado" and r.get("hipotesisId") == h["id"])
     hallazgos = RR.comprobaciones_deterministas(contenido, corpus, None, runs_ok if RR._EJECUCION.search(contenido) else 1)
-    contenido += "\n\n## Revision del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipótesis.")
+    contenido += "\n\n## Revisión del registro (por regla)\n" + ("\n".join(f"- [{x['gravedad']}] {x['clase'].replace('_', ' ')}: {x['detalle']}" for x in hallazgos) if hallazgos else "Sin discrepancias entre el dossier y el registro de la hipótesis.")
     art_id = guardar_artefacto(e, h["investigacionId"], f"Dossier para el laboratorio: {h['titulo'][:80]}", "dossier", contenido, f"Versión {h.get('version', 1)} de la hipótesis; {len(h.get('bloqueos', []))} bloqueos; revisión del registro: {len(hallazgos)} hallazgos", corrida["iteracionActual"] if corrida else h["iteracion"], ahora, procedencia={"mensajes": {"hipotesis": h["id"], "version": h.get("version", 1)}, "revision": {"hallazgos": hallazgos, "porRegla": len(hallazgos), "juez": None, "resumen": RR.resumen_revision(hallazgos)}})
     h["dossierArtefactoId"] = art_id
     h["procedencia"]["registro"].append(f"{datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()} dossier generado por {quien}")
@@ -1630,6 +1630,26 @@ def _heredar(e: Estado, inv: dict, datos: dict) -> str:
     if heredar:
         copiar_hechos(e, heredar, inv["id"])
     return inv["id"]
+
+
+def editar_investigacion(e: Estado, investigacion_id: str, ahora: int, titulo: str | None = None, objetivo: str | None = None, quien: str = "Investigadora") -> bool:
+    """Cambia el título o el objetivo de una investigación ya creada (misma regla
+    en frontend/src/datos/acciones.ts editarInvestigacion). Solo se aplican los
+    campos que llegan con texto; un título vacío no borra el anterior. Deja un
+    evento para que quede en el registro quién lo cambió y de qué a qué."""
+    inv = _buscar(e["investigaciones"], investigacion_id)
+    if not inv:
+        return False
+    cambios: list[str] = []
+    for campo, valor in (("titulo", titulo), ("objetivo", objetivo)):
+        nuevo = str(valor or "").strip()
+        if nuevo and nuevo != inv.get(campo):
+            cambios.append(f"{'título' if campo == 'titulo' else 'objetivo'}: «{str(inv.get(campo) or '')[:80]}» pasa a «{nuevo[:80]}»")
+            inv[campo] = nuevo
+    if not cambios:
+        return False
+    con_evento(e, investigacion_id, "investigacion_editada", f"{quien} editó la investigación: " + "; ".join(cambios), f"#/investigaciones/{investigacion_id}/investigacion", ahora)
+    return True
 
 
 def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora: int, id_: str | None = None) -> str | bool:

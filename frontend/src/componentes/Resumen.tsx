@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import type { Digest } from '../lib/digest';
 import { digestComoTexto } from '../lib/digest';
-import { TIPO_EVENTO } from '../lib/etiquetas';
+import { TIPO_EVENTO, mostrarTexto } from '../lib/etiquetas';
 import { formatearDuracion } from '../lib/formato';
 import { IconCheck, IconCopy } from './icons';
 import { Chip, Momento } from './piezas';
@@ -54,10 +54,10 @@ export function Resumen({ d, titulo, ahora, onVisto }: { d: Digest; titulo: stri
               <Chip tono={e.tipo === 'incidencia' ? 'mal' : e.tipo === 'permiso_pendiente' || e.tipo === 'presupuesto' ? 'aviso' : undefined}>{TIPO_EVENTO[e.tipo]}</Chip>
               {e.ruta ? (
                 <a className="enlace" href={e.ruta}>
-                  {e.texto}
+                  {mostrarTexto(e.texto)}
                 </a>
               ) : (
-                <span>{e.texto}</span>
+                <span>{mostrarTexto(e.texto)}</span>
               )}
               <span className="meta">
                 <Momento t={e.t} ahora={ahora} />

@@ -15,7 +15,7 @@ export function Cabecera({ miga, titulo, esperan, onMenu, onBuscar, onAyuda }: P
   const modo = useModo();
   return (
     <header className="cabecera">
-      <button type="button" className="btn btn-fantasma btn-icono btn-menu" aria-label="Abrir el menu" onClick={onMenu}>
+      <button type="button" className="btn btn-fantasma btn-icono btn-menu" aria-label="Abrir el menú" onClick={onMenu}>
         <IconMenu />
       </button>
       {miga && <span className="cabecera-miga">{miga} /</span>}
@@ -29,7 +29,7 @@ export function Cabecera({ miga, titulo, esperan, onMenu, onBuscar, onAyuda }: P
         <button type="button" className="btn btn-fantasma btn-icono" aria-label="Buscar (Cmd+K)" onClick={onBuscar}>
           <IconSearch size={15} />
         </button>
-        <div className="segmentos segmentos-modo" role="group" aria-label="Modo de la interfaz" title="Sencillo: lo que decides tu, con la ingeniería plegada. Detalle: todo abierto.">
+        <div className="segmentos segmentos-modo" role="group" aria-label="Modo de la interfaz" title="Sencillo: lo que decides tú, con la ingeniería plegada. Detalle: todo abierto.">
           <button type="button" aria-pressed={modo === 'sencillo'} onClick={() => fijarModo('sencillo')}>
             Sencillo
           </button>

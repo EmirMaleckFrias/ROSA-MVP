@@ -270,7 +270,7 @@ class Ctx:
                     raise
                 if rol == "juez":
                     # El juez no cae a otro modelo sin decirlo: se reintenta una vez con el
-                    # mismo y, si vuelve a fallar, la decision queda "no respondio".
+                    # mismo y, si vuelve a fallar, la decision queda "no respondió".
                     self.incidencia("modelo_bloqueado", f"El juez {lm.model} no respondió a una petición", texto[:400], lm.model, "Se reintentó una vez con el mismo modelo; el juez nunca se sustituye por otro sin registrarlo.")
                     with dspy.context(lm=lm):
                         return await asyncio.wait_for(ejecutar(lm), timeout=SEGUNDOS_MAX_LLAMADA)
@@ -1022,9 +1022,9 @@ async def paso_ensayos(ctx: Ctx, paso: dict[str, Any]) -> str:
         pista.cerrar(f"{total} estudios, {len(estudios)} registrados como fuentes")
         return f"{total} ensayos encontrados, {len(estudios)} registrados"
     except FuenteNoDisponible as ex:
-        pista.fallar(f"ClinicalTrials.gov no respondio: {str(ex)[:160]}. No es 'sin ensayos': la consulta no llegó.")
+        pista.fallar(f"ClinicalTrials.gov no respondió: {str(ex)[:160]}. No es 'sin ensayos': la consulta no llegó.")
         _contar_fallo_fuente(ctx, "ClinicalTrials.gov v2", str(ex))
-        return "ClinicalTrials.gov no respondio"
+        return "ClinicalTrials.gov no respondió"
 
 
 # ---------------------------------------------------------------------------
@@ -2825,7 +2825,7 @@ async def paso_hipotesis(ctx: Ctx, paso: dict[str, Any]) -> str:
             # de rosa/cifras_aprendizaje.py (hecho nombrado en la procedencia) dispare.
             hechos_motivo = hechos_que_motivan(e["hechos"], ctx.investigacion_id, respaldo)
             linea_registro = f"iteración {ctx.numero}: generar -> {hp.titulo[:60]}" + (f" a partir de los hechos {', '.join(hechos_motivo)}" if hechos_motivo else "")
-            h["procedencia"] = P.procedencia_vacia(f"Generada en la iteración {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuación.", ahora, codigo=f"programas.hipotesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[linea_registro])
+            h["procedencia"] = P.procedencia_vacia(f"Generada en la iteración {ctx.numero} a partir de {len(respaldo)} afirmaciones sostenidas. Supuestos y novedad se comprueban a continuación.", ahora, codigo=f"programas.hipótesis(objetivo, modelo_de_mundo, afirmaciones_sostenidas[{len(validas)}])", registro=[linea_registro])
             h["procedencia"]["fuentes"] = fuentes_h
             h["_entidades"] = list(hp.entidades_novedad)[:6]
             h["_corridaOrigen"] = ctx.corrida_id

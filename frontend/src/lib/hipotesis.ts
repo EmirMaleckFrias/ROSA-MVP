@@ -120,7 +120,7 @@ export function hallazgosVisibles(hallazgos: HallazgoRevisor[], mostrarTodo: boo
  *  abiertos del revisor. Devuelve el motivo si no se puede. */
 export function motivoNoAceptable(h: Pick<Hipotesis, 'afirmaciones' | 'hallazgos' | 'comprobacion'>): string | null {
   const bloqueantes = h.afirmaciones.filter((a) => VEREDICTO[a.veredicto].bloquea).length;
-  if (bloqueantes > 0) return `${bloqueantes} ${bloqueantes === 1 ? 'afirmación bloquea' : 'afirmaciones bloquean'} la aceptacion: hay que corregirlas o quitarlas`;
+  if (bloqueantes > 0) return `${bloqueantes} ${bloqueantes === 1 ? 'afirmación bloquea' : 'afirmaciones bloquean'} la aceptación: hay que corregirlas o quitarlas`;
   const abiertos = h.hallazgos.filter((x) => x.estado === 'abierto').length;
   if (abiertos > 0) return `${abiertos} ${abiertos === 1 ? 'hallazgo del revisor sigue abierto' : 'hallazgos del revisor siguen abiertos'}`;
   if (h.comprobacion.biomarcador.trim() === '' && h.comprobacion.cohorte.trim() === '') {

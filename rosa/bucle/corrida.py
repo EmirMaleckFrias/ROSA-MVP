@@ -670,7 +670,7 @@ class Supervisor:
         it = ctx.iteracion() if ctx.iteracion_id else None
         fallidas = [p["titulo"] + ": " + p["resumen"] for p in (it["pistas"] if it else []) if p["estado"] == "fallida"]
         busqueda = "\n".join(f"- {q['base']}: {q['resultados']} resultados" for q in consultas) or "- Sin consultas nuevas"
-        busqueda += "\nAfirmaciones verificadas en esta iteracion: " + (", ".join(f"{v} {k}" for k, v in por_veredicto.items()) or "ninguna")
+        busqueda += "\nAfirmaciones verificadas en esta iteración: " + (", ".join(f"{v} {k}" for k, v in por_veredicto.items()) or "ninguna")
         busqueda += "\nFuentes que no respondieron: " + ("; ".join(fallidas) if fallidas else "ninguna")
         try:
             pred = await ctx.llamar(
@@ -1325,7 +1325,7 @@ class Supervisor:
                 from rosa import skills as SK
 
                 guia = SK.texto_para_prompt(SK.para_texto("elección de problema misión áreas programa", contexto="mision"), maximo=2500)
-                pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites=("; ".join(inv["limites"]) or "Ninguno") + "\n\nGuia de eleccion de problema (skill):\n" + guia)
+                pa = await ctx.llamar("cerebro", self.programas.areas, meta_amplia=inv["objetivo"], mision=PASOS._texto_mision({"mision": mision}), modelo_de_mundo=T.modelo_de_mundo(self.almacen.estado["hechos"], inv["id"], maximo=30), limites=("; ".join(inv["limites"]) or "Ninguno") + "\n\nGuia de elección de problema (skill):\n" + guia)
                 mision["areas"] = [P.nueva_area(titulo=a.titulo.strip(), familiaMecanismo=a.familia_mecanismo.strip(), relevancia=a.relevancia.strip(), valorIntervencion=a.valor_intervencion.strip(), incertidumbre=a.incertidumbre.strip(), comprobabilidad=a.comprobabilidad.strip(), coste=a.coste.strip(), demora=a.demora.strip(), dependeDe=a.depende_de.strip(), estado="elegida" if a.elegir else ("sin_explorar" if "sin ruta" in a.comprobabilidad.lower() else "propuesta")) for a in list(pa.areas)[:6]]
                 if not any(a["estado"] == "elegida" for a in mision["areas"]) and mision["areas"]:
                     mision["areas"][0]["estado"] = "elegida"
@@ -1404,7 +1404,7 @@ class Supervisor:
             pred = await ctx.llamar(
                 "cerebro",
                 self.programas.plan,
-                objetivo=inv["objetivo"] + (f"\nPregunta de esta campana: {pregunta}" if pregunta else ""),
+                objetivo=inv["objetivo"] + (f"\nPregunta de esta campaña: {pregunta}" if pregunta else ""),
                 relevancia=inv["relevancia"],
                 limites="; ".join(inv["limites"]) or "Ninguno declarado",
                 condicion_parada=PARADA.texto_condicion(inv, c),

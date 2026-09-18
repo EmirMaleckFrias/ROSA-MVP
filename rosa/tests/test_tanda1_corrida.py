@@ -31,7 +31,10 @@ from rosa.modulos import contador as CT
 from rosa.modulos.contador import PresupuestoAgotado
 from rosa.tests.test_integracion_corrida import _af, _con_experimento_asignado, _hip, _pred_conclusion, _pred_llano, _preparar, _supervisor
 
-ESTADO_REAL = Path("/private/tmp/claude-502/-Users-emirmalek-traspaso-alzheimer-agente/75fbc617-6a69-4c07-8e51-f2a1f337f4df/scratchpad/estado_ahora.json")
+import os
+
+# Prueba manual sobre una copia del estado real: se activa con ROSA_ESTADO_REAL=<ruta al JSON>.
+ESTADO_REAL = Path(os.environ.get("ROSA_ESTADO_REAL", "/ruta/inexistente/estado_real.json"))
 
 
 def _corrida(al, ids):

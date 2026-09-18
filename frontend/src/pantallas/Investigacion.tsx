@@ -164,7 +164,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
         </div>
         <Confirmar
           etiqueta="Bifurcar"
-          pregunta="Se crea una investigacion nueva con el mismo objetivo y una copia del modelo de mundo. La original sigue igual."
+          pregunta="Se crea una investigación nueva con el mismo objetivo y una copia del modelo de mundo. La original sigue igual."
           pedirTexto={{ etiqueta: 'Nombre de la rama (di para que es)', marcador: 'Secuencia GFAP-NfL solo en Alzheimer familiar' }}
           onConfirmar={(motivo) => {
             const id = acciones.bifurcarInvestigacion(inv.id, motivo);
@@ -208,7 +208,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
       </div>
 
       <Seccion id="mision" titulo="Misión" nota="El marco que fija el programa antes de la primera corrida (etapa 0 de ROSA2018): a quién aplica, en qué etapa, en qué célula o tejido, qué mecanismo, qué tipo de resultado se busca, qué puede hacer el laboratorio y con qué presupuesto. ROSA2018 propone; una persona aprueba. Debajo, las áreas de investigación que ROSA2018 comparó para elegir por dónde empezar.">
-        {inv.mision === undefined || inv.mision === null ? <p className="meta">ROSA2018 propondra la misión al arrancar la primera corrida. También puedes escribirla tu: arriba a la derecha, "Editar".</p> : null}
+        {inv.mision === undefined || inv.mision === null ? <p className="meta">ROSA2018 propondrá la misión al arrancar la primera corrida. También puedes escribirla tú: arriba a la derecha, "Editar".</p> : null}
         <FormularioMision inv={inv} corridas={corridas} />
       </Seccion>
 
@@ -357,7 +357,7 @@ export function Investigacion({ inv, estado, ahora, irA }: { inv: Inv; estado: E
                         })
                       }
                     >
-                      Usar en esta investigacion
+                      Usar en esta investigación
                     </button>
                   </td>
                 </tr>

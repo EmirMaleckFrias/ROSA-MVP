@@ -3,7 +3,7 @@
 // incidencias (modelo que se nego, conector caducado); presupuesto global con
 // alarmas; gasto y ocupacion del contexto; procesos de computo; la busqueda
 // (flujo PRISMA y consultas exactas); las iteraciones anteriores con
-// "volver aqui" y "bifurcar desde aqui"; y detener con vigilancia de
+// "volver aquí" y "bifurcar desde aqui"; y detener con vigilancia de
 // literatura.
 
 import { useEffect, useMemo, useState } from 'react';
@@ -41,7 +41,7 @@ export function Corrida({ inv, estado, ahora, irA }: PropsCorrida) {
         <AvisoMuestra conexion={estado.conexion} />
         <Vacio
           titulo="Esta investigación no tiene corridas"
-          pasos={['ROSA2018 lee el objetivo y los límites y propone el plan de la iteración 1.', 'Tu apruebas el plan (puedes reordenar, quitar o añadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aquí ves cada consulta a cada base.', 'Al cerrar la iteración, ROSA2018 resume en llano lo que encontró y lo que te espera.']}
+          pasos={['ROSA2018 lee el objetivo y los límites y propone el plan de la iteración 1.', 'Tú apruebas el plan (puedes reordenar, quitar o añadir pasos).', 'Cada paso se ejecuta con sus pistas en paralelo; aquí ves cada consulta a cada base.', 'Al cerrar la iteración, ROSA2018 resume en llano lo que encontró y lo que te espera.']}
           accion={
             estado.conexion === 'muestra' ? undefined : (
               <button type="button" className="btn btn-primario" onClick={() => acciones.iniciarCorrida(inv.id)}>

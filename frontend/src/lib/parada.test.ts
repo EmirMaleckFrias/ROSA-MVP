@@ -8,7 +8,7 @@ describe('partesAutomatizadas', () => {
     expect(p.automatizada).toBe(true);
     expect(p.resto).toBe('cuando el modelo de mundo deje de cambiar');
     expect(textoAutomatizacion(p)).toContain('3 iteraciones');
-    expect(textoAutomatizacion(p)).toContain('lo decides tu');
+    expect(textoAutomatizacion(p)).toContain('lo decides tú');
   });
   it('sin cifra no automatiza nada y lo dice', () => {
     const p = partesAutomatizadas('cuando el modelo de mundo deje de cambiar');

@@ -796,3 +796,12 @@ export function nombreActor(quien: unknown): string {
   const q = typeof quien === 'string' ? quien.trim() : '';
   return q === 'Rosa' ? 'ROSA2018' : q;
 }
+
+/** El texto visible de un evento, hito o pista tal como lo guardó el estado.
+ *  Los registros antiguos dicen "Rosa propone..." o "Rosa" como autora; en
+ *  pantalla el producto se llama ROSA2018, así que la palabra Rosa (entera, con
+ *  mayúscula) se sustituye solo al mostrar. El dato guardado no se toca. */
+export function mostrarTexto(texto: unknown): string {
+  const t = typeof texto === 'string' ? texto : '';
+  return t.replace(/(?<![\wáéíóúñÁÉÍÓÚÑ])Rosa(?![\wáéíóúñÁÉÍÓÚÑ])/g, 'ROSA2018');
+}

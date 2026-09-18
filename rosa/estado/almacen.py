@@ -1037,6 +1037,7 @@ _TABLA: dict[str, Callable] = {
     "recomprobarRetracciones": A.recomprobar_retracciones,
     "crearInvestigacion": A.crear_investigacion,
     "bifurcarInvestigacion": A.bifurcar_investigacion,
+    "editarInvestigacion": A.editar_investigacion,
     "actualizarConfiguracion": A.actualizar_configuracion,
     "fijarAmplitud": A.fijar_amplitud,
     "anadirDataset": A.anadir_dataset,

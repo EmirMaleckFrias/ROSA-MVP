@@ -318,13 +318,13 @@ def hipotesis_existentes(hipotesis: list[dict[str, Any]], investigacion_id: str,
 
 def hipotesis_texto(h: dict[str, Any]) -> str:
     c = h["comprobacion"]
-    return f"Título: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobacion: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}\nCluster: {h['cluster']}"
+    return f"Título: {h['titulo']}\nEnunciado: {h['enunciado']}\nMecanismo: {h['mecanismo']}\nComprobación: biomarcador {c['biomarcador']}; cohorte {c['cohorte']}; diseño {c['diseno']}\nCluster: {h['cluster']}"
 
 
 def hipotesis_para_torneo(h: dict[str, Any]) -> str:
     afs = "\n".join(f"  - [{a['veredicto']}{', EN CONTRA' if a.get('relacion') == 'contradice' else (', indirecta' if a.get('relacion') == 'apoya_indirecta' else '')}] {a['texto']} {a['cita']}" for a in h["afirmaciones"][:8])
     sup = "\n".join(f"  - [{s['estado']}] {s['texto']}" for s in h["supuestos"][:6])
-    return f"{hipotesis_texto(h)}\nAfirmaciones:\n{afs or '  (ninguna)'}\nSupuestos:\n{sup or '  (ninguno)'}\nRevisiones automaticas: " + "; ".join(f"{r['tipo']}: {r['resumen']}" for r in h["revisionesAutomaticas"] if r["estado"] != "pendiente")
+    return f"{hipotesis_texto(h)}\nAfirmaciones:\n{afs or '  (ninguna)'}\nSupuestos:\n{sup or '  (ninguno)'}\nRevisiones automáticas: " + "; ".join(f"{r['tipo']}: {r['resumen']}" for r in h["revisionesAutomaticas"] if r["estado"] != "pendiente")
 
 
 def revisiones_humanas(h: dict[str, Any]) -> str:

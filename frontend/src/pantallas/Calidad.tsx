@@ -101,7 +101,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         <div>
           <h2>Calidad</h2>
           <p>
-            El juez se calibra con casos aprobados por personas antes de fijarlo. Hoy hay {aprobados} de {estado.casos.length} aprobados: con cero, las metricas de acuerdo no significan nada.
+            El juez se calibra con casos aprobados por personas antes de fijarlo. Hoy hay {aprobados} de {estado.casos.length} aprobados: con cero, las métricas de acuerdo no significan nada.
           </p>
         </div>
       </div>
@@ -187,7 +187,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
                   <Chip tono={v === null ? 'borde' : v >= 0.8 ? 'ok' : v >= 0.65 ? 'aviso' : 'mal'}>{v === null ? 'sin medir' : formatearPorcentaje(v)}</Chip>
                 </div>
                 <p className="meta" style={{ marginTop: 6 }}>
-                  {TIPO_AFIRMACION[t].nota} {tiposCuenta[t]} en esta investigacion.
+                  {TIPO_AFIRMACION[t].nota} {tiposCuenta[t]} en esta investigación.
                 </p>
                 {v !== null && (
                   <div className="presupuesto-barra" style={{ marginTop: 8 }}>
@@ -210,7 +210,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         const tramos: [string, (n: number) => boolean][] = [
           ['menos de 50 hechos', (n) => n < 50],
           ['50 a 200 hechos', (n) => n >= 50 && n < 200],
-          ['200 o mas hechos', (n) => n >= 200],
+          ['200 o más hechos', (n) => n >= 200],
         ];
         return (
           <Seccion detalle titulo="Acuerdo juez-humano según el tamaño del modelo de mundo" nota="Los modelos rinden peor cuando crece la entrada y aparecen distractores (context rot). Cada decisión del Killer guarda cuantos hechos había en el modelo de mundo al juzgar; si el acuerdo con las personas cae en los tramos grandes, la política de contexto tiene que recortar antes de que duela.">
@@ -248,7 +248,7 @@ export function Calidad({ inv, estado, ahora }: { inv: Investigacion; estado: Es
         return (
           <Seccion titulo="Carga de revisión" nota="Segundos entre abrir la ficha de una hipótesis y decidir sobre ella. Es la cifra con la que se compara ROSA2018 contra investigar sin ella: si revisar cuesta más que hacerlo a mano, pierde.">
             <p className="meta">
-              {media === null ? 'Sin decisiones humanas con tiempo medido todavía.' : `${propias.length} ${propias.length === 1 ? 'decision' : 'decisiones'} medidas; media ${Math.round(media)} s por decision (${(media / 60).toFixed(1)} min).`}
+              {media === null ? 'Sin decisiones humanas con tiempo medido todavía.' : `${propias.length} ${propias.length === 1 ? 'decision' : 'decisiones'} medidas; media ${Math.round(media)} s por decisión (${(media / 60).toFixed(1)} min).`}
             </p>
           </Seccion>
         );

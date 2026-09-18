@@ -28,7 +28,7 @@ from rosa.gateway import modelos
 # Acepta "pag." y "pág.": el modelo escribe espanol natural con acento; el contrato
 # del RAG exige la fuente y la pagina exactas, no la ortografia de la abreviatura.
 # La fuente puede llevar comas ("FDA, 2025"): se captura de forma perezosa
-# hasta la ultima ", pag. N]".
+# hasta la ultima ", pág. N]".
 PATRON_CITA = re.compile(r"\[(.+?), p[aá]g\. (\d+)\]\s*\.?\s*$")
 PATRON_CIFRA = re.compile(r"\d+(?:[.,]\d+)?")
 
@@ -47,7 +47,7 @@ class ExtraerAfirmaciones(dspy.Signature):
 def ejemplos() -> tuple[list[dspy.Example], list[dspy.Example]]:
     datos = [
         {
-            "fragmento": "El cociente p-tau217/Abeta42 en plasma alcanzo una precision comparable a la PET de tau. En el subgrupo autosomico dominante la señal se anticipo varios años a los sintomas.",
+            "fragmento": "El cociente p-tau217/Abeta42 en plasma alcanzó una precisión comparable a la PET de tau. En el subgrupo autosómico dominante la señal se anticipo varios años a los síntomas.",
             "fuente": "Cohorte clínica, 2025",
             "pagina": 7,
         },
@@ -67,7 +67,7 @@ def ejemplos() -> tuple[list[dspy.Example], list[dspy.Example]]:
             "pagina": 5,
         },
         {
-            "fragmento": "En mayo de 2025 la FDA autorizo el primer test de Alzheimer en sangre, basado en el cociente p-tau217/Abeta42, para adultos de 55 años o mas con deterioro cognitivo.",
+            "fragmento": "En mayo de 2025 la FDA autorizó el primer test de Alzheimer en sangre, basado en el cociente p-tau217/Abeta42, para adultos de 55 años o más con deterioro cognitivo.",
             "fuente": "FDA, 2025",
             "pagina": 1,
         },
@@ -97,7 +97,7 @@ def metrica(gold, pred, trace=None, pred_name=None, pred_trace=None, program_tra
     for a in afirmaciones:
         m = PATRON_CITA.search(a)
         if not m:
-            problemas.append(f"Sin cita con el formato [fuente, pag. N] al final: {a!r}")
+            problemas.append(f"Sin cita con el formato [fuente, pág. N] al final: {a!r}")
             continue
         fuente, pagina = m.group(1).strip(), int(m.group(2))
         if fuente != gold.fuente:
@@ -139,7 +139,7 @@ def main() -> int:
     antes = evaluar(programa)
     print(f"Antes: {antes}")
 
-    print("Compilando con GEPA (presupuesto pequeno, max_metric_calls=16)...")
+    print("Compilando con GEPA (presupuesto pequeño, max_metric_calls=16)...")
     optimizador = dspy.GEPA(
         metric=metrica,
         max_metric_calls=16,
@@ -154,7 +154,7 @@ def main() -> int:
     print(f"Después: {despues}")
 
     instruccion = optimizado.signature.instructions
-    print("\nInstruccion optimizada por GEPA:\n" + instruccion[:800])
+    print("\nInstrucción optimizada por GEPA:\n" + instruccion[:800])
     optimizado.save("mlruns/extractor_gepa.json")
     print("\nGuardado en mlruns/extractor_gepa.json")
     return 0

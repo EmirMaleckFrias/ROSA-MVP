@@ -307,7 +307,7 @@ function Detalle({ h, estado, ahora, onAbrirProcedencia }: { h: Hip; estado: Est
           Última revisión automática: {h.ultimaRevisionAutomatica ? <Momento t={h.ultimaRevisionAutomatica} ahora={ahora} /> : 'nunca'}. El silencio del revisor no es aprobación.
         </span>
         <button type="button" className="btn btn-s" onClick={() => acciones.solicitarRevision(h.id)}>
-          Solicitar revision ahora
+          Solicitar revisión ahora
         </button>
         <label className="interruptor" style={{ marginLeft: 'auto' }}>
           <input type="checkbox" checked={aCiegas} onChange={(e) => setACiegas(e.target.checked)} />
@@ -1072,11 +1072,11 @@ export function Hipotesis({
       {proponiendo && <FormularioHipotesis inv={inv} onCerrar={() => setProponiendo(false)} irA={irA} />}
       {visibles.length === 0 ? (
         filtro === 'laboratorio' ? (
-          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'ROSA2018 le propone un experimento: protocolo, ensayo, controles y criterios de éxito y refutación.', 'Tu lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y ROSA2018 los juzga contra lo prerregistrado.']}>
-            Aqui apareceran las hipotesis que lleguen a ese tramo.
+          <Vacio titulo="Nada en el laboratorio todavía" pasos={['El Killer deja avanzar una hipótesis y el torneo la coloca entre las candidatas (etapa Candidatas del hilo, en Ranking).', 'ROSA2018 le propone un experimento: protocolo, ensayo, controles y criterios de éxito y refutación.', 'Tú lo asignas a un laboratorio desde la ficha: el prerregistro se congela y se sella con un tercero.', 'El laboratorio devuelve los datos y ROSA2018 los juzga contra lo prerregistrado.']}>
+            Aquí aparecerán las hipótesis que lleguen a ese tramo.
           </Vacio>
         ) : (
-        <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavía no hay hipótesis'} pasos={propias.length === 0 ? ['ROSA2018 busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, ROSA2018 genera hipótesis y el Killer las juzga; las que quedan aparecen aquí, ordenadas por Elo.', 'Tu decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
+        <Vacio titulo={filtro === 'pendientes' && propias.length > 0 ? 'Nada pendiente' : 'Todavía no hay hipótesis'} pasos={propias.length === 0 ? ['ROSA2018 busca literatura y verifica afirmaciones (etapas 2 y 3 del hilo).', 'Lo sostenido entra al modelo de mundo.', 'Con eso, ROSA2018 genera hipótesis y el Killer las juzga; las que quedan aparecen aquí, ordenadas por Elo.', 'Tú decides sobre cada una: aceptar, descartar o pedir que la refine.'] : undefined}>
           {propias.length > 0 ? 'ROSA2018 no tiene hipótesis esperando tu revisión en esta investigación. Con "Todas" ves las ya decididas.' : 'También puedes proponer una tu con el botón de arriba: pasa por el mismo Killer.'}
         </Vacio>
         )
