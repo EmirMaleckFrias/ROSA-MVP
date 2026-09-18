@@ -204,7 +204,7 @@ const CATALOGO_COHORTES: EntradaCohorte[] = [
 ];
 
 /** Palabras que no distinguen una cohorte (rosa/metodos.py _GENERICOS_COHORTE). */
-const GENERICOS_COHORTE = new Set(['cohorte', 'cohort', 'study', 'estudio', 'longitudinal', 'portadores', 'familias', 'alzheimer', 'disease', 'enfermedad', 'mutaciones', 'carriers', 'participantes', 'pacientes', 'et', 'al', 'the', 'of', 'de', 'del', 'la', 'los', 'las', 'con', 'and', 'familial', 'autosomal', 'dominant', 'autosómico', 'dominante']);
+const GENERICOS_COHORTE = new Set(['cohorte', 'cohort', 'study', 'estudio', 'longitudinal', 'portadores', 'familias', 'alzheimer', 'disease', 'enfermedad', 'mutaciones', 'carriers', 'participantes', 'pacientes', 'et', 'al', 'the', 'of', 'de', 'del', 'la', 'los', 'las', 'con', 'and', 'familial', 'autosomal', 'dominant', 'autosómico', 'dominante', 'ensayo', 'ensayos', 'trial', 'trials']);
 
 /** Las genéricas más las que tampoco distinguen un nombre libre de uno del
  *  catálogo (rosa/metodos.py _GENERICOS_MIXTA). */
@@ -716,7 +716,14 @@ export function fuentesQueCuentan(h: unknown): Registro[] {
 export function cohortesDe(h: Pick<Hipotesis, 'procedencia'> | { fuentes?: unknown } | unknown[]): string[] {
   if (h && typeof h === 'object' && !Array.isArray(h) && 'procedencia' in h) {
     // Como en certeza.py: solo fuentes con la cohorte como texto, renumeradas
-    // (dos entradas con el mismo id son dos fuentes que cuentan).
+    // (dos entradas con el mismo id son dos fuentes que cuentan). Lo que esta
+    // copia NO hace (17 de septiembre de 2026, S-06): fundir dos entradas del
+    // mismo artículo (mismo DOI, PMID, NCT o título con ids distintos) en una
+    // sola cohorte. Esa fusión vive solo en el servidor (rosa/certeza.py
+    // `claves_de_fuente`) y llega a la pantalla en `cohortesDistintas`, que
+    // `ranking.ts` lee antes que esta regla; aquí un registro sin esa lista
+    // puede enseñar una cohorte más que el techo si el mismo artículo entró
+    // dos veces con nombres distintos.
     const fuentes = fuentesQueCuentan(h)
       .filter((f) => typeof f.cohorte === 'string' && f.cohorte.trim() !== '')
       .map((f, i) => ({ ...f, id: `c${i}` }));

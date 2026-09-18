@@ -32,6 +32,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from rosa import config
+from rosa.fuentes import base as FB
 from rosa.fuentes.base import FuenteNoDisponible, Limitador, json_de, pedir, referencia_corta
 
 BASE = "https://api.exa.ai"
@@ -205,16 +206,66 @@ async def similares(url: str, maximo: int = 6, categoria: str | None = "publicat
     return [_articulo(x) for x in (d.get("results") or []) if isinstance(x, dict) and x.get("url")], _coste(d)
 
 
+def _fila_de_contenido(x: dict[str, Any]) -> dict[str, Any]:
+    return {"url": x.get("url"), "titulo": (x.get("title") or "").strip(), "texto": x.get("text") or "", "fecha": (x.get("publishedDate") or "")[:10] or None}
+
+
+def _cache_sirve(guardado: Any, maximo: int) -> bool:
+    """Una página guardada vale si trae texto y no está recortada por debajo de
+    lo que se pide ahora: si se guardó con 20.000 caracteres y llegó al tope,
+    pedir 40.000 obliga a volver a bajarla."""
+    if not isinstance(guardado, dict) or not isinstance(guardado.get("fila"), dict):
+        return False
+    texto = guardado["fila"].get("texto") or ""
+    if not texto.strip():
+        return False
+    tope_guardado = int(guardado.get("maxCaracteres") or 0)
+    recortada = tope_guardado and len(texto) >= tope_guardado * 0.95
+    return not (recortada and maximo > tope_guardado)
+
+
 async def contenidos(urls: list[str], maximo_caracteres: int = 20000) -> tuple[list[dict[str, Any]], float]:
     """Texto limpio de páginas abiertas. Sirve para localizar; la cita de ROSA2018
-    sigue saliendo del PDF o el XML con su página o sección."""
+    sigue saliendo del PDF o el XML con su página o sección.
+
+    Con caché en disco por URL (`rosa.fuentes.base`, espacio "exa"): una
+    página ya bajada en otra corrida no se vuelve a pedir ni a pagar (S-06 f).
+    Solo se guardan las páginas con texto. El coste devuelto es el de lo que
+    sí se pidió a Exa en esta llamada."""
     if not urls:
         return [], 0.0
-    cuerpo = {"urls": urls[:20], "text": {"maxCharacters": max(1000, min(maximo_caracteres, 100000))}}
-    r = await pedir("POST", f"{BASE}/contents", _limitador, headers=_cabeceras(), json=cuerpo)
-    d = json_de(r)
-    filas = [{"url": x.get("url"), "titulo": (x.get("title") or "").strip(), "texto": x.get("text") or "", "fecha": (x.get("publishedDate") or "")[:10] or None} for x in (d.get("results") or []) if isinstance(x, dict)]
-    return filas, _coste(d)
+    maximo = max(1000, min(maximo_caracteres, 100000))
+    pedidas = list(dict.fromkeys(u for u in urls[:20] if isinstance(u, str) and u))
+    por_url: dict[str, dict[str, Any]] = {}
+    pendientes: list[str] = []
+    for u in pedidas:
+        guardado = FB.cache_leer("exa", u)
+        if _cache_sirve(guardado, maximo):
+            por_url[u] = dict(guardado["fila"])
+        else:
+            pendientes.append(u)
+    coste = 0.0
+    sueltas: list[dict[str, Any]] = []
+    if pendientes:
+        cuerpo = {"urls": pendientes, "text": {"maxCharacters": maximo}}
+        r = await pedir("POST", f"{BASE}/contents", _limitador, headers=_cabeceras(), json=cuerpo)
+        d = json_de(r)
+        coste = _coste(d)
+        for x in d.get("results") or []:
+            if not isinstance(x, dict):
+                continue
+            fila = _fila_de_contenido(x)
+            # Exa devuelve la URL final (tras redirecciones): se casa con la pedida
+            # si coincide o si solo se pidió una.
+            clave = fila["url"] if fila["url"] in pendientes else (pendientes[0] if len(pendientes) == 1 else None)
+            if clave is None:
+                sueltas.append(fila)
+                continue
+            por_url[clave] = fila
+            if fila["texto"].strip():
+                FB.cache_guardar("exa", clave, {"fila": fila, "maxCaracteres": maximo})
+    filas = [por_url[u] for u in pedidas if u in por_url] + sueltas
+    return filas, coste
 
 
 _ENLACE_BIBLIO = re.compile(r"(doi\.org/10\.|pubmed\.ncbi\.nlm\.nih\.gov/\d|biorxiv\.org/content/|medrxiv\.org/content/|europepmc\.org/(article|abstract)/)", re.IGNORECASE)

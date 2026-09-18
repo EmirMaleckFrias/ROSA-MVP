@@ -132,12 +132,149 @@ async def elegir_candidatas(vivas: list[dict[str, Any]], afs: list[dict[str, Any
     return {h["id"]: candidatas_por_terminos(h, afs) for h in vivas}
 
 
+def doi_de(f: dict[str, Any] | None) -> str:
+    """El DOI de una fuente normalizado (sin prefijo de URL ni "doi:", en
+    minúsculas, sin punto final); cadena vacía si no lo trae."""
+    import re
+
+    if not isinstance(f, dict):
+        return ""
+    doi = str(f.get("doi") or "").strip().lower()
+    return re.sub(r"^(https?://(dx\.)?doi\.org/|doi:\s*)", "", doi).rstrip(".")
+
+
+def obras_distintas_por_doi(a: dict[str, Any] | None, b: dict[str, Any] | None) -> bool:
+    """Dos fuentes que traen DOI y no coinciden son dos obras aunque compartan
+    el título: las cartas al editor de NEJM sobre lecanemab llevan el título
+    del artículo original con otro DOI. Sin DOI en alguna de las dos no se
+    puede afirmar nada y devuelve False."""
+    da, db = doi_de(a), doi_de(b)
+    return bool(da and db and da != db)
+
+
+def fuente_equivalente(fuentes: list[dict[str, Any]], f: dict[str, Any] | None) -> dict[str, Any] | None:
+    """La fuente de `fuentes` (la procedencia de una hipótesis o de una idea del
+    vivero) que es la misma obra que `f`: mismo id, id ya anotado como
+    equivalente, o alguna clave compartida (doi, pmid, nct o título
+    normalizado, `claves_de_fuente` de pasos.py), salvo que las dos traigan
+    DOI y difieran (`obras_distintas_por_doi`: mismo título, otra obra). None
+    si no está. Un artículo registrado en dos corridas con dos ids (Raket 2026
+    en hip-mu2tskgf-2920) contaba dos cohortes y subía el techo GRADE de muy
+    baja a baja (S-06 b)."""
+    from rosa.bucle.pasos import claves_de_fuente
+
+    if not isinstance(f, dict):
+        return None
+    fid = f.get("id")
+    try:
+        claves = claves_de_fuente(f)
+    except Exception:  # noqa: BLE001
+        claves = set()
+    for x in fuentes or []:
+        if not isinstance(x, dict):
+            continue
+        if fid and (x.get("id") == fid or fid in (x.get("_idsEquivalentes") or [])):
+            return x
+        if claves and not obras_distintas_por_doi(f, x):
+            try:
+                if claves & claves_de_fuente(x):
+                    return x
+            except Exception:  # noqa: BLE001
+                continue
+    return None
+
+
+def ids_equivalentes_en_investigacion(e: dict[str, Any], investigacion_id: Any) -> dict[str, set[str]]:
+    """Para cada id de fuente de la investigación, los OTROS ids con los que la
+    misma obra está registrada: en las `_fuentes` de cualquiera de sus corridas
+    (una obra leída en dos corridas recibe dos ids, S-06) o en la procedencia
+    de sus hipótesis (`_idsEquivalentes`, anotado al acumular evidencia). Dos
+    fuentes son la misma obra si comparten DOI, PMID, NCT o título normalizado
+    (`claves_de_fuente`); un título que llevan fuentes con DOI distintos es
+    ambiguo (dos obras homónimas) y no agrupa a nadie. Es lo que la réplica
+    usa para resolver una cita cuya fuente tiene otro id en otra corrida sin
+    caer a la referencia corta, que sí cruza homónimas (S-04). Tolera corridas
+    sin `_fuentes`, fuentes sin id y registros raros; sin nada equivalente
+    devuelve un diccionario vacío."""
+    from rosa.bucle.pasos import claves_de_fuente
+
+    fuentes: dict[str, dict[str, Any]] = {}
+    for c in e.get("corridas", []) or []:
+        if not isinstance(c, dict) or c.get("investigacionId") != investigacion_id or not isinstance(c.get("_fuentes"), dict):
+            continue
+        for f in c["_fuentes"].values():
+            if isinstance(f, dict) and f.get("id") and str(f["id"]) not in fuentes:
+                fuentes[str(f["id"])] = f
+    lazos: list[tuple[str, str]] = []
+    for h in e.get("hipotesis", []) or []:
+        if not isinstance(h, dict) or h.get("investigacionId") != investigacion_id:
+            continue
+        for f in ((h.get("procedencia") or {}).get("fuentes") or []) if isinstance(h.get("procedencia"), dict) else []:
+            if not isinstance(f, dict) or not f.get("id"):
+                continue
+            fuentes.setdefault(str(f["id"]), f)
+            for otro in f.get("_idsEquivalentes") or []:
+                if otro:
+                    lazos.append((str(f["id"]), str(otro)))
+    por_clave: dict[str, list[str]] = {}
+    dois_por_clave: dict[str, set[str]] = {}
+    for fid, f in fuentes.items():
+        try:
+            claves = claves_de_fuente(f)
+        except Exception:  # noqa: BLE001
+            continue
+        for clave in claves:
+            por_clave.setdefault(clave, []).append(fid)
+            if doi_de(f):
+                dois_por_clave.setdefault(clave, set()).add(doi_de(f))
+    for clave, ids in por_clave.items():
+        if len(ids) < 2 or len(dois_por_clave.get(clave) or ()) > 1:
+            continue  # un título compartido por dos DOI distintos no agrupa: son dos obras
+        lazos.extend((ids[0], otro) for otro in ids[1:])
+    if not lazos:
+        return {}
+    padre: dict[str, str] = {}
+
+    def raiz(x: str) -> str:
+        padre.setdefault(x, x)
+        while padre[x] != x:
+            padre[x] = padre[padre[x]]
+            x = padre[x]
+        return x
+
+    for a, b in lazos:
+        ra, rb = raiz(a), raiz(b)
+        if ra != rb:
+            padre[ra] = rb
+    grupos: dict[str, set[str]] = {}
+    for x in list(padre):
+        grupos.setdefault(raiz(x), set()).add(x)
+    salida: dict[str, set[str]] = {}
+    for miembros in grupos.values():
+        if len(miembros) < 2:
+            continue
+        for x in miembros:
+            salida[x] = set(miembros) - {x}
+    return salida
+
+
+def _anotar_equivalente(existente: dict[str, Any], fuente_id: Any) -> None:
+    """Deja en la fuente que ya estaba el id con el que la misma obra se
+    registró en otra corrida (clave privada: no viaja al navegador)."""
+    if fuente_id and existente.get("id") != fuente_id:
+        ids = existente.setdefault("_idsEquivalentes", [])
+        if fuente_id not in ids:
+            ids.append(fuente_id)
+
+
 def _entrada(a: dict[str, Any], relacion: str, motivo: str, iteracion: int, socava_a: str | None = None) -> dict[str, Any]:
     """La afirmación tal como la guarda la hipótesis: la misma forma que al
-    nacer, más la relación y la iteración en que llegó. Si socava un apoyo,
-    `socavaA` es el afirmacionId del apoyo atacado."""
+    nacer, más la relación y la iteración en que llegó, y el `fuenteId` de la
+    fuente de la procedencia con la que empareja (rosa/certeza.py resuelve por
+    él antes que por la referencia). Si socava un apoyo, `socavaA` es el
+    afirmacionId del apoyo atacado."""
     return {**({"socavaA": socava_a} if relacion == "socava" else {}),
-        "afirmacionId": a.get("id"), "texto": a["texto"], "cita": a["cita"], "veredicto": a["veredicto"], "motivo": a.get("motivo", ""),
+        "afirmacionId": a.get("id"), "fuenteId": a.get("fuenteId"), "texto": a["texto"], "cita": a["cita"], "veredicto": a["veredicto"], "motivo": a.get("motivo", ""),
         "entidadDistinta": False, "tipo": a.get("tipo", "dato"), "clase": a.get("clase", "literatura"), "sintetico": False, "cohorte": a.get("cohorte", ""),
         "sospechosoInyeccion": bool(a.get("sospechosoInyeccion")), "nivelMedicion": a.get("nivelMedicion", "resultado_analisis"), "n": a.get("n", ""),
         "comparador": a.get("comparador", ""), "efecto": a.get("efecto", ""), "incertidumbre": a.get("incertidumbre", ""), "sinResolver": list(a.get("sinResolver", [])),
@@ -199,8 +336,8 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
             y = next((z for z in e2["hipotesis"] if z["id"] == h["id"]), None)
             if not y:
                 return False
-            ids_fuentes = {f["id"] for f in y["procedencia"]["fuentes"]}
             nuevas_fuentes = 0
+            equivalentes = 0
             for a, relacion, motivo, objetivo in aceptadas:
                 socava_a = None
                 if relacion == "socava" and objetivo is not None:
@@ -209,18 +346,27 @@ async def acumular(ctx: Any, iteracion: int, pista: Any = None) -> dict[str, Any
                         continue
                     socava_a = atacada.get("afirmacionId") or f"{atacada.get('texto', '')[:80]}|{atacada.get('cita', '')}"
                     atacada.setdefault("socavadaPor", []).append(a.get("id"))
-                y["afirmaciones"].append(_entrada(a, relacion, motivo, iteracion, socava_a))
+                entrada = _entrada(a, relacion, motivo, iteracion, socava_a)
                 f = fuentes.get(a["fuenteId"])
-                if f and a["fuenteId"] not in ids_fuentes:
+                # La fuente entra en la procedencia solo si no está ya, por id O por
+                # clave compartida (doi, pmid, título): la misma obra registrada en otra
+                # corrida con otro id es la misma fuente, y la afirmación apunta a la
+                # que ya estaba para que la cuenta de cohortes no la vea doble (S-06 b).
+                existente = fuente_equivalente(y["procedencia"]["fuentes"], f) if f else None
+                if existente is not None and existente.get("id") != a["fuenteId"]:
+                    entrada["fuenteId"] = existente.get("id")
+                    _anotar_equivalente(existente, a["fuenteId"])
+                    equivalentes += 1
+                y["afirmaciones"].append(entrada)
+                if f and existente is None:
                     y["procedencia"]["fuentes"].append(_fuente_publica(f, a))
-                    ids_fuentes.add(a["fuenteId"])
                     nuevas_fuentes += 1
             en_contra = sum(1 for _, r, _, _ in aceptadas if r == "contradice")
             indirectas = sum(1 for _, r, _, _ in aceptadas if r == "apoya_indirecta")
             socavan = sum(1 for _, r, _, _ in aceptadas if r == "socava")
             # Cuántas llegaron por la búsqueda en amplitud: son los "diamantes de al lado".
             de_amplitud = sum(1 for a, _, _, _ in aceptadas if (fuentes.get(a["fuenteId"]) or {}).get("modo") == "amplitud")
-            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas - socavan} a favor, {indirectas} indirectas, {en_contra} en contra, {socavan} que socavan un apoyo), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else ""))
+            y["procedencia"]["registro"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas enlazadas ({len(aceptadas) - en_contra - indirectas - socavan} a favor, {indirectas} indirectas, {en_contra} en contra, {socavan} que socavan un apoyo), {nuevas_fuentes} fuentes nuevas" + (f", {de_amplitud} de búsqueda en amplitud" if de_amplitud else "") + (f", {equivalentes} de una fuente que ya estaba con otro id (misma obra, no cuenta como cohorte nueva)" if equivalentes else ""))
             y["_evidenciaNueva"] = iteracion
             y.pop("_conclusionIntentada", None)
             # Evidencia nueva que cambia lo que el Killer juzgó (una fuente nueva o
@@ -292,13 +438,16 @@ async def acumular_vivero(ctx: Any, iteracion: int, pista: Any = None) -> dict[s
             x = next((y for y in (inv2 or {}).get("vivero", []) if y["id"] == s_["id"]), None)
             if x is None:
                 return False
-            ids_f = {f["id"] for f in x["fuentes"]}
             for a, relacion, motivo in aceptadas:
-                x["afirmaciones"].append(_entrada(a, relacion, motivo, iteracion))
+                entrada = _entrada(a, relacion, motivo, iteracion)
                 f = fuentes.get(a["fuenteId"])
-                if f and a["fuenteId"] not in ids_f:
+                existente = fuente_equivalente(x["fuentes"], f) if f else None
+                if existente is not None and existente.get("id") != a["fuenteId"]:
+                    entrada["fuenteId"] = existente.get("id")
+                    _anotar_equivalente(existente, a["fuenteId"])
+                x["afirmaciones"].append(entrada)
+                if f and existente is None:
                     x["fuentes"].append(_fuente_publica(f, a))
-                    ids_f.add(a["fuenteId"])
             if aceptadas:
                 x["actualizadaEn"] = ahora
                 x["historial"].append(f"Iteración {iteracion}: {len(aceptadas)} afirmaciones nuevas ({sum(1 for _, r, _ in aceptadas if r == 'contradice')} en contra)")

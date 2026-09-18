@@ -150,6 +150,13 @@ def resumen() -> dict[str, object]:
         "presupuestoUsd": PRESUPUESTO_USD_POR_DEFECTO,
         "presupuestoHoras": PRESUPUESTO_HORAS_POR_DEFECTO,
         "relevanciaMinima": RELEVANCIA_MINIMA,
+        "maxClausulasAnd": MAX_CLAUSULAS_AND,
+        "maxFragmentosPorFuente": MAX_FRAGMENTOS_POR_FUENTE,
+        "maxPartesPorFragmento": MAX_PARTES_POR_FRAGMENTO,
+        "maxCaracteresPorLlamadaExtractor": MAX_CARACTERES_POR_LLAMADA_EXTRACTOR,
+        "maxForzadosPorNombre": MAX_FORZADOS_POR_NOMBRE,
+        "maxConsultasPorNombreSinRelevantes": MAX_CONSULTAS_POR_NOMBRE_SIN_RELEVANTES,
+        "diasVigenciaComprobacionRetraccion": DIAS_VIGENCIA_COMPROBACION_RETRACCION,
         "maxHipotesisEnContexto": MAX_HIPOTESIS_EN_CONTEXTO,
         "tokensMaxPorRol": dict(TOKENS_MAX_POR_ROL),
         "eloK": ELO_K,
@@ -175,3 +182,39 @@ MAX_CONSULTAS_AMPLITUD = 4
 RELEVANCIA_MINIMA_AMPLITUD = 4
 # La "novedad del campo" mira lo publicado en los últimos seis meses.
 DIAS_NOVEDAD_DEL_CAMPO = 180
+
+# Consultas de literatura, tanda 2 de la revisión del 17 de septiembre de 2026 (S-07).
+# Una consulta booleana lleva como máximo tres cláusulas unidas por AND: con cuatro o
+# cinco, la corrida 7 trajo de 2 a 7 resultados y 0 relevantes en 10 de 20 temas. La
+# precisión se gana con sinónimos dentro de cada cláusula, no con más cláusulas.
+MAX_CLAUSULAS_AND = 3
+# Relajación acotada: una consulta de foco con menos de estos resultados y al menos
+# tantas cláusulas AND se relanza una sola vez sin la última cláusula, y queda anotado.
+RESULTADOS_MINIMOS_ANTES_DE_RELAJAR = 5
+CLAUSULAS_MINIMAS_PARA_RELAJAR = 3
+# Una consulta con más de estos resultados y ninguno relevante entre los cribados es
+# demasiado amplia: se marca en el registro para que el planificador la acote.
+RESULTADOS_DEMASIADO_AMPLIA = 1000
+
+# Extracción (S-26). Cuántos caracteres ve el extractor por llamada: un fragmento más
+# largo (una sección de resultados de 15.000 caracteres) se lee en partes en vez de
+# cortarse a secas, hasta este número de partes.
+MAX_CARACTERES_POR_LLAMADA_EXTRACTOR = 6000
+MAX_PARTES_POR_FRAGMENTO = 3
+
+# Segunda pasada de la tanda 2 (18 de septiembre de 2026), tras el adversario.
+# Red de seguridad por nombre (S-07): un nombre propio del objetivo se busca por
+# nombre exacto hasta que una consulta simple traiga un relevante. Pero un nombre
+# con miles de resultados y ningún relevante ("lecanemab" en Europe PMC) no se
+# insiste sin tope: tras este número de consultas simples sin relevantes en la
+# investigación (o una en la corrida en curso) deja de repetirse, y queda dicho.
+MAX_CONSULTAS_POR_NOMBRE_SIN_RELEVANTES = 2
+# Artículos cuyo título nombra un fármaco, ensayo o cohorte del objetivo pasan al
+# modelo sin corte del reranker; acotados a este número por consulta (los primeros
+# en el orden de la base), porque sin tope una consulta por nombre gastaba hasta 30
+# llamadas de relevancia en vez de las 12 de MAX_CRIBADO_MODELO.
+MAX_FORZADOS_POR_NOMBRE = 12
+# Una comprobación de retracción en Crossref se reutiliza entre corridas si tiene
+# menos de estos días; una que no llegó ("Crossref no respondió") no se reutiliza
+# nunca: "no pude comprobar" es transitorio, no una comprobación.
+DIAS_VIGENCIA_COMPROBACION_RETRACCION = 90

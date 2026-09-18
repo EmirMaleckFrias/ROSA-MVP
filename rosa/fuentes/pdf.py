@@ -3,12 +3,14 @@ antes de emitir una cita, se comprueba que el fragmento aparece literalmente
 en esa página: un desfase de una página es un fallo grave.
 
 La comprobación literal usa la misma regla que el verificador
-(`rosa.verificador.pasaje_en_texto`, con `normalizar_texto` en los dos lados):
-ligaduras, guiones de fin de línea, comillas tipográficas y números de línea
-de preprints no tumban una cita con la página correcta, y una página
-equivocada sigue fallando. Los preprints (medRxiv, bioRxiv) numeran las
-líneas y PyMuPDF las intercala como líneas sueltas; `paginas()` las quita
-antes de guardar el fragmento, así el extractor copia de un texto limpio.
+(`rosa.verificador.pasaje_en_texto`, con `normalizar_texto_pdf` como única
+normalización): ligaduras, guiones de fin de línea, comillas tipográficas y
+números de línea de preprints no tumban una cita con la página correcta, y
+una página equivocada sigue fallando. Los preprints (medRxiv, bioRxiv)
+numeran las líneas y PyMuPDF las intercala como líneas sueltas; `paginas()`
+las quita antes de guardar el fragmento siguiendo la cadena de la numeración
+a lo largo del documento, así el extractor copia de un texto limpio y una
+cifra de tabla que no sigue la cadena se queda donde estaba.
 """
 
 from __future__ import annotations
@@ -84,24 +86,76 @@ def tiene_lineas_numeradas(texto: str) -> bool:
     return consecutivos >= UMBRAL_CONSECUTIVOS * (len(numeros) - 1)
 
 
+SALTO_MAXIMO_EN_SECUENCIA = 3  # números de línea que PyMuPDF puede perder seguidos sin que la cadena se rompa
+
+
+def _continua_la_cadena(numeradas: list[tuple[int, int]], k: int) -> bool:
+    """Un salto en la cadena (PyMuPDF perdió uno o más números) se acepta solo
+    si el número siguiente de la página continúa desde él, o si no hay
+    siguiente. Así una cifra de tabla que cae en el hueco ("53" entre las
+    líneas 51 y 52) no se lleva el sitio del número de línea real que viene
+    detrás, que antes quedaba como residuo en el texto que ve el extractor."""
+    if k + 1 >= len(numeradas):
+        return True
+    v, siguiente = numeradas[k][1], numeradas[k + 1][1]
+    return v < siguiente <= v + SALTO_MAXIMO_EN_SECUENCIA
+
+
+def quitar_numeracion_en_secuencia(texto: str, siguiente: int | None, permitir_inicio: bool) -> tuple[str, int | None]:
+    """Quita solo las líneas que son un número Y siguen la cadena de la
+    numeración: `siguiente`, o hasta tres más si PyMuPDF perdió alguno (el
+    salto se acepta solo si el número que viene detrás continúa desde él, ver
+    `_continua_la_cadena`). Una cifra de tabla que va sola en su línea pero no
+    sigue la cadena ("73", "40") se queda. Con `permitir_inicio`, una línea
+    que no sigue la cadena pero abre otra (tres números consecutivos seguidos:
+    1, 2, 3) la empieza, para la primera página numerada y para una numeración
+    que reinicia (material suplementario). Devuelve el texto y el siguiente
+    número esperado, para pasárselo a la página que viene. Límite: dos cifras
+    de tabla seguidas que imitan la cadena (53, 54 justo donde se esperaba 52)
+    no se distinguen de los números de línea sin mirar la maqueta."""
+    lineas = (texto or "").split("\n")
+    numeradas = [(i, int(l)) for i, l in enumerate(lineas) if _LINEA_NUMERO.match(l)]
+    quitar: set[int] = set()
+    esperado = siguiente
+    for k, (i, v) in enumerate(numeradas):
+        if esperado is not None and (v == esperado or (esperado < v <= esperado + SALTO_MAXIMO_EN_SECUENCIA and _continua_la_cadena(numeradas, k))):
+            quitar.add(i)
+            esperado = v + 1
+        elif permitir_inicio and k + 2 < len(numeradas) and numeradas[k + 1][1] == v + 1 and numeradas[k + 2][1] == v + 2:
+            quitar.add(i)
+            esperado = v + 1
+    return "\n".join(l for i, l in enumerate(lineas) if i not in quitar), esperado
+
+
 def quitar_numeros_de_linea(texto: str) -> str:
-    """Quita las líneas que son solo un número cuando la página está numerada
-    como un preprint. Si no lo está, devuelve el texto tal cual (una tabla
-    con cifras sueltas no se toca)."""
+    """Quita los números de línea cuando la página está numerada como un
+    preprint; si no lo está, devuelve el texto tal cual (una tabla con cifras
+    sueltas no se toca). En la página numerada solo se van los números que
+    siguen la cadena: una cifra de tabla intercalada se queda."""
     if not tiene_lineas_numeradas(texto):
         return texto
-    return "\n".join(l for l in texto.split("\n") if not _LINEA_NUMERO.match(l))
+    return quitar_numeracion_en_secuencia(texto, None, permitir_inicio=True)[0]
 
 
 def paginas(ruta: Path) -> list[dict[str, Any]]:
     """[{pagina, texto}] con la página 1-indexada. En los preprints con
-    líneas numeradas, el texto va sin los números de línea."""
-    salida = []
+    líneas numeradas, el texto va sin los números de línea, también en las
+    páginas que la heurística por página no detecta (una figura con pocas
+    líneas, una tabla): ahí se quitan solo los números que continúan la
+    cadena de la página anterior. Un documento sin ninguna página numerada no
+    se toca."""
     with pymupdf.open(str(ruta)) as doc:
-        for p in doc:
-            texto = quitar_numeros_de_linea(p.get_text("text"))
-            if texto.strip():
-                salida.append({"pagina": p.number + 1, "texto": texto})
+        crudas = [(p.number + 1, p.get_text("text")) for p in doc]
+    documento_numerado = any(tiene_lineas_numeradas(t) for _, t in crudas)
+    siguiente: int | None = None
+    salida = []
+    for numero, texto in crudas:
+        if tiene_lineas_numeradas(texto):
+            texto, siguiente = quitar_numeracion_en_secuencia(texto, siguiente, permitir_inicio=True)
+        elif documento_numerado and siguiente is not None:
+            texto, siguiente = quitar_numeracion_en_secuencia(texto, siguiente, permitir_inicio=False)
+        if texto.strip():
+            salida.append({"pagina": numero, "texto": texto})
     return salida
 
 

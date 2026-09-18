@@ -15,8 +15,12 @@ distintas de una corrida se llamarían igual.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import os
 import re
 import time
+from pathlib import Path
 from typing import Any, Iterable
 
 import httpx
@@ -185,3 +189,72 @@ def desambiguar_referencia(referencia: str, existentes: "Iterable[str]", id_cort
         if candidata.lower() not in ocupadas:
             return candidata
     return ref
+
+
+# ---------------------------------------------------------------------------
+# Caché en disco del texto completo (revisión del 17 de septiembre de 2026, S-06 f)
+# ---------------------------------------------------------------------------
+#
+# `pdf.descargar` ya guarda cada PDF en `pdfs/<hash>.pdf` y no lo vuelve a
+# bajar. Las secciones JATS de Europe PMC y el texto de página de Exa no
+# tenían esa memoria: cada corrida nueva las volvía a pedir (Bateman 2023 se
+# descargó por Exa seis veces en las corridas 7 a 9). Aquí vive la caché que
+# usan los dos conectores: un fichero JSON por (espacio, clave) bajo
+# `pdfs/texto/<espacio>/`. Nunca lanza: una caché rota o un disco lleno
+# equivalen a no tener caché, y la fuente se vuelve a pedir.
+
+
+def dir_cache_texto() -> Path:
+    """Dónde se guarda el texto completo ya descargado: junto a los PDF
+    (`config.DIR_PDFS/texto`), salvo que `config.DIR_CACHE_TEXTO` diga otra cosa."""
+    return Path(getattr(config, "DIR_CACHE_TEXTO", None) or (Path(config.DIR_PDFS) / "texto"))
+
+
+def cache_activa() -> bool:
+    """La caché está encendida salvo dentro de pytest sin un directorio
+    explícito: los tests sustituyen los conectores por dobles y no deben
+    dejar en `pdfs/texto` respuestas simuladas que una corrida real leería
+    después como si fueran de la fuente. Un test que quiera probar la caché
+    fija `config.DIR_CACHE_TEXTO` a un directorio temporal."""
+    if getattr(config, "DIR_CACHE_TEXTO", None):
+        return True
+    return "PYTEST_CURRENT_TEST" not in os.environ
+
+
+def _ruta_cache(espacio: str, clave: str) -> Path:
+    nombre = hashlib.sha1(clave.encode("utf-8")).hexdigest()
+    return dir_cache_texto() / re.sub(r"[^a-z0-9_-]", "_", espacio.lower()) / f"{nombre}.json"
+
+
+def cache_leer(espacio: str, clave: str) -> Any | None:
+    """El valor guardado para (espacio, clave), o None si no está, no se puede
+    leer o la caché está apagada. La clave guardada dentro del fichero tiene
+    que coincidir: dos claves con el mismo hash (improbable) no se confunden."""
+    if not clave or not cache_activa():
+        return None
+    try:
+        ruta = _ruta_cache(espacio, clave)
+        if not ruta.exists():
+            return None
+        d = json.loads(ruta.read_text("utf-8"))
+    except Exception:  # noqa: BLE001  una caché ilegible es una caché vacía
+        return None
+    if not isinstance(d, dict) or d.get("clave") != clave:
+        return None
+    return d.get("valor")
+
+
+def cache_guardar(espacio: str, clave: str, valor: Any) -> bool:
+    """Guarda `valor` (serializable en JSON) para (espacio, clave). Escritura
+    atómica (fichero temporal y renombrado). Devuelve si se guardó."""
+    if not clave or not cache_activa():
+        return False
+    try:
+        ruta = _ruta_cache(espacio, clave)
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        temporal = ruta.with_suffix(".tmp")
+        temporal.write_text(json.dumps({"clave": clave, "guardadoEn": int(time.time() * 1000), "valor": valor}, ensure_ascii=False), "utf-8")
+        temporal.replace(ruta)
+        return True
+    except Exception:  # noqa: BLE001  no poder guardar no es un fallo de la fuente
+        return False

@@ -724,6 +724,7 @@ def _migrar(estado: dict[str, Any]) -> None:
     _migrar_experimentos(estado)
     _migrar_rosa2018(estado)
     _migrar_grafo(estado)
+    _migrar_hechos_repetidos(estado)
     _migrar_siete_modulos(estado)
     _migrar_novedad_no_comprobada(estado)
     _migrar_progreso_por_ventana(estado)
@@ -862,6 +863,26 @@ def _migrar_grafo(estado: dict[str, Any]) -> None:
         h.setdefault("fusionadaEn", None)
         h.setdefault("fusionPropuesta", None)
         h.setdefault("pendienteRevision", None)
+
+
+def _migrar_hechos_repetidos(estado: dict[str, Any]) -> None:
+    """Hallazgo M-08 (revisión del 17 de septiembre de 2026): el modelo de mundo
+    guardaba hechos repetidos con otras palabras (el mismo artículo traído en
+    otra corrida, o heredados ya repetidos al bifurcar) y 333 de 381 hechos sin
+    enlace a la afirmación que los sostenía. `rosa.hechos.migrar` enlaza cada
+    hecho sin `afirmacionIds` con las afirmaciones de su fuente que quedan en
+    las corridas (misma fuente, misma página, texto que lo cubre) y funde los
+    repetidos de cada investigación en el más antiguo, sumando procedencia y
+    remapeando lo que apuntaba a ellos; deja un evento por investigación que
+    cambió. Idempotente: la segunda carga no encuentra nada. Va después de
+    `_migrar_grafo`, que pone las claves del grafo en los hechos antiguos. Si
+    falla, la carga del estado sigue y se dice en la salida de error."""
+    try:
+        from rosa import hechos as H
+
+        H.migrar(estado)
+    except Exception as ex:  # noqa: BLE001  la carga del estado no se tumba por esta migración, pero se dice
+        print(f"La migración de hechos repetidos falló y se deja como estaba: {ex!r}", file=sys.stderr, flush=True)
 
 
 def _migrar_rosa2018(estado: dict[str, Any]) -> None:

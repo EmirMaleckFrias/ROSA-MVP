@@ -63,8 +63,30 @@ como "[referencia, localizador]"). Cuando varias referencias encajan gana la
 más larga ("Kim et al., 2025, Nature" antes que "Kim et al., 2025"). Dos
 fuentes con la misma referencia (dos artículos del mismo primer autor y año)
 o con el mismo id (el mismo artículo citado en varias páginas) son una sola
-identidad a efectos de emparejar: la afirmación empareja con todas, y la
-cuenta de fuentes sin cohorte no repite la misma identidad. Todo lo que se
+identidad a efectos de emparejar: la afirmación empareja con todas. Para
+contar fuentes (las que no tienen la cohorte identificada) la identidad es
+el id si lo hay y, si no, la referencia (la precedencia de siempre: dos
+artículos distintos del mismo primer autor y año con ids distintos son dos
+fuentes), y además las entradas del mismo artículo (`claves_de_fuente`,
+abajo) son una.
+
+Mismo artículo, dos entradas (S-06, 17 de septiembre de 2026): cuando el
+mismo artículo se registró en dos corridas llega a la hipótesis con dos
+`fuenteId` distintos y, a veces, con dos nombres de cohorte distintos (Raket
+2026 como "TRAILBLAZER-ALZ (NCT...)" y como "donanemab trial"), y el techo
+contaba tres cohortes donde había dos. Las entradas que comparten un
+identificador bibliográfico (`claves_de_fuente`: DOI, PMID, NCT o título de
+20 caracteres o más, la misma regla con la que rosa/bucle/pasos.py reconoce
+una fuente ya vista) son el mismo artículo y aportan una sola cohorte: la
+del primer nombre que resuelve al catálogo de rosa/metodos.py o, si ninguno
+resuelve, el primero. Dos entradas con el mismo id y cohortes distintas
+siguen contando dos cohortes (el registro dice que el artículo trabaja con
+dos), porque ahí no hay duda de identidad sino dos cohortes declaradas:
+cada identificador bibliográfico enlaza una sola entrada por id (la
+primera), así que compartir el DOI, que `_fuente_publica` copia en todas
+las entradas de una misma fuente, no las funde entre sí.
+
+Todo lo que se
 compara con una tabla (relación, diseño, riesgo de sesgo) se normaliza a
 minúsculas sin espacios alrededor; un valor que no es texto se convierte a
 texto y, si no se reconoce, no penaliza ni cuenta. Nada de lo que llega
@@ -81,13 +103,43 @@ anteriores (la segunda cohorte, la evidencia directa y la réplica aportan
 como mucho un apoyo de peso entero, 1.0, y el peso que un peldaño exigió
 queda alcanzado para el siguiente), así que solo avisa del peso cuando
 seguiría faltando después. La evidencia en contra que hoy frena se dice
-siempre, porque está ahí. 15 y 16 de septiembre de 2026.
+siempre, porque está ahí. Cuando ni la estructura ni el peso frenan un
+peldaño y fue el juez quien se quedó abajo, el peldaño nombra los factores
+reales con los que bajó (`factores_que_bajan`), no uno genérico (M-06).
+15 y 16 de septiembre de 2026.
+
+Lo que sale de aquí para la conclusión (17 de septiembre de 2026):
+
+- `acotar` devuelve además `techo.cohortesDistintas`, la lista que contó,
+  para que la conclusión la lleve desde que se escribe (M-04).
+- `frase_plantilla` es la frase calibrada de (dirección, certeza); con
+  dirección "sin_evidencia_directa" distingue "no encontramos evidencia
+  directa" (ninguna afirmación a favor) de "solo encontramos evidencia
+  indirecta" (todos los apoyos en otra población, marcador o desenlace),
+  con el recuento (M-06). El motivo del techo también lo dice al juez.
+- `reacotar_conclusion` rehace techo, certeza (`min(juez, techo)`),
+  escalera, cohortes y frase de una conclusión ya escrita, sin juez, con
+  los factores guardados, y deja el mismo rastro que deja el cierre cuando
+  escribe una conclusión: si la certeza cambia, `cambio` y `recalculadaEn`
+  (lo que la interfaz lee para enseñar que cambió) y una línea con fecha en
+  el registro de procedencia; si solo cambia el techo o la frase, la línea.
+  Es la única implementación del recálculo por regla:
+  `priorizacion.reacotar_conclusiones` la recorre al cerrar cada iteración
+  (`marcar_candidatas`) y da el evento cuando una certeza baja, y
+  rosa/bucle/corrida.py `recalcular_conclusiones_por_regla` debe delegar
+  en ella (M-10, S-06, M-01, M-14). La frase se vuelve a generar también
+  cuando la certeza no se mueve pero la plantilla de hoy dice otra cosa
+  ("solo evidencia indirecta" donde antes decía "no encontramos evidencia
+  directa"), y solo si la frase guardada es una plantilla
+  (`es_frase_plantilla`): un texto de persona o de modelo no se toca (M-06).
 """
 
 from __future__ import annotations
 
 import numbers
 import re
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 NIVELES = ("muy_baja", "baja", "moderada", "alta")
@@ -139,6 +191,23 @@ ETIQUETAS_DISENO = {
     "registro": "registro", "otro": "sin diseño reconocido",
 }
 ETIQUETAS_SESGO = {"bajo": "riesgo de sesgo bajo", "algunas_dudas": "algunas dudas de sesgo", "alto": "riesgo de sesgo alto"}
+# Los factores GRADE que escribe el juez (rosa/modulos/firmas.py FactorCerteza), en castellano.
+ETIQUETAS_FACTOR = {
+    "riesgo_de_sesgo": "riesgo de sesgo", "inconsistencia": "inconsistencia", "evidencia_indirecta": "evidencia indirecta", "imprecision": "imprecisión",
+    "sesgo_de_publicacion": "sesgo de publicación", "efecto_grande": "efecto grande", "gradiente": "gradiente dosis-respuesta", "replicacion_independiente": "replicación independiente",
+}
+# Prefijos que se quitan a un DOI antes de compararlo ("https://doi.org/10.1/x" y "doi: 10.1/x" son el mismo).
+_PREFIJO_DOI = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
+# Frases plantilla de la conclusión por (dirección, certeza), como las tablas de
+# Santesso 2020 y Cochrane Iberoamérica. Misma tabla que rosa/bucle/corrida.py;
+# la copia canónica es esta, para que 'probablemente' signifique siempre lo mismo.
+VERBO_CERTEZA = {"alta": "La evidencia reunida sostiene que", "moderada": "La evidencia reunida probablemente sostiene que", "baja": "La evidencia sugiere, con limitaciones, que", "muy_baja": "La evidencia es muy incierta sobre si"}
+VERBO_CONTRA = {"alta": "La evidencia reunida contradice que", "moderada": "La evidencia reunida probablemente contradice que", "baja": "La evidencia sugiere, con limitaciones, que no se cumple que", "muy_baja": "La evidencia es muy incierta sobre si"}
+# La subcadena común a las tres formas con que la frase dice que un supuesto del
+# que depende la hipótesis está contradicho ("aunque un ...", ", y un ...", ";
+# además, un ..."): el recálculo por regla la busca en el enunciado guardado
+# para conservar el aviso, igual que rosa/bucle/corrida.py.
+MARCA_SUPUESTO_CONTRADICHO = "supuesto del que depende está contradicho"
 _MOTIVO_BAJO_PESO_BAJA = "los apoyos son de bajo peso (revisiones narrativas, sesgo alto o muestras pequeñas)"
 _MOTIVOS_RELACION = {
     None: "de origen (motivó el nacimiento de la hipótesis): cuenta entera",
@@ -149,7 +218,8 @@ _MOTIVOS_RELACION = {
 }
 # Lo que puede seguir a la referencia dentro de una cita "[referencia, localizador]".
 _DELIMITADORES_CITA = ",;:] ."
-_GENERICOS_COHORTE = {"cohorte", "cohort", "study", "estudio", "longitudinal", "portadores", "familias", "alzheimer", "disease", "enfermedad", "mutaciones", "carriers", "participantes", "pacientes", "et", "al", "the", "of", "de", "del", "la", "los", "las", "con", "and", "familial", "autosomal", "dominant", "autosómico", "dominante"}
+# Misma lista que rosa/metodos.py `_GENERICOS_COHORTE`, que es la que hoy agrupa; se conserva para quien la importe.
+_GENERICOS_COHORTE = {"cohorte", "cohort", "study", "estudio", "longitudinal", "portadores", "familias", "alzheimer", "disease", "enfermedad", "mutaciones", "carriers", "participantes", "pacientes", "et", "al", "the", "of", "de", "del", "la", "los", "las", "con", "and", "familial", "autosomal", "dominant", "autosómico", "dominante", "ensayo", "ensayos", "trial", "trials"}
 
 
 def _tokens_cohorte(nombre: str) -> set[str]:
@@ -188,6 +258,37 @@ def _nombre_cohorte(f: dict[str, Any]) -> str:
     consta o no es texto."""
     nombre = f.get("cohorte")
     return str(nombre).strip() if isinstance(nombre, str) else ""
+
+
+def claves_de_fuente(f: Any) -> set[str]:
+    """Identificadores normalizados con los que se reconoce que dos entradas
+    son el mismo artículo: "doi:...", "pmid:...", "nct:..." y "titulo:..."
+    (título de 20 caracteres o más, en minúsculas y sin puntuación). Es la
+    misma regla con la que rosa/bucle/pasos.py (`claves_de_fuente`) reconoce
+    una fuente ya vista al registrarla; aquí vive la copia canónica para el
+    techo (S-06, 17 de septiembre de 2026). Nunca devuelve la cadena vacía:
+    dos entradas sin nada en común no se funden. Lo que no es texto ni número
+    (None, listas, booleanos) no da clave; un registro raro no rompe."""
+    f = _dict(f)
+    claves: set[str] = set()
+    doi = f.get("doi")
+    if isinstance(doi, str):
+        d = _PREFIJO_DOI.sub("", doi.strip().lower()).rstrip(".").strip()
+        if d:
+            claves.add(f"doi:{d}")
+    for campo in ("pmid", "nct"):
+        v = f.get(campo)
+        if isinstance(v, bool) or not isinstance(v, (str, int)):
+            continue
+        t = str(v).strip().lower()
+        if t:
+            claves.add(f"{campo}:{t}")
+    titulo = f.get("titulo")
+    if isinstance(titulo, str):
+        t = re.sub(r"[^a-z0-9]+", " ", titulo.lower()).strip()
+        if len(t) >= 20:
+            claves.add(f"titulo:{t}")
+    return claves
 
 
 def _clave(v: Any) -> str | None:
@@ -296,25 +397,71 @@ def _cortes(cuerpo: str) -> list[int]:
     return sorted(set(cortes), reverse=True)
 
 
+def _representantes(n: int, lazos: list[list[int]]) -> list[int]:
+    """Para cada posición de 0 a n-1, el representante (la menor posición) del
+    grupo al que la unen los `lazos` (listas de posiciones que van juntas).
+    Unión-búsqueda lineal; sin lazos, cada posición es su propio grupo."""
+    padre = list(range(n))
+
+    def raiz(i: int) -> int:
+        while padre[i] != i:
+            padre[i] = padre[padre[i]]
+            i = padre[i]
+        return i
+
+    for lazo in lazos:
+        for j in lazo[1:]:
+            a, b = raiz(lazo[0]), raiz(j)
+            if a != b:
+                padre[max(a, b)] = min(a, b)
+    return [raiz(i) for i in range(n)]
+
+
 class _Indice:
     """Las fuentes de una hipótesis indexadas por id y por referencia
     normalizada, para emparejar cada afirmación en tiempo constante. Las
     fuentes que comparten id o referencia son una identidad: la afirmación
-    empareja con todas."""
+    empareja con todas. Dos identidades más, calculadas una vez:
+
+    - `grupo[j]`: la identidad para contar fuentes: el id si lo hay y, si no,
+      la referencia (la precedencia de siempre: dos artículos distintos del
+      mismo primer autor y año con ids distintos son dos fuentes), más el
+      identificador bibliográfico (`claves_de_fuente`). La cuenta de fuentes
+      sin cohorte no repite una identidad.
+    - `articulo[j]`: solo por identificador bibliográfico (DOI, PMID, NCT,
+      título): dos entradas del mismo artículo con ids distintos aportan una
+      sola cohorte (S-06). Cada clave enlaza una sola entrada por id (la
+      primera), así que el mismo id con dos cohortes declaradas no se funde
+      por compartir el DOI: son dos cohortes del mismo registro."""
 
     def __init__(self, fuentes: list[dict[str, Any]]) -> None:
         self.fuentes = fuentes
         self.por_id: dict[Any, list[int]] = {}
         self.por_ref: dict[str, list[int]] = {}
-        self.identidad: list[Any] = []
+        por_ref_sin_id: dict[str, list[int]] = {}
+        por_clave: dict[str, list[int]] = {}
+        ids_por_clave: dict[str, set[Any]] = {}
         for j, f in enumerate(fuentes):
             fid = f.get("id")
+            con_id = bool(fid) and _hashable(fid)
             ref = _norm(f.get("referencia")).rstrip(".")
-            if fid and _hashable(fid):
+            if con_id:
                 self.por_id.setdefault(fid, []).append(j)
             if ref:
                 self.por_ref.setdefault(ref, []).append(j)
-            self.identidad.append(("id", fid) if fid and _hashable(fid) else (("ref", ref) if ref else ("pos", j)))
+                if not con_id:
+                    por_ref_sin_id.setdefault(ref, []).append(j)
+            for clave in claves_de_fuente(f):
+                if con_id:
+                    ids = ids_por_clave.setdefault(clave, set())
+                    if fid in ids:
+                        continue
+                    ids.add(fid)
+                por_clave.setdefault(clave, []).append(j)
+        lazos_articulo = [lst for lst in por_clave.values() if len(lst) > 1]
+        self.articulo: list[int] = _representantes(len(fuentes), lazos_articulo)
+        lazos_grupo = lazos_articulo + [lst for lst in self.por_id.values() if len(lst) > 1] + [lst for lst in por_ref_sin_id.values() if len(lst) > 1]
+        self.grupo: list[int] = _representantes(len(fuentes), lazos_grupo)
 
     def resolver(self, a: dict[str, Any]) -> list[int]:
         """Los índices de las fuentes con las que empareja la afirmación; []
@@ -476,15 +623,16 @@ class _Vista:
         encontrados = self.emparejadas[i]
         return self.fuentes[encontrados[0]] if encontrados else None
 
-    def fuentes_que_cuentan(self) -> list[dict[str, Any]]:
-        """Las fuentes que aportan cohorte: las que tienen al menos un apoyo no
-        socavado emparejado que no sea una frase de introducción, y las que no
-        tienen ninguna afirmación emparejable (no se puede afirmar que no
-        apoyen). Una fuente cuyas afirmaciones emparejables son todas en
-        contra, socavan, están socavadas, no están sostenidas o son de fondo
-        (resumen de estudios ajenos) no cuenta."""
+    def indices_que_cuentan(self) -> list[int]:
+        """Posiciones (en `self.fuentes`) de las fuentes que aportan cohorte:
+        las que tienen al menos un apoyo no socavado emparejado que no sea una
+        frase de introducción, y las que no tienen ninguna afirmación
+        emparejable (no se puede afirmar que no apoyen). Una fuente cuyas
+        afirmaciones emparejables son todas en contra, socavan, están
+        socavadas, no están sostenidas o son de fondo (resumen de estudios
+        ajenos) no cuenta."""
         if not self.afs:
-            return self.fuentes
+            return list(range(len(self.fuentes)))
         de_apoyo = set(self.apoyos) - self.apoyos_de_fondo
         con_afirmacion: set[int] = set()
         con_apoyo: set[int] = set()
@@ -493,14 +641,58 @@ class _Vista:
                 con_afirmacion.add(j)
                 if i in de_apoyo:
                     con_apoyo.add(j)
-        return [f for j, f in enumerate(self.fuentes) if j not in con_afirmacion or j in con_apoyo]
+        return [j for j in range(len(self.fuentes)) if j not in con_afirmacion or j in con_apoyo]
+
+    def fuentes_que_cuentan(self) -> list[dict[str, Any]]:
+        """Las fuentes que aportan cohorte (ver `indices_que_cuentan`)."""
+        return [self.fuentes[j] for j in self.indices_que_cuentan()]
+
+    def nombres_por_articulo(self) -> list[list[str]]:
+        """Los nombres de cohorte de las fuentes que cuentan, agrupados por
+        artículo (`_Indice.articulo`: mismo DOI, PMID, NCT o título), en el
+        orden de la primera entrada de cada artículo. Las fuentes sin nombre
+        de cohorte no entran."""
+        grupos: dict[int, list[str]] = {}
+        orden: list[int] = []
+        for j in self.indices_que_cuentan():
+            nombre = _nombre_cohorte(self.fuentes[j])
+            if not nombre:
+                continue
+            r = self.indice.articulo[j]
+            if r not in grupos:
+                grupos[r] = []
+                orden.append(r)
+            grupos[r].append(nombre)
+        return [grupos[r] for r in orden]
 
     def cohortes(self) -> list[str]:
         # Método como nodo (rosa/metodos.py): el catálogo canónico con alias decide
         # qué nombres son la misma cohorte; sin catálogo, la regla de tokens de siempre.
+        # Antes, cada entrada del mismo artículo (dos fuenteId, mismo DOI) aportaba
+        # su propia cohorte (S-06): ahora el artículo aporta una, con el primer
+        # nombre que resuelve al catálogo o, si ninguno, el primero.
         from rosa import metodos as METODOS
 
-        return METODOS.cohortes_distintas([{**f, "id": f"c{i}"} for i, f in enumerate(self.fuentes_que_cuentan()) if _nombre_cohorte(f)])
+        def representativo(nombres: list[str]) -> str:
+            for nombre in nombres:
+                try:
+                    if METODOS.canonizar_cohorte(nombre):
+                        return nombre
+                except Exception:  # noqa: BLE001  un nombre raro no tumba el techo
+                    continue
+            return nombres[0]
+
+        return METODOS.cohortes_distintas([{"id": f"c{k}", "cohorte": representativo(nombres)} for k, nombres in enumerate(self.nombres_por_articulo())])
+
+    def indirectos(self) -> int:
+        """Cuántos apoyos son indirectos (el mismo patrón en otra población,
+        otro marcador u otro desenlace)."""
+        return sum(1 for i in self.apoyos if _relacion(self.afs[i]) == "apoya_indirecta")
+
+    def solo_indirectos(self) -> bool:
+        """Hay apoyos y todos son indirectos: no hay ninguna afirmación en la
+        misma población y marcador que la hipótesis."""
+        return bool(self.apoyos) and self.indirectos() == len(self.apoyos)
 
     def fuentes_solo_de_fondo(self) -> int:
         """Cuántas fuentes tienen apoyos emparejados pero todos de introducción
@@ -513,18 +705,19 @@ class _Vista:
         return len(con_fondo - con_real)
 
     def sin_cohorte(self) -> int:
-        """Cuántas identidades de fuente (mismo id o misma referencia son una)
-        que aportan apoyo no tienen cohorte en ninguna de sus entradas."""
-        posiciones = {id(f): j for j, f in enumerate(self.fuentes)}
-        nombradas: set[Any] = set()
-        vistas: list[Any] = []
-        for f in self.fuentes_que_cuentan():
-            clave = self.indice.identidad[posiciones[id(f)]]
-            if clave not in vistas:
-                vistas.append(clave)
-            if _nombre_cohorte(f):
-                nombradas.add(clave)
-        return sum(1 for clave in vistas if clave not in nombradas)
+        """Cuántas identidades de fuente que aportan apoyo no tienen cohorte
+        en ninguna de sus entradas. La identidad es el id si lo hay y, si no,
+        la referencia; las entradas del mismo artículo (`claves_de_fuente`)
+        son una (`_Indice.grupo`)."""
+        nombradas: set[int] = set()
+        vistas: list[int] = []
+        for j in self.indices_que_cuentan():
+            r = self.indice.grupo[j]
+            if r not in vistas:
+                vistas.append(r)
+            if _nombre_cohorte(self.fuentes[j]):
+                nombradas.add(r)
+        return sum(1 for r in vistas if r not in nombradas)
 
     def directa(self) -> list[dict[str, Any]]:
         """Apoyos que vienen de datos (laboratorio o análisis sobre datos reales).
@@ -593,10 +786,28 @@ def cohortes_distintas(h: dict[str, Any]) -> list[str]:
     """Las cohortes nombradas en las fuentes de la hipótesis que aportan apoyo,
     agrupando los nombres que se refieren a la misma ("ADAD", "ADAD (Belder et
     al.)" y "Belder et al., cohorte ADAD" son una). Dos artículos de la misma
-    cohorte son una sola evidencia; una fuente sin cohorte identificada no
-    cuenta como independiente, porque no se puede afirmar que lo sea; una
-    fuente que solo contradice o socava no aporta cohorte."""
+    cohorte son una sola evidencia; dos entradas del mismo artículo (mismo
+    DOI, PMID, NCT o título, `claves_de_fuente`) son una sola fuente y aportan
+    una sola cohorte aunque lleven ids y nombres distintos (S-06); una fuente
+    sin cohorte identificada no cuenta como independiente, porque no se puede
+    afirmar que lo sea; una fuente que solo contradice o socava no aporta
+    cohorte."""
     return _Vista(h).cohortes()
+
+
+def apoyos_indirectos(h: dict[str, Any]) -> list[dict[str, Any]]:
+    """Los apoyos cuya relación con la hipótesis es indirecta (el mismo patrón
+    en otra población, otro marcador u otro desenlace)."""
+    v = _Vista(h)
+    return [v.afs[i] for i in v.apoyos if _relacion(v.afs[i]) == "apoya_indirecta"]
+
+
+def solo_apoyo_indirecto(h: dict[str, Any]) -> bool:
+    """True si la hipótesis tiene apoyos y todos son indirectos: no hay
+    "nada", hay "solo evidencia indirecta", y la conclusión debe decirlo así
+    (M-06: siete de nueve conclusiones decían "no encontramos evidencia
+    directa" con seis a catorce afirmaciones sostenidas)."""
+    return _Vista(h).solo_indirectos()
 
 
 def fuentes_sin_cohorte(h: dict[str, Any]) -> int:
@@ -648,17 +859,21 @@ def _techo_estructura(v: _Vista, factores: list[Any] | None) -> tuple[str, str]:
     fondo = v.fuentes_solo_de_fondo()
     if fondo:
         texto_cohortes += f" ({fondo} {'fuente' if fondo == 1 else 'fuentes'} cuyos apoyos son frases de introducción, que no aportan cohorte)"
+    # Que el juez vea que no hay ni una afirmación en la misma población y marcador
+    # (M-06): eso es "solo evidencia indirecta", no "nada".
+    n_apoyos = len(v.apoyos)
+    indirecto = ("; el único apoyo es indirecto (el mismo patrón en otra población, otro marcador u otro desenlace): pesa la mitad" if n_apoyos == 1 else f"; los {n_apoyos} apoyos son todos indirectos (el mismo patrón en otra población, otro marcador u otro desenlace): pesan la mitad") if v.solo_indirectos() else ""
     if directa:
         clases = sorted(str(a.get("clase")) for a in directa)
         que = "resultado de laboratorio" if "observacion_original" in clases else "análisis sobre datos reales"
         if n >= 2:
-            return "alta", f"hay evidencia directa ({que}) y {texto_cohortes}"
-        return "moderada", f"hay evidencia directa ({que}) pero {texto_cohortes}: falta la réplica independiente"
+            return "alta", f"hay evidencia directa ({que}) y {texto_cohortes}{indirecto}"
+        return "moderada", f"hay evidencia directa ({que}) pero {texto_cohortes}: falta la réplica independiente{indirecto}"
     if n >= 2:
-        return "baja", f"solo literatura, sin experimento ni análisis sobre datos reales, aunque de {texto_cohortes}"
+        return "baja", f"solo literatura, sin experimento ni análisis sobre datos reales, aunque de {texto_cohortes}{indirecto}"
     if efecto_grande_documentado(factores or []):
-        return "baja", f"solo literatura de {texto_cohortes}, pero el juez documentó un efecto grande"
-    return "muy_baja", f"solo literatura de {texto_cohortes}, sin réplica ni evidencia directa"
+        return "baja", f"solo literatura de {texto_cohortes}, pero el juez documentó un efecto grande{indirecto}"
+    return "muy_baja", f"solo literatura de {texto_cohortes}, sin réplica ni evidencia directa{indirecto}"
 
 
 def _techo(v: _Vista, factores: list[Any] | None) -> tuple[str, str]:
@@ -688,13 +903,222 @@ def techo(h: dict[str, Any], factores: list[Any] | None = None) -> tuple[str, st
 
 def acotar(certeza_del_juez: str, h: dict[str, Any], factores: list[Any] | None = None) -> dict[str, Any]:
     """La certeza final: la del juez si cabe bajo el techo; el techo si no.
-    Devuelve {certeza, techo: {nivel, motivo, acotada, certezaDelJuez}}."""
-    nivel, motivo = techo(h, factores)
+    Devuelve {certeza, techo: {nivel, motivo, acotada, certezaDelJuez,
+    cohortesDistintas}}. `cohortesDistintas` es la lista que contó el techo
+    (la misma que `cohortes_distintas`), para que la conclusión la lleve
+    desde que se escribe y la interfaz no tenga que recalcularla (M-04)."""
+    v = _Vista(h)
+    nivel, motivo = _techo(v, factores)
     juez = _clave(certeza_del_juez)
     if juez not in NIVELES:
         juez = "muy_baja"
     final = juez if NIVELES.index(juez) <= NIVELES.index(nivel) else nivel
-    return {"certeza": final, "techo": {"nivel": nivel, "motivo": motivo, "acotada": final != juez, "certezaDelJuez": juez}}
+    return {"certeza": final, "techo": {"nivel": nivel, "motivo": motivo, "acotada": final != juez, "certezaDelJuez": juez, "cohortesDistintas": v.cohortes()}}
+
+
+def factores_que_bajan(factores: list[Any] | None) -> list[str]:
+    """Los factores GRADE con los que el juez bajó la certeza, en castellano y
+    con su explicación: 'riesgo de sesgo (la cohorte perdió al 40 %)'. Acepta
+    diccionarios y objetos (FactorCerteza); lo que no se entiende se salta."""
+    salida: list[str] = []
+    for f in factores or []:
+        factor = f.get("factor") if isinstance(f, dict) else getattr(f, "factor", None)
+        efecto = f.get("efecto") if isinstance(f, dict) else getattr(f, "efecto", None)
+        explicacion = f.get("explicacion") if isinstance(f, dict) else getattr(f, "explicacion", None)
+        if _clave(efecto) != "baja" or not isinstance(factor, str):
+            continue
+        nombre = ETIQUETAS_FACTOR.get(_clave(factor) or "", factor.replace("_", " "))
+        texto = str(explicacion or "").strip().rstrip(".")
+        salida.append(f"{nombre} ({texto})" if texto else nombre)
+    return salida
+
+
+def frase_plantilla(direccion: str, certeza: str, titulo: str, supuesto_contradicho: bool = False, indirectas: int | None = None) -> str:
+    """La frase calibrada de (dirección, certeza), como las tablas de Santesso
+    2020 y Cochrane Iberoamérica. El modelo no la escribe: se genera aquí para
+    que 'probablemente' signifique siempre lo mismo. El título de la hipótesis
+    hace de H con la inicial en minúscula. `supuesto_contradicho`: la dirección
+    es a favor por las afirmaciones, pero un supuesto del que depende está
+    contradicho; se dice, en vez de llamar "contradictoria" a la evidencia.
+    `indirectas`: cuántos apoyos indirectos hay (sostenidos o parciales, los
+    que cuentan `apoyos_indirectos`); con dirección "sin_evidencia_directa"
+    distingue "nada" (ninguna afirmación a favor) de "solo evidencia
+    indirecta" (M-06). En esa dirección el supuesto contradicho también se
+    dice, con las mismas palabras que la frase de rosa/bucle/corrida.py, para
+    que el recálculo por regla lo conserve. Un nivel de certeza que no se
+    reconoce vale como muy baja; un recuento que no se puede leer, como cero."""
+    h = (titulo or "").strip().rstrip(".")
+    h = h[:1].lower() + h[1:] if h and not h[:2].isupper() else h
+    nivel = _clave(certeza)
+    if nivel not in NIVELES:
+        nivel = "muy_baja"
+    if direccion == "sin_evidencia_directa":
+        try:
+            n = int(indirectas or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            cuantas = "una afirmación sostenida o parcial" if n == 1 else f"{n} afirmaciones sostenidas o parciales"
+            supuesto = f"; además, un {MARCA_SUPUESTO_CONTRADICHO} por las fuentes" if supuesto_contradicho else ""
+            return f"Solo encontramos evidencia indirecta sobre si {h}: {cuantas} con el mismo patrón en otra población, otro marcador u otro desenlace, y ninguna en la misma población y marcador{supuesto}; la certeza es {_nivel_texto(nivel)}. Que no haya evidencia directa no significa que no exista."
+        if supuesto_contradicho:
+            return f"No encontramos evidencia directa sobre si {h}, y un {MARCA_SUPUESTO_CONTRADICHO} por las fuentes. Esto no significa que no exista."
+        return f"No encontramos evidencia directa sobre si {h}. Esto no significa que no exista."
+    if direccion == "mixta":
+        return f"La evidencia es contradictoria sobre si {h}; la certeza es {_nivel_texto(nivel)}."
+    if direccion == "en_contra":
+        return f"{VERBO_CONTRA[nivel]} {h}."
+    if supuesto_contradicho:
+        return f"{VERBO_CERTEZA[nivel]} {h}, aunque un {MARCA_SUPUESTO_CONTRADICHO} por las fuentes."
+    return f"{VERBO_CERTEZA[nivel]} {h}."
+
+
+# Con qué empieza toda frase que genera `frase_plantilla`: solo un enunciado que
+# empiece así se vuelve a generar al recalcular sin que cambie la certeza.
+_INICIOS_PLANTILLA = ("No encontramos evidencia directa sobre si", "Solo encontramos evidencia indirecta sobre si", "La evidencia es contradictoria sobre si", *VERBO_CERTEZA.values(), *VERBO_CONTRA.values())
+
+
+def es_frase_plantilla(texto: Any) -> bool:
+    """True si el enunciado lo generó `frase_plantilla` (empieza por uno de
+    sus inicios). Un texto escrito por una persona o por un modelo no lo es y
+    el recálculo no lo toca mientras la certeza no cambie."""
+    return isinstance(texto, str) and texto.lstrip().startswith(_INICIOS_PLANTILLA)
+
+
+def _direccion_de_plantilla(texto: Any) -> str | None:
+    """La dirección con la que se generó una frase plantilla, leída de su
+    inicio, para una conclusión antigua que no guardó `direccion`: sin esto,
+    al regenerar la frase "No encontramos evidencia directa" pasaría a "La
+    evidencia es muy incierta sobre si", que dice otra cosa. "La evidencia es
+    muy incierta sobre si" es la misma en apoya y en contra: no se decide
+    (None), y quien llama usa "apoya", como el cierre."""
+    if not isinstance(texto, str):
+        return None
+    t = texto.lstrip()
+    if t.startswith(("No encontramos evidencia directa sobre si", "Solo encontramos evidencia indirecta sobre si")):
+        return "sin_evidencia_directa"
+    if t.startswith("La evidencia es contradictoria sobre si"):
+        return "mixta"
+    if t.startswith(tuple(v for k, v in VERBO_CONTRA.items() if k != "muy_baja")):
+        return "en_contra"
+    if t.startswith(tuple(v for k, v in VERBO_CERTEZA.items() if k != "muy_baja")):
+        return "apoya"
+    return None
+
+
+def instante(ahora: Any = None) -> int:
+    """El instante en milisegundos desde 1970 que se apunta en `recalculadaEn`
+    y en la línea del registro: el dado, si es un número; si no, ahora."""
+    if isinstance(ahora, numbers.Real) and not isinstance(ahora, bool):
+        return int(ahora)
+    return int(time.time() * 1000)
+
+
+def _fecha_iso(ahora: int) -> str:
+    """La fecha del registro de procedencia, como la escribe rosa/bucle/corrida.py
+    (ISO 8601 en UTC); vacía si el instante no se puede convertir."""
+    try:
+        return datetime.fromtimestamp(ahora / 1000, tz=timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return ""
+
+
+def reacotar_conclusion(h: dict[str, Any], ahora: Any = None) -> dict[str, Any] | None:
+    """Vuelve a aplicar la regla, sin llamar al juez, sobre una conclusión ya
+    escrita: techo, certeza final (`min(juez, techo)`), escalera, cohortes y
+    frase plantilla, reutilizando los factores que el juez dejó guardados.
+    Sirve cuando cambia lo contado sin que cambie lo leído (M-10: las frases
+    de introducción dejaron de pesar entero; S-06: dos entradas del mismo
+    artículo son una; M-01: "sin información" dejó de ser riesgo alto) y para
+    registros con el techo obsoleto (M-14). El nivel del juez se toma de
+    `techo.certezaDelJuez`; en una conclusión antigua sin techo, de su
+    `certeza` (la regla solo puede bajar, así que no se inventa nada).
+
+    Deja el mismo rastro que el cierre cuando escribe una conclusión, para que
+    la persona vea que la certeza se movió aunque el juez no hablara: si la
+    certeza cambia, `conclusion.cambio` (de dónde venía y por qué, lo que la
+    interfaz enseña) y `conclusion.recalculadaEn` (`ahora`, en milisegundos;
+    si no se da, el instante actual), y una línea con fecha en
+    `procedencia.registro`; si solo cambia el nivel del techo, o el techo no
+    existía, o la frase, la línea. Lo que la conclusión dice (`enunciado`) se
+    vuelve a generar cuando cambia la certeza y también, sin que cambie, cuando
+    la frase guardada es una plantilla (`es_frase_plantilla`) y la de hoy dice
+    otra cosa: "solo evidencia indirecta" en vez de "no encontramos evidencia
+    directa" (M-06), otro recuento, o el supuesto contradicho que se conserva
+    por su marca (`MARCA_SUPUESTO_CONTRADICHO`). Un enunciado que no es
+    plantilla solo se sustituye si la certeza cambió.
+
+    Muta `h["conclusion"]` (y `h["cohortesDistintas"]`) y devuelve {"antes",
+    "despues", "cambio" (algo se movió: certeza, techo, escalera, cohortes o
+    frase), "bajo" (la certeza bajó de un nivel reconocido a otro menor: es lo
+    que merece un evento), "texto" (lo que pasó con la certeza, para el evento:
+    "bajó de baja a muy baja al recalcular el techo por regla: ..."), "nota" (la
+    línea del registro, sin fecha), "enunciadoCambio"}; None si la hipótesis
+    no tiene conclusión con certeza. Lo que escribió el juez (conclusión, a
+    favor, en contra, factores) no se toca. Es idempotente: la segunda pasada
+    no cambia nada ni añade líneas."""
+    if not isinstance(h, dict) or not isinstance(h.get("conclusion"), dict):
+        return None
+    c = h["conclusion"]
+    if "certeza" not in c:
+        return None
+    ahora = instante(ahora)
+    factores = c.get("factores") if isinstance(c.get("factores"), list) else []
+    techo_previo = _dict(c.get("techo"))
+    juez = _clave(techo_previo.get("certezaDelJuez")) or _clave(c.get("certeza")) or "muy_baja"
+    antes = {"certeza": c.get("certeza"), "techo": techo_previo.get("nivel"), "cohortesDistintas": list(c.get("cohortesDistintas") or []) if isinstance(c.get("cohortesDistintas"), list) else None}
+    motivo_previo = techo_previo.get("motivo")
+    escalera_previa = c.get("escalera")
+    enunciado_previo = c.get("enunciado")
+    acotada = acotar(juez, h, factores)
+    c["techo"] = acotada["techo"]
+    c["certeza"] = acotada["certeza"]
+    c["escalera"] = escalera(h, acotada["certeza"], factores)
+    c["cohortesDistintas"] = list(acotada["techo"]["cohortesDistintas"])
+    h["cohortesDistintas"] = list(acotada["techo"]["cohortesDistintas"])
+    motivo = str(c["techo"]["motivo"])
+    certeza_cambio = c["certeza"] != antes["certeza"]
+    # La frase: siempre que la certeza cambie; sin cambio de certeza, solo si la
+    # guardada es una plantilla y la de hoy dice otra cosa (M-06).
+    enunciado_cambio = False
+    if certeza_cambio or es_frase_plantilla(enunciado_previo):
+        titulo = str(c.get("hipotesisBreve") or h.get("titulo") or "").strip()
+        supuesto = isinstance(enunciado_previo, str) and MARCA_SUPUESTO_CONTRADICHO in enunciado_previo
+        direccion = str(c.get("direccion") or _direccion_de_plantilla(enunciado_previo) or "apoya")
+        nuevo = frase_plantilla(direccion, c["certeza"], titulo, supuesto_contradicho=supuesto, indirectas=len(apoyos_indirectos(h)))
+        if nuevo != enunciado_previo:
+            c["enunciado"] = nuevo
+            enunciado_cambio = True
+    despues = {"certeza": c["certeza"], "techo": c["techo"]["nivel"], "cohortesDistintas": list(c["cohortesDistintas"])}
+    techo_cambio = antes["techo"] != despues["techo"]
+    cambio = certeza_cambio or techo_cambio or motivo_previo != motivo or escalera_previa != c["escalera"] or antes["cohortesDistintas"] != despues["cohortesDistintas"] or enunciado_cambio
+    de_txt = _nivel_texto(str(antes["certeza"])) if antes["certeza"] else "sin certeza"
+    a_txt = _nivel_texto(despues["certeza"])
+    bajo = antes["certeza"] in NIVELES and NIVELES.index(despues["certeza"]) < NIVELES.index(antes["certeza"])
+    texto = ""
+    notas: list[str] = []
+    if certeza_cambio:
+        # Una certeza anterior que no es un nivel (una conclusión antigua con un valor
+        # raro) no sube ni baja: pasa.
+        sentido = "bajó" if bajo else ("subió" if antes["certeza"] in NIVELES else "pasó")
+        texto = f"{sentido} de {de_txt} a {a_txt} al recalcular el techo por regla: {motivo}"
+        notas.append(f"la certeza {texto}")
+        c["cambio"] = {"de": {"certeza": antes["certeza"], "direccion": c.get("direccion"), "iteracion": c.get("iteracion")}, "motivo": f"Recálculo del techo por regla: {motivo}"[:300]}
+        c["recalculadaEn"] = ahora
+    elif not techo_previo:
+        notas.append(f"techo GRADE calculado por regla para una conclusión que no lo tenía: {_nivel_texto(despues['techo'])} ({motivo[:160]})")
+    elif techo_cambio:
+        notas.append(f"el techo por regla pasó de {_nivel_texto(str(antes['techo'] or 'sin techo'))} a {_nivel_texto(despues['techo'])} sin mover la certeza: {motivo}")
+    if enunciado_cambio and not certeza_cambio:
+        notas.append(f"la frase de la conclusión se volvió a generar por regla sin mover la certeza: «{str(c['enunciado'])[:160]}»")
+    nota = "; ".join(notas) if notas else ("recálculo del techo por regla sin mover la certeza ni la frase" if cambio else "sin cambios al recalcular el techo por regla")
+    if notas:
+        procedencia = h.get("procedencia")
+        registro = procedencia.get("registro") if isinstance(procedencia, dict) else None
+        if isinstance(registro, list):
+            fecha = _fecha_iso(ahora)
+            registro.append(f"{fecha} {nota}" if fecha else nota)
+    return {"antes": antes, "despues": despues, "cambio": cambio, "bajo": bajo, "texto": texto, "nota": nota, "enunciadoCambio": enunciado_cambio}
 
 
 def _remedios_de_peso(v: _Vista) -> list[str]:
@@ -751,7 +1175,10 @@ def escalera(h: dict[str, Any], certeza: str, factores: list[Any] | None = None)
     regla. Cada peldaño: {de, a, falta}. Vacía si ya está en alta. Cuando lo
     que frena es el peso de la evidencia, el "falta" lo dice. Los peldaños
     son consecutivos: cada uno da por cumplido lo que pidieron los
-    anteriores."""
+    anteriores. Cuando ni la estructura ni el peso frenan un peldaño (la
+    regla llegaría y fue el juez quien se quedó abajo), el "falta" nombra los
+    factores reales con los que el juez bajó (`factores`, efecto "baja") en
+    vez de un peldaño genérico (M-06); sin factores, el texto por defecto."""
     v = _Vista(h)
     cohortes = len(v.cohortes())
     directa = bool(v.directa())
@@ -759,6 +1186,8 @@ def escalera(h: dict[str, Any], certeza: str, factores: list[Any] | None = None)
     a_favor = balance["aFavor"]
     nivel_actual = _clave(certeza)
     actual = NIVELES.index(nivel_actual) if nivel_actual in NIVELES else 0
+    bajan = factores_que_bajan(factores)
+    del_juez = ("que se resuelva lo que el juez señaló al bajar la certeza: " + "; ".join(bajan)) if bajan else None
     # Peso que ya aportarían los peldaños anteriores: las piezas estructurales
     # que pidieron (la segunda cohorte, la evidencia directa, la réplica; 1.0 cada
     # una) y el peso mínimo que exigieron, que al llegar a ese nivel se alcanzó.
@@ -766,14 +1195,18 @@ def escalera(h: dict[str, Any], certeza: str, factores: list[Any] | None = None)
     pasos: list[dict[str, str]] = []
 
     def peldano(de: str, a: str, pieza: str | None, por_defecto: str) -> None:
-        nonlocal acumulado
+        nonlocal acumulado, del_juez
         if pieza is not None:
             acumulado += 1.0
         freno = _falta_por_peso(v, balance, a, acumulado)
         if pieza is not None:
             falta = pieza + (f"; además, {freno}" if freno else "")
         else:
-            falta = freno or por_defecto
+            # Los factores del juez frenan el primer peldaño que la regla no frena; a
+            # partir de ahí, resueltos, vuelve el texto por defecto de cada nivel.
+            falta = freno or del_juez or por_defecto
+            if falta is del_juez:
+                del_juez = None
         minimo = UMBRALES_PESO[a][0]
         if a_favor + acumulado < minimo:
             acumulado = round(minimo - a_favor, 3)

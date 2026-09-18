@@ -192,8 +192,13 @@ def nuevo_paso(titulo: str, detalle: str, presupuesto: int | None = None, humano
     return {"id": nuevo_id("paso"), "titulo": titulo, "detalle": detalle, "estado": "pendiente", "indicacionHumana": humano, "motivoFallo": None, "presupuesto": presupuesto, "valorDecision": valor_decision, "espera": espera, "siNoAparece": si_no_aparece}
 
 
-def nueva_iteracion(corrida_id: str, numero: int, ahora: int, plan: list[dict[str, Any]], limite: int | None = None) -> dict[str, Any]:
-    return {
+def nueva_iteracion(corrida_id: str, numero: int, ahora: int, plan: list[dict[str, Any]], limite: int | None = None, reserva_cierre: int | None = None) -> dict[str, Any]:
+    """La iteración recién nacida. `reserva_cierre` es la parte del tope
+    apartada para el cierre (resumen, evidencia, conclusiones, revisor; S-14) y
+    queda en `presupuesto.reservaCierre` desde el principio, que es lo que lee
+    la solicitud de gasto grande para enseñar el plan y el cierre por separado;
+    sin ella la clave no se escribe y la forma es la de siempre."""
+    it = {
         "id": nuevo_id("it"),
         "corridaId": corrida_id,
         "numero": numero,
@@ -206,6 +211,9 @@ def nueva_iteracion(corrida_id: str, numero: int, ahora: int, plan: list[dict[st
         "presupuesto": {"limite": limite or config.PRESUPUESTO_ITERACION, "usado": 0},
         "resumen": "",
     }
+    if reserva_cierre is not None:
+        it["presupuesto"]["reservaCierre"] = int(reserva_cierre)
+    return it
 
 
 def nueva_pista(iteracion_id: str, paso_id: str | None, tipo: str, titulo: str, fuente: str) -> dict[str, Any]:

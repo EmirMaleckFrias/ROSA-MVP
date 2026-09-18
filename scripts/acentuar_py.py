@@ -7,7 +7,9 @@ GRADE, mensajes del Killer, docstrings. Regla: una cadena se acentúa si tiene
 un espacio y no parece código. Se deja tal cual si contiene `_ = { } $ / \\ < >`
 o `palabra.palabra` (claves, rutas, plantillas, expresiones regulares), si
 tiene pinta de SQL, o si está en inglés. En las f-strings y en las plantillas
-de `format` solo se toca el texto fuera de las llaves. Uso:
+de `format` solo se toca el texto fuera de las llaves, y lo que va entre
+comillas invertidas (`sintetico`, `direccion` en un docstring) es un
+identificador y se deja tal cual. Uso:
 
     python3 scripts/acentuar_py.py            # aplica
     python3 scripts/acentuar_py.py --seco     # solo cuenta y muestra ejemplos
@@ -26,6 +28,9 @@ from acentuar import acentuar_texto  # noqa: E402
 CODIGO = re.compile(r"[_$/\\<>|*^\[\]]|\w\.\w|%[sdrf(]")
 SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|CREATE|WHERE|FROM|PRAGMA|ORDER BY|VALUES)\b")
 LLAVES = re.compile(r"(\{[^{}]*\})")
+# Un tramo entre comillas invertidas dentro de una cadena o un docstring nombra un
+# identificador (`sintetico`, `direccion`): acentuarlo rompería la referencia.
+INVERTIDAS = re.compile(r"(`[^`\n]+`)")
 
 
 def partir_llaves(cuerpo: str) -> list[str]:
@@ -73,7 +78,8 @@ def acentuar_cuerpo(cuerpo: str, con_llaves: bool) -> str:
         if CODIGO.search(parte) or SQL.search(parte):
             salida.append(parte)
             continue
-        salida.append(acentuar_texto(parte))
+        for tramo in INVERTIDAS.split(parte):
+            salida.append(tramo if INVERTIDAS.fullmatch(tramo) else acentuar_texto(tramo))
     return "".join(salida)
 
 

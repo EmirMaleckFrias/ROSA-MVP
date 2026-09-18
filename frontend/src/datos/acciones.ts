@@ -43,6 +43,7 @@ import type {
   Evento,
   Fuente,
   HechoMundo,
+  TipoHecho,
   Hipotesis,
   Investigacion,
   Iteracion,
@@ -1418,7 +1419,7 @@ export function crearInvestigacion(estado: EstadoRosa, datos: DatosInvestigacion
   };
   let hechos = estado.hechos;
   if (datos.heredarModeloDe) {
-    hechos = [...estado.hechos, ...copiarHechos(estado.hechos, datos.heredarModeloDe, id)];
+    hechos = [...estado.hechos, ...copiarHechos(estado.hechos, datos.heredarModeloDe, id, ahora)];
   }
   let siguiente: EstadoRosa = { ...estado, investigaciones: [...estado.investigaciones, inv], hechos };
   const m = datos.mision;
@@ -1758,19 +1759,23 @@ export function bifurcarInvestigacion(estado: EstadoRosa, investigacionId: strin
     mapaRuta: null,
     cifrasAprendizaje: null,
   };
-  const hechos = copiarHechos(estado.hechos, investigacionId, id);
+  const hechos = copiarHechos(estado.hechos, investigacionId, id, ahora);
   return { estado: { ...estado, investigaciones: [...estado.investigaciones, rama], hechos: [...estado.hechos, ...hechos] }, id };
 }
 
 /** Copia los hechos de una investigación a otra con el sufijo del destino en el
  *  id y remapea los enlaces entre hechos (sustituyeA, sustituidoPor, resuelveA,
  *  contradiceA) hacia las copias; un enlace a un hecho que no viaja se conserva.
- *  Misma regla que rosa/estado/acciones.py copiar_hechos. */
-export function copiarHechos(hechos: HechoMundo[], origenId: string, destinoId: string): HechoMundo[] {
+ *  Al heredar, los repetidos del origen (mismo texto normalizado o el mismo
+ *  hecho con otras palabras, ver `mismoHecho`) se funden en el más antiguo,
+ *  sumando procedencia, afirmaciones y citas, con un movimiento en su historial
+ *  fechado en `ahora` (si no llega, en el `actualizadoEn` más reciente de las
+ *  copias). Misma regla que rosa/estado/acciones.py copiar_hechos. */
+export function copiarHechos(hechos: HechoMundo[], origenId: string, destinoId: string, ahora?: number): HechoMundo[] {
   const propios = hechos.filter((h) => h.investigacionId === origenId);
   const mapa = new Map(propios.map((h) => [h.id, `${h.id}-${destinoId}`]));
   const re = (v: string) => mapa.get(v) ?? v;
-  return propios.map((h) => ({
+  const copias = propios.map((h) => ({
     ...h,
     id: mapa.get(h.id) ?? h.id,
     investigacionId: destinoId,
@@ -1779,6 +1784,377 @@ export function copiarHechos(hechos: HechoMundo[], origenId: string, destinoId: 
     ...(h.contradiceA ? { contradiceA: h.contradiceA.map(re) } : {}),
     ...(h.sustituidoPor ? { sustituidoPor: re(h.sustituidoPor) } : {}),
   }));
+  const fecha = ahora ?? copias.reduce((m, c) => Math.max(m, c.actualizadoEn ?? 0), 0);
+  return fundirHechosRepetidos(copias, fecha).hechos;
+}
+
+/* ---------------------------------------------------------------------
+   Hechos repetidos: la misma regla que rosa/hechos.py (y que
+   rosa/cuestiones.py para la equivalencia de textos). El servidor la aplica
+   también al cargar un estado guardado; aquí sirve para que la vista
+   optimista de heredar o bifurcar coincida con lo que devolverá el servidor.
+   --------------------------------------------------------------------- */
+
+const GRIEGAS: Record<string, string> = { α: 'alfa', β: 'beta', γ: 'gamma', δ: 'delta', ε: 'epsilon', κ: 'kappa', λ: 'lambda', μ: 'mu', σ: 'sigma', τ: 'tau', ω: 'omega' };
+
+/** Minúsculas y sin marcas diacríticas (NFKD): `_sin_tildes` en rosa/cuestiones.py. */
+function sinMarcasDiacriticas(t: string): string {
+  return t.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '');
+}
+
+/** Palabras vacías de hasta tres letras (castellano e inglés) que no cuentan como marca corta; la negación queda fuera a propósito. */
+const VACIAS_CORTAS = new Set(
+  (
+    'a al así aún con de del e el en era es esa ese eso fue ha han hay he la las le les lo los más me mi mis muy nos o os por que se ser si son su sus tan te tu tus u un una uno y ya vs etc ' +
+    'an and are as at be but by can did do for had has her his how if in is it its may of on or our out she so the to up was we who why you all any yet'
+  )
+    .split(/\s+/)
+    .filter((p) => p !== '')
+    .map(sinMarcasDiacriticas),
+);
+
+/** Palabras de orden o dirección: si dos textos comparten una, los tokens comunes tienen que ir en el mismo orden. */
+const DIRECCION = new Set(
+  (
+    'antes después previo previa previos previas posterior posteriores anterior anteriores precede preceden precedido precedida ' +
+    'primero primera luego tras sigue siguen seguido seguida causa causan causado causada provoca provocan predice predicen ' +
+    'predictor predictora mayor mayores menor menores superior inferior aumenta aumentan reduce reducen induce inducen depende dependen ' +
+    'before after prior precedes preceded earlier later first then follows followed following cause causes caused predict ' +
+    'predicts predicted predictor higher lower greater larger smaller than increase increases decrease decreases induce induces ' +
+    'mediate mediates depend depends upstream downstream'
+  )
+    .split(/\s+/)
+    .filter((p) => p !== '')
+    .map(sinMarcasDiacriticas),
+);
+
+const UMBRAL_JACCARD_HECHOS = 0.8;
+const UMBRAL_MISMA_REFERENCIA = 0.6;
+const TIPOS_FUNDIBLES: TipoHecho[] = ['hecho', 'pregunta'];
+const ENLACES_HECHO = ['sustituyeA', 'resuelveA', 'contradiceA'] as const;
+
+interface PerfilTexto {
+  normalizado: string;
+  largos: Set<string>;
+  marcas: Set<string>;
+  orden: string[];
+}
+
+const CACHE_PERFIL = new Map<string, PerfilTexto>();
+const TOPE_CACHE_PERFIL = 8192;
+
+/** `_perfil` de rosa/cuestiones.py: texto normalizado (letras griegas por su nombre), tokens largos, marcas cortas y orden de aparición.
+ *  Con caché acotada: fundir compara cada hecho con los de su bloque y sin ella volvía a normalizar el mismo texto cientos de veces. */
+function perfilTexto(texto: string): PerfilTexto {
+  const clave = texto ?? '';
+  const guardado = CACHE_PERFIL.get(clave);
+  if (guardado) return guardado;
+  const s = sinMarcasDiacriticas(clave).replace(/[αβγδεκλμστω]/g, (c) => GRIEGAS[c] ?? c);
+  const normalizado = s.toLowerCase().replace(/[^0-9a-z\s]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const partes = normalizado === '' ? [] : normalizado.split(' ');
+  const largos = new Set(partes.filter((t) => t.length > 3));
+  const marcas = new Set(partes.filter((t) => t.length <= 3 && !VACIAS_CORTAS.has(t)));
+  const orden = Array.from(new Set(partes.filter((t) => largos.has(t) || marcas.has(t))));
+  const perfil = { normalizado, largos, marcas, orden };
+  if (CACHE_PERFIL.size >= TOPE_CACHE_PERFIL) CACHE_PERFIL.clear();
+  CACHE_PERFIL.set(clave, perfil);
+  return perfil;
+}
+
+function mismosConjuntos(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+
+function solapeDeTokens(a: Set<string>, b: Set<string>): number {
+  const union = new Set([...a, ...b]);
+  if (union.size === 0) return 0;
+  let comunes = 0;
+  for (const x of a) if (b.has(x)) comunes += 1;
+  return comunes / union.size;
+}
+
+function mismoOrden(pa: PerfilTexto, pb: PerfilTexto): boolean {
+  const comunes = new Set(pa.orden.filter((t) => pb.orden.includes(t)));
+  const oa = pa.orden.filter((t) => comunes.has(t));
+  const ob = pb.orden.filter((t) => comunes.has(t));
+  return oa.length === ob.length && oa.every((t, i) => t === ob[i]);
+}
+
+function compartenDireccion(pa: PerfilTexto, pb: PerfilTexto): boolean {
+  return pa.orden.some((t) => DIRECCION.has(t) && pb.orden.includes(t));
+}
+
+function conComa(n: number, decimales: number): string {
+  return n.toFixed(decimales).replace('.', ',');
+}
+
+/** Texto normalizado de un enunciado: minúsculas, sin tildes ni signos, letras griegas por su nombre. Misma regla que rosa/cuestiones.py normalizar. */
+export function normalizarEnunciado(texto: string): string {
+  return perfilTexto(texto).normalizado;
+}
+
+/** Motivo por el que dos textos dicen lo mismo, o null. Misma regla que rosa/cuestiones.py equivalencia:
+ *  texto normalizado idéntico, o solape de tokens largos de al menos 0,8 con las mismas marcas cortas
+ *  (siglas, cifras, negaciones) y, si comparten una palabra de dirección, el mismo orden. */
+export function equivalenciaTextos(a: string, b: string): string | null {
+  const pa = perfilTexto(a);
+  const pb = perfilTexto(b);
+  if (pa.normalizado === '' || pb.normalizado === '') return null;
+  if (pa.normalizado === pb.normalizado) return 'texto normalizado idéntico';
+  if (!mismosConjuntos(pa.marcas, pb.marcas)) return null;
+  const j = solapeDeTokens(pa.largos, pb.largos);
+  if (j < UMBRAL_JACCARD_HECHOS) return null;
+  if (compartenDireccion(pa, pb) && !mismoOrden(pa, pb)) return null;
+  return `solape de tokens ${conComa(j, 2)} >= ${conComa(UMBRAL_JACCARD_HECHOS, 1)}`;
+}
+
+/** Números escritos con letra: el solape de tokens no distingue "excluyeron cuatro" de "excluyeron seis". Misma lista que rosa/hechos.py NUMEROS_EN_LETRA. */
+const NUMEROS_EN_LETRA = new Set(
+  (
+    'cero uno una dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince veinte treinta cuarenta cincuenta cien ciento mil millon millones mitad tercio doble triple ' +
+    'zero one two three four five six seven eight nine ten eleven twelve twenty thirty forty fifty hundred thousand million half third double triple'
+  ).split(/\s+/),
+);
+/** Negaciones de más de tres letras, ya normalizadas ("no", "not", "sin" y "ni" son marcas cortas). */
+const NEGACIONES_LARGAS = new Set('nunca jamás tampoco ninguna ningún ninguno never neither nor none without'.split(/\s+/).map((p) => normalizarEnunciado(p)));
+/** La misma sigla en dos idiomas; solo pares de tres letras o más. */
+const SINONIMOS_SIGLA: Record<string, string> = { csf: 'lcr', dcl: 'mci', tep: 'pet' };
+/** Una referencia sin autor ("Sin autor", "Sin autor, 2023") no identifica una obra: solo vale el id de fuente. */
+const REFERENCIA_GENERICA = 'sin autor';
+const CITA_ENTRE_CORCHETES = /\[[^\]]*\]/g;
+const TOKEN_CRUDO = /[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu;
+/** `PATRON_CIFRA` de rosa/verificador.py: cifras con separador de miles o decimal. */
+const PATRON_CIFRA = /(?<![\p{L}\p{N}_.])(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(%|por ciento)?/gu;
+
+/** El enunciado sin la cita entre corchetes que el paso de modelo añade al final. */
+function sinCita(texto: string): string {
+  return (texto ?? '').replace(CITA_ENTRE_CORCHETES, ' ');
+}
+
+/** `normalizar_cifra` de rosa/verificador.py: "1.234,5" y "1,234.5" quedan iguales; "12,5" y "12.5" también. */
+function normalizarCifra(c: string): string {
+  const t = c.trim();
+  if (/^\d{1,3}([.,]\d{3})+$/.test(t)) return t.replace(/[.,]/g, '');
+  if (/^\d{1,3}([.,]\d{3})+[.,]\d+$/.test(t)) {
+    const i = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+    return t.slice(0, i).replace(/[.,]/g, '') + '.' + t.slice(i + 1);
+  }
+  return t.replace(/,/g, '.');
+}
+
+/** Las cifras del texto y los números escritos con letra. Misma regla que rosa/hechos.py numeros_de. */
+export function numerosDe(texto: string): Set<string> {
+  const salida = new Set<string>();
+  for (const t of normalizarEnunciado(texto).split(' ')) if (NUMEROS_EN_LETRA.has(t)) salida.add(t);
+  for (const m of (texto ?? '').matchAll(PATRON_CIFRA)) salida.add(normalizarCifra(m[1]!));
+  return salida;
+}
+
+/** Las negaciones largas del texto normalizado (nunca, jamás, never...). Misma regla que rosa/hechos.py negaciones_de. */
+export function negacionesDe(texto: string): Set<string> {
+  return new Set(normalizarEnunciado(texto).split(' ').filter((t) => NEGACIONES_LARGAS.has(t)));
+}
+
+/** Las siglas y los nombres con cifra tal como están escritos: tokens de al menos tres caracteres con una mayúscula
+ *  fuera de la primera letra (GFAP, sTREM2, NfL, ApoE) o con algún dígito (APOE4, p-tau217, YKL40), normalizados y sin
+ *  espacios. Las palabras que solo empiezan por mayúscula (Belder, La) no cuentan; fuera quedan las cifras sueltas, los
+ *  tokens de `excluir` (la referencia de la obra) y "et"/"al". Misma regla que rosa/hechos.py siglas_de. */
+export function siglasDe(texto: string, excluir: Set<string> = new Set()): Set<string> {
+  const salida = new Set<string>();
+  for (const m of (texto ?? '').matchAll(TOKEN_CRUDO)) {
+    const tok = m[0];
+    if (tok.length < 3) continue;
+    if (!(/\p{Lu}/u.test(tok.slice(1)) || /\p{N}/u.test(tok))) continue;
+    const partes = normalizarEnunciado(tok).split(' ').filter((x) => x !== '');
+    const n = partes.join('');
+    if (n === '' || /^\p{N}+$/u.test(n) || n === 'et' || n === 'al' || excluir.has(n) || partes.every((x) => excluir.has(x))) continue;
+    salida.add(SINONIMOS_SIGLA[n] ?? n);
+  }
+  return salida;
+}
+
+/** True si las dos procedencias comparten una fuente (mismo `fuenteId`) o una referencia corta normalizada: la señal de que
+ *  dos enunciados parecidos salen del mismo artículo y no de dos cohortes; una referencia genérica ("Sin autor...") no cuenta.
+ *  Misma regla que rosa/hechos.py comparte_referencia. */
+export function comparteReferencia(a: HechoMundo['procedencia'] | null | undefined, b: HechoMundo['procedencia'] | null | undefined): boolean {
+  const claves = (proc: HechoMundo['procedencia'] | null | undefined) => {
+    const salida = new Set<string>();
+    for (const p of proc ?? []) {
+      if (!p) continue;
+      if (p.fuenteId) salida.add(`id|${p.fuenteId}`);
+      const ref = normalizarEnunciado(p.referencia ?? '');
+      if (ref !== '' && !ref.startsWith(REFERENCIA_GENERICA)) salida.add(`ref|${ref}`);
+    }
+    return salida;
+  };
+  const ca = claves(a);
+  for (const k of claves(b)) if (ca.has(k)) return true;
+  return false;
+}
+
+function tokensDeReferencias(...hechos: HechoMundo[]): Set<string> {
+  const salida = new Set<string>();
+  for (const h of hechos) for (const p of h.procedencia ?? []) for (const t of normalizarEnunciado(p?.referencia ?? '').split(' ')) if (t !== '') salida.add(t);
+  return salida;
+}
+
+/** Por qué dos hechos con palabras parecidas no pueden ser el mismo, o null si pasan las cuatro guardas del bucle
+ *  (rosa/bucle/pasos.py hecho_duplicado): referencia compartida cuando alguno tiene procedencia, mismos números, mismas
+ *  siglas y mismas negaciones largas. Misma regla que rosa/hechos.py guardas_de_parafrasis. */
+export function guardasDeParafrasis(a: HechoMundo, b: HechoMundo): string | null {
+  const pa = a.procedencia ?? [];
+  const pb = b.procedencia ?? [];
+  if ((pa.length > 0 || pb.length > 0) && !comparteReferencia(pa, pb)) return 'otra fuente sin referencia común: una replicación vive aparte';
+  const la = sinCita(a.enunciado ?? '');
+  const lb = sinCita(b.enunciado ?? '');
+  if (!mismosConjuntos(numerosDe(la), numerosDe(lb))) return 'números distintos';
+  if (!mismosConjuntos(negacionesDe(la), negacionesDe(lb))) return 'una negación que el otro no tiene';
+  const ref = tokensDeReferencias(a, b);
+  if (!mismosConjuntos(siglasDe(la, ref), siglasDe(lb, ref))) return 'siglas distintas';
+  return null;
+}
+
+function referenciasDeHecho(h: HechoMundo): Set<string> {
+  const refs = new Set<string>();
+  for (const a of h.afirmacionIds ?? []) if (a) refs.add(`af|${a}`);
+  for (const p of h.procedencia ?? []) if (p.fuenteId && p.pagina !== null && p.pagina !== undefined) refs.add(`fp|${p.fuenteId}|${p.pagina}`);
+  return refs;
+}
+
+/** True si uno sustituye o contradice al otro: no son repetidos, son una pareja deliberada. */
+function hechosEnlazados(a: HechoMundo, b: HechoMundo): boolean {
+  for (const [x, y] of [[a, b.id], [b, a.id]] as const) {
+    if ((x.sustituyeA ?? []).includes(y) || (x.contradiceA ?? []).includes(y) || x.sustituidoPor === y) return true;
+  }
+  return false;
+}
+
+/** Motivo por el que dos hechos son el mismo, o null. Misma regla que rosa/hechos.py mismo_hecho:
+ *  misma investigación, mismo tipo (nunca las entradas de revisión de una hipótesis) y mismo estado,
+ *  no enlazados entre sí; texto normalizado idéntico, o una paráfrasis que pasa las guardas del bucle
+ *  (`guardasDeParafrasis`: referencia compartida, mismos números, siglas y negaciones largas); con una
+ *  referencia fina compartida (afirmación, o fuente y página) el umbral de solape baja a 0,6 con las
+ *  mismas guardas. La referencia sola no basta: un mismo artículo sostiene varios hechos distintos en
+ *  la misma página. */
+export function mismoHecho(a: HechoMundo, b: HechoMundo): string | null {
+  if (a === b || a.id === b.id) return null;
+  if (!TIPOS_FUNDIBLES.includes(a.tipo) || b.tipo !== a.tipo) return null;
+  if (a.estado !== b.estado || a.investigacionId !== b.investigacionId) return null;
+  if (hechosEnlazados(a, b)) return null;
+  const na = normalizarEnunciado(a.enunciado ?? '');
+  const nb = normalizarEnunciado(b.enunciado ?? '');
+  if (na === '' || nb === '') return null;
+  if (na === nb) return 'texto normalizado idéntico';
+  if (guardasDeParafrasis(a, b)) return null;
+  const motivo = equivalenciaTextos(a.enunciado, b.enunciado);
+  if (motivo) return motivo;
+  const ra = referenciasDeHecho(a);
+  let comparten = false;
+  for (const r of referenciasDeHecho(b)) {
+    if (ra.has(r)) {
+      comparten = true;
+      break;
+    }
+  }
+  if (!comparten) return null;
+  const pa = perfilTexto(a.enunciado);
+  const pb = perfilTexto(b.enunciado);
+  if (pa.normalizado === '' || pb.normalizado === '') return null;
+  if (!mismosConjuntos(pa.marcas, pb.marcas)) return null;
+  const j = solapeDeTokens(pa.largos, pb.largos);
+  if (j < UMBRAL_MISMA_REFERENCIA) return null;
+  if (compartenDireccion(pa, pb) && !mismoOrden(pa, pb)) return null;
+  return `misma referencia y solape de tokens ${conComa(j, 2)} >= ${conComa(UMBRAL_MISMA_REFERENCIA, 1)}`;
+}
+
+function sumarPorClave<T>(base: T[], extra: T[], clave: (x: T) => string): T[] {
+  const vistos = new Set(base.map(clave));
+  const salida = [...base];
+  for (const x of extra) {
+    const k = clave(x);
+    if (!vistos.has(k)) {
+      salida.push(x);
+      vistos.add(k);
+    }
+  }
+  return salida;
+}
+
+/** El hecho `destino` con lo que aporta `duplicado`: procedencia, afirmaciones, citas, entidades y enlaces
+ *  sumados sin repetir, prioridad máxima, y un movimiento en el historial que nombra al repetido y el motivo.
+ *  `actualizadoEn` no cambia; una lista guardada en null cuenta como vacía. Devuelve un objeto nuevo; no toca ninguno de los dos. Misma regla que rosa/hechos.py fundir. */
+export function fundirHechos(destino: HechoMundo, duplicado: HechoMundo, ahora: number, motivo: string): HechoMundo {
+  const enlaces: Partial<Pick<HechoMundo, 'sustituyeA' | 'resuelveA' | 'contradiceA'>> = {};
+  for (const clave of ENLACES_HECHO) {
+    const extra = (duplicado[clave] ?? []).filter((x) => x && x !== destino.id);
+    if (extra.length > 0 || destino[clave] !== undefined) enlaces[clave] = Array.from(new Set([...(destino[clave] ?? []), ...extra]));
+  }
+  const cambios: Partial<HechoMundo> = {};
+  if ((duplicado.entidades ?? []).length > 0) cambios.entidades = sumarPorClave(destino.entidades ?? [], duplicado.entidades ?? [], (x) => x.id);
+  if (!destino.sustituidoPor && duplicado.sustituidoPor && duplicado.sustituidoPor !== destino.id) cambios.sustituidoPor = duplicado.sustituidoPor;
+  if (!destino.pendienteRevision && duplicado.pendienteRevision) cambios.pendienteRevision = duplicado.pendienteRevision;
+  if (!destino.motivoDescarte && duplicado.motivoDescarte) cambios.motivoDescarte = duplicado.motivoDescarte;
+  if ((destino.cerradoEn ?? null) === null && (duplicado.cerradoEn ?? null) !== null) cambios.cerradoEn = duplicado.cerradoEn;
+  return {
+    ...destino,
+    procedencia: sumarPorClave(destino.procedencia ?? [], duplicado.procedencia ?? [], (p) => `${p.fuenteId}|${p.pagina ?? ''}`),
+    afirmacionIds: Array.from(new Set([...(destino.afirmacionIds ?? []), ...(duplicado.afirmacionIds ?? []).filter((x) => x !== '')])),
+    citas: sumarPorClave(destino.citas ?? [], duplicado.citas ?? [], (c) => `${c.referencia}|${c.seccion}`),
+    ...enlaces,
+    ...cambios,
+    prioridad: Math.max(destino.prioridad ?? 0, duplicado.prioridad ?? 0),
+    historial: [
+      ...(destino.historial ?? []),
+      { fecha: ahora, de: destino.estado, a: destino.estado, quien: 'Rosa', motivo: `Fundido con ${duplicado.id}: «${(duplicado.enunciado ?? '').slice(0, 160)}» (${motivo}); se suman su procedencia y sus afirmaciones` },
+    ],
+  };
+}
+
+function remapearEnlacesDeHecho(h: HechoMundo, mapa: Map<string, string>): HechoMundo {
+  const re = (v: string) => mapa.get(v) ?? v;
+  const listas: Partial<Pick<HechoMundo, 'sustituyeA' | 'resuelveA' | 'contradiceA'>> = {};
+  for (const clave of ENLACES_HECHO) {
+    const lista = h[clave];
+    if (lista && lista.some((x) => mapa.has(x))) listas[clave] = Array.from(new Set(lista.map(re))).filter((x) => x !== h.id);
+  }
+  const sp = h.sustituidoPor;
+  const cambioSp = sp && mapa.has(sp) ? { sustituidoPor: mapa.get(sp) === h.id ? null : (mapa.get(sp) ?? null) } : {};
+  return { ...h, ...listas, ...cambioSp };
+}
+
+/** Funde los hechos repetidos de una lista (en orden: el primero de cada grupo sobrevive) y remapea los enlaces
+ *  que apuntaban a un repetido. Devuelve los supervivientes y el mapa de id repetido a id superviviente.
+ *  Misma regla que rosa/hechos.py fundir_duplicados. */
+export function fundirHechosRepetidos(hechos: HechoMundo[], ahora: number): { hechos: HechoMundo[]; mapa: Map<string, string> } {
+  const supervivientes: HechoMundo[] = [];
+  // Dos hechos solo pueden ser el mismo si coinciden en tipo, estado, investigación y marcas cortas (todas las
+  // vías de `mismoHecho` lo exigen): los bloques evitan comparar todos con todos sin cambiar el resultado.
+  const bloques = new Map<string, number[]>();
+  const claveDeBloque = (h: HechoMundo) => `${h.tipo}|${h.estado}|${h.investigacionId}|${Array.from(perfilTexto(h.enunciado).marcas).sort().join(' ')}`;
+  const mapa = new Map<string, string>();
+  for (const h of hechos) {
+    let fundido = false;
+    const clave = claveDeBloque(h);
+    const indices = bloques.get(clave) ?? [];
+    for (const i of indices) {
+      const s = supervivientes[i]!;
+      const motivo = mismoHecho(s, h);
+      if (motivo) {
+        supervivientes[i] = fundirHechos(s, h, ahora, motivo);
+        mapa.set(h.id, s.id);
+        fundido = true;
+        break;
+      }
+    }
+    if (!fundido) {
+      supervivientes.push(h);
+      bloques.set(clave, [...indices, supervivientes.length - 1]);
+    }
+  }
+  if (mapa.size === 0) return { hechos: supervivientes, mapa };
+  return { hechos: supervivientes.map((h) => remapearEnlacesDeHecho(h, mapa)), mapa };
 }
 
 export function actualizarConfiguracion(estado: EstadoRosa, investigacionId: string, configuracion: Investigacion['configuracion']): EstadoRosa {

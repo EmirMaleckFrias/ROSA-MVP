@@ -165,9 +165,15 @@ export function recuentoEvidencia(h: Pick<Hipotesis, 'afirmaciones'>): { aFavor:
 
 /** La lista de cohortes que guardó el servidor, si la hay y es una lista de
  *  textos: primero la de la hipótesis (rosa/priorizacion.py al marcar
- *  candidatas), si no la de la conclusión (rosa/certeza.py al concluir). */
+ *  candidatas), si no la de la conclusión (rosa/certeza.py al concluir) y,
+ *  si no, la que el techo por regla contó al escribirse la conclusión
+ *  (`conclusion.techo.cohortesDistintas`, que rosa/certeza.py `acotar` deja
+ *  desde el 17 de septiembre de 2026 para que la conclusión recién escrita
+ *  no espere al cierre de la iteración). */
 function cohortesDelServidor(h: Pick<Hipotesis, 'cohortesDistintas' | 'conclusion'>): string[] | null {
-  for (const candidata of [h.cohortesDistintas, (h.conclusion && typeof h.conclusion === 'object' ? h.conclusion : ({} as NonNullable<Hipotesis['conclusion']>)).cohortesDistintas]) {
+  const conclusion = h.conclusion && typeof h.conclusion === 'object' ? h.conclusion : ({} as NonNullable<Hipotesis['conclusion']>);
+  const techo = conclusion.techo && typeof conclusion.techo === 'object' ? (conclusion.techo as { cohortesDistintas?: unknown }) : {};
+  for (const candidata of [h.cohortesDistintas, conclusion.cohortesDistintas, techo.cohortesDistintas]) {
     if (!Array.isArray(candidata)) continue;
     // Solo textos: un número o un nulo colado en la lista no es una cohorte.
     const limpias = candidata.filter((c): c is string => typeof c === 'string').map((c) => c.trim()).filter(Boolean);

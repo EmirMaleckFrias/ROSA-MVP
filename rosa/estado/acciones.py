@@ -35,6 +35,7 @@ from rosa import dependencias as DEP
 from rosa import registro as REG
 from rosa import datasets_programa as DP
 from rosa import experimento as XP
+from rosa import hechos as H
 from rosa.estado import plantilla as P
 
 Estado = dict[str, Any]
@@ -1597,17 +1598,22 @@ def crear_investigacion(e: Estado, datos: dict, ahora: int, id_: str | None = No
         inv["mision"] = P.mision_vacia()
         e["investigaciones"].append(inv)
         aprobar_mision(e, inv["id"], mision, str(datos.get("quien") or "Investigadora"), ahora)
-        return inv["id"] if not datos.get("heredarModeloDe") else _heredar(e, inv, datos)
+        return inv["id"] if not datos.get("heredarModeloDe") else _heredar(e, inv, datos, ahora)
     e["investigaciones"].append(inv)
-    return _heredar(e, inv, datos)
+    return _heredar(e, inv, datos, ahora)
 
 
-def copiar_hechos(e: Estado, origen_id: str, destino_id: str) -> int:
+def copiar_hechos(e: Estado, origen_id: str, destino_id: str, ahora: int | None = None) -> int:
     """Copia los hechos de una investigación a otra con el sufijo del destino en
     el id (regla de herencia) y remapea los enlaces entre hechos (sustituyeA,
     sustituidoPor, resuelveA, contradiceA) para que apunten a las copias; un
-    enlace a un hecho que no viaja se conserva tal cual. Misma regla en
-    frontend/src/datos/acciones.ts."""
+    enlace a un hecho que no viaja se conserva tal cual. Al heredar, los
+    repetidos del origen (mismo texto normalizado, o el mismo hecho con otras
+    palabras según rosa/hechos.py mismo_hecho) se funden en uno solo, el más
+    antiguo, sumando procedencia, afirmaciones y citas, con un movimiento en
+    su historial fechado en `ahora` (si no llega, en el `actualizadoEn` más
+    reciente de las copias). Devuelve cuántos hechos quedaron en el destino.
+    Misma regla en frontend/src/datos/acciones.ts copiarHechos."""
     propios = [x for x in e["hechos"] if x["investigacionId"] == origen_id]
     mapa = {x["id"]: f"{x['id']}-{destino_id}" for x in propios}
 
@@ -1616,19 +1622,24 @@ def copiar_hechos(e: Estado, origen_id: str, destino_id: str) -> int:
             return [mapa.get(i, i) for i in v]
         return mapa.get(v, v) if isinstance(v, str) else v
 
+    copias = []
     for h in propios:
         copia = {**copy.deepcopy(h), "id": mapa[h["id"]], "investigacionId": destino_id}
         for clave in ("sustituyeA", "sustituidoPor", "resuelveA", "contradiceA"):
             if clave in copia:
                 copia[clave] = remapear(copia[clave])
-        e["hechos"].append(copia)
-    return len(propios)
+        copias.append(copia)
+    if ahora is None:
+        ahora = max((int(c.get("actualizadoEn") or 0) for c in copias), default=0)
+    supervivientes, _, _ = H.fundir_duplicados(copias, ahora)
+    e["hechos"].extend(supervivientes)
+    return len(supervivientes)
 
 
-def _heredar(e: Estado, inv: dict, datos: dict) -> str:
+def _heredar(e: Estado, inv: dict, datos: dict, ahora: int | None = None) -> str:
     heredar = datos.get("heredarModeloDe")
     if heredar:
-        copiar_hechos(e, heredar, inv["id"])
+        copiar_hechos(e, heredar, inv["id"], ahora)
     return inv["id"]
 
 
@@ -1678,7 +1689,7 @@ def bifurcar_investigacion(e: Estado, investigacion_id: str, motivo: str, ahora:
         "cifrasAprendizaje": None,
     }
     e["investigaciones"].append(rama)
-    copiar_hechos(e, investigacion_id, nuevo)
+    copiar_hechos(e, investigacion_id, nuevo, ahora)
     return nuevo
 
 

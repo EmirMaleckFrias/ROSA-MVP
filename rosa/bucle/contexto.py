@@ -839,6 +839,41 @@ def cola_de_hipotesis(e: dict[str, Any], investigacion_id: str, maximo: int = 30
 
 
 # ---------------------------------------------------------------------------
+# Fragmentos de toda la investigación (revisión del 17 de septiembre de 2026, S-27)
+# ---------------------------------------------------------------------------
+
+
+def fragmentos_de_investigacion(e: dict[str, Any], investigacion_id: Any) -> list[Any]:
+    """Los fragmentos del verificador (`rosa.verificador.Fragmento`) de TODAS
+    las corridas de la investigación, de la más reciente a la más antigua, sin
+    repetir (fuente, localizador). `Ctx.fragmentos_verificador()` solo mira la
+    corrida viva: una hipótesis nacida en otra corrida no encontraba ninguna
+    de sus citas y la réplica la daba por contradicha sin leer nada. Tolera
+    corridas sin `_fuentes` y fuentes sin fragmentos."""
+    from rosa import verificador as V
+
+    corridas = sorted((c for c in e.get("corridas", []) if isinstance(c, dict) and c.get("investigacionId") == investigacion_id), key=lambda c: -int(c.get("numero") or 0))
+    salida: list[Any] = []
+    vistos: set[tuple[str, str]] = set()
+    for c in corridas:
+        fuentes = c.get("_fuentes")
+        if not isinstance(fuentes, dict):
+            continue
+        for f in fuentes.values():
+            if not isinstance(f, dict) or not f.get("id"):
+                continue
+            for fr in f.get("fragmentos") or []:
+                if not isinstance(fr, dict) or not fr.get("texto"):
+                    continue
+                clave = (str(f["id"]), str(fr.get("localizador") or ""))
+                if clave in vistos:
+                    continue
+                vistos.add(clave)
+                salida.append(V.Fragmento(f["id"], f.get("referencia") or "", fr.get("localizador") or "", fr["texto"], fr.get("encabezado", "")))
+    return salida
+
+
+# ---------------------------------------------------------------------------
 # Dirección de la evidencia por regla (revisión del 17 de septiembre de 2026, M-07)
 # ---------------------------------------------------------------------------
 

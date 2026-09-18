@@ -699,8 +699,10 @@ export interface Iteracion {
   planAprobado: boolean;
   planPropuestoEn: number;
   pistas: Pista[];
-  /** Presupuesto de la iteracion en llamadas al modelo, y lo usado. */
-  presupuesto: { limite: number; usado: number };
+  /** Presupuesto de la iteración en llamadas al modelo, y lo usado.
+   *  `reservaCierre` es la parte del límite apartada para el cierre (resumen,
+   *  evidencia, conclusiones, revisor; S-14); falta en iteraciones anteriores. */
+  presupuesto: { limite: number; usado: number; reservaCierre?: number };
   /** Resumen de una linea al cerrar. */
   resumen: string;
   /** El mismo cierre contado para quien no es cientifico. Lo escribe ROSA2018 al
@@ -1695,6 +1697,10 @@ export interface ConclusionHipotesis {
   noComprobado: string[];
   /** Si la certeza o la direccion cambiaron respecto a la conclusion anterior. */
   cambio: { de: { certeza: CertezaEvidencia | null; direccion: DireccionEvidencia | null; iteracion: number | null }; motivo: string } | null;
+  /** Cuándo (ms desde 1970) la certeza se recalculó por regla, sin juez
+   *  (rosa/certeza.py reacotar_conclusion, al cerrar o al priorizar). Ausente
+   *  si nunca pasó; `cambio` dice de dónde venía y por qué. */
+  recalculadaEn?: number | null;
   fechaBusqueda: number | null;
   fecha: number;
   iteracion: number;

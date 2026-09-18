@@ -12,17 +12,41 @@ Limite: 10 por segundo, 500 por minuto. Sin clave.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from rosa.fuentes import base as FB
 from rosa.fuentes.base import Limitador, NoEncontrado, compartido, pedir, referencia_corta
 
 BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 _limitador = compartido("europepmc", 6.0)
 
 
+# Un nombre que termina en "+" ("evoke+", "Study 201+"): entre comillas o suelto,
+# y no ya dentro de un campo (TITLE_ABS:"evoke+" se trata aparte).
+_NOMBRE_MAS_ENTRECOMILLADO = re.compile(r'(?<![A-Za-z_]:)"([^"]+?)\+"')
+_NOMBRE_MAS_SUELTO = re.compile(r'(?<![\w:"+-])([A-Za-z][\w-]*)\+(?=$|[\s)])')
+_CAMPO_CON_MAS = re.compile(r'((?:TITLE_ABS|TITLE|ABSTRACT|AUTH|JOURNAL):)"([^"]+?)\+"', re.IGNORECASE)
+
+
+def traducir_consulta(consulta: str) -> str:
+    """Europe PMC ignora el «+» final de un nombre: `"evoke+"` devuelve lo
+    mismo que `"evoke"` (2.901 resultados, la mayoría con el verbo inglés).
+    Un nombre que termina en «+» se envía como `TITLE_ABS:"nombre"`, que al
+    menos exige la palabra en el título o el resumen y deja fuera las
+    menciones de paso del texto completo (revisión del 17 de septiembre de
+    2026, S-07). Lo demás va tal cual: el registro de la consulta guarda lo
+    que escribió el plan y la pista enseña lo que se envió."""
+    q = consulta or ""
+    q = _CAMPO_CON_MAS.sub(lambda m: f'{m.group(1)}"{m.group(2)}"', q)
+    q = _NOMBRE_MAS_ENTRECOMILLADO.sub(lambda m: f'TITLE_ABS:"{m.group(1)}"', q)
+    q = _NOMBRE_MAS_SUELTO.sub(lambda m: f'TITLE_ABS:"{m.group(1)}"', q)
+    return q
+
+
 async def buscar(consulta: str, maximo: int = 50, solo_preprints: bool = False, desde_anio: int | None = None) -> tuple[list[dict[str, Any]], int]:
-    q = consulta
+    q = traducir_consulta(consulta)
     if solo_preprints:
         q = f"({q}) AND SRC:PPR"
     if desde_anio:
@@ -57,7 +81,15 @@ async def buscar(consulta: str, maximo: int = 50, solo_preprints: bool = False, 
 
 
 async def texto_completo(pmcid: str) -> list[dict[str, str]]:
-    """Secciones del articulo: [{seccion, texto}]. Vacio si no hay XML."""
+    """Secciones del artículo: [{seccion, texto}]. Vacío si no hay XML.
+
+    Con caché en disco (`rosa.fuentes.base.cache_leer`, espacio "europepmc",
+    clave el PMCID): el XML de un artículo ya leído en otra corrida no se
+    vuelve a pedir (S-06 f). Solo se guarda un resultado con secciones: un
+    artículo sin texto completo hoy puede tenerlo mañana."""
+    en_cache = FB.cache_leer("europepmc", str(pmcid or ""))
+    if isinstance(en_cache, list) and en_cache and all(isinstance(x, dict) and x.get("texto") for x in en_cache):
+        return [{"seccion": str(x.get("seccion") or "Sin título"), "texto": str(x["texto"])} for x in en_cache]
     try:
         r = await pedir("GET", f"{BASE}/{pmcid}/fullTextXML", _limitador)
     except NoEncontrado:
@@ -80,4 +112,6 @@ async def texto_completo(pmcid: str) -> list[dict[str, str]]:
             texto = "\n".join("".join(p.itertext()).strip() for p in cuerpo.iter("p"))
             if texto.strip():
                 secciones.append({"seccion": "Cuerpo", "texto": texto})
+    if secciones:
+        FB.cache_guardar("europepmc", str(pmcid), secciones)
     return secciones

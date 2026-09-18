@@ -18,6 +18,8 @@ Reglas que se cumplen aqui:
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
 from datetime import datetime, timezone
 import math
 import re
@@ -40,6 +42,8 @@ from rosa import datasets_programa as DP
 from rosa import dianas as DI
 from rosa import ruta as RUTA
 from rosa import killer as K
+from rosa import hechos as H
+from rosa import metodos as METODOS
 from rosa import verificador as V
 from rosa import torneo
 from rosa.bucle import contexto as T
@@ -120,31 +124,123 @@ def destino_de_propuesta(afirmaciones: list[dict[str, Any]], fuentes: list[dict[
     return ("nace" if CERTEZA.NIVELES.index(nivel) >= 1 else "vivero"), nivel, motivo
 
 
+def _claves_articulo(a: dict[str, Any]) -> set[str]:
+    """Los identificadores normalizados de un artículo (doi:, pmid:, nct:,
+    titulo:), los mismos que `claves_de_fuente` usa para fusionar fuentes
+    (S-06 g). Antes había dos funciones: una escribía "título:" con tilde y la
+    otra comparaba "titulo:" sin ella, así que la caché de exclusiones por
+    título nunca acertaba."""
+    return claves_de_fuente(a)
+
+
 def _clave_articulo(a: dict[str, Any]) -> str:
-    if a.get("doi"):
-        return f"doi:{str(a['doi']).lower()}"
-    if a.get("pmid"):
-        return f"pmid:{a['pmid']}"
-    return f"título:{V.normalizar(a.get('titulo') or '')}"
+    """La clave principal de un artículo, por preferencia DOI, PMID, NCT y
+    título; cadena vacía si no tiene ninguna. Se conserva para quien la use:
+    la caché de exclusiones compara todas las claves con `_claves_articulo`."""
+    claves = _claves_articulo(a)
+    for prefijo in ("doi:", "pmid:", "nct:", "titulo:"):
+        for c in sorted(claves):
+            if c.startswith(prefijo):
+                return c
+    return ""
 
 
-def _excluidos_previos(ctx: "Ctx", modo: str, relevancia_maxima: int) -> dict[str, dict[str, Any]]:
+# Motivos de exclusión que no salieron de un modelo: el corte del reranker, una
+# exclusión reutilizada de otra corrida o un fallo del modelo. Sirven para las
+# exclusiones anteriores al 18 de septiembre de 2026, que no traen `puntuadoPorModelo`.
+_MOTIVOS_SIN_MODELO = ("fuera del corte del reranker", "ya excluido en la corrida", "ya cribada en", "sin puntuar")
+
+
+def exclusion_puntuada_por_modelo(ex: dict[str, Any]) -> bool:
+    """True si un modelo puntuó la relevancia del excluido. Con el campo
+    `puntuadoPorModelo` manda el campo; sin él (registro antiguo) se mira el
+    motivo: un corte del reranker o una exclusión reutilizada no lo son."""
+    if isinstance(ex.get("puntuadoPorModelo"), bool):
+        return ex["puntuadoPorModelo"]
+    motivo = str(ex.get("motivo") or "").strip().lower()
+    return not motivo.startswith(_MOTIVOS_SIN_MODELO)
+
+
+_LINEAS_ESTABLES_CRITERIO = ("objetivo:", "pregunta de esta corrida:")
+
+
+def criterio_estable(criterio: str) -> str:
+    """La parte del criterio de relevancia que no cambia de una iteración a otra:
+    las líneas "Objetivo:" y "Pregunta de esta corrida:" y, si el criterio lleva
+    preguntas heredadas de otra investigación, la marca "con preguntas heredadas"
+    (S-07: un juicio hecho con preguntas heredadas no vale para el criterio
+    propio). Las preguntas abiertas no entran: cambian casi en cada iteración y,
+    si entraran en la huella, la caché de exclusiones moriría con cada pregunta
+    nueva y el mismo artículo irrelevante volvería al modelo en cada iteración.
+    Un texto sin esas líneas (el objetivo a secas, en amplitud) vuelve entero."""
+    lineas = [l_.strip() for l_ in str(criterio or "").splitlines() if l_.strip().lower().startswith(_LINEAS_ESTABLES_CRITERIO)]
+    if not lineas:
+        return str(criterio or "")
+    if "(heredada)" in str(criterio):
+        lineas.append("con preguntas heredadas")
+    return "\n".join(lineas)
+
+
+def hash_criterio(criterio: str) -> str:
+    """Huella corta de lo estable del criterio de relevancia (`criterio_estable`:
+    objetivo, pregunta de la corrida y si había preguntas heredadas) con el que
+    se juzgó un artículo: una exclusión hecha con otro objetivo u otra pregunta
+    de corrida no vale para estos (S-07); una hecha con las mismas y otras
+    preguntas abiertas sí."""
+    return hashlib.sha1(V.normalizar(criterio_estable(criterio)).encode("utf-8")).hexdigest()[:12]
+
+
+def _excluidos_previos(ctx: "Ctx", modo: str, relevancia_maxima: int, criterio: str | None = None) -> dict[str, dict[str, Any]]:
     """Los artículos excluidos con claridad (relevancia baja) en cualquier corrida
-    de la investigación, en el mismo modo, por DOI, PMID o título: no se vuelven
-    a cribar; se reutiliza el motivo. Un excluido por poco (rozando el listón)
-    sí se vuelve a mirar, porque otra pregunta puede rescatarlo."""
+    de la investigación, en el mismo modo, indexados por cada una de sus claves
+    (DOI, PMID, NCT, título): no se vuelven a cribar; se reutiliza el motivo.
+    Solo cuentan las exclusiones que puntuó un modelo (no los cortes del
+    reranker, que ningún modelo miró) y, si traen huella de criterio, las
+    hechas con este mismo criterio (S-07). Las anteriores a la huella se
+    reutilizan si las puntuó un modelo; la regla del nombre propio en el título
+    (`titulo_nombra`) rescata las que nombran lo que la persona pidió. Un
+    excluido por poco (rozando el listón) sí se vuelve a mirar, porque otra
+    pregunta puede rescatarlo."""
     salida: dict[str, dict[str, Any]] = {}
     for c in ctx.e["corridas"]:
         if c["investigacionId"] != ctx.investigacion_id:
             continue
         for ex in (c.get("busqueda") or {}).get("excluidos", []):
+            if not isinstance(ex, dict):
+                continue
             if (ex.get("modo") or "foco") != modo or int(ex.get("relevancia") or 0) > relevancia_maxima:
                 continue
-            clave = _clave_articulo(ex)
-            if clave.startswith("titulo:") and len(clave) < 24:
+            if not exclusion_puntuada_por_modelo(ex):
                 continue
-            salida[clave] = dict(ex, corrida=c["numero"])
+            if criterio and ex.get("criterio") and ex["criterio"] != criterio:
+                continue
+            for clave in _claves_articulo(ex):
+                salida[clave] = dict(ex, corrida=c["numero"])
     return salida
+
+
+def titulo_nombra(titulo: str, nombres: list[str]) -> str | None:
+    """El nombre propio del objetivo (fármaco, ensayo, cohorte) que aparece en el
+    título como palabra completa, o None. "evoke" no casa con "evoked"; "evoke+"
+    se busca sin el signo; "TRAILBLAZER-ALZ 2" admite guion o espacio entre
+    sus partes; un guion pegado ("Lecanemab-associated ARIA") es frontera, como
+    el espacio. Un artículo así no se descarta por el corte del reranker ni por
+    una exclusión anterior sin huella de criterio: es la evidencia directa que
+    la persona pidió por nombre (S-07)."""
+    t = str(titulo or "").lower()
+    if not t:
+        return None
+    for n in nombres or []:
+        base = str(n or "").strip().rstrip("+").lower()
+        if len(base) < 3:
+            continue
+        partes = [re.escape(x) for x in re.split(r"[\s\-]+", base) if x]
+        if not partes:
+            continue
+        patron = r"(?<![\w+])" + r"[\s\-]*".join(partes) + r"(?![\w+])"
+        if re.search(patron, t):
+            return n
+    return None
 
 
 def regresion_de_comprobaciones(e: dict[str, Any], h: dict[str, Any], comprobaciones: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -386,11 +482,18 @@ def desambiguar_referencia(referencia: str, existentes: list[str]) -> str:
         return _desambiguar_referencia_local(referencia, existentes)
 
 
-def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: list[dict[str, str]], relevancia: int, marca: str | None, marca_detalle: str, comprobada_en: int | None, consulta: str | None = None) -> str:
+def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: list[dict[str, str]], relevancia: int, marca: str | None, marca_detalle: str, comprobada_en: int | None, consulta: str | None = None, ya_extraida: bool = False, reutilizada_de: int | None = None) -> str:
     """Añade una fuente al almacén privado de la corrida (o la actualiza) y
     devuelve su id. Una fuente nueva cuya referencia corta ya la usa otra
     fuente distinta de la corrida se registra desambiguada (S-04: dos
-    "Bhagunde et al., 2026" resolvían la cita al texto equivocado)."""
+    "Bhagunde et al., 2026" resolvían la cita al texto equivocado).
+
+    Cada fragmento lleva `extraido` (S-06 d, S-26): si a una fuente ya
+    extraída le llegan fragmentos nuevos (el PDF de un artículo del que solo
+    se tenía el resumen), la fuente se reabre y el extractor lee solo lo
+    nuevo. `ya_extraida` y `reutilizada_de` sirven para copiar a esta corrida
+    una fuente cribada y leída en otra corrida de la investigación sin volver
+    a extraerla (S-06 e)."""
     claves = claves_de_fuente(datos)
 
     def fn(e: dict[str, Any]) -> str:
@@ -406,7 +509,18 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
                 if not existente.get(campo) and datos.get(campo):
                     existente[campo] = datos[campo]
             vistos = {fr["localizador"] for fr in existente["fragmentos"]}
-            existente["fragmentos"].extend(fr for fr in fragmentos if fr["localizador"] not in vistos)
+            nuevos = [fr for fr in fragmentos if fr["localizador"] not in vistos]
+            if nuevos:
+                # Lo leído bajo el booleano antiguo (fuente sin `extraido` por fragmento)
+                # cuenta como leído; la fuente se reabre solo si llega algo sin leer.
+                if existente.get("extraida"):
+                    for fr in existente["fragmentos"]:
+                        fr.setdefault("extraido", True)
+                for fr in nuevos:
+                    fr.setdefault("extraido", bool(ya_extraida))
+                existente["fragmentos"].extend(nuevos)
+                if any(not fr.get("extraido") for fr in nuevos):
+                    existente["extraida"] = False
             existente["relevancia"] = max(existente.get("relevancia", 0), relevancia)
             existente["textoCompleto"] = existente["textoCompleto"] or any(fr["localizador"] != "resumen" for fr in fragmentos)
             if consulta and consulta not in existente.setdefault("consultas", []):
@@ -442,9 +556,13 @@ def _registrar_fuente(ctx: Ctx, datos: dict[str, Any], tipo: str, fragmentos: li
         f["_claves"] = sorted(claves)
         f["_clave"] = next(iter(sorted(claves)), "")
         f["_marcaDetalle"] = marca_detalle
+        for fr in fragmentos:
+            fr.setdefault("extraido", bool(ya_extraida))
         f["fragmentos"] = fragmentos
         f["relevancia"] = relevancia
-        f["extraida"] = False
+        f["extraida"] = bool(ya_extraida)
+        if reutilizada_de is not None:
+            f["_reutilizadaDe"] = reutilizada_de
         f["iteracion"] = ctx.numero
         f["consultas"] = [consulta] if consulta else []
         # Por qué modo llegó: foco (la pregunta) o amplitud (explorando alrededor), y en
@@ -489,7 +607,10 @@ async def _fragmentos_de(ctx: Ctx, datos: dict[str, Any], pista: Pista, con_text
     if datos.get("pmcid"):
         try:
             secciones = await europepmc.texto_completo(datos["pmcid"])
-            for s in secciones[:MAX_FRAGMENTOS_POR_FUENTE * 2]:
+            # Se guardan hasta cuatro veces las que se leen: el extractor elige cuáles
+            # (resultados primero, S-26), y las secciones de resultados suelen ir tras
+            # una docena de subsecciones de introducción y métodos.
+            for s in secciones[:MAX_FRAGMENTOS_POR_FUENTE * 4]:
                 fragmentos.append({"localizador": f"sección {s['seccion'][:60]}", "texto": s["texto"], "encabezado": s["seccion"]})
             if secciones:
                 pista.resultado(f"{datos['referencia']}: texto completo en {len(secciones)} secciones (Europe PMC)")
@@ -553,15 +674,140 @@ def trocear_texto(texto: str, tamano: int = 2500, minimo: int = 200) -> list[str
 NOMBRES_BASE = {"pubmed": "PubMed", "europepmc": "Europe PMC", "preprints": "bioRxiv y medRxiv (vía Europe PMC)", "exa": "Exa (búsqueda semántica de publicaciones)", "gris": "Exa (literatura gris: reguladores, registros, portales del campo)"}
 
 
-def consultas_por_nombre(nombres: list[str], consultas: list[dict[str, Any]], previas: list[str], maximo: int = 4) -> list[dict[str, Any]]:
-    """Red de seguridad determinista: cada nombre propio del objetivo que
-    ninguna consulta del plan (ni ninguna hecha antes) nombra, va como consulta
-    por nombre exacto a Europe PMC. Así una corrida no termina sin haber
-    buscado los ensayos que la persona escribió en el objetivo."""
-    hechas = [q.get("consulta", "").lower() for q in consultas] + [p_.lower() for p_ in previas]
-    salida = []
+_CAMPO_CONSULTA = r"(?:title_abs|title|abstract|tiab|ti|tw)"
+
+
+def es_consulta_simple(consulta: str, nombre: str) -> bool:
+    """True si la consulta es solo el nombre, en cualquiera de sus formas:
+    `lecanemab`, `"lecanemab"`, `TITLE_ABS:"lecanemab"`, `lecanemab[tiab]`,
+    `("evoke+")`, con o sin el «+» final. Una consulta con AND, OR u otras
+    palabras alrededor del nombre no lo es: `"lecanemab"[tiab] AND ("tau PET")`
+    no cuenta como haber buscado lecanemab (S-07)."""
+    q = str(consulta or "").strip().lower()
+    n = str(nombre or "").strip().lower()
+    if not q or not n:
+        return False
+    q = re.sub(r"^\(+|\)+$", "", q).strip()
+    q = re.sub(rf"^{_CAMPO_CONSULTA}\s*:\s*", "", q)
+    q = re.sub(rf"\s*\[{_CAMPO_CONSULTA}(?:/abstract)?\]$", "", q)
+    q = q.strip().strip('"').strip()
+    return q.rstrip("+") == n.rstrip("+")
+
+
+def clausulas_and(consulta: str) -> list[str]:
+    """Las cláusulas de una consulta booleana separadas por AND al nivel más
+    alto (fuera de paréntesis y comillas). `a AND (b OR c) AND "d e"` da tres."""
+    s_ = str(consulta or "")
+    partes: list[str] = []
+    actual: list[str] = []
+    nivel = 0
+    en_comillas = False
+    i = 0
+    while i < len(s_):
+        ch = s_[i]
+        if ch == '"':
+            en_comillas = not en_comillas
+        elif not en_comillas and ch == "(":
+            nivel += 1
+        elif not en_comillas and ch == ")":
+            nivel = max(0, nivel - 1)
+        if not en_comillas and nivel == 0 and s_[i : i + 5].upper() == " AND ":
+            partes.append("".join(actual).strip())
+            actual = []
+            i += 5
+            continue
+        actual.append(ch)
+        i += 1
+    partes.append("".join(actual).strip())
+    return [x for x in partes if x]
+
+
+def quitar_ultima_clausula(consulta: str) -> str | None:
+    """La consulta sin su última cláusula AND, o None si solo tiene una."""
+    partes = clausulas_and(consulta)
+    if len(partes) < 2:
+        return None
+    return " AND ".join(partes[:-1])
+
+
+def limitar_clausulas(consulta: str, maximo: int = politicas.MAX_CLAUSULAS_AND) -> str:
+    """La consulta acotada a `máximo` cláusulas AND (las primeras: el plan las
+    escribe por importancia). Tal cual si ya cumple."""
+    partes = clausulas_and(consulta)
+    if len(partes) <= maximo:
+        return consulta
+    return " AND ".join(partes[:maximo])
+
+
+def _entero_seguro(x: Any) -> int:
+    """`int(x)` que devuelve 0 con None, texto raro o cualquier cosa que no sea un número."""
+    try:
+        return int(x or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _entero_o_none(x: Any) -> int | None:
+    """`x` si es un entero de verdad (no un booleano ni un texto); None si no."""
+    return x if isinstance(x, int) and not isinstance(x, bool) else None
+
+
+def consultas_por_nombre(nombres: list[str], consultas: list[dict[str, Any]], previas: list[str], maximo: int = 4, registro: list[dict[str, Any]] | None = None, corrida_actual: int | None = None, explicaciones: list[str] | None = None) -> list[dict[str, Any]]:
+    """Red de seguridad determinista: cada nombre propio del objetivo que no se
+    ha buscado todavía va como consulta por nombre exacto a Europe PMC. Así una
+    corrida no termina sin haber buscado los ensayos que la persona escribió
+    en el objetivo.
+
+    "Buscado" significa (S-07): una consulta simple (solo el nombre, ver
+    `es_consulta_simple`) en el plan de este paso, o una consulta simple
+    anterior que trajo al menos un relevante. Una consulta estrecha que
+    contiene el nombre entre cinco cláusulas no cuenta, y una consulta simple
+    que no trajo relevantes tampoco: se repite. `registro` son las consultas
+    de la investigación con su rendimiento (`resultados`, `relevantes`,
+    `corrida`; `contexto.consultas_de_la_investigacion`); sin él, una consulta
+    simple previa cuenta como buscado (regla anterior).
+
+    Pero insistir tiene tope (segunda pasada): un nombre con dos consultas
+    simples y cero resultados en la base no está allí; y un nombre con
+    `politicas.MAX_CONSULTAS_POR_NOMBRE_SIN_RELEVANTES` consultas simples que
+    trajeron resultados y ningún relevante (o una en la corrida en curso,
+    `corrida_actual`) tampoco se repite: sin tope, "lecanemab" (miles de
+    resultados) volvía en cada iteración de cada corrida con su búsqueda, su
+    reranker y sus cribados. Lo que se deja de buscar y por qué se escribe en
+    `explicaciones`, si se pasa la lista, para que la pista lo diga."""
+    salida: list[dict[str, Any]] = []
+    previas = [str(x) for x in (previas or [])]
+    tope = politicas.MAX_CONSULTAS_POR_NOMBRE_SIN_RELEVANTES
+
+    def buscado(n: str) -> bool:
+        if any(es_consulta_simple(str(q.get("consulta") or ""), n) for q in consultas):
+            return True
+        if registro is None:
+            return any(es_consulta_simple(p_, n) for p_ in previas)
+        simples = [r for r in registro if isinstance(r, dict) and es_consulta_simple(str(r.get("consulta") or ""), n)]
+        if any(_entero_seguro(r.get("relevantes")) >= 1 for r in simples):
+            return True
+        sin_nada = sum(1 for r in simples if _entero_o_none(r.get("resultados")) == 0)
+        if sin_nada >= 2:
+            if explicaciones is not None:
+                explicaciones.append(f"«{n}» ya se buscó por nombre {sin_nada} veces y la base no tiene ningún resultado; no se insiste")
+            return True
+        # Consultas simples que trajeron resultados pero ninguno pasó el cribado.
+        sin_relevantes = [r for r in simples if _entero_o_none(r.get("relevantes")) == 0 and (_entero_o_none(r.get("resultados")) or 0) > 0]
+        if len(sin_relevantes) >= tope:
+            corridas = sorted({c_ for c_ in (_entero_o_none(r.get("corrida")) for r in sin_relevantes) if c_ is not None})
+            donde = ("las corridas " + ", ".join(str(c_) for c_ in corridas)) if len(corridas) > 1 else (f"la corrida {corridas[0]}" if corridas else "esta investigación")
+            if explicaciones is not None:
+                explicaciones.append(f"«{n}» ya se buscó por nombre {len(sin_relevantes)} veces en {donde} sin ningún relevante; no se repite (política: {tope} consultas simples sin relevantes)")
+            return True
+        if corrida_actual is not None and any(_entero_o_none(r.get("corrida")) == corrida_actual for r in sin_relevantes):
+            if explicaciones is not None:
+                explicaciones.append(f"«{n}» ya se buscó por nombre en esta corrida sin ningún relevante; no se repite en la misma corrida")
+            return True
+        return False
+
     for n in nombres:
-        if any(n.lower() in h for h in hechas):
+        if not str(n or "").strip() or buscado(n):
             continue
         salida.append({"base": "europepmc", "consulta": f'"{n}"', "tema": f"Por nombre exacto: {n}", "_por_nombre": True})
         if len(salida) >= maximo:
@@ -672,6 +918,236 @@ def base_efectiva(consulta: dict[str, Any]) -> dict[str, Any]:
     return consulta
 
 
+def _indice_fuentes_investigacion(ctx: Ctx) -> dict[str, tuple[dict[str, Any], int | None, bool]]:
+    """Cada clave (DOI, PMID, NCT, título) de cada fuente ya registrada en
+    cualquier corrida de la investigación -> (fuente, número de corrida, es de
+    esta corrida). La corrida actual manda sobre las anteriores y, entre las
+    anteriores, la más reciente (S-06 e): lo ya cribado no vuelve al reranker
+    ni al modelo de relevancia."""
+    salida: dict[str, tuple[dict[str, Any], int | None, bool]] = {}
+    corridas = [c for c in ctx.e.get("corridas", []) or [] if isinstance(c, dict) and c.get("investigacionId") == ctx.investigacion_id]
+    corridas.sort(key=lambda c: (c.get("id") == ctx.corrida_id, int(c.get("numero") or 0)))
+    for c in corridas:
+        actual = c.get("id") == ctx.corrida_id
+        for f in (c.get("_fuentes") or {}).values():
+            if not isinstance(f, dict):
+                continue
+            claves = set(f.get("_claves") or ([f["_clave"]] if f.get("_clave") else [])) or claves_de_fuente(f)
+            for k in claves:
+                if k:
+                    salida[k] = (f, c.get("numero"), actual)
+    return salida
+
+
+# Lo que una fuente cribada en otra corrida trae ya hecho y no hay que rehacer.
+_CAMPOS_REUTILIZABLES = ("cohorte", "metodo", "riesgoSesgo", "centro", "porque")
+
+
+def _tiene_texto_completo(f: dict[str, Any]) -> bool:
+    """True si la fuente guarda algún fragmento que no sea el resumen (páginas
+    de un PDF, secciones de Europe PMC o texto web)."""
+    return any(isinstance(fr, dict) and fr.get("localizador") and fr.get("localizador") != "resumen" for fr in f.get("fragmentos") or [])
+
+
+def comprobacion_retraccion_caducada(f: dict[str, Any], ahora_ms: int, dias: int = politicas.DIAS_VIGENCIA_COMPROBACION_RETRACCION) -> bool:
+    """True si la comprobación de retracción guardada en la fuente no sirve para
+    reutilizarla: nunca llegó (`retraccionComprobadaEn` None: Crossref no
+    respondió, o entonces no había DOI) o es más antigua que el tope de la
+    política (DIAS_VIGENCIA_COMPROBACION_RETRACCION, 90 por defecto). "No pude
+    comprobar" es transitorio, no una comprobación; copiarlo entre corridas
+    dejaba sin marca para siempre un artículo retractado con Crossref caído
+    aquel día. Una marca de retractado ya comprobada no caduca: una retracción
+    no se deshace."""
+    comprobada = f.get("retraccionComprobadaEn")
+    if not isinstance(comprobada, (int, float)) or isinstance(comprobada, bool) or comprobada <= 0:
+        return True
+    if f.get("retraccion") == "retractado":
+        return False
+    return (int(ahora_ms) - int(comprobada)) > int(dias) * 86_400_000
+
+
+async def _comprobar_retraccion(a: dict[str, Any], pista: Pista) -> tuple[str | None, str, int | None]:
+    """La marca editorial de Crossref para el DOI del artículo: (marca, detalle,
+    cuándo se comprobó). Sin DOI no se puede comprobar. Si Crossref no responde,
+    la fecha queda en None y el detalle lo dice: no se afirma que esté limpio y
+    la siguiente corrida vuelve a preguntar."""
+    if not a.get("doi"):
+        return None, "Sin DOI: no se pudo comprobar en Crossref", None
+    try:
+        marca, detalle = await crossref.marca_editorial(a["doi"])
+        comprobada: int | None = P.ahora_ms()
+    except FuenteNoDisponible as ex:
+        marca, detalle, comprobada = None, f"Crossref no respondió: {str(ex)[:100]}. No se afirma que esté limpio.", None
+    if marca == "retractado":
+        pista.error(f"{a['referencia']} está RETRACTADO ({detalle}); se guarda marcado y no se usa como respaldo")
+    return marca, detalle, comprobada
+
+
+def _corrida_de_fuente(ctx: Ctx, fuente_id: str) -> dict[str, Any] | None:
+    """La corrida de la investigación en cuyas `_fuentes` privadas vive esa fuente, o None."""
+    if not fuente_id:
+        return None
+    for c in ctx.e.get("corridas", []) or []:
+        if isinstance(c, dict) and c.get("investigacionId") == ctx.investigacion_id and fuente_id in (c.get("_fuentes") or {}):
+            return c
+    return None
+
+
+def _actualizar_fuente(ctx: Ctx, fuente_id: str, campos: dict[str, Any]) -> bool:
+    """Escribe campos sueltos en una fuente de esta corrida (por el almacén, no
+    sobre el dict vivo). False si la fuente no está."""
+
+    def fn(e: dict[str, Any]) -> bool:
+        c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
+        f = (c.get("_fuentes") or {}).get(fuente_id)
+        if not f:
+            return False
+        f.update(campos)
+        return True
+
+    return bool(ctx.mutar(fn, "fuente"))
+
+
+def _reutilizar_fuente(ctx: Ctx, a: dict[str, Any], fuente_prev: dict[str, Any], numero_prev: int | None, actual: bool, relevancia: int, consulta: str, modo: str, fragmentos_nuevos: list[dict[str, Any]] | None = None, comprobacion: tuple[str | None, str, int | None] | None = None) -> tuple[str, bool, int]:
+    """Registra en esta corrida un artículo ya cribado antes sin volver a
+    puntuarlo (S-06 e). Si ya está en esta corrida, se le anota la consulta y
+    se le suman los `fragmentos_nuevos` (el texto completo que antes no se
+    descargó), que reabren la fuente para extraer solo lo nuevo. Si viene de
+    otra corrida se copian sus fragmentos con su marca de leído, la cohorte,
+    el método, el riesgo de sesgo y el porqué de amplitud ya evaluados, y las
+    afirmaciones que aquella corrida extrajo y verificó de ella, con el id de
+    la fuente nueva, la cita reescrita a la referencia de esta corrida y el
+    mismo veredicto (no vuelven a la cola de verificación): sin ellas, la
+    extracción saltaba la fuente y las hipótesis y el Killer de esta corrida no
+    veían ni una afirmación de un artículo registrado como relevante y leído.
+    Una fuente marcada como extraída sin ninguna afirmación guardada que copiar
+    se vuelve a extraer. La marca de retracción se copia salvo que llegue una
+    `comprobacion` (marca, detalle, cuándo) hecha ahora. El modo se conserva:
+    una fuente de foco reutilizada por una consulta de amplitud sigue siendo
+    de foco. Devuelve (id de la fuente, si tiene texto completo, afirmaciones
+    copiadas)."""
+    modo_prev = fuente_prev.get("modo") or "foco"
+    a["_modo"] = "foco" if "foco" in (modo, modo_prev) else "amplitud"
+    if fuente_prev.get("porque") and not a.get("_porque"):
+        a["_porque"] = fuente_prev["porque"]
+    tipo = fuente_prev.get("tipo") or ("preprint" if a.get("preprint") else "articulo")
+    if comprobacion is not None:
+        marca, detalle, comprobada = comprobacion
+    else:
+        marca = fuente_prev.get("retraccion")
+        detalle = fuente_prev.get("_marcaDetalle") or ("Marca de retracción comprobada en otra corrida" if marca else "Sin comprobar de nuevo en Crossref: se reutiliza la comprobación anterior")
+        comprobada = fuente_prev.get("retraccionComprobadaEn")
+    nuevos = [dict(fr, extraido=False) for fr in (fragmentos_nuevos or []) if isinstance(fr, dict) and fr.get("localizador") and fr.get("texto")]
+    if actual:
+        fid = _registrar_fuente(ctx, a, tipo, nuevos, relevancia, marca, detalle, comprobada, consulta)
+        if comprobacion is not None:
+            _actualizar_fuente(ctx, fid, {"retraccion": marca, "_marcaDetalle": detalle, "retraccionComprobadaEn": comprobada})
+        return fid, bool(nuevos) or _tiene_texto_completo(fuente_prev), 0
+    ya = bool(fuente_prev.get("extraida"))
+    copia: list[dict[str, Any]] = []
+    for fr in fuente_prev.get("fragmentos", []) or []:
+        if isinstance(fr, dict) and fr.get("localizador") and fr.get("texto"):
+            c_ = dict(fr)
+            c_["extraido"] = bool(fr.get("extraido", ya))
+            copia.append(c_)
+    corrida_prev = _corrida_de_fuente(ctx, str(fuente_prev.get("id") or ""))
+    afs_prev = [x for x in ((corrida_prev or {}).get("_afirmaciones") or []) if isinstance(x, dict) and x.get("fuenteId") == fuente_prev.get("id")]
+    if ya and not afs_prev:
+        # Leída entonces, pero sin nada guardado que traer: se vuelve a extraer aquí.
+        ya = False
+        for fr in copia:
+            fr["extraido"] = False
+    if marca == "retractado":
+        afs_prev = []  # un artículo retractado no presta respaldo a esta corrida
+    vistos = {fr["localizador"] for fr in copia}
+    todos = copia + [fr for fr in nuevos if fr["localizador"] not in vistos]
+    ya_extraida = bool(todos) and all(fr.get("extraido") for fr in todos) if todos else ya
+    fid = _registrar_fuente(ctx, a, tipo, todos, relevancia, marca, detalle, comprobada, consulta, ya_extraida=ya_extraida, reutilizada_de=numero_prev)
+    heredables = {k: copy.deepcopy(fuente_prev[k]) for k in _CAMPOS_REUTILIZABLES if fuente_prev.get(k)}
+    ref_prev = str(fuente_prev.get("referencia") or "")
+    copiadas = [0]
+
+    def fn(e: dict[str, Any]) -> bool:
+        c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
+        f = (c.get("_fuentes") or {}).get(fid)
+        if not f:
+            return False
+        for k, v in heredables.items():
+            if not f.get(k):
+                f[k] = v
+        if not afs_prev:
+            return True
+        lista = c.setdefault("_afirmaciones", [])
+        ya_copiadas = {str((x.get("_reutilizadaDe") or {}).get("afirmacionId")) for x in lista if isinstance(x, dict) and isinstance(x.get("_reutilizadaDe"), dict)}
+        for a_prev in afs_prev:
+            if str(a_prev.get("id")) in ya_copiadas:
+                continue
+            nueva = copy.deepcopy(a_prev)
+            nueva["id"] = P.nuevo_id("af")
+            nueva["fuenteId"] = fid
+            loc = str(a_prev.get("localizador") or "")
+            if loc:
+                nueva["cita"] = f"[{f['referencia']}, {loc}]"
+            elif ref_prev and f["referencia"] != ref_prev:
+                nueva["cita"] = str(a_prev.get("cita") or "").replace(ref_prev, f["referencia"])
+            nueva["iteracion"] = ctx.numero
+            nueva["_reutilizadaDe"] = {"corrida": numero_prev, "afirmacionId": a_prev.get("id"), "fuenteId": fuente_prev.get("id")}
+            lista.append(nueva)
+            copiadas[0] += 1
+        c["busqueda"]["usados"] = len({x.get("fuenteId") for x in lista if isinstance(x, dict)})
+        return True
+
+    ctx.mutar(fn, "fuente")
+    return fid, _tiene_texto_completo({"fragmentos": todos}), copiadas[0]
+
+
+async def _buscar_en_base(ctx: Ctx, base: str, consulta_texto: str, pista: Pista, guia_pasajes: str, desde_fecha: str | None) -> tuple[list[dict[str, Any]], int]:
+    """Una búsqueda en la base elegida, con su acción en la pista. Devuelve
+    (artículos traídos, total identificado). Lanza FuenteNoDisponible si la base
+    no responde: quien llama lo convierte en "no pude comprobar"."""
+    if base == "pubmed":
+        ids, total = await pubmed.buscar(consulta_texto, maximo=maximo_por_consulta())
+        pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta_texto}&retmax={maximo_por_consulta()}", "resultados": f"{total} PMID, se traen {len(ids)}"})
+        return await pubmed.detalles(ids), total
+    if base in ("exa", "gris"):
+        # Búsqueda semántica: la consulta es una pregunta en lenguaje natural. Los
+        # pasajes destacados se guían con las preguntas abiertas, para que el pasaje que
+        # vuelve sea el que responde. Exa no da un total: identificados = traídos. "gris"
+        # busca sin categoría y acotado a los dominios de reguladores, registros y portales.
+        gris = base == "gris"
+        articulos, total, coste_exa = await exa.buscar(consulta_texto, maximo=maximo_por_consulta(), desde_fecha=desde_fecha, categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=guia_pasajes or None)
+        pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + (f"&startPublishedDate={desde_fecha}" if desde_fecha else "") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
+        _anotar_coste_exa(ctx, coste_exa)
+        if articulos:
+            # Orden por afinidad del mejor pasaje con las preguntas, cuando Exa la da.
+            articulos.sort(key=lambda a: -(a.get("similitud") or 0.0))
+        return articulos, total
+    traducir = getattr(europepmc, "traducir_consulta", None)
+    enviada = traducir(consulta_texto) if callable(traducir) else consulta_texto
+    if enviada != consulta_texto:
+        pista.nota(f"Europe PMC ignora el «+» final de un nombre: se envía {enviada}")
+    articulos, total = await europepmc.buscar(consulta_texto, maximo=maximo_por_consulta(), solo_preprints=(base == "preprints"))
+    pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={enviada}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={maximo_por_consulta()}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
+    return articulos, total
+
+
+def _fundir_articulos(base_lista: list[dict[str, Any]], mas: list[dict[str, Any]]) -> int:
+    """Añade a `base_lista` los artículos de `mas` que no comparten ninguna
+    clave con los que ya hay. Devuelve cuántos entraron."""
+    vistos: set[str] = set()
+    for a in base_lista:
+        vistos |= claves_de_fuente(a)
+    nuevos = 0
+    for a in mas:
+        cl = claves_de_fuente(a)
+        if cl and cl & vistos:
+            continue
+        vistos |= cl
+        base_lista.append(a)
+        nuevos += 1
+    return nuevos
+
+
 async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[str, Any], preguntas: str) -> dict[str, int]:
     base = consulta["base"]
     nombre_base = NOMBRES_BASE[base]
@@ -689,40 +1165,52 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
     # podría cambiar algo. Es el mismo criterio que usa el reranker y el cribado.
     criterio_amplitud = f"{inv['objetivo']}\n{consulta.get('tema') or ''}\n{consulta.get('porque') or ''}"
     guia_pasajes = criterio_amplitud[:500] if modo == "amplitud" else preguntas[:500]
+    booleana = base in ("pubmed", "europepmc", "preprints")
     try:
         pista.accion(f"Consulta: {consulta['consulta']}")
         if modo == "amplitud" and consulta.get("porque"):
             pista.nota(f"Búsqueda en amplitud. Por qué: {consulta['porque'][:200]}. Los pasajes y el orden se guían con el objetivo y ese porqué, no con la pregunta de foco.")
         if consulta.get("_desviada_de"):
             pista.nota(f"El plan la dirigía a {consulta['_desviada_de']}, que no está disponible (sin clave); va a {nombre_base}")
+        if consulta.get("_acotadaDe"):
+            pista.nota(f"El plan traía {len(clausulas_and(consulta['_acotadaDe']))} cláusulas AND; se acota a {politicas.MAX_CLAUSULAS_AND} (política de consultas): la original era «{consulta['_acotadaDe'][:200]}»")
         ahora = P.ahora_ms()
-        if base == "pubmed":
-            ids, total = await pubmed.buscar(consulta["consulta"], maximo=maximo_por_consulta())
-            pista.accion("esearch + efetch", {"base": "PubMed E-utilities", "parametros": f"db=pubmed&term={consulta['consulta']}&retmax={maximo_por_consulta()}", "resultados": f"{total} PMID, se traen {len(ids)}"})
-            articulos = await pubmed.detalles(ids)
-        elif base in ("exa", "gris"):
-            # Búsqueda semántica: la consulta es una pregunta en lenguaje natural.
-            # Los pasajes destacados se guían con las preguntas abiertas, para
-            # que el pasaje que vuelve sea el que responde. Exa no da un total:
-            # identificados = traídos. "gris" busca sin categoría y acotado a los
-            # dominios de reguladores, registros y portales del campo.
-            gris = base == "gris"
-            articulos, total, coste_exa = await exa.buscar(consulta["consulta"], maximo=maximo_por_consulta(), desde_fecha=consulta.get("desde_fecha"), categoria=None if gris else "publication", dominios=exa.DOMINIOS_GRIS if gris else None, pregunta_pasajes=guia_pasajes or None)
-            pista.accion("search (neural)", {"base": "Exa", "parametros": (f"includeDomains={','.join(exa.DOMINIOS_GRIS[:4])}..." if gris else "category=publication") + (f"&startPublishedDate={consulta['desde_fecha']}" if consulta.get("desde_fecha") else "") + f"&numResults={MAX_FUENTES_POR_CONSULTA}&type=auto&highlights.query=preguntas abiertas", "resultados": f"{total} documentos, {coste_exa:.4f} USD"})
-            _anotar_coste_exa(ctx, coste_exa)
-            if articulos:
-                # Orden por afinidad del mejor pasaje con las preguntas, cuando Exa la da.
-                articulos.sort(key=lambda a: -(a.get("similitud") or 0.0))
-        else:
-            articulos, total = await europepmc.buscar(consulta["consulta"], maximo=maximo_por_consulta(), solo_preprints=(base == "preprints"))
-            pista.accion("REST search", {"base": "Europe PMC", "parametros": f"query={consulta['consulta']}{' AND SRC:PPR' if base == 'preprints' else ''}&pageSize={maximo_por_consulta()}&resultType=core", "resultados": f"{total} resultados, se traen {len(articulos)}"})
-        resultado["identificados"] = total
+        articulos, total = await _buscar_en_base(ctx, base, consulta["consulta"], pista, guia_pasajes, consulta.get("desde_fecha"))
+        # Relajación acotada (S-07): una consulta de foco con pocos resultados y tres o más
+        # cláusulas AND se relanza una sola vez sin la última cláusula, y queda anotado.
+        relajada: str | None = None
+        total_relajada: int | None = None
+        n_clausulas = len(clausulas_and(consulta["consulta"])) if booleana else 0
+        if modo == "foco" and booleana and not consulta.get("_por_nombre") and total < politicas.RESULTADOS_MINIMOS_ANTES_DE_RELAJAR and n_clausulas >= politicas.CLAUSULAS_MINIMAS_PARA_RELAJAR:
+            relajada = quitar_ultima_clausula(consulta["consulta"])
+        if relajada:
+            pista.nota(f"Solo {total} resultados con {n_clausulas} cláusulas AND: se relanza una vez sin la última cláusula: {relajada}")
+            try:
+                mas, total_relajada = await _buscar_en_base(ctx, base, relajada, pista, guia_pasajes, consulta.get("desde_fecha"))
+                nuevos = _fundir_articulos(articulos, mas)
+                pista.resultado(f"Consulta relajada: {total_relajada} resultados, {nuevos} candidatos nuevos para cribar")
+            except FuenteNoDisponible as ex:
+                pista.nota(f"La consulta relajada no llegó a {nombre_base} ({str(ex)[:100]}); se sigue con lo que trajo la original. No es 'sin resultados'.")
+                total_relajada = None
+        resultado["identificados"] = max(total, total_relajada or 0)
 
         def anotar(e: dict[str, Any]) -> bool:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
-            c["busqueda"]["consultas"].append({"base": nombre_base, "consulta": consulta["consulta"], "fecha": ahora, "resultados": total, "iteracion": ctx.numero, "tema": consulta["tema"], "modo": modo, "porque": (consulta.get("porque") or "")[:300], "desdeFecha": consulta.get("desde_fecha")})
-            c["busqueda"]["identificados"] += total
-            c.setdefault("_consultasHechas", []).append(consulta["consulta"])
+            registro = {"base": nombre_base, "consulta": consulta["consulta"], "fecha": ahora, "resultados": total, "iteracion": ctx.numero, "tema": consulta["tema"], "modo": modo, "porque": (consulta.get("porque") or "")[:300], "desdeFecha": consulta.get("desde_fecha")}
+            if consulta.get("_acotadaDe"):
+                registro["acotadaDe"] = consulta["_acotadaDe"][:300]
+            if relajada:
+                registro["relajadaA"] = relajada
+                registro["resultadosRelajada"] = total_relajada  # None si la relajada no llegó a la base
+            c["busqueda"]["consultas"].append(registro)
+            # La relajada solo cuenta como hecha si la base respondió: si no, se podrá repetir.
+            if relajada and total_relajada is not None:
+                c["busqueda"]["consultas"].append({"base": nombre_base, "consulta": relajada, "fecha": ahora, "resultados": total_relajada, "iteracion": ctx.numero, "tema": consulta["tema"], "modo": modo, "porque": "", "desdeFecha": consulta.get("desde_fecha"), "relajadaDe": consulta["consulta"]})
+            c["busqueda"]["identificados"] += resultado["identificados"]
+            hechas = c.setdefault("_consultasHechas", [])
+            hechas.append(consulta["consulta"])
+            if relajada and total_relajada is not None:
+                hechas.append(relajada)
             return True
 
         ctx.mutar(anotar, "consulta")
@@ -736,26 +1224,84 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         # En amplitud el reranker ordena contra el objetivo y el "por qué" de la consulta,
         # no contra la pregunta: lo que se busca es lo que podría cambiar algo.
         pregunta_reranker = criterio_amplitud if modo == "amplitud" else f"{preguntas}\n{consulta['tema']}"
-        # Lo ya excluido con claridad en esta investigación (mismo modo) no vuelve a
-        # pasar por el reranker ni por el modelo: se reutiliza el motivo. "Do not re-mine".
-        ya_excluidos = _excluidos_previos(ctx, modo, minimo - 2)
+        # Tres memorias antes de gastar (S-06 e, S-07): (1) lo ya registrado como fuente
+        # en esta investigación no vuelve al reranker ni al modelo, se reutiliza su
+        # relevancia; (2) lo excluido con claridad por un modelo con este mismo criterio
+        # tampoco, se reutiliza el motivo ("do not re-mine"); (3) un artículo cuyo título
+        # nombra un fármaco, ensayo o cohorte del objetivo va siempre al modelo, aunque
+        # esté en la caché de exclusiones o el reranker lo cortara: es la evidencia
+        # directa que la persona pidió por nombre.
+        nombres_objetivo = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
+        criterio = hash_criterio(preguntas if modo == "foco" else inv["objetivo"])
+        ya_excluidos = _excluidos_previos(ctx, modo, minimo - 2, criterio)
+        conocidas = _indice_fuentes_investigacion(ctx)
         repetidos: list[tuple[dict[str, Any], dict[str, Any]]] = []
         frescos: list[dict[str, Any]] = []
+        forzados: list[dict[str, Any]] = []
+        reutilizadas: dict[int, tuple[dict[str, Any], int | None, bool]] = {}
+        rescatados: list[str] = []
+        no_rescatados: list[str] = []
+        forzados_fuera_de_tope = 0
         for a in articulos:
             if not a.get("titulo"):
                 continue
-            ex_prev = ya_excluidos.get(_clave_articulo(a))
-            (repetidos if ex_prev else frescos).append((a, ex_prev) if ex_prev else a)
+            claves = sorted(_claves_articulo(a))
+            conocida = next((conocidas[k] for k in claves if k in conocidas), None)
+            # Se reutiliza solo si ya pasó el listón de este modo: una fuente de amplitud
+            # con 4 que trae una consulta de foco (listón 5) se vuelve a puntuar contra la
+            # pregunta, y si llega a 5 deja de contar como hallazgo de amplitud.
+            if conocida is not None and int(conocida[0].get("relevancia") or 0) >= minimo:
+                reutilizadas[id(a)] = conocida
+                continue
+            nombre = titulo_nombra(a.get("titulo", ""), nombres_objetivo)
+            ex_prev = next((ya_excluidos[k] for k in claves if k in ya_excluidos), None)
+            if ex_prev is not None and nombre and ex_prev.get("criterio") == criterio:
+                # Un modelo ya lo juzgó con este mismo criterio estable (objetivo y pregunta
+                # de la corrida): el rescate por nombre vale una vez por criterio; repetirlo
+                # en cada iteración anularía la caché para siempre. Con otra pregunta de
+                # corrida la huella cambia y vuelve al modelo.
+                repetidos.append((a, ex_prev))
+                no_rescatados.append(f"{a.get('referencia', '')} ({nombre})")
+                continue
+            if ex_prev is not None and not nombre:
+                repetidos.append((a, ex_prev))
+                continue
+            if ex_prev is not None and nombre:
+                rescatados.append(f"{a.get('referencia', '')} ({nombre})")
+            if nombre and len(forzados) < politicas.MAX_FORZADOS_POR_NOMBRE:
+                forzados.append(a)
+            else:
+                if nombre:
+                    forzados_fuera_de_tope += 1
+                frescos.append(a)
         if repetidos:
-            pista.nota(f"{len(repetidos)} artículos ya excluidos en esta investigación no se vuelven a cribar; se reutiliza su motivo")
+            pista.nota(f"{len(repetidos)} artículos ya excluidos por un modelo en esta investigación no se vuelven a cribar; se reutiliza su motivo")
+        if rescatados:
+            pista.nota("Vuelven al modelo aunque estaban en la caché de exclusiones, porque su título nombra algo del objetivo y la exclusión se hizo sin huella de este criterio: " + "; ".join(rescatados)[:300])
+        if no_rescatados:
+            pista.nota("Nombran algo del objetivo pero un modelo ya los excluyó con este mismo objetivo y pregunta de corrida; no se vuelven a cribar hasta que cambie la pregunta: " + "; ".join(no_rescatados)[:300])
+        if reutilizadas:
+            pista.nota(f"{len(reutilizadas)} artículos ya cribados como fuente en esta investigación no vuelven al reranker ni al modelo; se reutiliza su relevancia y su texto")
         al_modelo, fuera = await cortar_con_reranker(pregunta_reranker, frescos, pista)
+        if forzados:
+            pista.nota(f"{len(forzados)} artículos cuyo título nombra un fármaco, ensayo o cohorte del objetivo pasan al modelo sin corte del reranker" + (f" (tope {politicas.MAX_FORZADOS_POR_NOMBRE} por consulta: otros {forzados_fuera_de_tope} van por el reranker como los demás)" if forzados_fuera_de_tope else "") + ": " + "; ".join(str(a.get("referencia", ""))[:40] for a in forzados[:6]))
+            al_modelo = forzados + al_modelo
+        ids_modelo = {id(a) for a in al_modelo}
         # Cribado por relevancia (Sonnet 5), como el RCS de PaperQA. En amplitud, con
         # otra pregunta (qué podría cambiar) y el listón un punto más bajo.
         puntuados: list[tuple[int, dict[str, Any], str]] = []
         for a, ex_prev in repetidos:
             puntuados.append((int(ex_prev.get("relevancia") or 0), a, f"ya excluido en la corrida {ex_prev.get('corrida')} (iteración {ex_prev.get('iteracion')}): {(ex_prev.get('motivo') or '')[:160]}"))
-        for a, s in fuera:
-            puntuados.append((min(minimo - 1, int(round(s * 10))), a, f"fuera del corte del reranker (pertinencia {s:.2f}); no se gastó una llamada al modelo"))
+        for a, s_ in fuera:
+            puntuados.append((min(minimo - 1, int(round(s_ * 10))), a, f"fuera del corte del reranker (pertinencia {s_:.2f}); no se gastó una llamada al modelo"))
+        for a in articulos:
+            con = reutilizadas.get(id(a))
+            if con is None:
+                continue
+            fuente_prev, numero_prev, actual = con
+            rel = int(fuente_prev.get("relevancia") or 0)
+            donde = "esta corrida" if actual else f"la corrida {numero_prev}"
+            puntuados.append((rel, a, f"ya cribada en {donde} (relevancia {rel}); se reutiliza sin volver a puntuar ni a descargar"))
         sem = asyncio.Semaphore(4)
 
         async def puntuar(a: dict[str, Any]) -> None:
@@ -780,6 +1326,7 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
         descartados = [x for x in puntuados if x[0] < minimo]
         resultado["cribados"] = len(relevantes)
         pista.resultado(f"Cribado{' en amplitud' if modo == 'amplitud' else ''}: {len(relevantes)} de {len(puntuados)} relevantes (puntuación >= {minimo}); descartados: " + ", ".join(f"{a['referencia']} ({p})" for p, a, _ in descartados)[:300])
+        demasiado_amplia = total > politicas.RESULTADOS_DEMASIADO_AMPLIA and not relevantes
 
         def anotar_cribado(e: dict[str, Any]) -> bool:
             # Cada excluido con su motivo: es el item 16b de PRISMA 2020 y la caja de
@@ -788,32 +1335,71 @@ async def _consulta_literatura(ctx: Ctx, paso: dict[str, Any], consulta: dict[st
             b = c["busqueda"]
             b["traidos"] = int(b.get("traidos") or 0) + len(puntuados)
             # El rendimiento de la consulta queda en su registro: cuántos relevantes trajo.
+            # La consulta relajada comparte el cribado con la original y lleva la misma cifra.
+            pendientes_registro = {consulta["consulta"]} | ({relajada} if relajada else set())
             for q_ in reversed(b["consultas"]):
-                if q_.get("consulta") == consulta["consulta"] and q_.get("iteracion") == ctx.numero:
+                if q_.get("consulta") in pendientes_registro and q_.get("iteracion") == ctx.numero:
                     q_["relevantes"] = len(relevantes)
-                    break
+                    if demasiado_amplia:
+                        q_["demasiadoAmplia"] = True
+                    pendientes_registro.discard(q_.get("consulta"))
+                    if not pendientes_registro:
+                        break
             ex = b.setdefault("excluidos", [])
             for p_, a_, motivo_ in descartados:
-                ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "modo": modo, "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base})
+                puntuado = id(a_) in ids_modelo and not str(motivo_ or "").startswith("sin puntuar")
+                ex.append({"referencia": a_.get("referencia", ""), "titulo": (a_.get("titulo") or "")[:160], "doi": a_.get("doi"), "pmid": a_.get("pmid"), "relevancia": int(p_), "modo": modo, "motivo": (motivo_ or "")[:240], "iteracion": ctx.numero, "consulta": consulta["consulta"][:160], "base": nombre_base, "puntuadoPorModelo": puntuado, "criterio": criterio})
             if len(ex) > 600:
                 del ex[: len(ex) - 600]
             return True
 
         ctx.mutar(anotar_cribado, "cribado")
+        if demasiado_amplia:
+            pista.nota(f"Consulta demasiado amplia: {total} resultados y ninguno relevante entre los {len(puntuados)} cribados. Queda marcada para que el plan la acote (nombre exacto en el título y el resumen, o un término más específico).")
 
+        numero_corrida = int(ctx.corrida().get("numero") or 0)
         for i, (puntuacion, a, motivo) in enumerate(relevantes):
             if pista.detenida():
                 break
-            marca, detalle, comprobada = None, "Sin DOI: no se pudo comprobar en Crossref", None
-            if a.get("doi"):
-                try:
-                    marca, detalle = await crossref.marca_editorial(a["doi"])
-                    comprobada = P.ahora_ms()
-                except FuenteNoDisponible as ex:
-                    detalle = f"Crossref no respondió: {str(ex)[:100]}. No se afirma que este limpio."
-            if marca == "retractado":
-                pista.error(f"{a['referencia']} esta RETRACTADO ({detalle}); se guarda marcado y no se usa como respaldo")
             con_texto = i < 4 and puntuacion >= 7
+            con = reutilizadas.get(id(a))
+            if con is not None:
+                fuente_prev, numero_prev, actual = con
+                donde = "esta corrida" if actual else f"la corrida {numero_prev}"
+                # Lo que aquella vez no se hizo se hace ahora (S-06 e, segunda pasada): el
+                # texto completo si esta corrida lo descargaría y entonces solo se guardó el
+                # resumen (un intento por iteración y fuente), y Crossref si la comprobación
+                # de entonces no llegó o caducó. Lo demás se copia sin gastar.
+                nuevos_frags: list[dict[str, Any]] = []
+                intento = fuente_prev.get("_sinTextoCompletoEn")
+                intentado_aqui = isinstance(intento, dict) and intento.get("corrida") == numero_corrida and intento.get("iteracion") == ctx.numero
+                intentar_texto = con_texto and not _tiene_texto_completo(fuente_prev) and not intentado_aqui
+                if intentar_texto:
+                    pista.nota(f"{a['referencia']}: reutilizada de {donde}, que solo guardó el resumen; se completa con el texto completo que entonces no se descargó")
+                    nuevos_frags = [fr for fr in await _fragmentos_de(ctx, a, pista, True) if isinstance(fr, dict) and fr.get("localizador") != "resumen"]
+                    if not nuevos_frags:
+                        pista.nota(f"{a['referencia']}: tampoco ahora hay texto completo accesible; se sigue con el resumen y no se reintenta en esta iteración")
+                comprobacion = None
+                # Una fuente de esta misma corrida cuya comprobación falló se reintenta como
+                # mucho una vez por iteración (no en cada consulta que la vuelva a traer).
+                otra_iteracion = not actual or int(fuente_prev.get("iteracion") or 0) != ctx.numero
+                if a.get("doi") and otra_iteracion and comprobacion_retraccion_caducada(fuente_prev, ahora):
+                    comprobacion = await _comprobar_retraccion(a, pista)
+                    pista.nota(f"{a['referencia']}: la comprobación de retracción de {donde} " + ("no llegó" if fuente_prev.get("retraccionComprobadaEn") is None else f"tiene más de {politicas.DIAS_VIGENCIA_COMPROBACION_RETRACCION} días") + "; se repite en Crossref: " + (comprobacion[1] or "")[:120])
+                fid, con_texto_prev, copiadas = _reutilizar_fuente(ctx, a, fuente_prev, numero_prev, actual, puntuacion, consulta["consulta"], modo, fragmentos_nuevos=nuevos_frags, comprobacion=comprobacion)
+                if intentar_texto and not nuevos_frags:
+                    _actualizar_fuente(ctx, fid, {"_sinTextoCompletoEn": {"corrida": numero_corrida, "iteracion": ctx.numero}})
+                if con_texto_prev:
+                    resultado["textoCompleto"] += 1
+                resultado["leidos"] += 1
+                extra = ""
+                if copiadas:
+                    extra = f"; {copiadas} afirmaciones ya extraídas y verificadas en la corrida {numero_prev} pasan a esta corrida con su veredicto"
+                elif not actual and fuente_prev.get("extraida") and not nuevos_frags:
+                    extra = f"; la corrida {numero_prev} la leyó pero no guardó ninguna afirmación suya: se vuelve a extraer"
+                pista.resultado(f"{a['referencia']} (relevancia {puntuacion}): {motivo[:100]}{extra}")
+                continue
+            marca, detalle, comprobada = await _comprobar_retraccion(a, pista)
             fragmentos = await _fragmentos_de(ctx, a, pista, con_texto)
             if any(fr["localizador"] != "resumen" for fr in fragmentos):
                 resultado["textoCompleto"] += 1
@@ -929,7 +1515,20 @@ async def paso_literatura(ctx: Ctx, paso: dict[str, Any]) -> str:
     nombres = T.nombres_propios(f"{inv['objetivo']} {preguntas}")
     pred = await ctx.llamar("cerebro", ctx.programas.consultas, objetivo=inv["objetivo"], preguntas_abiertas=preguntas, hipotesis_vivas=T.hipotesis_vivas(e["hipotesis"], ctx.investigacion_id) + "\n" + T.vivero_texto(inv), consultas_previas=T.consultas_previas_texto(e, ctx.investigacion_id), lecciones=lecciones, indicaciones_humanas=T.indicaciones_humanas(ctx.iteracion()) + ("\n" + paso["detalle"] if paso.get("detalle") else ""), bases_disponibles=", ".join(bases_disponibles()), nombres_propios=", ".join(nombres) or "Ninguno")
     consultas = [base_efectiva(c.model_dump()) for c in pred.consultas][: politicas.MAX_CONSULTAS_FOCO]
-    consultas += consultas_por_nombre(nombres, consultas, previas)
+    # Tope de tres cláusulas AND (política): la consulta se acota por regla aunque el
+    # modelo escriba cinco, y la pista lo dice (S-07).
+    for q in consultas:
+        if q.get("base") in ("pubmed", "europepmc", "preprints"):
+            acotada = limitar_clausulas(q["consulta"])
+            if acotada != q["consulta"]:
+                q["_acotadaDe"] = q["consulta"]
+                q["consulta"] = acotada
+    avisos_nombre: list[str] = []
+    por_nombre = consultas_por_nombre(nombres, consultas, previas, registro=T.consultas_de_la_investigacion(e, ctx.investigacion_id), corrida_actual=ctx.corrida().get("numero"), explicaciones=avisos_nombre)
+    consultas += por_nombre
+    if avisos_nombre:
+        # La decisión de no insistir queda escrita donde se lee la corrida, no solo en el código.
+        ctx.pista(paso["id"], "literatura", "Red de seguridad por nombre: lo que ya no se repite", "regla").cerrar("; ".join(avisos_nombre)[:900])
     for q in consultas:
         q["modo"] = "foco"
     # Amplitud: una parte de las consultas explora fuera de la pregunta (temas
@@ -1089,6 +1688,117 @@ def _localizador_admitido(localizador: str) -> bool:
         return True
 
 
+# Qué fragmentos de una fuente se leen (S-26). Antes se leían los seis primeros por
+# posición: portada, introducción y métodos, y nunca la página 7 ni las tablas de
+# eficacia. Ahora se puntúan y se leen los seis mejores: secciones de resultados
+# primero, páginas de PDF por densidad de cifras y patrones de resultado, referencias
+# al final; y con reranker, además, por pertinencia a las preguntas abiertas.
+_SECCION_RESULTADOS = re.compile(r"\b(results?|findings?|outcomes?|efficacy|primary\s+end\s*points?|secondary\s+end\s*points?|resultados|hallazgos|eficacia)\b", re.IGNORECASE)
+_SECCION_METODOS = re.compile(r"\b(methods?|materials|participants|procedures?|statistical|study\s+design|m[eé]todos|dise[nñ]o|participantes)\b", re.IGNORECASE)
+_SECCION_RESIDUAL = re.compile(r"\b(references?|bibliograph\w*|acknowledg\w*|funding|supplementary|author\s+contributions?|conflicts?\s+of\s+interest|declarations?|data\s+availability|referencias|agradecimientos|financiaci[oó]n|conflictos?\s+de\s+inter[eé]s)\b", re.IGNORECASE)
+# Las siglas de medidas de efecto (OR, HR, RR, SD, IQR, CI) solo cuentan en mayúscula y
+# con una cifra al lado: la conjunción inglesa "or" y el verbo "mean" no son resultados
+# (segunda pasada: una introducción con ocho "or" se llevaba el máximo de esta parte).
+# "p <" y "n =" llevan su cifra por la misma razón y porque, sin ella, "p < 0.001" con
+# espacio nunca casaba (la frontera de palabra tras "<" fallaba).
+_PATRONES_RESULTADO = re.compile(r"\b(95\s*%\s*ci|ci\s*95|(?-i:\b(?:OR|HR|RR|SD|IQR|CI))\s*[=:(\[]?\s*[<>≤≥]?\s*[-−+]?\d+(?:[.,]\d+)?|p\s*[<=>]\s*\d+(?:[.,]\d+)?|(?:mean|median|media|mediana)\b[^.\n]{0,25}?\d+|n\s*=\s*\d+|versus|vs\.?|difference|reduction|increase|decrease|slowing|table\s*\d|figure\s*\d|fig\.\s*\d|primary\s+(?:end\s*point|outcome)|baseline|change\s+from\s+baseline|fold|adjusted|estimate|intervalo\s+de\s+confianza|diferencia|reducci[oó]n|aumento|tabla\s*\d)\b", re.IGNORECASE)
+_MARCAS_REFERENCIA = re.compile(r"\bet\s+al\b|\bdoi\b|https?://|\b(?:19|20)\d{2}\s*;\s*\d|\bPMID\b|\bpp?\.\s*\d", re.IGNORECASE)
+
+
+def _parece_lista_de_referencias(texto: str, palabras: int) -> bool:
+    marcas = len(_MARCAS_REFERENCIA.findall(texto))
+    return marcas >= 10 and marcas * 40 > palabras
+
+
+def puntuar_fragmento(fr: dict[str, Any]) -> tuple[float, str]:
+    """(puntuación, detalle en llano) de cuánto promete un fragmento para la
+    extracción. Sección de resultados: 3 de base; sección neutra (conclusiones,
+    resumen JATS): 1,5; métodos: 1; introducción, antecedentes y discusión
+    (secciones de fondo): 0,5; referencias y agradecimientos: 0. Una página de
+    PDF o un trozo de texto web parte de 1, y una página que parece la lista de
+    referencias, de 0. A la base se suma el contenido: densidad de cifras (hasta
+    2) y patrones de resultado como "95 % CI", "p <", "n =", "Table 2" (hasta
+    1,5). Tolera fragmentos sin texto o sin localizador."""
+    loc = str(fr.get("localizador") or "")
+    enc = str(fr.get("encabezado") or "")
+    texto = str(fr.get("texto") or "")
+    palabras = max(1, len(texto.split()))
+    cifras = len(V.PATRON_CIFRA.findall(texto))
+    patrones = len(_PATRONES_RESULTADO.findall(texto))
+    contenido = min(cifras / palabras * 20.0, 2.0) + min(patrones / 5.0, 1.5)
+    detalle = f"cifras {cifras}, patrones de resultado {patrones}"
+    es_seccion = re.match(r"^\s*secci[oó]n\s+", loc, re.IGNORECASE) is not None
+    if es_seccion:
+        nombre = f"{loc} {enc}"
+        if _SECCION_RESIDUAL.search(nombre) and not _SECCION_RESULTADOS.search(nombre):
+            return 0.0, "referencias, agradecimientos o material residual"
+        if _SECCION_RESULTADOS.search(nombre):
+            base, clase = 3.0, "sección de resultados"
+        elif es_de_fondo(loc, enc):
+            base, clase = 0.5, "sección de fondo"
+        elif _SECCION_METODOS.search(nombre):
+            base, clase = 1.0, "sección de métodos"
+        else:
+            base, clase = 1.5, "sección"
+        return round(base + contenido, 2), f"{clase}, {detalle}"
+    if loc == "resumen":
+        return round(1.0 + contenido, 2), f"resumen, {detalle}"
+    if _parece_lista_de_referencias(texto, palabras):
+        return round(0.1 * contenido, 2), "parece la lista de referencias"
+    return round(1.0 + contenido, 2), detalle
+
+
+async def elegir_fragmentos(candidatos: list[dict[str, Any]], maximo: int, preguntas: str = "") -> tuple[list[dict[str, Any]], str]:
+    """Los `maximo` fragmentos que se leen de una fuente y la explicación para la
+    pista. Con `maximo` o menos candidatos van todos, en su orden. Con más, se
+    ordenan por `puntuar_fragmento` y, si el reranker del gateway está
+    disponible y hay preguntas, se suma su pertinencia (0 a 1, por 3) a la
+    puntuación por regla; si el reranker no responde, decide la regla sola y
+    queda dicho. Los elegidos vuelven en orden de puntuación."""
+    if len(candidatos) <= maximo:
+        return list(candidatos), f"se leen los {len(candidatos)} fragmentos disponibles"
+    puntuaciones = [puntuar_fragmento(fr) for fr in candidatos]
+    como = " por regla (secciones de resultados y densidad de cifras)"
+    if preguntas and reranker.disponible():
+        try:
+            orden = await reranker.reordenar(preguntas[:2000], [str(fr.get("texto") or "")[:4000] for fr in candidatos])
+            por_indice = {i: float(s_) for i, s_ in orden}
+            puntuaciones = [(round(pt + 3.0 * por_indice.get(i, 0.0), 2), f"{d}, reranker {por_indice.get(i, 0.0):.2f}") for i, (pt, d) in enumerate(puntuaciones)]
+            como = " por regla y reranker contra las preguntas abiertas"
+        except FuenteNoDisponible as ex:
+            como = f" por regla (el reranker no respondió: {str(ex)[:60]})"
+    orden_idx = sorted(range(len(candidatos)), key=lambda i: -puntuaciones[i][0])
+    elegidos_idx = orden_idx[:maximo]
+    elegidos = [candidatos[i] for i in elegidos_idx]
+    sin_leer = [str(candidatos[i].get("localizador") or "?") for i in orden_idx[maximo:]]
+    descripcion = f"se leen {len(elegidos)} de {len(candidatos)} fragmentos{como}: " + ", ".join(f"{candidatos[i].get('localizador')} ({puntuaciones[i][1]})" for i in elegidos_idx) + "; sin leer: " + ", ".join(sin_leer)
+    return elegidos, descripcion
+
+
+def partes_de_fragmento(texto: str, maximo: int = politicas.MAX_CARACTERES_POR_LLAMADA_EXTRACTOR, partes_max: int = politicas.MAX_PARTES_POR_FRAGMENTO) -> list[str]:
+    """Lo que ve el extractor de un fragmento: entero si cabe en una llamada;
+    si no, en trozos que cortan en párrafo o frase (`trocear_texto`) en vez de
+    cortar el texto a secas a los 6.000 caracteres, hasta `partes_max` trozos.
+    La cita de cada afirmación sigue apuntando al mismo localizador (la misma
+    página o sección), así que el verificador compara contra el texto entero."""
+    texto = texto or ""
+    if len(texto) <= maximo:
+        return [texto]
+    partes = trocear_texto(texto, tamano=maximo, minimo=400) or [texto[:maximo]]
+    return partes[:partes_max]
+
+
+def fragmentos_pendientes(f: dict[str, Any]) -> list[dict[str, Any]]:
+    """Los fragmentos de una fuente que el extractor no ha leído (`extraido`
+    ausente o falso). Con más de un fragmento, el resumen se salta: las cifras
+    están en el cuerpo. Un fragmento sin texto o sin localizador no cuenta."""
+    frags = [fr for fr in (f.get("fragmentos") or []) if isinstance(fr, dict) and fr.get("localizador")]
+    pendientes = [fr for fr in frags if not fr.get("extraido")]
+    if len(frags) > 1:
+        pendientes = [fr for fr in pendientes if fr["localizador"] != "resumen"]
+    return pendientes
+
+
 async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     preguntas = _criterio(ctx, inv)
@@ -1098,7 +1808,7 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
     if not pendientes:
         return "No hay fuentes nuevas de las que extraer"
     pista = ctx.pista(paso["id"], "extraccion", f"Extraer afirmaciones de {len(pendientes)} fuentes", "Sonnet 5")
-    pista.accion("Un fragmento a la vez (resumen, página o sección), sin cruzar de fragmento; cada afirmación con su cita literal")
+    pista.accion(f"Un fragmento a la vez (resumen, página o sección), sin cruzar de fragmento; cada afirmación con su cita literal. De cada fuente se leen hasta {MAX_FRAGMENTOS_POR_FUENTE} fragmentos, los que más prometen (resultados y cifras primero), y solo los que no se habían leído")
     sem = asyncio.Semaphore(4)
     total = 0
     hechas = 0
@@ -1108,20 +1818,27 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
         fallos_fragmentos = 0
         nonlocal total, hechas
         nuevas: list[dict[str, Any]] = []
-        frags = f.get("fragmentos", [])
+        frags_todos = f.get("fragmentos", [])
         # Los fragmentos de esta fuente tal como los ve el verificador: la cita que se
         # escribe tiene que resolver contra ellos antes de guardarse (S-03).
-        frags_verificador = [V.Fragmento(f["id"], f["referencia"], x["localizador"], x["texto"], x.get("encabezado", "")) for x in frags]
+        frags_verificador = [V.Fragmento(f["id"], f["referencia"], x["localizador"], x["texto"], x.get("encabezado", "")) for x in frags_todos if isinstance(x, dict) and x.get("localizador")]
         localizadores_avisados: set[str] = set()
-        # Con texto completo, el resumen se salta (las cifras están en el cuerpo).
-        if len(frags) > 1:
-            frags = [fr for fr in frags if fr["localizador"] != "resumen"]
-        for fr in frags[:MAX_FRAGMENTOS_POR_FUENTE]:
+        # Solo lo no leído (S-06 d); demasiado corto para leer cuenta como leído.
+        candidatos = fragmentos_pendientes(f)
+        cortos = [fr["localizador"] for fr in candidatos if len(str(fr.get("texto") or "").strip()) < 80]
+        candidatos = [fr for fr in candidatos if len(str(fr.get("texto") or "").strip()) >= 80]
+        leidos_ok: list[str] = list(cortos)
+        elegidos, descripcion = await elegir_fragmentos(candidatos, MAX_FRAGMENTOS_POR_FUENTE, preguntas)
+        if candidatos:
+            pista.nota(f"{f['referencia']}: {descripcion}"[:900])
+        for fr in elegidos:
             if pista.detenida():
                 return
-            texto = fr["texto"][:6000]
-            if len(texto.strip()) < 80:
-                continue
+            texto_entero = str(fr.get("texto") or "")
+            partes = partes_de_fragmento(texto_entero)
+            if len(partes) > 1 or len(texto_entero) > politicas.MAX_CARACTERES_POR_LLAMADA_EXTRACTOR:
+                leidos_chars = sum(len(x) for x in partes)
+                pista.nota(f"{f['referencia']} ({fr['localizador']}): {len(texto_entero)} caracteres; se lee en {len(partes)} partes" + (f" (las {len(partes)} primeras: {leidos_chars} de {len(texto_entero)} caracteres)" if leidos_chars < len(texto_entero) else "") + " en vez de cortar a " + str(politicas.MAX_CARACTERES_POR_LLAMADA_EXTRACTOR))
             de_fondo = es_de_fondo(fr["localizador"], fr.get("encabezado", ""))
             cita = f"[{f['referencia']}, {fr['localizador']}]"
             cita_resuelve = _resolver_cita(cita, frags_verificador, f["id"]) is not None
@@ -1134,67 +1851,80 @@ async def paso_extraccion(ctx: Ctx, paso: dict[str, Any]) -> str:
                     # la réplica (que resuelve por texto) fallaría. Se avisa, no se bloquea.
                     localizadores_avisados.add(fr["localizador"])
                     pista.nota(f"{f['referencia']}: el localizador «{fr['localizador']}» no está en los admitidos por el patrón de citas; la cita resuelve por el id de la fuente, pero la réplica por texto no lo reconocería")
-            sospechoso = K.sospechoso_inyeccion(texto)
+            sospechoso = K.sospechoso_inyeccion(texto_entero)
             if sospechoso:
                 pista.nota(f"{f['referencia']} ({fr['localizador']}): el fragmento contiene texto que parece una instrucción para un modelo; se marca y se enseña, no se bloquea")
-            async with sem:
-                try:
-                    # El fragmento entra delimitado como dato (spotlighting), nunca como instrucción.
-                    pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=_criterio_para_fuente(preguntas, f), referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
-                except PresupuestoAgotado:
-                    raise
-                except Exception as ex:  # noqa: BLE001
-                    pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor falló: {str(ex)[:120]}")
-                    fallos_fragmentos += 1
-                    continue
-            for a in pred.afirmaciones:
-                # Comprobación literal en PDF: la página de la cita tiene que contener el fragmento.
-                if not (a.fragmento or "").strip():
-                    # Sin pasaje no hay nada que verificar: el motivo dice la causa real.
-                    pista.nota(f"{f['referencia']} ({fr['localizador']}): el extractor no devolvió pasaje para una afirmación; se marca cita_no_resuelve")
-                    veredicto_inicial = "cita_no_resuelve"
-                    motivo = "El extractor no devolvió el pasaje copiado de la fuente; sin pasaje no se puede comprobar la literalidad."
-                elif fr["localizador"].startswith("pág.") and not pdf.fragmento_en_texto_de_pagina(fr.get("texto", ""), a.fragmento):
-                    # Misma regla que el verificador, contra el texto ya guardado de la
-                    # página (sin reabrir el PDF por afirmación; S-05).
-                    pista.nota(f"{f['referencia']}: fragmento no encontrado literalmente en la {fr['localizador']}; la afirmación se marca cita_no_resuelve")
-                    veredicto_inicial = "cita_no_resuelve"
-                    motivo = "El fragmento citado no aparece literalmente en la página indicada."
-                elif not cita_resuelve:
-                    veredicto_inicial = "cita_no_resuelve"
-                    motivo = f"Localizador no reconocido por el verificador: «{fr['localizador']}». La fuente y el pasaje existen; hay que ampliar los localizadores admitidos y volver a verificar."
-                else:
-                    veredicto_inicial, motivo = "sin_verificar", "Pendiente de verificación"
-                cohorte = (getattr(a, "cohorte", "") or "").strip()[:60]
-                nivel = getattr(a, "nivel_medicion", "resultado_analisis") or "resultado_analisis"
-                registro = {k: (getattr(a, k, "") or "").strip()[:80] for k in ("n", "comparador", "efecto", "incertidumbre")}
-                # Comprobaciones automáticas del registro de evidencia (plan completo,
-                # sección 3): lo que un dato debería traer y no trae queda sin resolver.
-                sin_resolver = [k for k in ("n", "comparador", "efecto") if a.tipo == "dato" and not registro[k]]
-                if a.tipo == "dato" and nivel == "interpretacion_autor":
-                    sin_resolver.append("una interpretación de los autores no es una medida: se rebaja a literatura")
-                    tipo_af = "literatura"
-                else:
-                    tipo_af = a.tipo
-                nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": cita, "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": tipo_af, "clase": "literatura", "sintetico": False, "cohorte": cohorte, "sospechosoInyeccion": sospechoso, "nivelMedicion": nivel, **registro, "sinResolver": sin_resolver, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "deFondo": de_fondo, "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
+            fallo = False
+            for texto in partes:
+                if pista.detenida():
+                    return
+                async with sem:
+                    try:
+                        # El fragmento entra delimitado como dato (spotlighting), nunca como instrucción.
+                        pred = await ctx.llamar("volumen", ctx.programas.extraer, preguntas_abiertas=_criterio_para_fuente(preguntas, f), referencia=f["referencia"], localizador=fr["localizador"], fragmento=K.como_dato(texto))
+                    except PresupuestoAgotado:
+                        raise
+                    except Exception as ex:  # noqa: BLE001
+                        pista.error(f"{f['referencia']} ({fr['localizador']}): el extractor falló: {str(ex)[:120]}")
+                        fallos_fragmentos += 1
+                        fallo = True
+                        break
+                for a in pred.afirmaciones:
+                    # Comprobación literal en PDF: la página de la cita tiene que contener el fragmento.
+                    if not (a.fragmento or "").strip():
+                        # Sin pasaje no hay nada que verificar: el motivo dice la causa real.
+                        pista.nota(f"{f['referencia']} ({fr['localizador']}): el extractor no devolvió pasaje para una afirmación; se marca cita_no_resuelve")
+                        veredicto_inicial = "cita_no_resuelve"
+                        motivo = "El extractor no devolvió el pasaje copiado de la fuente; sin pasaje no se puede comprobar la literalidad."
+                    elif fr["localizador"].startswith("pág.") and not pdf.fragmento_en_texto_de_pagina(fr.get("texto", ""), a.fragmento):
+                        # Misma regla que el verificador, contra el texto ya guardado de la
+                        # página (sin reabrir el PDF por afirmación; S-05).
+                        pista.nota(f"{f['referencia']}: fragmento no encontrado literalmente en la {fr['localizador']}; la afirmación se marca cita_no_resuelve")
+                        veredicto_inicial = "cita_no_resuelve"
+                        motivo = "El fragmento citado no aparece literalmente en la página indicada."
+                    elif not cita_resuelve:
+                        veredicto_inicial = "cita_no_resuelve"
+                        motivo = f"Localizador no reconocido por el verificador: «{fr['localizador']}». La fuente y el pasaje existen; hay que ampliar los localizadores admitidos y volver a verificar."
+                    else:
+                        veredicto_inicial, motivo = "sin_verificar", "Pendiente de verificación"
+                    # M-03: el nombre de cohorte se recorta sin romper ni perder ningún NCT
+                    # ni nombre del catálogo (antes el corte a 60 dejaba "NCT044375").
+                    cohorte = METODOS.recortar_nombre_cohorte(getattr(a, "cohorte", ""))
+                    nivel = getattr(a, "nivel_medicion", "resultado_analisis") or "resultado_analisis"
+                    registro = {k: (getattr(a, k, "") or "").strip()[:80] for k in ("n", "comparador", "efecto", "incertidumbre")}
+                    # Comprobaciones automáticas del registro de evidencia (plan completo,
+                    # sección 3): lo que un dato debería traer y no trae queda sin resolver.
+                    sin_resolver = [k for k in ("n", "comparador", "efecto") if a.tipo == "dato" and not registro[k]]
+                    if a.tipo == "dato" and nivel == "interpretacion_autor":
+                        sin_resolver.append("una interpretación de los autores no es una medida: se rebaja a literatura")
+                        tipo_af = "literatura"
+                    else:
+                        tipo_af = a.tipo
+                    nuevas.append({"id": P.nuevo_id("af"), "texto": a.texto.strip(), "cita": cita, "fragmento": a.fragmento.strip(), "veredicto": veredicto_inicial, "motivo": motivo, "entidadDistinta": False, "tipo": tipo_af, "clase": "literatura", "sintetico": False, "cohorte": cohorte, "sospechosoInyeccion": sospechoso, "nivelMedicion": nivel, **registro, "sinResolver": sin_resolver, "tema": a.tema, "fuenteId": f["id"], "localizador": fr["localizador"], "deFondo": de_fondo, "iteracion": ctx.numero, "encabezado": fr.get("encabezado", "")})
+
+            if not fallo:
+                leidos_ok.append(fr["localizador"])
 
         def guardar(e: dict[str, Any]) -> bool:
             c = next(x for x in e["corridas"] if x["id"] == ctx.corrida_id)
             c.setdefault("_afirmaciones", []).extend(nuevas)
             fuente = c["_fuentes"][f["id"]]
-            # Con algún fragmento sin extraer por fallo del modelo, la fuente queda pendiente para reintentar.
+            # `extraido` por fragmento (S-06 d): los leídos quedan marcados; los no elegidos
+            # siguen sin marca y entran en la siguiente elección si la fuente se reabre. Con
+            # algún fragmento sin extraer por fallo del modelo, la fuente queda pendiente.
+            for fr_ in fuente.get("fragmentos", []):
+                if isinstance(fr_, dict) and fr_.get("localizador") in leidos_ok:
+                    fr_["extraido"] = True
             fuente["extraida"] = fallos_fragmentos == 0
             # La cohorte de la fuente: la que más dijeron sus afirmaciones, o la que
             # se reconoce en el título y el resumen. Sirve para contar cohortes, no
             # artículos, al medir replicación.
             if not fuente.get("cohorte"):
                 dichas = [a["cohorte"] for a in nuevas if a.get("cohorte")]
-                fuente["cohorte"] = (max(set(dichas), key=dichas.count) if dichas else K.cohorte_en_texto(fuente.get("titulo", "") + " " + " ".join(fr.get("texto", "")[:600] for fr in fuente.get("fragmentos", [])[:1]))) or None
+                fuente["cohorte"] = (max(set(dichas), key=dichas.count) if dichas else METODOS.recortar_nombre_cohorte(K.cohorte_en_texto(fuente.get("titulo", "") + " " + " ".join(fr.get("texto", "")[:600] for fr in fuente.get("fragmentos", [])[:1])))) or None
             # Método como nodo (rosa/metodos.py): cohorte canónica, plataforma de medida y
             # muestra reconocidas en título, fragmento y afirmaciones, con su origen.
             try:
-                from rosa import metodos as METODOS
-
                 m_ = METODOS.metodo_de_fuente(fuente, nuevas)
                 fuente["metodo"] = {"cohorte": m_.get("cohorte"), "plataforma": m_.get("plataforma"), "muestra": m_.get("muestra"), "origen": m_.get("origen")}
             except Exception:  # noqa: BLE001  el catálogo nunca tumba la extracción
@@ -1337,6 +2067,83 @@ def _fuente_publica(f: dict[str, Any], afirmacion: dict[str, Any] | None = None)
     return publica
 
 
+# Las dos mitades de M-08 (el bucle al nacer un hecho; el estado al cargar y al
+# heredar, rosa/hechos.py) comparten una sola regla de referencia compartida y de
+# números (también los escritos con letra: "excluyeron cuatro" y "excluyeron
+# seis" no son el mismo hecho). Los nombres se conservan porque el resto del
+# módulo y los tests los usan. Una referencia genérica ("Sin autor, 2023") no
+# cuenta como compartida: dos obras sin autor no son la misma obra.
+comparte_referencia = H.comparte_referencia
+_NUMEROS_EN_LETRA = H.NUMEROS_EN_LETRA
+_numeros_de = H.numeros_de
+
+
+def hecho_duplicado(existentes: list[dict[str, Any]], enunciado: str, procedencia: list[dict[str, Any]], ids_entidades: set[str] | frozenset[str] = frozenset(), tipo: str = "hecho") -> tuple[dict[str, Any] | None, str]:
+    """El hecho ya existente que dice lo mismo que `enunciado`, con el motivo,
+    o (None, ""). Tres reglas (M-08): texto normalizado idéntico (con cualquier
+    tipo y estado, como antes); una paráfrasis según `cuestiones.equivalencia`
+    (solape de tokens alto, misma dirección) con los mismos números (también
+    escritos con letra), las mismas siglas fuera de la referencia y las mismas
+    negaciones largas (las guardas de rosa/hechos.py `guardas_de_parafrasis`,
+    para que el bucle y el estado fundan lo mismo: "GFAP sube" no es "YKL40
+    sube" y "redujo" no es "nunca redujo" aunque salgan de la misma fuente)
+    cuando comparte al menos una fuente o referencia con la procedencia nueva;
+    o dos entidades canónicas en común y el mismo comienzo (la regla anterior).
+    Las dos últimas solo entre hechos del mismo tipo y no descartados: una
+    paráfrasis con otra fuente es una replicación y nace aparte."""
+    norm = V.normalizar(enunciado)
+    if not norm:
+        return None, ""
+    for x in existentes:
+        if V.normalizar(x.get("enunciado")) == norm:
+            return x, "texto idéntico"
+    numeros = _numeros_de(enunciado)
+    limpio = H.sin_cita(enunciado)
+    negaciones = H.negaciones_de(limpio)
+    for x in existentes:
+        if x.get("estado") == "descartado" or x.get("tipo", "hecho") != tipo:
+            continue
+        enunciado_x = str(x.get("enunciado") or "")
+        eq = CU.equivalencia(enunciado, enunciado_x)
+        if eq and numeros == _numeros_de(enunciado_x) and comparte_referencia(x.get("procedencia"), procedencia):
+            # Las siglas de la obra citada ("Belder", "2026", "ADNI-3 team") no son
+            # contenido del hecho: se quitan antes de comparar, como en hechos.py.
+            procedencias = [*(x.get("procedencia") if isinstance(x.get("procedencia"), list) else []), *(procedencia if isinstance(procedencia, list) else [])]
+            ref = {t for p_ in procedencias if isinstance(p_, dict) for t in CU.normalizar(str(p_.get("referencia") or "")).split()}
+            limpio_x = H.sin_cita(enunciado_x)
+            if H.siglas_de(limpio, ref) == H.siglas_de(limpio_x, ref) and negaciones == H.negaciones_de(limpio_x):
+                return x, f"misma afirmación con otras palabras ({eq}) y misma fuente"
+        if ids_entidades and len(set(ids_entidades) & ONTO.ids_de(x.get("entidades"))) >= 2 and V.normalizar(x.get("enunciado"))[:40] == norm[:40]:
+            return x, "mismas entidades canónicas y mismo comienzo"
+    return None, ""
+
+
+def fundir_hecho(h: dict[str, Any], procedencia: list[dict[str, Any]], citas: list[dict[str, Any]], afirmacion_ids: list[str], ahora: int, motivo: str) -> bool:
+    """Suma al hecho existente la procedencia, las citas y las afirmaciones de
+    un enunciado equivalente. Devuelve True si entró algo nuevo; entonces el
+    hecho queda actualizado y su historial lo dice. Sin nada nuevo, no toca."""
+    anadido = False
+    proc = h.setdefault("procedencia", [])
+    for p_ in procedencia or []:
+        if isinstance(p_, dict) and p_ not in proc:
+            proc.append(p_)
+            anadido = True
+    citas_h = h.setdefault("citas", [])
+    for c_ in citas or []:
+        if isinstance(c_, dict) and not any(isinstance(x, dict) and x.get("referencia") == c_.get("referencia") and x.get("seccion") == c_.get("seccion") for x in citas_h):
+            citas_h.append(c_)
+            anadido = True
+    ids = h.setdefault("afirmacionIds", [])
+    for i in afirmacion_ids or []:
+        if i and i not in ids:
+            ids.append(i)
+            anadido = True
+    if anadido:
+        h["actualizadoEn"] = ahora
+        h.setdefault("historial", []).append({"fecha": ahora, "de": h.get("estado"), "a": h.get("estado"), "quien": config.QUIEN_ROSA, "motivo": motivo[:240]})
+    return anadido
+
+
 async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
     inv = ctx.inv()
     e = ctx.e
@@ -1360,19 +2167,79 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
     sustituidos = 0
     contradichos = 0
     resueltas = 0
+    fundidos = 0
+    omitidos = 0
     # Genes nombrados en los hechos nuevos, resueltos en HGNC (con cache en el estado).
     cache_ent = dict(ctx.e.get("entidadesCache") or {})
     simbolos_nuevos = sorted({s_ for hp in pred.hechos for s_ in simbolos_de_genes(hp.enunciado)})[:12]
     genes_resueltos = await ONTO.normalizar(simbolos_nuevos, [], cache_ent) if simbolos_nuevos else []
 
     def aplicar(e2: dict[str, Any]) -> bool:
-        nonlocal anadidos, preguntas, sustituidos, contradichos, resueltas
+        nonlocal anadidos, preguntas, sustituidos, contradichos, resueltas, fundidos, omitidos
         e2["entidadesCache"] = {k: v for k, v in list(cache_ent.items())[-2000:]}
-        existentes = {V.normalizar(h["enunciado"]) for h in e2["hechos"] if h["investigacionId"] == ctx.investigacion_id}
+        propios = [h for h in e2["hechos"] if h["investigacionId"] == ctx.investigacion_id]
         por_id = {h["id"]: h for h in e2["hechos"]}
+
+        def enlazar(h: dict[str, Any], hp: Any, citas: list[dict[str, Any]]) -> tuple[int, int, list[str]]:
+            """Lo que el cerebro dijo de este hecho respecto al modelo de mundo: a qué
+            hechos sustituye, cuáles contradice y qué cuestiones resuelve. Vale igual
+            para un hecho nuevo y para uno ya existente con el que se fundió una
+            paráfrasis (M-08): el enlace que produjo la llamada no se tira porque el
+            enunciado ya estuviera. Devuelve (sustituidos, contradichos, cuestiones)."""
+            nonlocal sustituidos, contradichos, resueltas
+            h.setdefault("sustituyeA", [])
+            h.setdefault("contradiceA", [])
+            h.setdefault("resuelveA", [])
+            n_sust = 0
+            n_contra = 0
+            # Sustituye: el viejo queda como sustituido (descartado con motivo, sin
+            # tocar actualizadoEn) y lo que dependía de él pasa a pendiente de revisar.
+            for i in list(getattr(hp, "sustituye", []) or []):
+                if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
+                    continue
+                viejo = por_id.get(hechos_lista[i - 1]["id"])
+                if not viejo or viejo["id"] == h["id"] or viejo.get("estado") != "sabido":
+                    continue
+                viejo["estado"] = "descartado"
+                viejo["motivoDescarte"] = f"Sustituido en la iteración {ctx.numero} por un hecho más reciente: {hp.enunciado[:160]}"
+                viejo["sustituidoPor"] = h["id"]
+                viejo["cerradoEn"] = ahora
+                viejo.setdefault("historial", []).append({"fecha": ahora, "de": "sabido", "a": "descartado", "quien": config.QUIEN_ROSA, "motivo": viejo["motivoDescarte"]})
+                if viejo["id"] not in h["sustituyeA"]:
+                    h["sustituyeA"].append(viejo["id"])
+                n_sust += 1
+                DEP.propagar_sustitucion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
+            # Contradice: los dos quedan, la contradicción se anota como cita
+            # "contrasta" sobre el viejo y sus dependientes pasan a pendiente.
+            for i in list(getattr(hp, "contradice", []) or []):
+                if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
+                    continue
+                viejo = por_id.get(hechos_lista[i - 1]["id"])
+                if not viejo or viejo["id"] == h["id"] or viejo["id"] in h["sustituyeA"] or viejo["id"] in h["contradiceA"]:
+                    continue
+                h["contradiceA"].append(viejo["id"])
+                viejo.setdefault("citas", []).append({"referencia": (citas[0]["referencia"] if citas else f"hecho {h['id']}"), "seccion": (citas[0]["seccion"] if citas else ""), "clasificacion": "contrasta", "fragmento": hp.enunciado[:300]})
+                n_contra += 1
+                DEP.propagar_contradiccion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
+            # Resuelve: cierra las cuestiones señaladas; si una era una pregunta del
+            # modelo de mundo, la pregunta pasa a sabida (respondida).
+            ids_resueltas = CU.cerradas_por_hecho(e2, ctx.investigacion_id, h, list(getattr(hp, "resuelve", []) or []), cuestiones_lista, ahora)
+            for cid in ids_resueltas:
+                c_ = CU.buscar(e2, cid)
+                for hid in (c_ or {}).get("hechoIds", []):
+                    preg = por_id.get(hid)
+                    if preg and preg.get("tipo") == "pregunta" and preg.get("estado") == "abierto":
+                        preg["estado"] = "sabido"
+                        preg["cerradoEn"] = ahora
+                        preg.setdefault("historial", []).append({"fecha": ahora, "de": "abierto", "a": "sabido", "quien": config.QUIEN_ROSA, "motivo": f"Respondida en la iteración {ctx.numero} por el hecho: {hp.enunciado[:160]}"})
+                        if hid not in h["resuelveA"]:
+                            h["resuelveA"].append(hid)
+            sustituidos += n_sust
+            contradichos += n_contra
+            resueltas += len(ids_resueltas)
+            return n_sust, n_contra, ids_resueltas
+
         for hp in pred.hechos:
-            if V.normalizar(hp.enunciado) in existentes:
-                continue
             respaldo = [validas[i - 1] for i in hp.afirmaciones if 1 <= i <= len(validas)]
             if hp.tipo == "hecho" and not respaldo:
                 continue  # un hecho sin afirmacion sostenida no entra
@@ -1390,62 +2257,43 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
                 cita = {"referencia": fuentes[a["fuenteId"]]["referencia"], "seccion": a.get("localizador") or "", "clasificacion": "apoya", "fragmento": (a.get("fragmento") or "")[:300]}
                 if not any(c_["referencia"] == cita["referencia"] and c_["seccion"] == cita["seccion"] for c_ in citas):
                     citas.append(cita)
-            h = P.nuevo_hecho(ctx.investigacion_id, "hecho" if hp.tipo == "hecho" else "pregunta", hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteración {ctx.numero}",
-                              afirmacion_ids=[a["id"] for a in respaldo if a.get("id")], citas=citas)
+            ids_afirmaciones = [a["id"] for a in respaldo if a.get("id")]
+            tipo_hecho = "hecho" if hp.tipo == "hecho" else "pregunta"
             # Entidades canonicas del hecho: diccionario curado mas los genes que HGNC
             # resolvio (cache `entidadesCache` del estado). Con ellas el modelo de mundo
             # se puede consultar y deduplicar por identificador, no por cadena.
-            h["entidades"] = ONTO.fusionar(ONTO.anotar_curadas(hp.enunciado), [x for x in genes_resueltos if x["texto"].upper() in {s_.upper() for s_ in simbolos_de_genes(hp.enunciado)}])
-            ids_nuevo = ONTO.ids_de(h["entidades"])
-            if ids_nuevo and any(len(ids_nuevo & ONTO.ids_de(x.get("entidades"))) >= 2 and V.normalizar(x["enunciado"])[:40] == V.normalizar(hp.enunciado)[:40] for x in e2["hechos"] if x["investigacionId"] == ctx.investigacion_id):
-                continue  # mismo comienzo y mismas entidades canonicas: es el mismo hecho con otras palabras
+            entidades = ONTO.fusionar(ONTO.anotar_curadas(hp.enunciado), [x for x in genes_resueltos if x["texto"].upper() in {s_.upper() for s_ in simbolos_de_genes(hp.enunciado)}])
+            # El mismo hecho con otras palabras no nace dos veces (M-08): se funde con el
+            # existente sumando procedencia, citas y afirmaciones. Un hecho descartado no
+            # absorbe nada: si su texto vuelve idéntico, se omite como antes.
+            duplicado, motivo_dup = hecho_duplicado(propios, hp.enunciado, procedencia, ONTO.ids_de(entidades), tipo_hecho)
+            if duplicado is not None:
+                if duplicado.get("estado") == "descartado":
+                    omitidos += 1
+                    continue
+                if fundir_hecho(duplicado, procedencia, citas, ids_afirmaciones, ahora, f"Fundido en la iteración {ctx.numero} con «{hp.enunciado[:100]}»: {motivo_dup}"):
+                    fundidos += 1
+                else:
+                    omitidos += 1
+                if tipo_hecho == "hecho":
+                    # El enlace que el cerebro señaló para la paráfrasis (qué sustituye, qué
+                    # contradice, qué cuestión cierra) vale para el hecho con el que se fundió.
+                    n_s, n_c, ids_r = enlazar(duplicado, hp, citas)
+                    if n_s or n_c or ids_r:
+                        partes = ([f"resuelve {len(ids_r)} cuestiones"] if ids_r else []) + ([f"sustituye a {n_s} hechos"] if n_s else []) + ([f"contradice a {n_c} hechos"] if n_c else [])
+                        duplicado["actualizadoEn"] = ahora
+                        duplicado.setdefault("historial", []).append({"fecha": ahora, "de": duplicado.get("estado"), "a": duplicado.get("estado"), "quien": config.QUIEN_ROSA, "motivo": f"Fundido en la iteración {ctx.numero} con «{hp.enunciado[:80]}»; el enlace del cerebro pasa a este hecho: " + ", ".join(partes)})
+                continue
+            h = P.nuevo_hecho(ctx.investigacion_id, tipo_hecho, hp.tema, hp.enunciado, "sabido" if hp.tipo == "hecho" else "abierto", "fuente" if hp.tipo == "hecho" else "inferencia", procedencia, ahora, hp.prioridad, f"Añadido en la iteración {ctx.numero}",
+                              afirmacion_ids=ids_afirmaciones, citas=citas)
+            h["entidades"] = entidades
             e2["hechos"].append(h)
+            propios.append(h)
             por_id[h["id"]] = h
-            existentes.add(V.normalizar(hp.enunciado))
             if hp.tipo == "hecho":
                 anadidos += 1
                 A.con_evento(e2, ctx.investigacion_id, "hecho_nuevo", f"Hecho nuevo: {hp.enunciado[:120]}", f"#/investigaciones/{ctx.investigacion_id}/mundo", ahora)
-                # Sustituye: el viejo queda como sustituido (descartado con motivo, sin
-                # tocar actualizadoEn) y lo que dependía de él pasa a pendiente de revisar.
-                for i in list(getattr(hp, "sustituye", []) or []):
-                    if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
-                        continue
-                    viejo = por_id.get(hechos_lista[i - 1]["id"])
-                    if not viejo or viejo["id"] == h["id"] or viejo.get("estado") != "sabido":
-                        continue
-                    viejo["estado"] = "descartado"
-                    viejo["motivoDescarte"] = f"Sustituido en la iteración {ctx.numero} por un hecho más reciente: {hp.enunciado[:160]}"
-                    viejo["sustituidoPor"] = h["id"]
-                    viejo["cerradoEn"] = ahora
-                    viejo.setdefault("historial", []).append({"fecha": ahora, "de": "sabido", "a": "descartado", "quien": config.QUIEN_ROSA, "motivo": viejo["motivoDescarte"]})
-                    h["sustituyeA"].append(viejo["id"])
-                    sustituidos += 1
-                    DEP.propagar_sustitucion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
-                # Contradice: los dos quedan, la contradicción se anota como cita
-                # "contrasta" sobre el viejo y sus dependientes pasan a pendiente.
-                for i in list(getattr(hp, "contradice", []) or []):
-                    if not (isinstance(i, int) and 1 <= i <= len(hechos_lista)):
-                        continue
-                    viejo = por_id.get(hechos_lista[i - 1]["id"])
-                    if not viejo or viejo["id"] == h["id"] or viejo["id"] in h["sustituyeA"]:
-                        continue
-                    h["contradiceA"].append(viejo["id"])
-                    viejo.setdefault("citas", []).append({"referencia": (citas[0]["referencia"] if citas else f"hecho {h['id']}"), "seccion": (citas[0]["seccion"] if citas else ""), "clasificacion": "contrasta", "fragmento": hp.enunciado[:300]})
-                    contradichos += 1
-                    DEP.propagar_contradiccion(e2, ctx.investigacion_id, viejo["id"], h["id"], ahora)
-                # Resuelve: cierra las cuestiones señaladas; si una era una pregunta del
-                # modelo de mundo, la pregunta pasa a sabida (respondida).
-                ids_resueltas = CU.cerradas_por_hecho(e2, ctx.investigacion_id, h, list(getattr(hp, "resuelve", []) or []), cuestiones_lista, ahora)
-                for cid in ids_resueltas:
-                    c_ = CU.buscar(e2, cid)
-                    for hid in (c_ or {}).get("hechoIds", []):
-                        preg = por_id.get(hid)
-                        if preg and preg.get("tipo") == "pregunta" and preg.get("estado") == "abierto":
-                            preg["estado"] = "sabido"
-                            preg["cerradoEn"] = ahora
-                            preg.setdefault("historial", []).append({"fecha": ahora, "de": "abierto", "a": "sabido", "quien": config.QUIEN_ROSA, "motivo": f"Respondida en la iteración {ctx.numero} por el hecho: {hp.enunciado[:160]}"})
-                            h["resuelveA"].append(hid)
-                resueltas += len(ids_resueltas)
+                enlazar(h, hp, citas)
             else:
                 preguntas += 1
                 # La pregunta también es una cuestión persistente, con lo que la resolvería.
@@ -1453,12 +2301,12 @@ async def paso_modelo(ctx: Ctx, paso: dict[str, Any]) -> str:
         return True
 
     ctx.mutar(aplicar, "modelo_de_mundo")
-    pista.resultado(f"{anadidos} hechos y {preguntas} preguntas nuevas" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else ""))
+    pista.resultado(f"{anadidos} hechos y {preguntas} preguntas nuevas" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else "") + (f"; {fundidos} fundidos con hechos que ya decían lo mismo (se suma su procedencia y se conserva lo que resuelven o sustituyen)" if fundidos else "") + (f"; {omitidos} omitidos por repetir un hecho descartado o uno que ya tenía esa procedencia" if omitidos else ""))
     # Instantanea del modelo de mundo como artefacto.
     contenido = "# Modelo de mundo\n\n" + T.modelo_de_mundo(ctx.e["hechos"], ctx.investigacion_id, maximo=500, investigaciones=ctx.e["investigaciones"])
     ctx.mutar(lambda e2: A.guardar_artefacto(e2, ctx.investigacion_id, "Modelo de mundo", "modelo_mundo", contenido, f"Iteración {ctx.numero}: {anadidos} hechos y {preguntas} preguntas nuevas", ctx.numero, ahora), "artefacto")
     pista.cerrar(f"{anadidos} hechos, {preguntas} preguntas" + (f", {sustituidos} sustituidos" if sustituidos else "") + (f", {resueltas} cuestiones resueltas" if resueltas else ""))
-    return f"{anadidos} hechos y {preguntas} preguntas nuevas en el modelo de mundo" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else "")
+    return f"{anadidos} hechos y {preguntas} preguntas nuevas en el modelo de mundo" + (f"; {sustituidos} hechos sustituidos" if sustituidos else "") + (f"; {contradichos} contradichos" if contradichos else "") + (f"; {resueltas} cuestiones resueltas" if resueltas else "") + (f"; {fundidos} fundidos con hechos existentes" if fundidos else "")
 
 
 # ---------------------------------------------------------------------------
@@ -1560,7 +2408,17 @@ def _fuentes_de_hipotesis(ctx: Ctx, h: dict[str, Any]) -> list[dict[str, Any]]:
                 if isinstance(c, dict) and c.get("id") != ctx.corrida_id and isinstance(c.get("_fuentes"), dict):
                     otras.update(c["_fuentes"])
         salida.append(otras[i] if i in otras else f)
-    return salida
+    # La misma publicación registrada en dos corridas con dos ids (Raket 2026 dos
+    # veces en hip-mu2tskgf-2920) es una fuente, una cohorte y un sesgo, no dos.
+    vistas: set[str] = set()
+    unicas: list[dict[str, Any]] = []
+    for f in salida:
+        claves = set(f.get("_claves") or []) or claves_de_fuente(f)
+        if claves and claves & vistas:
+            continue
+        vistas |= claves
+        unicas.append(f)
+    return unicas
 
 
 # ---------------------------------------------------------------------------
@@ -1598,7 +2456,7 @@ def afirmaciones_ordenadas(afirmaciones: Any) -> list[dict[str, Any]]:
 
 
 def recortar_lineas(lineas: list[str], maximo: int, que: str = "afirmaciones") -> str:
-    """Une líneas hasta `maximo` caracteres (la primera entra siempre) y, si
+    """Une líneas hasta el tope de caracteres (la primera entra siempre) y, si
     sobran, lo dice con el número exacto en vez de cortar a las 8 primeras."""
     salida: list[str] = []
     total = 0

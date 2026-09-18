@@ -17,6 +17,7 @@ lo mismo:
 
 from __future__ import annotations
 
+import traceback
 from typing import Any
 
 from rosa import politicas
@@ -117,9 +118,18 @@ def candidatos(e: dict[str, Any], investigacion_id: str, maximo: int | None = No
     return elegidas
 
 
-def marcar_candidatas(e: dict[str, Any], investigacion_id: str) -> list[str]:
+def marcar_candidatas(e: dict[str, Any], investigacion_id: str, ahora: int | None = None) -> list[str]:
     """Recalcula bloqueos y candidatas de toda la investigación y devuelve
-    los ids de las candidatas. El bucle lo llama al cerrar cada iteración."""
+    los ids de las candidatas. El bucle lo llama al cerrar cada iteración.
+    Antes de los bloqueos, vuelve a acotar por regla las conclusiones que ya
+    existen (`reacotar_conclusiones`): si lo contado cambió (una frase de
+    introducción que dejó de pesar entero, dos entradas del mismo artículo
+    que ahora son una), el techo y la certeza se mueven sin llamar al juez,
+    con su rastro (`conclusion.cambio`, `recalculadaEn`, línea del registro y
+    evento si una certeza baja), para que la persona lo vea aunque el juez
+    no haya hablado. `ahora` (milisegundos) es el instante que se apunta; si
+    no se da, el actual."""
+    reacotar_conclusiones(e, investigacion_id, ahora)
     for h in e["hipotesis"]:
         if h["investigacionId"] == investigacion_id:
             h["bloqueos"] = bloqueos_de(e, h)
@@ -158,3 +168,64 @@ def anotar_cohortes(h: dict[str, Any]) -> list[str]:
     if isinstance(h.get("conclusion"), dict):
         h["conclusion"]["cohortesDistintas"] = list(cohortes)
     return cohortes
+
+
+def reacotar_conclusiones(e: dict[str, Any], investigacion_id: str | None = None, ahora: int | None = None) -> list[dict[str, Any]]:
+    """Vuelve a aplicar la regla de certeza (rosa/certeza.py
+    `reacotar_conclusion`: techo, `min(juez, techo)`, escalera, cohortes y
+    frase plantilla, con los factores guardados y sin llamar al juez) a las
+    hipótesis con conclusión de la investigación (o de todas, si no se da).
+    Es la única ruta del recálculo por regla y deja todo el rastro: la propia
+    `reacotar_conclusion` escribe `conclusion.cambio`, `recalculadaEn` y la
+    línea con fecha en el registro de procedencia; aquí, cuando una certeza
+    baja de un nivel a otro menor en una hipótesis viva, se añade el evento
+    `revision_automatica` y el cambio de creencia de nivel 1
+    (`_avisar_bajada`), la misma contabilidad que rosa/bucle/corrida.py
+    `recalcular_conclusiones_por_regla`, que debe delegar aquí. Subir no es
+    una alarma: solo la línea. Devuelve una entrada por hipótesis que cambió:
+    {"hipotesisId", "investigacionId", "titulo", "antes", "despues", "bajo",
+    "texto", "nota"}. `ahora` (milisegundos) es el instante que se apunta; si
+    no se da, el actual, el mismo para toda la pasada. Una hipótesis con un
+    registro raro no rompe el recálculo de las demás: se salta. Idempotente:
+    la segunda pasada no cambia nada ni da eventos."""
+    from rosa import certeza as CERTEZA
+
+    ahora = CERTEZA.instante(ahora)
+    cambios: list[dict[str, Any]] = []
+    for h in e.get("hipotesis", []) or []:
+        if not isinstance(h, dict) or (investigacion_id is not None and h.get("investigacionId") != investigacion_id):
+            continue
+        try:
+            r = CERTEZA.reacotar_conclusion(h, ahora)
+        except Exception:  # noqa: BLE001  el recálculo nunca tumba el cierre de la iteración
+            traceback.print_exc()
+            continue
+        if not r or not r["cambio"]:
+            continue
+        if r["bajo"] and h.get("estado") != "descartada" and h.get("investigacionId"):
+            _avisar_bajada(e, h, r["texto"], ahora)
+        cambios.append({"hipotesisId": h.get("id"), "investigacionId": h.get("investigacionId"), "titulo": h.get("titulo"), "antes": r["antes"], "despues": r["despues"], "bajo": r["bajo"], "texto": r["texto"], "nota": r["nota"]})
+    return cambios
+
+
+def _avisar_bajada(e: dict[str, Any], h: dict[str, Any], texto: str, ahora: int) -> None:
+    """La certeza de una conclusión bajó al recalcular por regla: evento
+    `revision_automatica` con enlace a la ficha de la hipótesis y cambio de
+    creencia de nivel 1 en el aprendizaje, como hace el cierre cuando el
+    juez la baja. Solo sobre un estado de verdad (con la lista `eventos`):
+    un diccionario a medio construir no se toca ni rompe."""
+    if not isinstance(e.get("eventos"), list):
+        return
+    from rosa import config
+    from rosa.estado import acciones as A
+    from rosa.estado import plantilla as P
+
+    inv = h["investigacionId"]
+    titulo = str(h.get("titulo") or "")
+    try:
+        A.con_evento(e, inv, "revision_automatica", f"La certeza de «{titulo[:60]}» {texto}"[:400], f"#/investigaciones/{inv}/hipotesis/{h.get('id')}", ahora)
+        aprendizaje = e.setdefault("aprendizaje", [])
+        if isinstance(aprendizaje, list):
+            aprendizaje.append(P.nuevo_cambio_aprendizaje(inv, 1, "creencia", f"{titulo[:80]}: la certeza {texto}"[:400], f"hipotesis:{h.get('id')}", "aplicado", config.QUIEN_ROSA, ahora))
+    except Exception:  # noqa: BLE001  el aviso nunca tumba el cierre; el recálculo ya quedó en el registro
+        traceback.print_exc()

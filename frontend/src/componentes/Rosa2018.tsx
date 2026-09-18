@@ -1436,11 +1436,18 @@ export function Politicas({ politicas }: { politicas: EstadoRosa['politicas'] })
     { clave: 'presupuestoUsd', etiqueta: 'Presupuesto por defecto de una misión (USD estimados)', nota: 'Se fija por misión al aprobarla.' },
     { clave: 'presupuestoHoras', etiqueta: 'Presupuesto por defecto de una misión (horas)', nota: '' },
     { clave: 'relevanciaMinima', etiqueta: 'Relevancia mínima para cribar un artículo (0 a 10)', nota: 'Por debajo, el artículo se descarta en el cribado y queda en el flujo PRISMA como excluido.' },
+    { clave: 'maxClausulasAnd', etiqueta: 'Cláusulas AND por consulta de literatura', nota: 'Con más, las consultas de foco traían dos a siete resultados y ninguno relevante; la precisión se gana con sinónimos dentro de cada cláusula.' },
+    { clave: 'maxForzadosPorNombre', etiqueta: 'Artículos que pasan al modelo sin reranker por nombrar el objetivo', nota: 'Tope por consulta de la red de seguridad por nombre exacto (fármaco, ensayo o cohorte del objetivo).' },
+    { clave: 'maxConsultasPorNombreSinRelevantes', etiqueta: 'Consultas por nombre seguidas sin ningún relevante', nota: 'Al llegar, la red por nombre deja de insistir en esa investigación y queda dicho.' },
+    { clave: 'diasVigenciaComprobacionRetraccion', etiqueta: 'Días de vigencia de una comprobación de retractación', nota: 'Una comprobación de Crossref más vieja, o que no llegó, se repite: "no pude comprobar" no es una comprobación.' },
+    { clave: 'maxFragmentosPorFuente', etiqueta: 'Fragmentos que se leen de cada fuente', nota: 'Los que más prometen (resultados y cifras primero), no los primeros.' },
+    { clave: 'maxPartesPorFragmento', etiqueta: 'Partes en que se lee un fragmento largo', nota: 'Cada parte es una llamada al extractor: con seis fragmentos por fuente, hasta dieciocho llamadas.' },
+    { clave: 'maxCaracteresPorLlamadaExtractor', etiqueta: 'Caracteres por llamada al extractor', nota: 'Un fragmento más largo se lee en partes en vez de cortarse a secas.' },
     { clave: 'maxHipotesisEnContexto', etiqueta: 'Hipótesis que entran al prompt del Killer', nota: 'Política de contexto: las vivas por Elo, más las últimas descartadas.' },
     { clave: 'eloK', etiqueta: 'Factor K del Elo', nota: 'Cuánto mueve un partido el Elo.' },
   ];
   return (
-    <Seccion detalle titulo="Políticas" nota="Los límites del sistema viven en el código del servidor (rosa/políticas.py), no en este estado: ningún agente puede editarlos y cada cambio es un commit que queda en la versión de ROSA2018 de cada corrida. Aquí solo se leen.">
+    <Seccion detalle titulo="Políticas" nota="Los límites del sistema viven en el código del servidor (rosa/politicas.py), no en este estado: ningún agente puede editarlos y cada cambio es un commit que queda en la versión de ROSA2018 de cada corrida. Aquí solo se leen.">
       {!politicas ? (
         <p className="meta">Sin servidor no hay políticas que leer.</p>
       ) : (

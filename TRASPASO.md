@@ -280,6 +280,20 @@ citas, verificador y barrera), `/Users/usuario/FIREtech-RAG/frontend/convex/CONT
   citado, `no_sostenida` determinista, sin juez. Las cifras se normalizan
   (coma o punto decimal, separadores de miles) y van al juez como pista, no
   como veredicto.
+- **Literalidad con elisiones** (tanda 2, 18 sep 2026): una elisión ("...",
+  "[...]") parte el pasaje en tramos que tienen que estar enteros y en el mismo
+  orden en la fuente. La cifra que sigue a una elisión es un dato y se comprueba
+  ("phosphorylated tau ... 181"), salvo que el texto entero demuestre que es
+  numeración de líneas (una cadena ascendente en al menos tres elisiones y en
+  la mitad de ellas, como en un resumen recortado de un preprint): solo
+  entonces se quita antes de comparar. Un tramo que es solo una cifra de una a
+  cuatro posiciones ("999 ... 3.0 (1.6)") no se comprueba suelto ni se
+  descarta: bloquea con el motivo "el tramo es solo una cifra: suelta no es
+  comprobable y no se da por literal", porque compacta casaría dentro de
+  cualquier número más largo ("161" dentro de "1610"). Quien lea ese texto en
+  un `cita_no_resuelve` sabe que el extractor copió una cifra aislada, no que
+  la fuente falte (rosa/verificador.py `_es_solo_cifra` y
+  `_quitar_numeros_de_linea_tras_elisiones`).
 - **Entidad**: el juez recibe la pregunta y el apartado (encabezado) de cada
   frase; `entidad_distinta` solo si la otra entidad aparece en el texto o en
   el encabezado del fragmento, no solo en su contexto; las comparaciones
@@ -635,7 +649,11 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
 - **`frontend/scripts/acentuar.py` tiene dos defectos que lo hacen peligroso sin
   `--comprobar`:** rompe el espaciado de un operador ternario (`a ? b : ''` pasa a
   `a ? b: ''` en CifrasAprendizaje.tsx) y acentuaría identificadores dentro de
-  plantillas de cadena (`${cuenta(cifras.iteracion)}`). Hasta arreglarlo: correr
+  plantillas de cadena (`${cuenta(cifras.iteracion)}`), y un tercero visto el
+  18 al integrar la tanda 2: acentúa palabras dentro de una ruta de fichero
+  (dejó "rosa/políticas.py" en la nota de Políticas de Ajustes, una ruta que no
+  existe; corregido a mano en Rosa2018.tsx, y `--comprobar` lo volverá a marcar
+  hasta que la herramienta salte los tramos con `/`). Hasta arreglarlo: correr
   solo `--comprobar`, o correrlo sobre una copia en un directorio temporal y
   aplicar a mano las palabras que señale. El diccionario ya incluye los
   pretéritos en -ió que se le escapaban (escribió, subió, corrigió, midió).
@@ -656,3 +674,14 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
   25 de 59 fuentes repetidas, 8 consultas de foco sin relevante, 0 peldaños.
   La corrida 13 (18 sep, 12:08, tope 4 h / 7 it) corre con la tanda 1 y es la
   referencia para la tanda 2.
+- **Políticas nuevas de la tanda 2 en `rosa/politicas.py`** (junto a
+  `MAX_CLAUSULAS_AND = 3` y `MAX_FRAGMENTOS_POR_FUENTE = 6`; el servidor las
+  sirve en `politicas.resumen()` y la pantalla de Ajustes las enseña):
+  `MAX_FORZADOS_POR_NOMBRE = 12` (tope de artículos que pasan al modelo sin
+  reranker por nombrar el objetivo), `MAX_CONSULTAS_POR_NOMBRE_SIN_RELEVANTES = 2`
+  (la red por nombre deja de insistir), `DIAS_VIGENCIA_COMPROBACION_RETRACCION = 90`
+  (una comprobación de Crossref más vieja, o que no llegó, se repite), y las de
+  extracción `MAX_CARACTERES_POR_LLAMADA_EXTRACTOR = 6000` y
+  `MAX_PARTES_POR_FRAGMENTO = 3` (hasta 18 llamadas al extractor por fuente en
+  vez de 6). Los límites viven en el código, no en el estado: cambiarlos es un
+  commit.

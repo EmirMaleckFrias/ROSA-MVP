@@ -160,7 +160,9 @@ _COHORTES_DEF: tuple[tuple[str, str, list[Any], dict[str, Any]], ...] = (
     ("graduate_1", "GRADUATE I", [_A(alias="GRADUATE 1", mayusculas=True), _A(alias="GRADUATE-I", mayusculas=True)], {"nct": ["NCT03444870"], "etiqueta_mayusculas": True}),
     ("graduate_2", "GRADUATE II", [_A(alias="GRADUATE 2", mayusculas=True), _A(alias="GRADUATE-II", mayusculas=True)], {"nct": ["NCT03443973"], "etiqueta_mayusculas": True}),
     # evoke y evoke+ (semaglutida, NCT04777396 y NCT04777409) no entran: "evoke" es una
-    # palabra inglesa corriente y su NCT ya resuelve solo como "ensayo:NCT...".
+    # palabra inglesa corriente y su NCT ya resuelve solo como "ensayo:NCT...". Están en
+    # AMBIGUOS con ese motivo, igual que FLENI (el centro de la médica usuaria, que
+    # aparece en la afiliación de sus artículos y tiene varias cohortes).
     ("invoke_2", "INVOKE-2", ["INVOKE2"], {"nct": ["NCT04592874"]}),
     ("insight46", "Insight 46", ["Insight46", "MRC National Survey of Health and Development", "NSHD", "1946 British birth cohort"], {}),
     ("emif_ad", "EMIF-AD", ["European Medical Information Framework for Alzheimer's Disease", "EMIF-AD MBD"], {}),
@@ -240,6 +242,9 @@ AMBIGUOS: dict[str, str] = {
     "OCT": "abreviatura de octubre; solo cuenta 'optical coherence tomography'",
     "DTI": "también interacción fármaco-diana; solo cuenta 'diffusion tensor'",
     "PRS": "varias siglas; solo cuenta 'polygenic risk'",
+    "evoke": "verbo inglés corriente ('these findings evoke'); los ensayos evoke (NCT04777396) y evoke+ (NCT04777409) de semaglutida se reconocen por su NCT, no por el nombre",
+    "evoke+": "ensayo de semaglutida (NCT04777409); se reconoce por su NCT, porque 'evoke' a solas es un verbo y los dos ensayos comparten la palabra",
+    "FLENI": "es el centro de Buenos Aires de la médica usuaria: aparece en la afiliación de sus artículos y tiene varias cohortes (esporádico, familiar, imagen); cuenta el nombre de la cohorte, no el del centro",
 }
 
 _NCT = re.compile(r"\bNCT\d{8}\b", re.I)
@@ -342,7 +347,10 @@ for _e in COHORTES:
 _NCT_CONOCIDOS: dict[str, dict[str, Any]] = {n: e for e in COHORTES for n in e.get("nct", [])}
 
 # Réplica de la regla de tokens de certeza.py, para nombres que no están en el catálogo.
-_GENERICOS_COHORTE = {"cohorte", "cohort", "study", "estudio", "longitudinal", "portadores", "familias", "alzheimer", "disease", "enfermedad", "mutaciones", "carriers", "participantes", "pacientes", "et", "al", "the", "of", "de", "del", "la", "los", "las", "con", "and", "familial", "autosomal", "dominant", "autosómico", "dominante"}
+# "ensayo" y "trial" entraron el 17 de septiembre de 2026 (M-03): "Ensayo Omega" y
+# "Ensayo Omega 2" compartían la palabra "ensayo" y se fundían aunque difieren en el
+# sufijo numérico; la palabra que distingue es el nombre del ensayo, no "ensayo".
+_GENERICOS_COHORTE = {"cohorte", "cohort", "study", "estudio", "longitudinal", "portadores", "familias", "alzheimer", "disease", "enfermedad", "mutaciones", "carriers", "participantes", "pacientes", "et", "al", "the", "of", "de", "del", "la", "los", "las", "con", "and", "familial", "autosomal", "dominant", "autosómico", "dominante", "ensayo", "ensayos", "trial", "trials"}
 
 
 def por_id(id_: str) -> dict[str, Any] | None:
@@ -459,6 +467,61 @@ def canonizar_cohorte(texto: str | None) -> dict[str, Any] | None:
         h = hallados[0]
         return {**_resumen(h), "texto": t, "motivo": f"'{t}' contiene '{h['texto']}'"}
     return None
+
+
+_PALABRAS_SUELTAS_AL_CORTAR = {"de", "del", "y", "e", "o", "u", "en", "la", "el", "los", "las", "con", "para", "por", "a", "and", "of", "the", "in", "with", "for", "or"}
+
+
+def recortar_nombre_cohorte(texto: Any, maximo: int = 60) -> str:
+    """El nombre de cohorte que escribe el extractor, recortado a `maximo`
+    caracteres sin romper ni perder ningún registro NCT ni ningún nombre del
+    catálogo (M-03, 17 de septiembre de 2026): antes el corte a 60 dejaba
+    "TRAILBLAZER-ALZ (NCT03367403) y TRAILBLAZER-ALZ 2 (NCT044375", con el
+    segundo NCT roto y el nombre libre fundido con otro ensayo. Si el texto
+    cabe, se devuelve tal cual (con espacios normalizados). Si no, se corta
+    en el último espacio hasta `maximo` (o en `maximo` si no hay espacio en
+    la segunda mitad), nunca por dentro de un identificador, se quitan
+    las palabras sueltas que quedan colgando al final ("de", "y", "en") y
+    los identificadores que el corte dejaría fuera (los NCT y los tramos que
+    nombran una cohorte del catálogo, como el "(ADNI, A4)" al final de una
+    descripción larga del estado de muestra) se añaden en un paréntesis
+    final, en el orden en que aparecían y sin repetir. El resultado puede
+    pasar de `maximo` solo por ese paréntesis, porque es la parte del nombre
+    que identifica la cohorte (`canonizar_cohorte` lee primero el NCT y
+    después el catálogo). Lo que no es texto vale como vacío."""
+    t = re.sub(r"\s+", " ", _texto(texto)).strip()
+    if maximo <= 0 or not t:
+        return ""
+    if len(t) <= maximo:
+        return t
+    # (inicio, fin, texto) de cada identificador: el NCT en mayúsculas y el tramo
+    # del texto que nombra una cohorte del catálogo (laxo: el campo ya es un nombre).
+    hallados: list[tuple[int, int, str]] = [(m.start(), m.end(), m.group(0).upper()) for m in _NCT.finditer(t)]
+    ocupados = [(ini, fin) for ini, fin, _x in hallados]
+    for ini, fin, _id, coincidencia in _tramos(t, "cohorte", True):
+        if not any(ini < f and fin > i for i, f in ocupados):
+            hallados.append((ini, fin, coincidencia))
+            ocupados.append((ini, fin))
+    hallados.sort()
+    k = maximo
+    if " " in t[maximo // 2 : maximo + 1]:
+        k = t.rfind(" ", 0, maximo + 1)  # una palabra que termina justo en `maximo` cabe entera
+    # Nunca cortar por dentro de un identificador: el corte retrocede a su inicio.
+    for ini, fin, _x in hallados:
+        if ini < k < fin:
+            k = min(k, ini)
+    perdidos: list[str] = []
+    for _ini, fin, x in hallados:
+        if fin > k and x.upper() not in {y.upper() for y in perdidos}:
+            perdidos.append(x)
+    corte = t[:k].strip(" ,;:(-")
+    palabras = corte.split(" ")
+    while palabras and palabras[-1].lower() in _PALABRAS_SUELTAS_AL_CORTAR:
+        palabras.pop()
+    corte = " ".join(palabras).strip(" ,;:(-")
+    if not perdidos:
+        return corte
+    return f"{corte} ({', '.join(perdidos)})" if corte else ", ".join(perdidos)
 
 
 def cohortes_en_texto(texto: str | None) -> list[dict[str, Any]]:

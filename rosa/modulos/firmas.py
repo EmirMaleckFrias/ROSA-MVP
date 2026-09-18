@@ -220,9 +220,12 @@ class ProponerPlan(dspy.Signature):
 class GenerarConsultas(dspy.Signature):
     """Escribir consultas de búsqueda bibliográfica precisas para las preguntas abiertas y
     para discriminar entre las hipótesis vivas (la evidencia que subiría o bajaría su
-    certeza, incluida la que las contradiria). Entre 2 y 5 consultas, cada una a una base
+    certeza, incluida la que las contradiría). Entre 2 y 5 consultas, cada una a una base
     (PubMed con sintaxis de PubMed, Europe PMC o preprints), con operadores booleanos y
-    sinonimos; ninguna repite consultas ya hechas. Si `bases_disponibles` incluye exa, al
+    sinónimos; ninguna repite consultas ya hechas. Cada consulta booleana lleva como máximo
+    tres cláusulas unidas por AND, la más importante primero: con cuatro o cinco cláusulas
+    las bases devuelven dos o tres resultados y ninguno relevante; la precisión se gana con
+    sinónimos dentro de cada cláusula (OR), no con más cláusulas. Si `bases_disponibles` incluye exa, al
     menos una consulta va a exa escrita como pregunta en lenguaje natural (recupera por
     significado el trabajo que no comparte vocabulario con la hipótesis), y gris se usa
     cuando la pregunta toca regulación, ensayos registrados o guías (FDA, EMA, OMS,
@@ -608,10 +611,10 @@ class FactorCerteza(BaseModel):
 
 class ConclusionHipotesis(BaseModel):
     hipotesis_breve: str = Field(description="La hipótesis como oración con verbo, en una línea y sin punto final, para completar 'la evidencia sostiene que ...' (por ejemplo 'GFAP se altera antes que NfL en portadores de APOE e4 con amiloide positivo')")
-    certeza: Literal["alta", "moderada", "baja", "muy_baja"] = Field(description="Certeza de la evidencia (GRADE), con la misma escala que la regla de ROSA2018 (rosa/certeza.py), que después acota el nivel y solo puede bajarlo: muy_baja solo si no hay ningún apoyo sostenido, o si toda la literatura viene de una sola cohorte sin réplica ni datos propios, o si lo que contradice pesa tanto como lo que apoya; baja cuando hay literatura de dos o más cohortes distintas sin evidencia directa (es el punto de partida de la literatura observacional; cada factor grave, riesgo de sesgo, inconsistencia, evidencia indirecta o imprecisión, puede bajarla); moderada cuando hay evidencia directa (un resultado de laboratorio contra el prerregistro o un análisis in silico sobre datos reales de una cohorte); alta solo con réplica directa (evidencia directa en dos o más cohortes distintas). 'Evidencia indirecta' es la de otra población, otro marcador u otro desenlace que los de la hipótesis: baja un nivel, no manda a muy_baja por sí sola. Nunca por encima de `techo_por_regla`")
+    certeza: Literal["alta", "moderada", "baja", "muy_baja"] = Field(description="Certeza de la evidencia según GRADE, en la misma escala de cuatro niveles que la regla de ROSA2018 (rosa/certeza.py). La regla fija un techo con lo contado y lo pasa en `techo_por_regla`: muy_baja si no queda ningún apoyo sostenido, si lo que contradice pesa tanto como lo que apoya, o si toda la literatura viene de una sola cohorte (o de fuentes sin cohorte identificada) sin evidencia directa; baja como mucho cuando solo hay literatura pero de dos o más cohortes distintas (o de una sola con un efecto grande documentado) y los apoyos pesan al menos 1,0 (dos revisiones narrativas o dos frases de introducción no llegan); moderada como mucho cuando hay evidencia directa (un resultado de laboratorio contra el prerregistro o un análisis in silico sobre datos reales, nunca sintéticos); alta solo con réplica directa (evidencia directa replicada en dos o más cohortes distintas). El juez elige el nivel dentro de esa caja: se queda en el techo, o baja un nivel por cada factor GRADE grave que nombre en `factores` (riesgo de sesgo, inconsistencia, evidencia indirecta, imprecisión, sesgo de publicación); nunca por encima del techo. La evidencia indirecta (el mismo patrón en otra población, otro marcador u otro desenlace) baja un nivel, no manda a muy_baja por sí sola: con apoyos indirectos de dos cohortes el techo sigue en baja. Que no haya evidencia directa (laboratorio o datos) no es un factor aparte: ya está en el techo")
     direccion: Literal["apoya", "mixta", "en_contra", "sin_evidencia_directa"] = Field(description="Hacia dónde apuntan las afirmaciones reunidas respecto a la hipótesis, solo las afirmaciones: 'mixta' y 'en_contra' exigen al menos una afirmación sostenida marcada «EN CONTRA»; un supuesto contradicho, una ausencia de evidencia o una duda del propio juez no fijan la dirección (van a factores o a lo_mas_fragil). 'sin_evidencia_directa' solo si no hay ninguna afirmación a favor o todas son de apoyo indirecto. ROSA2018 la corrige por regla si no cumple esto. Es independiente de la certeza: no mezclar las dos en una frase")
     conclusion: str = Field(description="Tres o cuatro frases en lenguaje corriente. El verbo principal sigue la certeza: alta 'la evidencia indica que'; moderada 'probablemente'; baja 'puede que'; muy baja 'no está claro si'. Sin porcentajes ni probabilidades inventadas; las cifras que se den van con su denominador (por ejemplo 'una sola cohorte de 195 personas')")
-    factores: list[FactorCerteza] = Field(description="Por que este grado: cada factor que lo bajo o lo subio, con su evidencia")
+    factores: list[FactorCerteza] = Field(description="Por qué este grado: cada factor que lo bajó o lo subió, con su evidencia. Un factor con efecto 'baja' dice qué afirmación o fuente lo motiva, porque la escalera de ROSA2018 lo enseña como lo que falta para subir; 'evidencia_indirecta' se usa cuando los apoyos son de otra población, marcador o desenlace, no cuando falta un experimento (eso ya lo dice el techo)")
     a_favor: list[str] = Field(description="Lo que la apoya, una frase por punto, citando la afirmación o fuente")
     en_contra: list[str] = Field(description="Lo que la debilita o contradice, una frase por punto; vacío si nada")
     lo_mas_fragil: str = Field(description="El supuesto o dato del que más depende y menos respaldo tiene")
@@ -640,7 +643,7 @@ class ConcluirHipotesis(dspy.Signature):
 
     hipotesis: str = dspy.InputField()
     afirmaciones: str = dspy.InputField(desc="Con veredicto, tipo y cita")
-    techo_por_regla: str = dspy.InputField(desc="El nivel máximo de certeza que da la regla determinista (rosa/certeza.py) y su motivo, por ejemplo 'baja: solo literatura, pero de dos cohortes distintas'. La certeza no puede quedar por encima; si el juez baja, dice por qué factor")
+    techo_por_regla: str = dspy.InputField(desc="El nivel máximo de certeza que da la regla determinista (rosa/certeza.py) y su motivo, con las cohortes distintas que contó, las fuentes sin cohorte, las frases de introducción que no aportan cohorte y si todos los apoyos son indirectos; por ejemplo 'baja: solo literatura, pero de dos cohortes distintas'. La certeza no puede quedar por encima; si el juez baja, dice por qué factor")
     supuestos: str = dspy.InputField(desc="Con su estado: respaldado, plausible, sin evidencia, contradicho")
     partidos: str = dspy.InputField(desc="Resultado y eje decisivo de cada comparación en el torneo")
     novedad: str = dspy.InputField()
@@ -790,7 +793,7 @@ class FormularPregunta(dspy.Signature):
 
     meta_amplia: str = dspy.InputField()
     mision: str = dspy.InputField()
-    area: str = dspy.InputField(desc="El área elegida, con su comparación; o el objetivo tal como lo escribio la persona")
+    area: str = dspy.InputField(desc="El área elegida, con su comparación; o el objetivo tal como lo escribió la persona")
     modelo_de_mundo: str = dspy.InputField()
     pregunta: PreguntaPropuesta = dspy.OutputField()
 
@@ -1085,7 +1088,7 @@ class AuditarAnalisis(dspy.Signature):
     razonables, que la interpretación no sobrepasa las cifras, que unidades y escala
     son plausibles, que el código hace lo que dice el plan (mismas variables y prueba),
     que hay baseline y control negativo y el control salió limpio, que el n por grupo
-    basta, que la multiplicidad se corrigio como se dijo, y que no hay fuga (ajuste
+    basta, que la multiplicidad se corrigió como se dijo, y que no hay fuga (ajuste
     fuera del pliegue, la dependiente usada para transformar). Las comprobaciones
     deterministas de ROSA2018 vienen dadas y se toman como hechos. El auditor no puede
     cambiar el plan ni el código: solo dice valido, no valido, o no evaluable

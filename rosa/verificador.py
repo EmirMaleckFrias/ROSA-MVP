@@ -29,8 +29,36 @@ extraer de un localizador que aquí no resolvería.
 Literalidad (`pasaje_en_texto`). El texto de un PDF trae ligaduras, guiones
 de fin de línea, comillas tipográficas y, en los preprints, números de línea
 intercalados; el extractor copia la frase limpia. Los dos lados pasan por la
-misma `normalizar_texto` antes de compararse, y el pasaje tiene que estar
-entero: ni una cola ni una cabeza inventadas pasan.
+misma `normalizar_texto_pdf` antes de compararse, y el pasaje tiene que estar
+entero: ni una cola ni una cabeza inventadas pasan, ni una costura de dos
+frases reales de la misma página.
+
+Regla de los dos lados (18 de septiembre de 2026, S-05). Lo que no lleva
+información (ligaduras, guiones de corte, comillas tipográficas, etiquetas
+HTML, caracteres invisibles) se normaliza igual en el pasaje y en la fuente.
+Lo que sí puede llevar información (una línea que es solo un número, una
+marca de cita "(4, 5)", un superíndice) se quita solo en variantes del texto
+de la FUENTE, nunca del pasaje: el pasaje se compara tal como lo escribió el
+extractor y vale si casa con alguna variante. Así "169 (94)" no casa con
+"169 (95)", ni "10³" con "10²", y a la vez la frase limpia copiada de un
+preprint casa con la página que trae los números de línea.
+
+Límite conocido de la regla: dentro de un tramo (el pasaje entero, o cada
+trozo entre elisiones) el extractor tiene que ser coherente, todas las marcas
+de cita o ninguna, todos los números de línea o ninguno. Si quitó una marca y
+copió otra ("(AAO) allows prediction (6) in" frente a "(AAO)(4, 5) allows
+prediction (6) in"), ninguna variante de la fuente contiene el tramo y se
+bloquea. Medido sobre las 2.825 comparaciones reales de la copia de la base:
+cero casos. Entre tramos distintos no hace falta esa coherencia: cada uno
+casa con su variante y el orden se mide en la fuente completa.
+
+Lo que sigue a una elisión de la fuente ("phosphorylated tau\n...\n181") es
+un dato salvo que el texto entero demuestre que es numeración de líneas (una
+cadena ascendente en al menos tres elisiones y en la mitad de ellas, como en
+un resumen recortado de un preprint): ver `_quitar_numeros_de_linea_tras_elisiones`.
+Y un tramo del pasaje que es solo una cifra ("999 ... 3.0 (1.6)") no se
+comprueba suelto ni se descarta: bloquea con su motivo, porque compacta
+casaría dentro de cualquier número más largo.
 """
 
 from __future__ import annotations
@@ -89,6 +117,16 @@ def normalizar(s: str | None) -> str:
 
 # Artefactos del texto que sale de un PDF (PyMuPDF) o de una página web.
 _LINEA_SOLO_NUMERO = re.compile(r"(?m)^[ \t]*\d{1,4}[ \t]*$\n?")  # números de línea de preprints (medRxiv, bioRxiv)
+# "were\n...\n311 significantly": el número de línea de un preprint que un resumen
+# recortado deja tras la elisión. Solo tres puntos exactos, que es la elisión que
+# escribe el recorte; los puntos de guía de un índice ("Executive Summary ...... 8")
+# son otra cosa y su número de página se queda en todas las variantes.
+_ELISION_EXACTA = re.compile(r"(?<!\.)\.{3}(?!\.)")
+_NUMERO_TRAS_ELISION = re.compile(r"(?<!\.)\.{3}(?!\.)\s*(?P<numero>\d{1,4})(?=\s)")
+# La palabra que espera una cifra detrás: "phosphorylated tau ... 181" es p-tau181, no la línea 181.
+_IDENTIFICADOR_CON_CIFRA = re.compile(r"(?<![^\W\d_])(?:p-?tau|tau|a(?:β|beta)|apoe)\s*$", re.IGNORECASE)
+MINIMO_NUMEROS_DE_LINEA_TRAS_ELISION = 3  # menos que eso no es una cadena, es una cifra o dos
+UMBRAL_ELISIONES_NUMERADAS = 0.5  # en un preprint recortado casi todas las elisiones traen número; en un resumen normal, una
 _GUION_FIN_DE_LINEA = re.compile(r"(?<=\w)-[ \t]*\n[ \t]*(?=\w)")  # "imag-\ning" -> "imaging"
 _MARCA_DE_CITA = re.compile(r"\s*[\(\[]\d{1,3}(?:\s*[,\-–]\s*\d{1,3})*[\)\]]")  # "(4, 5)", "[12]", "(6-17)"
 _SUPERINDICES = re.compile(r"[\u00b9\u00b2\u00b3\u2070-\u2079]+")  # marcas de cita en superíndice
@@ -98,15 +136,51 @@ _ELISION = re.compile(r"\[\s*(?:\.{3}|\u2026)\s*\]|\(\s*(?:\.{3}|\u2026)\s*\)|\.
 _COMILLAS = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'", "\u00b4": "'", "`": "'", "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u00ab": '"', "\u00bb": '"', "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-", "\u2212": "-"})
 
 
-def normalizar_texto(s: str, quitar_numeros_de_linea: bool = True) -> str:
-    """La normalización compartida entre el fragmento que copia el extractor y
-    el texto de la fuente (página de PDF, sección, texto web). Se aplica a los
-    dos lados, siempre la misma, para que comparar sea comparar iguales:
+def _quitar_numeros_de_linea_tras_elisiones(s: str) -> str:
+    """Quita el número que sigue a una elisión SOLO cuando el texto entero dice
+    que es numeración de líneas: al menos tres números tras elisiones exactas,
+    que suben de principio a fin como suben las líneas de un preprint (Jeremic:
+    35, 36, 37, ..., 310, 311, 314) y en al menos la mitad de las elisiones del
+    texto. Un número suelto tras una elisión ("phosphorylated tau ... 181",
+    "further evaluation ... 76 weeks", "phase ... 2 study") es un dato y se
+    queda en todas las variantes. Dentro de una cadena, un número que rompe el
+    orden ascendente se queda (es un dato entre líneas), y también el que
+    sigue a un identificador que espera cifra (tau, p-tau, Aβ, APOE). Con la
+    cadena rota por una cifra grande al principio no se quita nada: el lado
+    conservador es bloquear con motivo visible, no aprobar."""
+    coincidencias = list(_NUMERO_TRAS_ELISION.finditer(s))
+    if len(coincidencias) < MINIMO_NUMEROS_DE_LINEA_TRAS_ELISION:
+        return s
+    cadena: list[re.Match[str]] = []
+    for m in coincidencias:
+        if not cadena or int(m.group("numero")) > int(cadena[-1].group("numero")):
+            cadena.append(m)
+    if len(cadena) < MINIMO_NUMEROS_DE_LINEA_TRAS_ELISION or len(cadena) < UMBRAL_ELISIONES_NUMERADAS * len(_ELISION_EXACTA.findall(s)):
+        return s
+    trozos: list[str] = []
+    fin = 0
+    for m in cadena:
+        if _IDENTIFICADOR_CON_CIFRA.search(s[max(0, m.start() - 24):m.start()]):
+            continue
+        trozos.append(s[fin:m.start("numero")])
+        fin = m.end("numero")
+    trozos.append(s[fin:])
+    return "".join(trozos)
+
+
+def normalizar_texto_pdf(s: str, quitar_numeros_de_linea: bool = True, quitar_marcas: bool = True) -> str:
+    """La normalización única del texto que sale de un PDF (PyMuPDF), de una
+    sección XML o de una página web, compartida por el pasaje que copia el
+    extractor y por el texto de la fuente. Es una sola función para que
+    comparar sea comparar iguales; `pdf.py` y `pasos.py` no tienen la suya:
 
     1. NFKC: ligaduras (ﬁ, ﬂ, ﬀ) a letras sueltas, espacios duros a espacio.
     2. Fuera los guiones suaves y los caracteres de ancho cero.
     3. Fuera las líneas que son solo un número de 1 a 4 cifras (numeración de
-       líneas de los preprints, la causa de dos tercios de los bloqueos).
+       líneas de los preprints, la causa de dos tercios de los bloqueos) y,
+       solo si forman cadena, los números de línea que un resumen recortado
+       deja tras las elisiones ("were ... 311 significantly"); una cifra
+       suelta tras una elisión es un dato y se queda.
     4. Fuera las marcas de cita numéricas "(4, 5)", "[12]" y los superíndices.
     5. Fuera las etiquetas HTML de los resúmenes ("p-tau<sub>181</sub>").
     6. Guion de fin de línea unido: "pre-\nsymptomatic" -> "presymptomatic".
@@ -114,27 +188,65 @@ def normalizar_texto(s: str, quitar_numeros_de_linea: bool = True) -> str:
     8. Lo de `normalizar`: sin tildes, espacios colapsados, minúsculas.
     Devuelve texto legible (con espacios); `_compacto` lo aplana para comparar.
 
-    `quitar_numeros_de_linea=False` conserva las líneas que son solo un
-    número: una tabla de un PDF también pone cada cifra en su línea y el
-    pasaje que las copia ("Placebo 42 Lecanemab 180") tiene que poder
-    compararse contra el texto con sus cifras. `_cuerpos` prepara las dos
-    variantes de la fuente y el pasaje vale si está en cualquiera de ellas."""
+    Los pasos 3 y 4 quitan cosas que a veces llevan información (una fila de
+    tabla con una cifra por línea, un "(94)" que es un porcentaje y no una
+    cita), por eso son interruptores: el pasaje se normaliza SIN quitarlas
+    (`_palabras`) y la fuente se prepara en todas las variantes (`_cuerpos`).
+    Con los dos interruptores a True sale la forma más limpia, que es la que
+    dice si un pasaje tiene algo comprobable (`_comprobable`)."""
     if not s:
         return ""
-    s = _SUPERINDICES.sub("", str(s))  # antes de NFKC, que los convertiría en cifras normales
+    s = str(s)
+    if quitar_marcas:
+        s = _SUPERINDICES.sub("", s)  # antes de NFKC, que los convertiría en cifras normales
     s = unicodedata.normalize("NFKC", s)
     s = _INVISIBLES.sub("", s)
     if quitar_numeros_de_linea:
         s = _LINEA_SOLO_NUMERO.sub("", s)
-    s = _MARCA_DE_CITA.sub("", s)
+        s = _quitar_numeros_de_linea_tras_elisiones(s)
+    if quitar_marcas:
+        s = _MARCA_DE_CITA.sub("", s)
     s = _ETIQUETA_HTML.sub("", s)
     s = _GUION_FIN_DE_LINEA.sub("", s)
     s = s.translate(_COMILLAS)
     return normalizar(s)
 
 
+# El nombre con el que la tanda 1 la llamó; misma función, misma firma.
+normalizar_texto = normalizar_texto_pdf
+
+
 def _palabras(s: str) -> list[str]:
-    return normalizar_texto(s).split()
+    """Las palabras del PASAJE: normalizado sin quitarle nada que pueda ser
+    información (sus cifras sueltas, sus paréntesis con números, sus
+    superíndices). La fuente es la que se abre en variantes."""
+    return normalizar_texto_pdf(s, quitar_numeros_de_linea=False, quitar_marcas=False).split()
+
+
+def _es_solo_marca_de_cita(s: str) -> bool:
+    """True si el tramo se queda en nada al quitarle solo las marcas de cita y
+    los superíndices ("(4)", "[12]", "²³"): una marca que el extractor dejó
+    junto a la elisión, no un tramo que comprobar. Una cifra suelta ("999")
+    NO es una marca: es un dato que el extractor dice haber copiado."""
+    return not _compacto(normalizar_texto_pdf(s, quitar_numeros_de_linea=False, quitar_marcas=True).split())
+
+
+def _es_solo_cifra(s: str) -> bool:
+    """True si el tramo tiene algo pero es solo una cifra de una a cuatro
+    posiciones ("999", "2024"): sobrevive a quitar las marcas y se vacía al
+    quitar las líneas de solo número. Compacta contra la fuente casaría dentro
+    de cualquier número más largo ("161" dentro de "1610"), así que no se
+    comprueba suelta: bloquea con su motivo."""
+    return not _es_solo_marca_de_cita(s) and not _comprobable(s)
+
+
+def _comprobable(s: str) -> bool:
+    """False si el pasaje, en su forma más limpia y compacta, se queda en
+    nada: "42", "(4, 5)", "[12]", "²³", "<sub></sub>" o " ... " no son pasajes
+    que se puedan comprobar y no se dan por literales. Se mira compacto porque
+    la cadena vacía está "dentro" de cualquier texto: un pasaje de solo
+    puntuación pasaría como literal."""
+    return bool(_compacto(normalizar_texto_pdf(s).split()))
 
 
 # Marca de cita pegada a la palabra o al signo anterior, como la deja un PDF
@@ -161,20 +273,30 @@ _COLA_TRAS_IDENTIFICADOR = re.compile(r"([^\W\d_]\d{1,3})(?:\s*,\s*\d{1,3})+(?=[
 
 @functools.lru_cache(maxsize=512)
 def _cuerpos(texto: str) -> tuple[str, ...]:
-    """El texto de la fuente compacto, en sus variantes: sin las líneas que son
-    solo un número (preprints con numeración de líneas), con ellas (tablas con
-    una cifra por línea) y sin las marcas de cita pegadas a las palabras. Las
-    variantes iguales se funden. Con caché: la misma página se compara contra
-    decenas de afirmaciones."""
-    legible = normalizar_texto(texto)
-    sin = _compacto(legible.split())
-    con = _compacto(normalizar_texto(texto, quitar_numeros_de_linea=False).split())
-    sin_marcas = _compacto(_MARCA_PEGADA.sub("", legible).split())
-    sin_marcas_conservando_identificadores = _compacto(_COLA_TRAS_IDENTIFICADOR.sub(r"\1", _MARCA_TRAS_SIGNO.sub("", legible)).split())
-    salida = [sin]
-    for v in (con, sin_marcas, sin_marcas_conservando_identificadores):
-        if v not in salida:
-            salida.append(v)
+    """El texto de la FUENTE compacto, en sus variantes: con y sin las líneas
+    que son solo un número (preprints numerados frente a tablas con una cifra
+    por línea), con y sin las marcas de cita entre paréntesis o en
+    superíndice (el extractor unas veces las copia y otras las quita), y cada
+    una de esas además sin las marcas de cita pegadas a las palabras. Doce
+    como mucho; las iguales se funden. El pasaje vale si está entero en
+    alguna. Con caché: la misma página se compara contra decenas de
+    afirmaciones."""
+    legibles: list[str] = []
+    for quitar_numeros in (True, False):
+        for quitar_marcas in (True, False):
+            legible = normalizar_texto_pdf(texto, quitar_numeros_de_linea=quitar_numeros, quitar_marcas=quitar_marcas)
+            if legible not in legibles:
+                legibles.append(legible)  # una página sin números de línea ni marcas da una sola
+    salida: list[str] = []
+    for legible in legibles:
+        for v in (
+            legible,
+            _MARCA_PEGADA.sub("", legible),
+            _COLA_TRAS_IDENTIFICADOR.sub(r"\1", _MARCA_TRAS_SIGNO.sub("", legible)),
+        ):
+            c = _compacto(v.split())
+            if c not in salida:
+                salida.append(c)
     return tuple(salida)
 
 
@@ -218,14 +340,16 @@ def _ventanas(p: list[str]) -> list[list[str]]:
 
 def pasaje_en_texto(pasaje: str, texto: str) -> bool:
     """El pasaje citado tiene que estar entero en la fuente. Los dos lados
-    pasan por `normalizar_texto` y se comparan compactos (sin espacios ni
-    puntuación). Con 10 palabras o menos, el pasaje entero tiene que estar.
-    Con más, se mira por ventanas de 10 palabras con paso 5: la primera y la
-    última ventana tienen que estar siempre (así no pasa un comienzo real con
-    una cola inventada, ni una cabeza inventada con un final real), y solo en
-    pasajes de más de 20 palabras (cuatro ventanas o más) se tolera que falte
-    una ventana interior: una errata del extractor no tumba una cita larga,
-    pero una palabra cambiada rompe dos ventanas y sí la tumba."""
+    pasan por `normalizar_texto_pdf` y se comparan compactos (sin espacios ni
+    puntuación). Primer intento: el pasaje entero, de una pieza, en alguna
+    variante de la fuente (es la comparación literal de siempre y nunca
+    regresa). Si no, por ventanas de 10 palabras con paso 5, y TODAS tienen
+    que estar: la primera (así no pasa una cabeza inventada), la última (ni
+    una cola inventada) y las interiores. Antes se toleraba que faltara una
+    interior "por si era una errata", pero una palabra cambiada rompe dos
+    ventanas (la tolerancia no la salvaba) y lo único que dejaba pasar era una
+    costura de dos frases reales de la misma página cuya primera mitad tenía
+    10, 15 o 20 palabras: justo lo que no debe pasar."""
     return pasaje_faltante(pasaje, texto) is None
 
 
@@ -239,38 +363,71 @@ def pasaje_faltante(pasaje: str, texto: str) -> str | None:
     corchetes, en cambio, no está en la fuente y sí tumba el pasaje."""
     tramos = [x for x in _ELISION.split(pasaje or "") if x and x.strip()]
     if len(tramos) > 1:
-        # Un tramo que se queda vacío al normalizar (una marca de cita "(4)"
-        # suelta junto a la elisión) no cuenta como tramo.
-        tramos = [x for x in tramos if _palabras(x)] or tramos[:1]
+        # Un tramo que es solo una marca de cita ("(4)" junto a la elisión) no
+        # cuenta como tramo. Uno que es solo una cifra ("999") sí cuenta, y como
+        # suelto no se puede comprobar, `_tramo_faltante` lo bloquea con motivo.
+        tramos = [x for x in tramos if not _es_solo_marca_de_cita(x)] or tramos[:1]
     if len(tramos) > 1:
-        cuerpos = _cuerpos(texto or "")
-        desde = [0] * len(cuerpos)
+        # Cada tramo tiene que estar (en alguna variante de la fuente) y venir
+        # detrás del anterior. El orden es una propiedad de la fuente, no de una
+        # variante: se mide en la coordenada de la fuente completa (la variante
+        # que conserva números y marcas), anclando cada tramo por el prefijo
+        # más largo que exista ahí. Antes se medía por variante y bastaba que
+        # cada tramo cayera detrás en ALGUNA: con el primer tramo sin su marca
+        # y el segundo con la suya, un pasaje al revés que la fuente pasaba
+        # (adversario, hallazgo 3).
+        completo = _cuerpo_completo(texto or "")
+        desde = 0
         for tramo in tramos:
             falta = _tramo_faltante(tramo, texto)
             if falta is not None:
                 return falta
-            aguja, cabeza = _compacto(_palabras(tramo)), _compacto(_palabras(tramo)[:VENTANA])
-            en_orden = False
-            for i, c in enumerate(cuerpos):
-                pos = c.find(aguja, desde[i])
-                if pos < 0:
-                    pos = c.find(cabeza, desde[i])
-                if pos >= 0:
-                    desde[i] = pos + 1
-                    en_orden = True
-            if not en_orden:
-                return " ".join(_palabras(tramo)[:VENTANA]) + " (fuera de orden respecto al tramo anterior)"
+            p = _palabras(tramo)
+            pos = _posicion_del_tramo(p, completo, desde)
+            if pos < 0:
+                return " ".join(p[:VENTANA]) + " (fuera de orden respecto al tramo anterior)"
+            desde = pos + 1
         return None
-    return _tramo_faltante(pasaje, texto)
+    # Un solo tramo comprobable: se compara ese, no el pasaje con la marca de
+    # cita que quedó al otro lado de la elisión ("(4) ... the discussion").
+    return _tramo_faltante(tramos[0] if tramos else pasaje, texto)
+
+
+@functools.lru_cache(maxsize=512)
+def _cuerpo_completo(texto: str) -> str:
+    """La fuente compacta sin quitarle nada (números de línea y marcas
+    dentro): la coordenada común en la que se mide el orden de los tramos."""
+    return _compacto(normalizar_texto_pdf(texto, quitar_numeros_de_linea=False, quitar_marcas=False).split())
+
+
+ANCLAS = (VENTANA, 5, 3, 2, 1)
+
+
+def _posicion_del_tramo(p: list[str], completo: str, desde: int) -> int:
+    """Dónde empieza el tramo en la fuente completa a partir de `desde`, o -1.
+    Se busca el tramo entero y, si la fuente completa lo parte con una marca o
+    un número de línea que el extractor no copió, prefijos cada vez más cortos
+    (10, 5, 3, 2 palabras y la primera), con la letra capital perdida admitida
+    como en `_agujas`. Solo sirve para el orden: que el tramo existe entero lo
+    dice `_tramo_faltante` contra todas las variantes."""
+    for n in (len(p),) + tuple(k for k in ANCLAS if k < len(p)):
+        for aguja in _agujas(p[:n]):
+            pos = completo.find(aguja, desde)
+            if pos >= 0:
+                return pos
+    return -1
 
 
 def _tramo_faltante(pasaje: str, texto: str) -> str | None:
     if not pasaje or not str(pasaje).strip():
         return None  # sin pasaje no hay nada que comprobar; quien llama decide qué hacer con eso
     p = _palabras(pasaje)
-    if not p:
-        # El pasaje tenía algo pero se quedó en nada al normalizar ("42", "(4, 5)", "<sub></sub>"):
-        # no es un pasaje que se pueda comprobar y no se da por literal.
+    if not p or not _comprobable(pasaje):
+        # El pasaje tenía algo pero se queda en nada en su forma más limpia ("42",
+        # "(4, 5)", "<sub></sub>"): no es un pasaje que se pueda comprobar y no
+        # se da por literal. Si lo que queda es una cifra suelta, se dice.
+        if p and _es_solo_cifra(pasaje):
+            return str(pasaje).strip()[:80] + " (el tramo es solo una cifra: suelta no es comprobable y no se da por literal)"
         return str(pasaje).strip()[:80] + " (el pasaje no tiene texto comprobable)"
     cuerpos = _cuerpos(texto or "")
     if _alguna(_agujas(p), cuerpos):
@@ -279,13 +436,9 @@ def _tramo_faltante(pasaje: str, texto: str) -> str | None:
         return " ".join(p)
     ventanas = _ventanas(p)
     # La letra capital perdida solo puede faltar al principio: la primera ventana
-    # admite las dos agujas, las demás solo la literal.
+    # admite las dos agujas, las demás solo la literal. Todas tienen que estar.
     faltan = [i for i, v in enumerate(ventanas) if not (_alguna(_agujas(v), cuerpos) if i == 0 else _esta(_compacto(v), cuerpos))]
     if not faltan:
-        return None
-    ultima = len(ventanas) - 1
-    interiores = [i for i in faltan if i not in (0, ultima)]
-    if 0 not in faltan and ultima not in faltan and len(ventanas) >= 4 and len(interiores) <= 1:
         return None
     return " ".join(ventanas[faltan[0]])
 
