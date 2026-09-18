@@ -629,3 +629,15 @@ tarde (commit de la tanda 1) y cambia el diagnóstico de varios pendientes:
   hechos del backend no llegó a correr porque el portátil perdió la red. Las
   afirmaciones sobre el backend (GRADE, Killer, ruta, sellos, coste) quedan sin
   verificación independiente.
+- **Comparar corridas antes y después de un cambio** (regla de Emir del 18 de
+  septiembre: los bloques se validan por resultado, con una corrida de
+  referencia y otra posterior sobre la misma investigación): `python -m
+  scripts.comparar_corridas --investigacion <id> --ultimas 3` lee rosa.db en
+  solo lectura y saca las mismas cifras por corrida (coste, embudo, consultas
+  de foco sin relevantes, fuentes nuevas y repetidas, afirmaciones por
+  veredicto y por localizador, hechos e hipótesis nuevas, peldaños,
+  conclusiones rehechas). Línea base de la tanda 1: corrida 12 de la
+  investigación grande, 25,7 % de afirmaciones resueltas, texto web 0/36,
+  25 de 59 fuentes repetidas, 8 consultas de foco sin relevante, 0 peldaños.
+  La corrida 13 (18 sep, 12:08, tope 4 h / 7 it) corre con la tanda 1 y es la
+  referencia para la tanda 2.
