@@ -1,8 +1,7 @@
 // La puerta de Rosa. A la izquierda, el árbol vivo cuenta qué hace Rosa
 // mientras se ilumina etapa a etapa; a la derecha, una tarjeta tranquila con
-// un solo campo: el correo corporativo. No hay contraseña: llega un enlace
-// personal de un solo uso (15 minutos). La lógica (estado de sesión, solicitar,
-// confirmar, salir, configuración de la instalación) es la de Codex; aquí se
+// dos campos: correo corporativo y contraseña. La lógica (estado de sesión,
+// entrada, salida y configuración de la instalación) es la de Codex; aquí se
 // rehízo la presentación (14 de septiembre de 2026, a petición de Emir: "está
 // súper feo y genérico").
 
@@ -70,15 +69,6 @@ function IconoSobre() {
   );
 }
 
-function IconoEscudo() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.1 7.5 9.5 4.3-1.4 7.5-4.9 7.5-9.5V6L12 3Z" />
-      <path d="m9 12 2 2 4-4.5" />
-    </svg>
-  );
-}
-
 function IconoFlecha() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -90,29 +80,14 @@ function IconoFlecha() {
 export function Acceso({ children }: { children: ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [correo, setCorreo] = useState('');
-  const [registro, setRegistro] = useState(false);
+  const [contrasena, setContrasena] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [ocupado, setOcupado] = useState(false);
-  const [enviadoA, setEnviadoA] = useState<string | null>(null);
-  // El tono del mensaje lo decide quien lo escribe, no una expresión sobre el texto.
-  const [tono, setTono] = useState<'ok' | 'error'>('error');
-  const [enlace, setEnlace] = useState(() => (window.location.hash.startsWith('#acceso=') ? window.location.hash.slice(8) : ''));
   const conectado = useRef(false);
   const reducido = useMovimientoReducido();
   useEffect(() => {
-    const recibir = () => {
-      if (window.location.hash.startsWith('#acceso=')) {
-        setEnlace(window.location.hash.slice(8));
-        // Un enlace nuevo abre la confirmación limpia: sin el mensaje del paso anterior.
-        setMensaje('');
-      }
-    };
-    window.addEventListener('hashchange', recibir);
-    return () => window.removeEventListener('hashchange', recibir);
-  }, []);
-  useEffect(() => {
-    // El token no queda en el historial de navegación ni en un referer.
-    if (enlace) window.history.replaceState(null, '', window.location.pathname);
+    // Los enlaces antiguos dejan de ser una vía de acceso y no quedan en URL.
+    if (window.location.hash.startsWith('#acceso=')) window.history.replaceState(null, '', window.location.pathname);
     let vivo = true;
     const cargar = async () => {
       try {
@@ -122,7 +97,7 @@ export function Acceso({ children }: { children: ReactNode }) {
           window.location.assign('/');
           return;
         }
-        if (s.correo && !conectado.current && !enlace) {
+        if (s.correo && !conectado.current) {
           await conectar(false);
           conectado.current = true;
         }
@@ -137,58 +112,24 @@ export function Acceso({ children }: { children: ReactNode }) {
       vivo = false;
       window.clearInterval(intervalo);
     };
-  }, [enlace]);
+  }, []);
 
-  async function solicitar() {
+  async function entrar() {
     setOcupado(true);
     setMensaje('');
     try {
-      const r = await api('solicitar', { correo });
-      setEnviadoA(correo);
-      setTono('ok');
-      setMensaje(r.mensaje);
-    } catch (e) {
-      setTono('error');
-      setMensaje(e instanceof Error ? e.message : 'No se pudo solicitar el acceso');
-    } finally {
-      setOcupado(false);
-    }
-  }
-  async function entrarSinVerificar() {
-    const campo = document.getElementById('acceso-correo') as HTMLInputElement | null;
-    if (campo && !campo.checkValidity()) {
-      campo.reportValidity();
-      return;
-    }
-    setOcupado(true);
-    setMensaje('');
-    try {
-      await api('entrar_sin_verificar', { correo });
+      await api('entrar', { correo, contrasena });
       window.location.assign('/');
     } catch (e) {
-      setTono('error');
-      setMensaje(e instanceof Error ? e.message : 'No se pudo entrar');
+      setMensaje(e instanceof Error ? e.message : 'No se pudo iniciar sesión');
     } finally {
       setOcupado(false);
     }
   }
-  async function confirmar() {
-    setOcupado(true);
-    setMensaje('');
-    try {
-      await api('confirmar', { enlace });
-      window.location.assign('/');
-    } catch (e) {
-      setTono('error');
-      setMensaje(e instanceof Error ? e.message : 'No se pudo confirmar el acceso');
-    } finally {
-      setOcupado(false);
-    }
-  }
-  if (sesion?.correo && !enlace) return <Cuenta.Provider value={sesion.correo}>{children}</Cuenta.Provider>;
+  if (sesion?.correo) return <Cuenta.Provider value={sesion.correo}>{children}</Cuenta.Provider>;
   // Una sesión todavía desconocida no equivale a haber cerrado sesión.
   // No montar el formulario ni datos privados mientras se valida el acceso.
-  if (!sesion && !enlace) return (
+  if (!sesion) return (
     <main className="contenido" aria-busy={!mensaje}>
       <p role="status">{mensaje || 'Cargando Rosa…'}</p>
       {mensaje && <button type="button" className="btn" onClick={() => window.location.reload()}>Reintentar</button>}
@@ -224,111 +165,55 @@ export function Acceso({ children }: { children: ReactNode }) {
             Rosa
           </div>
 
-          {enlace ? (
-            <motion.div key="confirmar" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
-              <div className="acceso-sello">
-                <IconoEscudo />
+          <motion.div key="formulario" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
+            <h2>Continúa tu investigación</h2>
+            <p>Inicia sesión con tu cuenta de Alzheimer Project.</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void entrar();
+              }}
+            >
+              <label htmlFor="acceso-correo">Correo de Alzheimer Project</label>
+              <div className={`acceso-campo ${correo && !correo.toLowerCase().endsWith(`@${DOMINIO}`) ? 'acceso-campo-fuera' : ''}`}>
+                <span className="acceso-campo-icono" aria-hidden="true">
+                  <IconoSobre />
+                </span>
+                <input
+                  id="acceso-correo"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  maxLength={200}
+                  pattern="[^@\s]+@[aA][lL][zZ][hH][eE][iI][mM][eE][rR][pP][rR][oO][jJ][eE][cC][tT]\.[cC][oO][mM]"
+                  title="Usa tu cuenta @alzheimerproject.com"
+                  placeholder={`tu.nombre@${DOMINIO}`}
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                />
               </div>
-              <h2>Confirma tu acceso</h2>
-              <p>El enlace es personal y solo puede utilizarse una vez. Continúa únicamente si tú lo solicitaste.</p>
-              <button className="btn acceso-continuar" disabled={ocupado} onClick={() => void confirmar()}>
-                {ocupado ? 'Confirmando…' : 'Confirmar e iniciar sesión'}
+              <label htmlFor="acceso-contrasena">Contraseña</label>
+              <input
+                id="acceso-contrasena"
+                type="password"
+                autoComplete="current-password"
+                required
+                minLength={1}
+                maxLength={256}
+                value={contrasena}
+                onChange={(e) => setContrasena(e.target.value)}
+              />
+              <button className="btn acceso-continuar" disabled={ocupado}>
+                {ocupado ? 'Iniciando sesión…' : 'Iniciar sesión'}
                 {!ocupado && <IconoFlecha />}
               </button>
-              <a className="acceso-enlace-secundario" href="/">
-                Solicitar otro enlace
-              </a>
-            </motion.div>
-          ) : enviadoA ? (
-            <motion.div key="enviado" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
-              <div className="acceso-sello acceso-sello-correo">
-                <IconoSobre />
-              </div>
-              <h2>Revisa tu correo</h2>
-              <p>
-                Hemos enviado un enlace personal a <strong className="acceso-correo-destino">{enviadoA}</strong>. Caduca en 15 minutos y solo sirve una vez.
-              </p>
-              <p className="acceso-pista">Si no llega, mira la carpeta de correo no deseado o pide otro enlace.</p>
-              <button
-                type="button"
-                className="btn acceso-secundario"
-                onClick={() => {
-                  setEnviadoA(null);
-                  setMensaje('');
-                }}
-              >
-                Usar otro correo
-              </button>
-            </motion.div>
-          ) : (
-            <motion.div key="formulario" initial={entrada} animate={{ opacity: 1, y: 0 }} transition={transicion}>
-              <div className="acceso-opciones" role="group" aria-label="Tipo de acceso">
-                {(['entrar', 'registro'] as const).map((op) => {
-                  const activa = op === 'registro' ? registro : !registro;
-                  return (
-                    <button
-                      key={op}
-                      type="button"
-                      aria-pressed={activa}
-                      onClick={() => {
-                        setRegistro(op === 'registro');
-                        setMensaje('');
-                      }}
-                    >
-                      {activa && <motion.span className="acceso-opcion-fondo" layoutId="acceso-opcion" transition={reducido ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 34 }} />}
-                      <span>{op === 'registro' ? 'Registrarse' : 'Iniciar sesión'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <h2>{registro ? 'Únete a tu equipo' : 'Continúa tu investigación'}</h2>
-              <p>{registro ? 'La cuenta se crea después de confirmar tu correo corporativo.' : 'Recibe un enlace personal para entrar. No necesitas contraseña.'}</p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void solicitar();
-                }}
-              >
-                <label htmlFor="acceso-correo">Correo de Alzheimer Project</label>
-                <div className={`acceso-campo ${correo && !correo.toLowerCase().endsWith(`@${DOMINIO}`) ? 'acceso-campo-fuera' : ''}`}>
-                  <span className="acceso-campo-icono" aria-hidden="true">
-                    <IconoSobre />
-                  </span>
-                  <input
-                    id="acceso-correo"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    maxLength={200}
-                    pattern="[^@\s]+@[aA][lL][zZ][hH][eE][iI][mM][eE][rR][pP][rR][oO][jJ][eE][cC][tT]\.[cC][oO][mM]"
-                    title="Usa tu cuenta @alzheimerproject.com"
-                    placeholder={`tu.nombre@${DOMINIO}`}
-                    value={correo}
-                    onChange={(e) => setCorreo(e.target.value)}
-                  />
-                </div>
-                <button className="btn acceso-continuar" disabled={ocupado || !sesion?.correoConfigurado}>
-                  {ocupado ? 'Solicitando enlace…' : 'Continuar con mi correo'}
-                  {!ocupado && <IconoFlecha />}
-                </button>
-              </form>
-              {sesion && !sesion.correoConfigurado && (
-                <div className="acceso-local">
-                  <p className="acceso-local-titulo">El correo de Rosa aún no está conectado</p>
-                  <p>Mientras tanto se entra sin verificación: escribe arriba tu cuenta corporativa y pulsa aquí. En cuanto se conecte el correo, esta puerta se cierra y se entra solo con el enlace.</p>
-                  <button type="button" className="btn acceso-secundario acceso-sin-verificar" disabled={ocupado} onClick={() => void entrarSinVerificar()}>
-                    {ocupado ? 'Entrando…' : 'Entrar sin verificación'}
-                  </button>
-                </div>
-              )}
-              {sesion === null && mensaje === '' && <p className="acceso-pista acceso-conectando">Conectando con Rosa…</p>}
-              <p className="acceso-privacidad">
-                Acceso exclusivo para <span className="acceso-dominio">@{DOMINIO}</span>. Los avisos de tus corridas llegarán a esta misma cuenta.
-              </p>
-            </motion.div>
-          )}
+            </form>
+            <p className="acceso-privacidad">
+              Acceso exclusivo para <span className="acceso-dominio">@{DOMINIO}</span>. Los avisos de tus corridas llegarán a esta misma cuenta.
+            </p>
+          </motion.div>
 
-          <p role="status" className={`acceso-mensaje ${mensaje ? (tono === 'error' ? 'acceso-mensaje-error' : 'acceso-mensaje-ok') : 'acceso-mensaje-vacio'}`}>
+          <p role="status" className={`acceso-mensaje ${mensaje ? 'acceso-mensaje-error' : 'acceso-mensaje-vacio'}`}>
             {mensaje}
           </p>
           {sesion?.avisoInstalacion && (
@@ -336,7 +221,6 @@ export function Acceso({ children }: { children: ReactNode }) {
               {sesion.avisoInstalacion}
             </p>
           )}
-          {sesion?.instalacionLocal && !enlace && <Instalacion onGuardar={async () => setSesion(await api('estado'))} />}
         </motion.div>
         <p className="acceso-pie">Rosa investiga; la persona decide.</p>
       </section>
@@ -344,7 +228,7 @@ export function Acceso({ children }: { children: ReactNode }) {
   );
 }
 
-function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
+export function Instalacion({ onGuardar }: { onGuardar: () => Promise<void> }) {
   const [proveedor, setProveedor] = useState<'smtp' | 'resend'>('smtp');
   const [remitente, setRemitente] = useState('');
   const [clave, setClave] = useState('');

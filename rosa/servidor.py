@@ -60,7 +60,7 @@ MAX_CUERPO_ACCION = 1_000_000
 MAX_CUERPO_PEQUENO = 4096
 MAX_CUERPO_PREGUNTA = 16_384
 HOSTS_LOCALES = ("127.0.0.1", "localhost", "::1")
-RUTAS_PUBLICAS = ('/api/acceso/estado', '/api/acceso/solicitar', '/api/acceso/confirmar', '/api/acceso/salir', '/api/acceso/configuracion', '/api/acceso/entrar_sin_verificar')
+RUTAS_PUBLICAS = ('/api/acceso/estado', '/api/acceso/entrar', '/api/acceso/salir', '/api/acceso/configuracion')
 
 
 async def leer_json_acotado(request: Request, maximo: int) -> Any:
@@ -255,6 +255,22 @@ def crear_app(almacen: Almacen) -> FastAPI:
             raise HTTPException(400, str(ex)) from None
         return {'ok': True, 'mensaje': 'Revisa tu correo para confirmar el acceso. El enlace caduca en 15 minutos.'}
 
+    @app.post('/api/acceso/entrar')
+    async def acceso_entrar(request: Request):
+        obj = await objeto_pequeno(request)
+        email = obj.get('correo')
+        contrasena = obj.get('contrasena')
+        if not isinstance(email, str) or not isinstance(contrasena, str):
+            raise HTTPException(400, 'Indica el correo y la contraseña')
+        try:
+            token, email = app.state.acceso.entrar_con_contrasena(email, contrasena, request.client.host if request.client else 'desconocida')
+        except ValueError as ex:
+            raise HTTPException(401, str(ex)) from None
+        respuesta = JSONResponse({'ok': True, 'correo': email})
+        seguro = urlsplit(app.state.correo._config()['url']).scheme == 'https'
+        respuesta.set_cookie(COOKIE, token, max_age=DURACION, httponly=True, secure=seguro, samesite='strict', path='/')
+        return respuesta
+
     @app.post('/api/acceso/confirmar')
     async def acceso_confirmar(request: Request):
         obj = await objeto_pequeno(request)
@@ -274,20 +290,7 @@ def crear_app(almacen: Almacen) -> FastAPI:
         # al configurar el correo (lo comprueba Acceso.entrar_sin_verificar).
         # Es acceso abierto al dominio: solo se ofrece en el propio equipo
         # (HOST local) o detrás de la llave de red ROSA_TOKEN (S-21).
-        if config.HOST not in HOSTS_LOCALES and not config.ROSA_TOKEN:
-            raise HTTPException(403, 'La entrada sin verificar solo está abierta en el propio equipo de Rosa o con ROSA_TOKEN configurado')
-        obj = await objeto_pequeno(request)
-        email = obj.get('correo')
-        if not isinstance(email, str):
-            raise HTTPException(400, 'Falta el correo corporativo')
-        try:
-            token, email = app.state.acceso.entrar_sin_verificar(email, request.client.host if request.client else 'desconocida')
-        except ValueError as ex:
-            raise HTTPException(403, str(ex)) from None
-        respuesta = JSONResponse({'ok': True, 'correo': email, 'verificada': False})
-        seguro = urlsplit(app.state.correo._config()['url']).scheme == 'https'
-        respuesta.set_cookie(COOKIE, token, max_age=DURACION, httponly=True, secure=seguro, samesite='strict', path='/')
-        return respuesta
+        raise HTTPException(410, 'La entrada sin verificación está desactivada')
 
     @app.post('/api/acceso/salir')
     async def acceso_salir(request: Request):

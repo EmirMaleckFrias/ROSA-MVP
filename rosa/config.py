@@ -43,6 +43,10 @@ CLAVE_EXA = os.environ.get("ROSA_EXA_KEY", "")
 # Token de acceso a la API. Obligatorio si el servidor escucha fuera de 127.0.0.1:
 # sin él, cualquier equipo de la red podría arrancar corridas y gastar en el gateway.
 ROSA_TOKEN = os.environ.get("ROSA_TOKEN", "")
+# Acceso inicial de Rosa. La contraseña nunca vive en el código: este valor es
+# una huella scrypt guardada exclusivamente en .env.
+ROSA_LOGIN_EMAIL = os.environ.get("ROSA_LOGIN_EMAIL", "").strip().lower()
+ROSA_LOGIN_PASSWORD_HASH = os.environ.get("ROSA_LOGIN_PASSWORD_HASH", "").strip().lower()
 # Preguntas con herramientas (ReAct) por día: cuestan llamadas al cerebro y no
 # pasan por el presupuesto de una corrida.
 PREGUNTAS_MAX_DIA = int(os.environ.get("ROSA_PREGUNTAS_MAX_DIA", "40"))

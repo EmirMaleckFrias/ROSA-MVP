@@ -1,13 +1,7 @@
-"""Acceso sin contraseña: correo corporativo verificado y sesión revocable.
+"""Acceso corporativo con contraseña y sesión revocable.
 
-Solo se persisten hashes de los tokens de acceso y de sesión. La cuenta se
-crea al confirmar el enlace, nunca al escribir una dirección en el formulario.
-
-Administración (S-21, 17 de septiembre de 2026): es administradora la cuenta
-que diga `ROSA_ADMIN` en .env (lo pone el ingeniero que opera Rosa, como
-`ROSA_TOKEN`) o, si falta, la primera cuenta confirmada por enlace de correo.
-Una cuenta creada por la puerta sin verificar nunca hereda el papel, aunque
-sea la primera: entrar por esa puerta solo exige escribir una dirección.
+Solo se persisten hashes de las sesiones. La contraseña se compara con una
+huella scrypt configurada fuera del repositorio, en ``.env``.
 """
 from __future__ import annotations
 
@@ -22,6 +16,7 @@ from rosa.correo import direccion
 COOKIE = "rosa_sesion"
 DURACION = 12 * 3600
 DOMINIO = "alzheimerproject.com"
+_SAL_CONTRASENA = b"rosa-acceso-contrasena-v1"
 
 
 def huella(token):
@@ -36,6 +31,29 @@ def correo_admin():
     if valor is None:
         valor = os.environ.get("ROSA_ADMIN", "")
     return str(valor or "").strip().lower()
+
+
+def _credenciales_configuradas():
+    """Devuelve el correo y huella configurados, o dos cadenas vacías.
+
+    Se acepta solo una huella SHA-256/scrypt de 32 bytes en hexadecimal. Así,
+    un .env incompleto no abre por accidente una ruta de autenticación débil.
+    """
+    email = str(getattr(config, "ROSA_LOGIN_EMAIL", "") or "").strip().lower()
+    huella_configurada = str(getattr(config, "ROSA_LOGIN_PASSWORD_HASH", "") or "").strip().lower()
+    if not email or len(huella_configurada) != 64:
+        return "", ""
+    try:
+        bytes.fromhex(huella_configurada)
+    except ValueError:
+        return "", ""
+    return email, huella_configurada
+
+
+def _huella_contrasena(contrasena):
+    if not isinstance(contrasena, str) or not 1 <= len(contrasena) <= 256:
+        return ""
+    return hashlib.scrypt(contrasena.encode("utf-8"), salt=_SAL_CONTRASENA, n=2**14, r=8, p=1, dklen=32).hex()
 
 
 class Acceso:
@@ -90,6 +108,28 @@ class Acceso:
                 + c["url"].rstrip("/") + "/#acceso=" + token + "\n\n"
                 "Si no lo has solicitado, no abras el enlace. Nadie puede entrar sin confirmar tu correo.", ahora)
 
+    def entrar_con_contrasena(self, email, contrasena, ip="desconocida"):
+        """Crea una sesión solo si coincide la cuenta corporativa configurada.
+
+        El mismo mensaje se usa para correo y contraseña incorrectos para no
+        revelar qué cuentas existen. Los límites se aplican antes de comparar
+        la huella para contener intentos automatizados.
+        """
+        email = self._dominio_corporativo(email)
+        configurado, esperada = _credenciales_configuradas()
+        ahora = time.time()
+        with self.db:
+            self._limitar_y_purgar(email, ip, ahora)
+            recibida = _huella_contrasena(contrasena)
+            coincide = bool(configurado and secrets.compare_digest(email, configurado) and recibida and secrets.compare_digest(recibida, esperada))
+            if not coincide:
+                raise ValueError("Correo o contraseña incorrectos")
+            self.db.execute("INSERT OR IGNORE INTO cuentas(correo, creada) VALUES (?,?)", (email, ahora))
+            self.db.execute("UPDATE cuentas SET verificada=COALESCE(verificada, ?) WHERE correo=?", (ahora, email))
+            sesion = secrets.token_urlsafe(32)
+            self.db.execute("INSERT INTO sesiones VALUES (?,?,?)", (huella(sesion), email, ahora + DURACION))
+        return sesion, email
+
     def confirmar(self, token):
         if not isinstance(token, str) or not 30 <= len(token) <= 100:
             raise ValueError("Enlace inválido o caducado; solicita otro")
@@ -108,27 +148,8 @@ class Acceso:
         return sesion, email
 
     def entrar_sin_verificar(self, email, ip="desconocida"):
-        """Entrada sin enlace de correo, solo mientras no haya proveedor de
-        correo configurado (pedida por Emir el 15 de septiembre de 2026 para
-        que el equipo pueda entrar antes de conectar el correo). Se exige el
-        dominio corporativo; la cuenta se crea o se reutiliza y la sesión
-        dura lo mismo que una verificada. En cuanto se configura el correo,
-        esta puerta se cierra y solo vale el enlace. No hay más comprobación
-        de identidad que la dirección escrita: es acceso abierto al dominio,
-        por eso lleva los mismos topes de intentos que `solicitar`, purga las
-        sesiones caducadas y la cuenta que crea queda sin verificar (nunca
-        administra)."""
-        email = self._dominio_corporativo(email)
-        c = self.correo._config()
-        if c["clave"] and c["remitente"]:
-            raise ValueError("El correo ya está configurado: entra con el enlace que llega a tu buzón")
-        ahora = time.time()
-        with self.db:
-            self._limitar_y_purgar(email, ip, ahora)
-            self.db.execute("INSERT OR IGNORE INTO cuentas(correo, creada) VALUES (?,?)", (email, ahora))
-            sesion = secrets.token_urlsafe(32)
-            self.db.execute("INSERT INTO sesiones VALUES (?,?,?)", (huella(sesion), email, ahora + DURACION))
-        return sesion, email
+        """Compatibilidad explícitamente cerrada para la antigua puerta local."""
+        raise ValueError("La entrada sin verificación está desactivada")
 
     def es_admin(self, email):
         """Administra la cuenta de ROSA_ADMIN o, si no está configurada, la

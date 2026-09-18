@@ -38,10 +38,11 @@ describe('acceso corporativo', () => {
     expect(nodo.textContent).not.toContain('Investigaciones privadas');
     expect(conectar).not.toHaveBeenCalled();
     expect(nodo.querySelector('img')?.getAttribute('src')).toBe('/arbol-marca.png');
-    expect((nodo.querySelector('.acceso-continuar') as HTMLButtonElement).disabled).toBe(true);
-    const registro = [...nodo.querySelectorAll('button')].find((b) => b.textContent === 'Registrarse')!;
-    await act(async () => registro.click());
-    expect(nodo.textContent).toContain('La cuenta se crea después de confirmar');
+    expect((nodo.querySelector('.acceso-continuar') as HTMLButtonElement).disabled).toBe(false);
+    expect(nodo.textContent).toContain('Contraseña');
+    expect(nodo.textContent).not.toContain('Rosa aún no está conectado');
+    expect(nodo.textContent).not.toContain('Entrar sin verificación');
+    expect(nodo.textContent).not.toContain('Registrarse');
   });
   it('solo carga las investigaciones cuando existe una sesión verificada', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...estado, correo: 'equipo@alzheimerproject.com' }) }));
@@ -56,7 +57,7 @@ describe('acceso corporativo', () => {
     expect(nodo.textContent).not.toContain('Investigaciones privadas');
     expect(nodo.textContent).toContain('No se puede conectar');
   });
-  it('el enlace se quita de la URL y no se consume automáticamente', async () => {
+  it('elimina un enlace antiguo de la URL sin presentarlo como opción de acceso', async () => {
     window.location.hash = '#acceso=enlace-de-prueba';
     const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => estado });
     vi.stubGlobal('fetch', fetch);
@@ -64,67 +65,47 @@ describe('acceso corporativo', () => {
     expect(window.location.hash).toBe('');
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0]?.[0]).toBe('/api/acceso/estado');
-    expect(nodo.textContent).toContain('Confirmar e iniciar sesión');
+    expect(nodo.textContent).toContain('Iniciar sesión');
+    expect(nodo.textContent).not.toContain('Confirmar e iniciar sesión');
   });
-  it('reconoce un enlace abierto en la misma pestaña sin recargar', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => estado }));
-    await montar();
-    await act(async () => {
-      window.location.hash = '#acceso=otro-enlace';
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
-    });
-    expect(nodo.textContent).toContain('Confirmar e iniciar sesión');
-    expect(window.location.hash).toBe('');
-  });
-  it('tras solicitar el enlace muestra el estado "Revisa tu correo" con el mensaje en tono de éxito', async () => {
-    const fetch = vi.fn(async (url: string) => {
-      if (String(url).endsWith('/solicitar')) return { ok: true, json: async () => ({ mensaje: 'Enlace enviado. Caduca en 15 minutos.' }) };
-      return { ok: true, json: async () => ({ ...estado, correoConfigurado: true }) };
-    });
+  it('envía correo y contraseña al único endpoint de inicio de sesión', async () => {
+    const fetch = vi.fn(async (url: string) => ({ ok: true, json: async () => (String(url).endsWith('/entrar') ? { ok: true } : estado) }));
     vi.stubGlobal('fetch', fetch);
+    const asignar = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign: asignar, hash: '', pathname: '/', search: '' });
     await montar();
-    const campo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
+    const correo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
+    const contrasena = nodo.querySelector('#acceso-contrasena') as HTMLInputElement;
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(campo, 'ana@alzheimerproject.com');
-      campo.dispatchEvent(new Event('input', { bubbles: true }));
+      setter.call(correo, 'ana@alzheimerproject.com');
+      correo.dispatchEvent(new Event('input', { bubbles: true }));
+      setter.call(contrasena, 'secreto de prueba');
+      contrasena.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await act(async () => {
       nodo.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await new Promise((r) => setTimeout(r, 20));
     });
-    expect(nodo.textContent).toContain('Revisa tu correo');
-    expect(nodo.textContent).toContain('ana@alzheimerproject.com');
-    expect(nodo.querySelector('.acceso-mensaje-ok')?.textContent).toContain('Enlace enviado');
-    expect(nodo.querySelector('.acceso-mensaje-error')).toBeNull();
-    const otro = [...nodo.querySelectorAll('button')].find((b) => b.textContent === 'Usar otro correo')!;
-    await act(async () => otro.click());
-    expect(nodo.textContent).toContain('Continúa tu investigación');
-  });
-  it('sin correo configurado ofrece entrar sin verificación y llama a /api/acceso/entrar_sin_verificar', async () => {
-    const fetch = vi.fn(async (url: string) => ({ ok: true, json: async () => (String(url).endsWith('/entrar_sin_verificar') ? { ok: true, verificada: false } : estado) }));
-    vi.stubGlobal('fetch', fetch);
-    const asignar = vi.fn();
-    vi.stubGlobal('location', { ...window.location, assign: asignar, hash: '', pathname: '/', search: '' });
-    await montar();
-    expect(nodo.textContent).toContain('Entrar sin verificación');
-    const campo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(campo, 'ana@alzheimerproject.com');
-      campo.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    const boton = [...nodo.querySelectorAll('button')].find((b) => b.textContent === 'Entrar sin verificación')!;
-    await act(async () => {
-      boton.click();
-      await new Promise((r) => setTimeout(r, 20));
-    });
-    expect(fetch.mock.calls.some((c) => String(c[0]).endsWith('/api/acceso/entrar_sin_verificar'))).toBe(true);
+    expect(fetch.mock.calls.some((c) => String(c[0]).endsWith('/api/acceso/entrar'))).toBe(true);
+    expect(fetch.mock.calls.some((c) => String(c[0]).endsWith('/api/acceso/entrar_sin_verificar'))).toBe(false);
     expect(asignar).toHaveBeenCalledWith('/');
   });
-  it('con el correo configurado no aparece la entrada sin verificación', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...estado, correoConfigurado: true }) }));
+  it('muestra un error de autenticación sin abrir ninguna puerta alternativa', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ ok: !String(url).endsWith('/entrar'), json: async () => (String(url).endsWith('/entrar') ? { detail: 'Correo o contraseña incorrectos' } : estado) })));
     await montar();
+    const correo = nodo.querySelector('#acceso-correo') as HTMLInputElement;
+    const contrasena = nodo.querySelector('#acceso-contrasena') as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(correo, 'ana@alzheimerproject.com');
+      correo.dispatchEvent(new Event('input', { bubbles: true }));
+      setter.call(contrasena, 'incorrecta');
+      contrasena.dispatchEvent(new Event('input', { bubbles: true }));
+      nodo.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(nodo.textContent).toContain('Correo o contraseña incorrectos');
     expect(nodo.textContent).not.toContain('Entrar sin verificación');
   });
 });
